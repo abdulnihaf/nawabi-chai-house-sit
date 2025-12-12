@@ -1,20 +1,1763 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nawabi Chai House - Coming Soon</title>
+    <meta name="description"
+        content="Nawabi Chai House - Experience authentic Irani chai in a heritage-inspired setting. Royal taste, timeless tradition.">
+    <meta name="theme-color" content="#AC7E54">
+    <title>Nawabi Chai House | The Art of Irani Chai</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/NCH_Icon_WO_BG.svg">
+    <link rel="apple-touch-icon" href="assets/NCH_Logo_Icon_With_Background.png">
+
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Cinzel Font Family (Brand Typography) -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
     <style>
-        body { font-family: Georgia, serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #2d1810; color: #f5f5dc; text-align: center; }
-        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        p { font-size: 1.2rem; color: #d4a574; }
+        /* ═══════════════════════════════════════════════════════════
+           CSS CUSTOM PROPERTIES - BRAND COLORS
+           ═══════════════════════════════════════════════════════════ */
+        :root {
+            /* Primary Brand Colors */
+            --chamoisee-brown: #AC7E54;
+            --wheat: #E9D1A9;
+
+            /* Secondary/Accent Colors */
+            --dark-brown: #5C4033;
+            --golden-amber: #D4A44C;
+            --cream: #F5E6D3;
+            --deep-espresso: #3D2914;
+
+            /* Functional */
+            --text-primary: var(--chamoisee-brown);
+            --text-dark: var(--dark-brown);
+            --bg-primary: var(--wheat);
+            --bg-light: var(--cream);
+
+            /* Typography Scale */
+            --font-display: 'Cinzel Decorative', serif;
+            --font-heading: 'Cinzel', serif;
+            --font-body: 'Cinzel', serif;
+
+            /* Spacing */
+            --space-xs: 0.5rem;
+            --space-sm: 1rem;
+            --space-md: 2rem;
+            --space-lg: 4rem;
+            --space-xl: 8rem;
+
+            /* Animation */
+            --ease-elegant: cubic-bezier(0.4, 0, 0.2, 1);
+            --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           RESET & BASE STYLES
+           ═══════════════════════════════════════════════════════════ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        img,
+        svg {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        a {
+            color: var(--chamoisee-brown);
+            text-decoration: none;
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        a:hover {
+            color: var(--dark-brown);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           HERITAGE TEXTURE OVERLAY
+           ═══════════════════════════════════════════════════════════ */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.025;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           LOADING SCREEN
+           ═══════════════════════════════════════════════════════════ */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.8s var(--ease-elegant), visibility 0.8s;
+        }
+
+        .loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .loader-content {
+            text-align: center;
+        }
+
+        .loader-icon {
+            width: 120px;
+            height: 120px;
+            animation: pulse 1.5s infinite var(--ease-elegant);
+        }
+
+        .loader-text {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            letter-spacing: 0.3em;
+            margin-top: var(--space-sm);
+            color: var(--chamoisee-brown);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           NAVIGATION
+           ═══════════════════════════════════════════════════════════ */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            z-index: 1000;
+            transition: all 0.4s var(--ease-elegant);
+            background: transparent;
+        }
+
+        .nav.scrolled {
+            background: rgba(233, 209, 169, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(92, 64, 51, 0.1);
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            height: 50px;
+            width: auto;
+            transition: transform 0.3s var(--ease-elegant);
+        }
+
+        .nav-logo:hover {
+            transform: scale(1.05);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: var(--space-md);
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            position: relative;
+            padding: var(--space-xs) 0;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--golden-amber);
+            transition: width 0.3s var(--ease-elegant);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 0.8rem 1.5rem;
+            background: var(--chamoisee-brown);
+            color: var(--cream) !important;
+            border-radius: 2px;
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        .nav-cta:hover {
+            background: var(--dark-brown);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(92, 64, 51, 0.3);
+        }
+
+        /* Mobile Menu Toggle */
+        .nav-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .nav-toggle span {
+            width: 25px;
+            height: 2px;
+            background: var(--chamoisee-brown);
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           HERO SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            padding: var(--space-xl) var(--space-md);
+        }
+
+        /* Decorative Corner Ornaments */
+        .hero::before,
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 2px solid var(--chamoisee-brown);
+            opacity: 0.2;
+        }
+
+        .hero::before {
+            top: 40px;
+            left: 40px;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .hero::after {
+            bottom: 40px;
+            right: 40px;
+            border-left: none;
+            border-top: none;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 800px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-logo-container {
+            position: relative;
+            margin-bottom: var(--space-md);
+        }
+
+        .hero-logo {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 0 auto;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeUp 1.2s var(--ease-elegant) 0.5s forwards;
+        }
+
+        /* Steam Animation */
+        .steam-container {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 150px;
+            pointer-events: none;
+        }
+
+        .steam {
+            position: absolute;
+            bottom: 0;
+            width: 8px;
+            height: 80px;
+            background: linear-gradient(to top, rgba(172, 126, 84, 0.3), transparent);
+            border-radius: 50%;
+            animation: steam 3s infinite ease-out;
+            filter: blur(5px);
+        }
+
+        .steam:nth-child(1) {
+            left: 20%;
+            animation-delay: 0s;
+        }
+
+        .steam:nth-child(2) {
+            left: 40%;
+            animation-delay: 0.5s;
+        }
+
+        .steam:nth-child(3) {
+            left: 60%;
+            animation-delay: 1s;
+        }
+
+        .steam:nth-child(4) {
+            left: 80%;
+            animation-delay: 1.5s;
+        }
+
+        @keyframes steam {
+            0% {
+                transform: translateY(0) scaleX(1);
+                opacity: 0;
+            }
+
+            15% {
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: translateY(-80px) scaleX(1.5);
+                opacity: 0.3;
+            }
+
+            100% {
+                transform: translateY(-150px) scaleX(2);
+                opacity: 0;
+            }
+        }
+
+        .hero-tagline {
+            font-family: var(--font-display);
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            letter-spacing: 0.3em;
+            color: var(--chamoisee-brown);
+            margin-top: var(--space-md);
+            opacity: 0;
+            animation: fadeUp 1s var(--ease-elegant) 1s forwards;
+        }
+
+        .hero-divider {
+            width: 80px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--golden-amber), transparent);
+            margin: var(--space-md) auto;
+            opacity: 0;
+            animation: fadeUp 1s var(--ease-elegant) 1.2s forwards;
+        }
+
+        .hero-subtitle {
+            font-family: var(--font-heading);
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            letter-spacing: 0.2em;
+            color: var(--dark-brown);
+            opacity: 0;
+            animation: fadeUp 1s var(--ease-elegant) 1.4s forwards;
+        }
+
+        .hero-cta-group {
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: var(--space-lg);
+            opacity: 0;
+            animation: fadeUp 1s var(--ease-elegant) 1.6s forwards;
+        }
+
+        .btn {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 1rem 2.5rem;
+            border: 2px solid var(--chamoisee-brown);
+            background: transparent;
+            color: var(--chamoisee-brown);
+            cursor: pointer;
+            transition: all 0.4s var(--ease-elegant);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--chamoisee-brown);
+            transition: left 0.4s var(--ease-elegant);
+            z-index: -1;
+        }
+
+        .btn:hover {
+            color: var(--cream);
+        }
+
+        .btn:hover::before {
+            left: 0;
+        }
+
+        .btn-primary {
+            background: var(--chamoisee-brown);
+            color: var(--cream);
+        }
+
+        .btn-primary::before {
+            background: var(--dark-brown);
+        }
+
+        /* Scroll Indicator */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-xs);
+            opacity: 0;
+            animation: fadeUp 1s var(--ease-elegant) 2s forwards;
+        }
+
+        .scroll-indicator span {
+            font-family: var(--font-heading);
+            font-size: 0.7rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .scroll-indicator .arrow {
+            width: 20px;
+            height: 20px;
+            border-right: 2px solid var(--chamoisee-brown);
+            border-bottom: 2px solid var(--chamoisee-brown);
+            transform: rotate(45deg);
+            animation: scrollBounce 2s infinite;
+        }
+
+        @keyframes scrollBounce {
+
+            0%,
+            100% {
+                transform: rotate(45deg) translateY(0);
+            }
+
+            50% {
+                transform: rotate(45deg) translateY(10px);
+            }
+        }
+
+        @keyframes fadeUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           SECTION COMMON STYLES
+           ═══════════════════════════════════════════════════════════ */
+        section {
+            padding: var(--space-xl) var(--space-md);
+            position: relative;
+        }
+
+        .section-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: var(--space-lg);
+        }
+
+        .section-label {
+            font-family: var(--font-heading);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--golden-amber);
+            margin-bottom: var(--space-sm);
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 700;
+            color: var(--chamoisee-brown);
+            line-height: 1.2;
+        }
+
+        .section-divider {
+            width: 60px;
+            height: 2px;
+            background: var(--golden-amber);
+            margin: var(--space-md) auto;
+        }
+
+        /* Reveal Animation Classes */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s var(--ease-elegant);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-60px);
+            transition: all 0.8s var(--ease-elegant);
+        }
+
+        .reveal-left.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .reveal-right {
+            opacity: 0;
+            transform: translateX(60px);
+            transition: all 0.8s var(--ease-elegant);
+        }
+
+        .reveal-right.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           STORY SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .story {
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--cream) 100%);
+        }
+
+        .story-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg);
+            align-items: center;
+        }
+
+        .story-image {
+            position: relative;
+        }
+
+        .story-image-frame {
+            position: relative;
+            padding: var(--space-md);
+        }
+
+        .story-image-frame::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: var(--space-md);
+            bottom: var(--space-md);
+            border: 2px solid var(--chamoisee-brown);
+            opacity: 0.3;
+        }
+
+        .story-image-main {
+            position: relative;
+            top: var(--space-md);
+            left: var(--space-md);
+            width: calc(100% - var(--space-md));
+            aspect-ratio: 3/4;
+            background: var(--chamoisee-brown);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .story-image-main img {
+            width: 90%;
+            height: auto;
+            filter: drop-shadow(0 10px 30px rgba(92, 64, 51, 0.2));
+        }
+
+        .story-content {
+            padding: var(--space-md);
+        }
+
+        .story-quote {
+            font-family: var(--font-display);
+            font-size: clamp(1.5rem, 3vw, 2.2rem);
+            color: var(--chamoisee-brown);
+            line-height: 1.4;
+            margin-bottom: var(--space-md);
+            position: relative;
+            padding-left: var(--space-md);
+        }
+
+        .story-quote::before {
+            content: '"';
+            font-family: var(--font-display);
+            font-size: 5rem;
+            color: var(--golden-amber);
+            opacity: 0.3;
+            position: absolute;
+            left: -10px;
+            top: -30px;
+            line-height: 1;
+        }
+
+        .story-text {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            color: var(--dark-brown);
+            margin-bottom: var(--space-md);
+            line-height: 1.9;
+        }
+
+        .story-signature {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .signature-line {
+            width: 40px;
+            height: 1px;
+            background: var(--golden-amber);
+        }
+
+        .signature-text {
+            font-family: var(--font-heading);
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--chamoisee-brown);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           HERITAGE PILLARS SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .heritage {
+            background: var(--cream);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .heritage::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23AC7E54' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .heritage-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-md);
+            position: relative;
+            z-index: 1;
+        }
+
+        .heritage-card {
+            background: var(--bg-primary);
+            padding: var(--space-md);
+            text-align: center;
+            border: 1px solid rgba(172, 126, 84, 0.2);
+            transition: all 0.4s var(--ease-elegant);
+            position: relative;
+        }
+
+        .heritage-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--golden-amber), var(--chamoisee-brown));
+            transform: scaleX(0);
+            transition: transform 0.4s var(--ease-elegant);
+        }
+
+        .heritage-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(92, 64, 51, 0.15);
+        }
+
+        .heritage-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .heritage-icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .heritage-card-title {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            color: var(--chamoisee-brown);
+            margin-bottom: var(--space-xs);
+        }
+
+        .heritage-card-text {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: var(--dark-brown);
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           MENU SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .menu {
+            background: var(--bg-primary);
+        }
+
+        .menu-categories {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-lg);
+            flex-wrap: wrap;
+        }
+
+        .menu-tab {
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 0.8rem 1.5rem;
+            border: 1px solid var(--chamoisee-brown);
+            background: transparent;
+            color: var(--chamoisee-brown);
+            cursor: pointer;
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        .menu-tab:hover,
+        .menu-tab.active {
+            background: var(--chamoisee-brown);
+            color: var(--cream);
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-md);
+        }
+
+        .menu-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: var(--space-md);
+            border-bottom: 1px dashed rgba(172, 126, 84, 0.3);
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        .menu-item:hover {
+            background: rgba(172, 126, 84, 0.05);
+            transform: translateX(10px);
+        }
+
+        .menu-item-info {
+            flex: 1;
+        }
+
+        .menu-item-name {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--chamoisee-brown);
+            margin-bottom: var(--space-xs);
+        }
+
+        .menu-item-desc {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            color: var(--dark-brown);
+            opacity: 0.8;
+        }
+
+        .menu-item-price {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            color: var(--golden-amber);
+            white-space: nowrap;
+            margin-left: var(--space-sm);
+        }
+
+        .menu-note {
+            text-align: center;
+            margin-top: var(--space-lg);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: var(--dark-brown);
+            font-style: italic;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           EXPERIENCE SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .experience {
+            background: var(--dark-brown);
+            color: var(--cream);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .experience::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, rgba(212, 164, 76, 0.1) 0%, transparent 70%);
+        }
+
+        .experience .section-label {
+            color: var(--golden-amber);
+        }
+
+        .experience .section-title {
+            color: var(--cream);
+        }
+
+        .experience-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-md);
+            position: relative;
+            z-index: 1;
+        }
+
+        .experience-card {
+            text-align: center;
+            padding: var(--space-lg) var(--space-md);
+            border: 1px solid rgba(233, 209, 169, 0.2);
+            transition: all 0.4s var(--ease-elegant);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .experience-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(212, 164, 76, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.4s var(--ease-elegant);
+        }
+
+        .experience-card:hover::before {
+            opacity: 1;
+        }
+
+        .experience-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--golden-amber);
+        }
+
+        .experience-number {
+            font-family: var(--font-display);
+            font-size: 3.5rem;
+            color: var(--golden-amber);
+            line-height: 1;
+            margin-bottom: var(--space-sm);
+        }
+
+        .experience-label {
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--cream);
+            opacity: 0.8;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           LOCATION SECTION
+           ═══════════════════════════════════════════════════════════ */
+        .location {
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--cream) 100%);
+        }
+
+        .location-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg);
+        }
+
+        .location-map {
+            background: var(--chamoisee-brown);
+            aspect-ratio: 4/3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .location-map iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            filter: sepia(30%) saturate(80%);
+        }
+
+        .location-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .location-address {
+            margin-bottom: var(--space-md);
+        }
+
+        .location-address h3 {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            color: var(--chamoisee-brown);
+            margin-bottom: var(--space-sm);
+        }
+
+        .location-address p {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            color: var(--dark-brown);
+            line-height: 1.8;
+        }
+
+        .location-hours {
+            margin-bottom: var(--space-md);
+            padding: var(--space-md);
+            background: rgba(172, 126, 84, 0.1);
+            border-left: 3px solid var(--golden-amber);
+        }
+
+        .location-hours h4 {
+            font-family: var(--font-heading);
+            font-size: 0.9rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--chamoisee-brown);
+            margin-bottom: var(--space-sm);
+        }
+
+        .location-hours-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: var(--space-xs) var(--space-md);
+        }
+
+        .location-hours-grid span {
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            color: var(--dark-brown);
+        }
+
+        .location-contact {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .location-contact a {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .location-contact a:hover {
+            color: var(--golden-amber);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════════════════════ */
+        .footer {
+            background: var(--deep-espresso);
+            color: var(--cream);
+            padding: var(--space-lg) var(--space-md) var(--space-md);
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .footer-brand {
+            max-width: 300px;
+        }
+
+        .footer-logo {
+            width: 150px;
+            margin-bottom: var(--space-md);
+            filter: brightness(1.2);
+        }
+
+        .footer-tagline {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: rgba(233, 209, 169, 0.7);
+            line-height: 1.7;
+        }
+
+        .footer-column h4 {
+            font-family: var(--font-heading);
+            font-size: 0.85rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--golden-amber);
+            margin-bottom: var(--space-md);
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: var(--space-xs);
+        }
+
+        .footer-links a {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: rgba(233, 209, 169, 0.7);
+            transition: color 0.3s var(--ease-elegant);
+        }
+
+        .footer-links a:hover {
+            color: var(--cream);
+        }
+
+        .footer-social {
+            display: flex;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .footer-social a {
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(233, 209, 169, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.3s var(--ease-elegant);
+        }
+
+        .footer-social a:hover {
+            background: var(--golden-amber);
+            border-color: var(--golden-amber);
+            color: var(--deep-espresso);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(233, 209, 169, 0.1);
+            padding-top: var(--space-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+
+        .footer-copyright {
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            color: rgba(233, 209, 169, 0.5);
+        }
+
+        .footer-legal {
+            display: flex;
+            gap: var(--space-md);
+        }
+
+        .footer-legal a {
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            color: rgba(233, 209, 169, 0.5);
+        }
+
+        .footer-legal a:hover {
+            color: var(--cream);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           RESPONSIVE DESIGN
+           ═══════════════════════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .heritage-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .experience-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --space-lg: 3rem;
+                --space-xl: 5rem;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background: var(--bg-primary);
+                flex-direction: column;
+                padding: var(--space-md);
+                gap: var(--space-sm);
+                box-shadow: 0 10px 30px rgba(92, 64, 51, 0.1);
+            }
+
+            .nav-links.active {
+                display: flex;
+            }
+
+            .nav-toggle {
+                display: flex;
+            }
+
+            .nav-cta {
+                display: none;
+            }
+
+            .hero::before,
+            .hero::after {
+                width: 100px;
+                height: 100px;
+            }
+
+            .hero::before {
+                top: 20px;
+                left: 20px;
+            }
+
+            .hero::after {
+                bottom: 20px;
+                right: 20px;
+            }
+
+            .hero-logo {
+                max-width: 280px;
+            }
+
+            .story-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .story-image {
+                order: -1;
+            }
+
+            .story-image-main {
+                aspect-ratio: 1/1;
+            }
+
+            .heritage-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .menu-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .experience-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .location-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .footer-brand {
+                max-width: 100%;
+            }
+
+            .footer-logo {
+                margin: 0 auto var(--space-md);
+            }
+
+            .footer-social {
+                justify-content: center;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-cta-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .menu-categories {
+                flex-direction: column;
+            }
+
+            .menu-tab {
+                width: 100%;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           SMOOTH SCROLL MOBILE OPTIMIZATION
+           ═══════════════════════════════════════════════════════════ */
+        @supports (-webkit-touch-callout: none) {
+            html {
+                scroll-behavior: auto;
+            }
+        }
+
+        /* Reduce motion for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            html {
+                scroll-behavior: auto;
+            }
+        }
     </style>
 </head>
+
 <body>
-    <div>
-        <h1>Nawabi Chai House</h1>
-        <p>Authentic Irani Chai Experience</p>
-        <p style="margin-top: 2rem;">Coming Soon</p>
+    <!-- Loading Screen -->
+    <div class="loader" id="loader">
+        <div class="loader-content">
+            <img src="assets/NCH_Icon_WO_BG.svg" alt="Loading" class="loader-icon">
+            <p class="loader-text">Loading...</p>
+        </div>
     </div>
+
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <div class="nav-container">
+            <a href="#hero">
+                <img src="assets/NCH_Text_WO_BG.svg" alt="Nawabi Chai House" class="nav-logo">
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#story">Our Story</a></li>
+                <li><a href="#heritage">Heritage</a></li>
+                <li><a href="#menu">Menu</a></li>
+                <li><a href="#location">Visit Us</a></li>
+            </ul>
+            <a href="#location" class="nav-cta">Order Now</a>
+            <div class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-content">
+            <div class="hero-logo-container">
+                <div class="steam-container">
+                    <div class="steam"></div>
+                    <div class="steam"></div>
+                    <div class="steam"></div>
+                    <div class="steam"></div>
+                </div>
+                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House Logo" class="hero-logo">
+            </div>
+            <h1 class="hero-tagline">The Art of Irani Chai</h1>
+            <div class="hero-divider"></div>
+            <p class="hero-subtitle">Royal Heritage • Authentic Tradition • Timeless Taste</p>
+            <div class="hero-cta-group">
+                <a href="#menu" class="btn btn-primary">Explore Menu</a>
+                <a href="#location" class="btn">Find Us</a>
+            </div>
+        </div>
+        <div class="scroll-indicator">
+            <span>Scroll</span>
+            <div class="arrow"></div>
+        </div>
+    </section>
+
+    <!-- Story Section -->
+    <section class="story" id="story">
+        <div class="section-container">
+            <div class="story-grid">
+                <div class="story-image reveal-left">
+                    <div class="story-image-frame">
+                        <div class="story-image-main">
+                            <img src="assets/NCH_Icon_WO_BG.svg" alt="Traditional Chai Making">
+                        </div>
+                    </div>
+                </div>
+                <div class="story-content reveal-right">
+                    <span class="section-label">Our Story</span>
+                    <h2 class="section-title" style="text-align: left; margin-bottom: var(--space-md);">A Legacy Brewed
+                        in Tradition</h2>
+                    <p class="story-quote">Where every cup tells a story of centuries-old tradition</p>
+                    <p class="story-text">
+                        Nawabi Chai House brings the royal essence of Hyderabadi and Irani tea culture to life. Our name
+                        "Nawabi" pays homage to the aristocratic rulers known for their refined taste and legendary
+                        hospitality.
+                    </p>
+                    <p class="story-text">
+                        We believe chai is more than a beverage — it's a ritual, an experience, a moment of connection.
+                        Our traditional preparation methods, passed down through generations, ensure every cup is worthy
+                        of royalty.
+                    </p>
+                    <div class="story-signature">
+                        <div class="signature-line"></div>
+                        <span class="signature-text">Since 2024</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Heritage Section -->
+    <section class="heritage" id="heritage">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-label">What Defines Us</span>
+                <h2 class="section-title">Pillars of Heritage</h2>
+                <div class="section-divider"></div>
+            </div>
+            <div class="heritage-grid">
+                <div class="heritage-card reveal" style="transition-delay: 0.1s;">
+                    <div class="heritage-icon">🏛️</div>
+                    <h3 class="heritage-card-title">Charminar</h3>
+                    <p class="heritage-card-text">Our design draws from iconic Hyderabadi architecture, connecting to
+                        Irani chai's Deccan roots.</p>
+                </div>
+                <div class="heritage-card reveal" style="transition-delay: 0.2s;">
+                    <div class="heritage-icon">👨‍🍳</div>
+                    <h3 class="heritage-card-title">The Artisan</h3>
+                    <p class="heritage-card-text">Traditional chai makers craft each cup with time-honored techniques
+                        and authentic recipes.</p>
+                </div>
+                <div class="heritage-card reveal" style="transition-delay: 0.3s;">
+                    <div class="heritage-icon">⚱️</div>
+                    <h3 class="heritage-card-title">Heritage Vessels</h3>
+                    <p class="heritage-card-text">Brass bhagona and cloth filters ensure the authentic taste of
+                        traditionally brewed chai.</p>
+                </div>
+                <div class="heritage-card reveal" style="transition-delay: 0.4s;">
+                    <div class="heritage-icon">🔥</div>
+                    <h3 class="heritage-card-title">Wood Fire</h3>
+                    <p class="heritage-card-text">Slow-brewed over wood fire, our chai develops depth and character
+                        impossible to replicate.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Menu Section -->
+    <section class="menu" id="menu">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-label">Curated Selection</span>
+                <h2 class="section-title">Our Menu</h2>
+                <div class="section-divider"></div>
+            </div>
+            <div class="menu-categories reveal">
+                <button class="menu-tab active">Chai</button>
+                <button class="menu-tab">Accompaniments</button>
+                <button class="menu-tab">Specials</button>
+            </div>
+            <div class="menu-grid">
+                <div class="menu-item reveal" style="transition-delay: 0.1s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Nawabi Irani Chai</h3>
+                        <p class="menu-item-desc">Our signature brew — rich, creamy, brewed the traditional way</p>
+                    </div>
+                    <span class="menu-item-price">₹40</span>
+                </div>
+                <div class="menu-item reveal" style="transition-delay: 0.15s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Royal Kashmiri Chai</h3>
+                        <p class="menu-item-desc">Pink tea infused with cardamom, saffron, and crushed almonds</p>
+                    </div>
+                    <span class="menu-item-price">₹70</span>
+                </div>
+                <div class="menu-item reveal" style="transition-delay: 0.2s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Cutting Chai</h3>
+                        <p class="menu-item-desc">Half portion, full flavor — perfect for a quick chai break</p>
+                    </div>
+                    <span class="menu-item-price">₹20</span>
+                </div>
+                <div class="menu-item reveal" style="transition-delay: 0.25s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Sulaimani Chai</h3>
+                        <p class="menu-item-desc">Light, aromatic black tea with lemon and honey</p>
+                    </div>
+                    <span class="menu-item-price">₹35</span>
+                </div>
+                <div class="menu-item reveal" style="transition-delay: 0.3s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Masala Chai</h3>
+                        <p class="menu-item-desc">Bold spiced tea with ginger, cardamom, and cloves</p>
+                    </div>
+                    <span class="menu-item-price">₹45</span>
+                </div>
+                <div class="menu-item reveal" style="transition-delay: 0.35s;">
+                    <div class="menu-item-info">
+                        <h3 class="menu-item-name">Adrak Chai</h3>
+                        <p class="menu-item-desc">Fresh ginger infused chai — warming and invigorating</p>
+                    </div>
+                    <span class="menu-item-price">₹40</span>
+                </div>
+            </div>
+            <p class="menu-note reveal">* All prices inclusive of taxes. Menu items subject to availability.</p>
+        </div>
+    </section>
+
+    <!-- Experience Section -->
+    <section class="experience" id="experience">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-label">The Nawabi Experience</span>
+                <h2 class="section-title">By the Numbers</h2>
+                <div class="section-divider"></div>
+            </div>
+            <div class="experience-grid">
+                <div class="experience-card reveal" style="transition-delay: 0.1s;">
+                    <div class="experience-number">100+</div>
+                    <div class="experience-label">Years of Tradition</div>
+                </div>
+                <div class="experience-card reveal" style="transition-delay: 0.2s;">
+                    <div class="experience-number">1000+</div>
+                    <div class="experience-label">Cups Served Daily</div>
+                </div>
+                <div class="experience-card reveal" style="transition-delay: 0.3s;">
+                    <div class="experience-number">∞</div>
+                    <div class="experience-label">Stories Shared</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Location Section -->
+    <section class="location" id="location">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-label">Find Us</span>
+                <h2 class="section-title">Visit Nawabi Chai House</h2>
+                <div class="section-divider"></div>
+            </div>
+            <div class="location-grid">
+                <div class="location-map reveal-left">
+                    <iframe
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.0!2d77.5946!3d12.9716!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTLCsDU4JzE3LjgiTiA3N8KwMzUnNDAuNiJF!5e0!3m2!1sen!2sin!4v1234567890"
+                        loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Nawabi Chai House Location">
+                    </iframe>
+                </div>
+                <div class="location-info reveal-right">
+                    <div class="location-address">
+                        <h3>Nawabi Chai House</h3>
+                        <p>
+                            123 Heritage Lane, Koramangala<br>
+                            Bangalore, Karnataka 560034<br>
+                            India
+                        </p>
+                    </div>
+                    <div class="location-hours">
+                        <h4>Opening Hours</h4>
+                        <div class="location-hours-grid">
+                            <span>Monday – Friday</span>
+                            <span>6:00 AM – 10:00 PM</span>
+                            <span>Saturday – Sunday</span>
+                            <span>7:00 AM – 11:00 PM</span>
+                        </div>
+                    </div>
+                    <div class="location-contact">
+                        <a href="tel:+919876543210">
+                            <span>📞</span>
+                            <span>+91 98765 43210</span>
+                        </a>
+                        <a href="https://wa.me/919876543210" target="_blank" rel="noopener">
+                            <span>💬</span>
+                            <span>WhatsApp Us</span>
+                        </a>
+                        <a href="mailto:hello@nawabichai.com">
+                            <span>✉️</span>
+                            <span>hello@nawabichai.com</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House" class="footer-logo">
+                <p class="footer-tagline">
+                    Experience the royal heritage of Irani chai. Every cup tells a story of centuries-old tradition,
+                    crafted with love and served with pride.
+                </p>
+                <div class="footer-social">
+                    <a href="#" aria-label="Instagram">📷</a>
+                    <a href="#" aria-label="Facebook">📘</a>
+                    <a href="#" aria-label="Twitter">🐦</a>
+                </div>
+            </div>
+            <div class="footer-column">
+                <h4>Quick Links</h4>
+                <ul class="footer-links">
+                    <li><a href="#story">Our Story</a></li>
+                    <li><a href="#heritage">Heritage</a></li>
+                    <li><a href="#menu">Menu</a></li>
+                    <li><a href="#location">Visit Us</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Order From</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Swiggy</a></li>
+                    <li><a href="#">Zomato</a></li>
+                    <li><a href="#">Direct Order</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Connect</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Instagram</a></li>
+                    <li><a href="#">Facebook</a></li>
+                    <li><a href="#">Google Reviews</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p class="footer-copyright">© 2024 Nawabi Chai House. All rights reserved.</p>
+            <div class="footer-legal">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        // LOADER
+        // ═══════════════════════════════════════════════════════════
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('hidden');
+            }, 800);
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // NAVIGATION
+        // ═══════════════════════════════════════════════════════════
+        const nav = document.getElementById('nav');
+        const navToggle = document.getElementById('navToggle');
+        const navLinks = document.getElementById('navLinks');
+
+        // Scroll effect
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        // Mobile menu toggle
+        navToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+        });
+
+        // Close mobile menu on link click
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('active');
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // SCROLL REVEAL ANIMATIONS
+        // ═══════════════════════════════════════════════════════════
+        const revealElements = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
+
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        // ═══════════════════════════════════════════════════════════
+        // SMOOTH SCROLL (for Safari)
+        // ═══════════════════════════════════════════════════════════
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // MENU TABS (Placeholder functionality)
+        // ═══════════════════════════════════════════════════════════
+        const menuTabs = document.querySelectorAll('.menu-tab');
+        menuTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                menuTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // PERFORMANCE: Reduce animations when page is not visible
+        // ═══════════════════════════════════════════════════════════
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                document.body.style.setProperty('--animation-play-state', 'paused');
+            } else {
+                document.body.style.setProperty('--animation-play-state', 'running');
+            }
+        });
+    </script>
 </body>
+
 </html>
