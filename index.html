@@ -1191,12 +1191,39 @@
                 grid-template-columns: repeat(2, 1fr);
             }
 
+            .menu-grid {
+                grid-template-columns: 1fr;
+            }
+
             .experience-grid {
                 grid-template-columns: repeat(3, 1fr);
             }
 
             .footer-content {
                 grid-template-columns: 1fr 1fr;
+                gap: var(--space-md);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           MOBILE OPTIMIZATIONS
+           ═══════════════════════════════════════════════════════════ */
+        @media (max-width: 480px) {
+            :root {
+                --space-lg: 3rem;
+                --space-xl: 4rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .nav {
+                padding: var(--space-sm);
+            }
+
+            .hero-content {
+                padding-top: var(--space-xl);
             }
         }
 
@@ -1351,7 +1378,7 @@
     <!-- Loading Screen -->
     <div class="loader" id="loader">
         <div class="loader-content">
-            <img src="assets/NCH_Icon_WO_BG.svg" alt="Loading" class="loader-icon">
+            <img src="assets/NCH_Icon_WO_BG.svg" alt="Loading" class="loader-icon" width="120" height="120">
             <p class="loader-text">Loading...</p>
         </div>
     </div>
@@ -1360,7 +1387,7 @@
     <nav class="nav" id="nav">
         <div class="nav-container">
             <a href="#hero">
-                <img src="assets/NCH_Text_WO_BG.svg" alt="Nawabi Chai House" class="nav-logo">
+                <img src="assets/NCH_Text_WO_BG.svg" alt="Nawabi Chai House" class="nav-logo" width="150" height="50">
             </a>
             <ul class="nav-links" id="navLinks">
                 <li><a href="#story">Our Story</a></li>
@@ -1387,7 +1414,8 @@
                     <div class="steam"></div>
                     <div class="steam"></div>
                 </div>
-                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House Logo" class="hero-logo">
+                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House Logo" class="hero-logo" width="400"
+                    height="600" fetchpriority="high">
             </div>
             <h1 class="hero-tagline">The Art of Irani Chai</h1>
             <div class="hero-divider"></div>
@@ -1410,7 +1438,8 @@
                 <div class="story-image reveal-left">
                     <div class="story-image-frame">
                         <div class="story-image-main">
-                            <img src="assets/NCH_Icon_WO_BG.svg" alt="Traditional Chai Making">
+                            <img src="assets/NCH_Icon_WO_BG.svg" alt="Traditional Chai Making" loading="lazy"
+                                width="400" height="400">
                         </div>
                     </div>
                 </div>
@@ -1580,8 +1609,9 @@
                     <div class="location-address">
                         <h3>Nawabi Chai House</h3>
                         <p>
-                            123 Heritage Lane, Koramangala<br>
-                            Bangalore, Karnataka 560034<br>
+                            #22, 3rd Floor, H.K.P. Road<br>
+                            Shivajinagar<br>
+                            Bangalore, Karnataka 560051<br>
                             India
                         </p>
                     </div>
@@ -1595,17 +1625,17 @@
                         </div>
                     </div>
                     <div class="location-contact">
-                        <a href="tel:+919876543210">
+                        <a href="tel:+918008002049">
                             <span>📞</span>
-                            <span>+91 98765 43210</span>
+                            <span>+91 8008002049</span>
                         </a>
-                        <a href="https://wa.me/919876543210" target="_blank" rel="noopener">
+                        <a href="https://wa.me/918008002049" target="_blank" rel="noopener">
                             <span>💬</span>
                             <span>WhatsApp Us</span>
                         </a>
-                        <a href="mailto:hello@nawabichai.com">
+                        <a href="mailto:nawabichaihouse@gmail.com">
                             <span>✉️</span>
-                            <span>hello@nawabichai.com</span>
+                            <span>nawabichaihouse@gmail.com</span>
                         </a>
                     </div>
                 </div>
@@ -1617,7 +1647,8 @@
     <footer class="footer">
         <div class="footer-content">
             <div class="footer-brand">
-                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House" class="footer-logo">
+                <img src="assets/NCH_Full_Logo_WO_BG.svg" alt="Nawabi Chai House" class="footer-logo" loading="lazy"
+                    width="150" height="225">
                 <p class="footer-tagline">
                     Experience the royal heritage of Irani chai. Every cup tells a story of centuries-old tradition,
                     crafted with love and served with pride.
@@ -1655,10 +1686,11 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <p class="footer-copyright">© 2024 Nawabi Chai House. All rights reserved.</p>
+            <p class="footer-copyright">© 2024 Nawabi Chai House | A brand of HN HOTELS PRIVATE LIMITED | CIN:
+                U55101KA2023PTC182051</p>
             <div class="footer-legal">
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
+                <a href="/privacy-policy">Privacy Policy</a>
+                <a href="/terms">Terms of Service</a>
             </div>
         </div>
     </footer>

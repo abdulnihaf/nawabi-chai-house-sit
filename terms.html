@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Terms of Service - Nawabi Chai House">
+    <meta name="theme-color" content="#AC7E54">
+    <title>Terms of Service | Nawabi Chai House</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/NCH_Icon_WO_BG.svg">
+    <link rel="apple-touch-icon" href="assets/NCH_Logo_Icon_With_Background.png">
+
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Cinzel Font Family (Brand Typography) -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Reusing Brand CSS -->
+    <style>
+        :root {
+            /* Primary Brand Colors */
+            --chamoisee-brown: #AC7E54;
+            --wheat: #E9D1A9;
+            --dark-brown: #5C4033;
+            --golden-amber: #D4A44C;
+            --cream: #F5E6D3;
+            --deep-espresso: #3D2914;
+
+            /* Functional */
+            --text-primary: var(--chamoisee-brown);
+            --text-dark: var(--dark-brown);
+            --bg-primary: var(--wheat);
+            --bg-light: var(--cream);
+
+            /* Typography */
+            --font-display: 'Cinzel Decorative', serif;
+            --font-heading: 'Cinzel', serif;
+            --font-body: 'Cinzel', serif;
+
+            /* Spacing */
+            --space-sm: 1rem;
+            --space-md: 2rem;
+            --space-lg: 4rem;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-primary);
+            color: var(--text-dark);
+            line-height: 1.8;
+            overflow-x: hidden;
+        }
+
+        a {
+            color: var(--chamoisee-brown);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        a:hover {
+            color: var(--dark-brown);
+        }
+
+        .nav {
+            background: rgba(233, 209, 169, 0.95);
+            padding: var(--space-sm) var(--space-md);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(172, 126, 84, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            height: 40px;
+        }
+
+        .back-link {
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: var(--space-lg) auto;
+            padding: 0 var(--space-md);
+            background: var(--cream);
+            border: 1px solid rgba(172, 126, 84, 0.2);
+            padding: var(--space-lg);
+            position: relative;
+        }
+
+        /* Decorative Corners */
+        .container::before,
+        .container::after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--chamoisee-brown);
+        }
+
+        .container::before {
+            top: 10px;
+            left: 10px;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .container::after {
+            bottom: 10px;
+            right: 10px;
+            border-left: none;
+            border-top: none;
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 4vw, 3rem);
+            color: var(--chamoisee-brown);
+            text-align: center;
+            margin-bottom: var(--space-md);
+        }
+
+        .last-updated {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--chamoisee-brown);
+            margin-bottom: var(--space-lg);
+            border-bottom: 2px solid var(--golden-amber);
+            display: inline-block;
+            padding-bottom: 0.5rem;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        h2 {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            color: var(--chamoisee-brown);
+            margin-top: var(--space-md);
+            margin-bottom: var(--space-sm);
+            border-bottom: 1px dashed rgba(172, 126, 84, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        p,
+        ul {
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+        }
+
+        ul {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer {
+            background: var(--deep-espresso);
+            color: rgba(233, 209, 169, 0.7);
+            text-align: center;
+            padding: var(--space-md);
+            margin-top: var(--space-lg);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+                margin: var(--space-md);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="nav">
+        <a href="index.html">
+            <img src="assets/NCH_Text_WO_BG.svg" alt="Nawabi Chai House" class="nav-logo">
+        </a>
+        <a href="index.html" class="back-link">← Back to Home</a>
+    </nav>
+
+    <main class="container">
+        <h1>Terms of Service</h1>
+        <div class="last-updated">Last Updated: December 14, 2024</div>
+
+        <p>Welcome to <strong>Nawabi Chai House</strong>. By accessing or using our website (`nawabichaihouse.com`) or
+            our services, you agree to be bound by these Terms of Service. If you do not agree, please do not use our
+            services.</p>
+
+        <h2>1. General Information</h2>
+        <p>This website is operated by <strong>HN HOTELS PRIVATE LIMITED</strong>, a Private Limited Company
+            incorporated in India with CIN <strong>U55101KA2023PTC182051</strong>, having its registered office at #22,
+            3rd Floor, H.K.P. Road, Shivajinagar, Bangalore, Karnataka 560051.</p>
+
+        <h2>2. Use of Website</h2>
+        <p>You agree to use this website only for lawful purposes. You must not use our website to harass, abuse, or
+            harm others, or to transmit any malicious code or content.</p>
+
+        <h2>3. Menu and Pricing</h2>
+        <p>All items on the menu are subject to availability. Prices listed on the website or third-party platforms are
+            in <strong>Indian Rupees (INR)</strong> and may be subject to taxes and changes without prior notice. We
+            reserve the right to modify or discontinue any product at any time.</p>
+
+        <h2>4. Intellectual Property</h2>
+        <p>All content on this website, including but not limited to the logo, text, images, graphics, and design, is
+            the property of <strong>HN HOTELS PRIVATE LIMITED</strong> and is protected by Indian and international
+            copyright laws. Unauthorized use of any materials is strictly prohibited.</p>
+
+        <h2>5. Third-Party Links</h2>
+        <p>Our website may contain links to third-party services (e.g., Swiggy, Zomato, Social Media). We are not
+            responsible for the content, privacy policies, or practices of these third-party websites.</p>
+
+        <h2>6. Limitation of Liability</h2>
+        <p>To the fullest extent permitted by law, <strong>HN HOTELS PRIVATE LIMITED</strong> shall not be liable for
+            any indirect, incidental, special, or consequential damages arising out of or in connection with your use of
+            our website or services.</p>
+
+        <h2>7. Governing Law and Jurisdiction</h2>
+        <p>These Terms shall be governed by and construed in accordance with the laws of <strong>India</strong>. Any
+            disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts in
+            **Bangalore, Karnataka**.</p>
+
+        <h2>8. Contact Information</h2>
+        <p>For any questions or concerns regarding these Terms, please contact us at:</p>
+        <p>
+            <strong>Nawabi Chai House</strong><br>
+            Email: <a href="mailto:nawabichaihouse@gmail.com">nawabichaihouse@gmail.com</a><br>
+            Phone: <a href="tel:+918008002049">+91 8008002049</a>
+        </p>
+
+    </main>
+
+    <footer class="footer">
+        <p>© 2024 Nawabi Chai House | A brand of HN HOTELS PRIVATE LIMITED</p>
+        <p>CIN: U55101KA2023PTC182051</p>
+    </footer>
+
+</body>
+
+</html>
