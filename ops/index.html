@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nawabi Chai House - Financial Architecture</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .nch-brand { background: linear-gradient(135deg, #713520 0%, #8B4513 100%); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        
+        const NCHArchitecture = () => {
+            const [activeTab, setActiveTab] = useState('overview');
+            
+            const tabs = [
+                { id: 'overview', label: 'Overview' },
+                { id: 'operations', label: 'Operations' },
+                { id: 'payments', label: 'Payments' },
+                { id: 'accounting', label: 'Accounting' },
+                { id: 'commission', label: 'Commission' },
+                { id: 'flows', label: 'Money Flows' },
+            ];
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Brand Header */}
+                    <div className="nch-brand text-white p-4 shadow-lg">
+                        <div className="max-w-6xl mx-auto">
+                            <h1 className="text-2xl md:text-3xl font-bold">NAWABI CHAI HOUSE</h1>
+                            <p className="text-sm opacity-90">Complete Financial Operations Architecture</p>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto p-4">
+                        {/* Tab Navigation */}
+                        <div className="flex flex-wrap gap-2 mb-6 bg-white p-3 rounded-lg shadow">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                        activeTab === tab.id 
+                                            ? 'bg-amber-700 text-white shadow-md' 
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Overview Tab */}
+                        {activeTab === 'overview' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-amber-800 text-white p-4 font-bold">
+                                        ARCHITECTURE SUMMARY - 8 Layers
+                                    </div>
+                                    <div className="p-6">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {[
+                                                { num: 1, title: 'Physical Ops', desc: '10 Areas, Flexible Staffing', color: 'bg-blue-50 border-blue-400' },
+                                                { num: 2, title: 'Service Models', desc: 'ODS + SBF (Dual)', color: 'bg-green-50 border-green-400' },
+                                                { num: 3, title: 'Razorpay', desc: '6 QRs + Webhooks', color: 'bg-indigo-50 border-indigo-400' },
+                                                { num: 4, title: 'Odoo POS', desc: '1 Terminal, 5 Methods', color: 'bg-purple-50 border-purple-400' },
+                                                { num: 5, title: 'Accounting', desc: '7 Journals, Key Accounts', color: 'bg-violet-50 border-violet-400' },
+                                                { num: 6, title: 'Commission', desc: 'Margin-based, Targets', color: 'bg-teal-50 border-teal-400' },
+                                                { num: 7, title: 'ICICI + Recon', desc: 'Auto-reconciliation', color: 'bg-red-50 border-red-400' },
+                                                { num: 8, title: 'Money Flows', desc: '4 Complete Flows', color: 'bg-gray-50 border-gray-400' },
+                                            ].map(layer => (
+                                                <div key={layer.num} className={`p-4 rounded-lg border-2 ${layer.color} hover:shadow-md transition-shadow`}>
+                                                    <div className="text-xs font-bold text-gray-500 mb-1">Layer {layer.num}</div>
+                                                    <div className="font-bold text-gray-800">{layer.title}</div>
+                                                    <div className="text-xs text-gray-600 mt-1">{layer.desc}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        
+                                        <div className="mt-6 p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
+                                            <div className="font-bold text-amber-800">KEY PRINCIPLE</div>
+                                            <div className="text-sm text-amber-700 mt-1">Technology wraps around operations, NOT the other way around. Staff resistance is high - system must be fool-proof and friction-free.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Operations Tab */}
+                        {activeTab === 'operations' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-blue-800 text-white p-4 font-bold">
+                                        LAYER 1: PHYSICAL OPERATIONS (Hard Constants)
+                                    </div>
+                                    <div className="p-6">
+                                        
+                                        {/* Areas */}
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-gray-700 mb-3">10 Physical Areas (Data Tags)</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                                {[
+                                                    { code: 'TM', name: 'Tea Making', zone: 'MAKE', bg: 'bg-orange-100 border-orange-400' },
+                                                    { code: 'TS', name: 'Tea Serving', zone: 'SERVE', bg: 'bg-green-100 border-green-400' },
+                                                    { code: 'DP', name: 'Display', zone: 'SERVE', bg: 'bg-green-100 border-green-400' },
+                                                    { code: 'CC', name: 'Cash Counter', zone: 'CASH', bg: 'bg-red-100 border-red-500', hard: true },
+                                                    { code: 'PS', name: 'Pantry', zone: 'SERVE', bg: 'bg-green-100 border-green-400' },
+                                                    { code: 'KS', name: 'Kitchen Pass', zone: 'SERVE', bg: 'bg-green-100 border-green-400' },
+                                                    { code: 'PB', name: 'Packaging', zone: 'PREP', bg: 'bg-orange-100 border-orange-400' },
+                                                    { code: 'DZ', name: 'Delivery', zone: 'SERVE', bg: 'bg-green-100 border-green-400' },
+                                                    { code: 'KB', name: 'Back Kitchen', zone: 'PREP', bg: 'bg-orange-100 border-orange-400' },
+                                                    { code: 'SA', name: 'Service Area', zone: 'CUSTOMER', bg: 'bg-blue-100 border-blue-400' },
+                                                ].map(area => (
+                                                    <div key={area.code} className={`p-3 rounded-lg border-2 text-center ${area.bg} ${area.hard ? 'ring-2 ring-red-500' : ''}`}>
+                                                        <div className="font-bold">{area.code}{area.hard && ' ★'}</div>
+                                                        <div className="text-xs">{area.name}</div>
+                                                        <div className="text-xs text-gray-500">[{area.zone}]</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Staffing */}
+                                        <div className="mb-6">
+                                            <h3 className="font-bold text-gray-700 mb-3">Flexible Staffing Model (Per Shift)</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <div className="p-4 rounded-lg border-2 border-red-500 bg-red-50">
+                                                    <div className="text-xs font-bold text-red-700">★ HARD CONSTANT</div>
+                                                    <div className="text-3xl font-bold text-center my-2">1 CSH</div>
+                                                    <div className="text-xs text-center text-gray-600">Cashier @ CC</div>
+                                                </div>
+                                                <div className="p-4 rounded-lg border-2 border-orange-400 bg-orange-50">
+                                                    <div className="text-xs font-bold text-orange-700">FLEXIBLE</div>
+                                                    <div className="text-3xl font-bold text-center my-2">1</div>
+                                                    <div className="text-xs text-center text-gray-600">TMK+TSR combined</div>
+                                                </div>
+                                                <div className="p-4 rounded-lg border-2 border-orange-400 bg-orange-50">
+                                                    <div className="text-xs font-bold text-orange-700">FLEXIBLE</div>
+                                                    <div className="text-3xl font-bold text-center my-2">2</div>
+                                                    <div className="text-xs text-center text-gray-600">Multi-role (KSR+DSR+PSR)</div>
+                                                </div>
+                                                <div className="p-4 rounded-lg border-2 border-blue-400 bg-blue-50">
+                                                    <div className="text-xs font-bold text-blue-700">SCALABLE</div>
+                                                    <div className="text-3xl font-bold text-center my-2">3-5</div>
+                                                    <div className="text-xs text-center text-gray-600">Runners (commission)</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Products */}
+                                        <div>
+                                            <h3 className="font-bold text-gray-700 mb-3">6 Product Families → 33 SKUs</h3>
+                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                                                {[
+                                                    { code: 'IC', name: 'Irani Chai', margin: 'HIGH', comm: '₹2-5' },
+                                                    { code: 'DC', name: 'Dakhni Chai', margin: 'HIGH', comm: '₹3-6' },
+                                                    { code: 'BU', name: 'Buns', margin: 'MED', comm: '₹1-2' },
+                                                    { code: 'BI', name: 'Biscuits', margin: 'HIGH', comm: '₹2-8' },
+                                                    { code: 'QB', name: 'Quick Bites', margin: 'MED', comm: '₹2-3' },
+                                                    { code: 'KF', name: 'Kunafa', margin: 'HIGH', comm: '₹10-25', highlight: true },
+                                                ].map(p => (
+                                                    <div key={p.code} className={`p-3 rounded-lg text-center ${p.highlight ? 'bg-yellow-100 border-2 border-yellow-500' : 'bg-gray-100 border border-gray-300'}`}>
+                                                        <div className="font-bold">{p.code}{p.highlight && ' ★'}</div>
+                                                        <div className="text-xs">{p.name}</div>
+                                                        <div className={`text-xs mt-1 ${p.margin === 'HIGH' ? 'text-green-600' : 'text-yellow-600'}`}>{p.margin}</div>
+                                                        <div className="text-xs text-blue-600">{p.comm}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Payments Tab */}
+                        {activeTab === 'payments' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-indigo-800 text-white p-4 font-bold">
+                                        LAYER 3: RAZORPAY ARCHITECTURE
+                                    </div>
+                                    <div className="p-6">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {/* QR Codes */}
+                                            <div>
+                                                <h3 className="font-bold text-gray-700 mb-3">6 QR Codes</h3>
+                                                <div className="space-y-2">
+                                                    <div className="p-3 bg-indigo-100 rounded-lg border-2 border-indigo-400">
+                                                        <div className="font-bold">NAWABI-COUNTER</div>
+                                                        <div className="text-xs text-gray-600">Counter Cash Counter • location: nch_counter</div>
+                                                    </div>
+                                                    {['R01', 'R02', 'R03', 'R04', 'R05'].map(r => (
+                                                        <div key={r} className="p-3 bg-orange-50 rounded-lg border border-orange-300">
+                                                            <div className="font-bold">NAWABI-{r}</div>
+                                                            <div className="text-xs text-gray-600">Runner {r.slice(1)} • runner_id: nch_{r.toLowerCase()}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Webhooks */}
+                                            <div>
+                                                <h3 className="font-bold text-gray-700 mb-3">Webhooks → Odoo</h3>
+                                                <div className="space-y-3">
+                                                    <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                                        <div className="font-bold text-green-800">qrcode.credited</div>
+                                                        <div className="text-sm text-gray-600 mt-1">UPI payment received → Route by runner_id in notes</div>
+                                                    </div>
+                                                    <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                                        <div className="font-bold text-blue-800">settlement.processed</div>
+                                                        <div className="text-sm text-gray-600 mt-1">T+2 bank transfer → UTR reference for auto-reconcile</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <h3 className="font-bold text-gray-700 mt-6 mb-3">Payment Methods in POS</h3>
+                                                <div className="space-y-2">
+                                                    {[
+                                                        { name: 'Cash (Counter)', target: '100101', timing: 'Immediate' },
+                                                        { name: 'Card', target: 'Bank', timing: 'T+1' },
+                                                        { name: 'UPI (Counter)', target: '100203', timing: 'T+2' },
+                                                        { name: 'UPI (Runner)', target: '100203', timing: 'T+2 + Commission' },
+                                                        { name: 'Cash (Runner)', target: '100204', timing: 'Shift-end' },
+                                                    ].map(m => (
+                                                        <div key={m.name} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                                            <span className="font-medium">{m.name}</span>
+                                                            <span className="text-xs text-gray-500">{m.target} • {m.timing}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Accounting Tab */}
+                        {activeTab === 'accounting' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-purple-800 text-white p-4 font-bold">
+                                        LAYER 5: ODOO ACCOUNTING
+                                    </div>
+                                    <div className="p-6">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {/* Journals */}
+                                            <div>
+                                                <h3 className="font-bold text-gray-700 mb-3">7 Journals</h3>
+                                                <div className="space-y-2">
+                                                    {[
+                                                        { code: 'INV', name: 'Sales', type: 'Sales' },
+                                                        { code: 'BILL', name: 'Purchases', type: 'Purchase' },
+                                                        { code: 'BNK1', name: 'Bank (ICICI)', type: 'Bank' },
+                                                        { code: 'CSH1', name: 'Cash Restaurant', type: 'Cash' },
+                                                        { code: 'RUN', name: 'Runner Cash', type: 'Cash' },
+                                                        { code: 'COM', name: 'Commission', type: 'Misc' },
+                                                        { code: 'POSS', name: 'POS', type: 'System' },
+                                                    ].map(j => (
+                                                        <div key={j.code} className="flex items-center gap-3 p-2 bg-purple-50 rounded">
+                                                            <span className="font-mono font-bold text-purple-700 w-12">{j.code}</span>
+                                                            <span className="flex-1">{j.name}</span>
+                                                            <span className="text-xs text-gray-500 px-2 py-1 bg-white rounded">{j.type}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Key Accounts */}
+                                            <div>
+                                                <h3 className="font-bold text-gray-700 mb-3">Key Accounts</h3>
+                                                <div className="space-y-2 text-sm">
+                                                    <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                                        <div className="font-bold">Assets</div>
+                                                        <div className="text-xs mt-1 space-y-1">
+                                                            <div>100101 - Cash Restaurant</div>
+                                                            <div>100102 - Runner Cash Collected</div>
+                                                            <div>100201 - Bank (ICICI)</div>
+                                                            <div className="text-orange-600">100203 - Outstanding Receipts ⚡</div>
+                                                            <div className="text-orange-600">100204 - Runner Clearing ⚡</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
+                                                        <div className="font-bold">Liabilities</div>
+                                                        <div className="text-xs mt-1 space-y-1">
+                                                            <div>112320 - SGST Payable</div>
+                                                            <div>112330 - CGST Payable</div>
+                                                            <div className="text-teal-600">112410 - Commission Payable ★</div>
+                                                            <div className="text-teal-600">112420 - Bonus Payable ★</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                                        <div className="font-bold">Income & Expense</div>
+                                                        <div className="text-xs mt-1 space-y-1">
+                                                            <div>200110 - Local Sales</div>
+                                                            <div className="text-teal-600">210800 - Runner Commission ★</div>
+                                                            <div className="text-teal-600">210810 - Runner Bonus ★</div>
+                                                            <div>211300 - Bank Charges</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Commission Tab */}
+                        {activeTab === 'commission' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-teal-800 text-white p-4 font-bold">
+                                        LAYER 6: COMMISSION STRUCTURE
+                                    </div>
+                                    <div className="p-6">
+                                        {/* Commission Table */}
+                                        <div className="mb-6 overflow-x-auto">
+                                            <table className="w-full text-sm border-collapse">
+                                                <thead>
+                                                    <tr className="bg-teal-100">
+                                                        <th className="p-3 text-left border">Product</th>
+                                                        <th className="p-3 text-right border">Avg Price</th>
+                                                        <th className="p-3 text-right border">Margin</th>
+                                                        <th className="p-3 text-right border">Commission</th>
+                                                        <th className="p-3 text-left border">Notes</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr><td className="p-3 border">IC - Irani Chai</td><td className="p-3 text-right border">₹25</td><td className="p-3 text-right border text-green-600 font-bold">73%</td><td className="p-3 text-right border text-blue-600 font-bold">₹3</td><td className="p-3 border">Core product</td></tr>
+                                                    <tr className="bg-gray-50"><td className="p-3 border">DC - Dakhni Chai</td><td className="p-3 text-right border">₹40</td><td className="p-3 text-right border text-green-600 font-bold">70%</td><td className="p-3 text-right border text-blue-600 font-bold">₹4</td><td className="p-3 border">Premium product</td></tr>
+                                                    <tr><td className="p-3 border">BU - Buns</td><td className="p-3 text-right border">₹15</td><td className="p-3 text-right border text-yellow-600">60%</td><td className="p-3 text-right border text-blue-600">₹1.5</td><td className="p-3 border">Add-on with chai</td></tr>
+                                                    <tr className="bg-gray-50"><td className="p-3 border">BI - Biscuits</td><td className="p-3 text-right border">₹70</td><td className="p-3 text-right border text-green-600 font-bold">64%</td><td className="p-3 text-right border text-blue-600 font-bold">₹5</td><td className="p-3 border">Pack upsell</td></tr>
+                                                    <tr><td className="p-3 border">QB - Quick Bites</td><td className="p-3 text-right border">₹20</td><td className="p-3 text-right border text-yellow-600">50%</td><td className="p-3 text-right border text-blue-600">₹2</td><td className="p-3 border">Cross-sell</td></tr>
+                                                    <tr className="bg-yellow-100 font-bold"><td className="p-3 border">KF - Kunafa ★</td><td className="p-3 text-right border">₹180</td><td className="p-3 text-right border text-green-700">67%</td><td className="p-3 text-right border text-red-600">₹15</td><td className="p-3 border text-red-600">HIGH VALUE PUSH</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Targets */}
+                                        <h3 className="font-bold text-gray-700 mb-3">Target-Based Bonuses</h3>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-400 text-center">
+                                                <div className="text-xs font-bold text-blue-700">DAILY</div>
+                                                <div className="text-2xl font-bold my-2">₹3,000</div>
+                                                <div className="text-xs mt-2">100% = ₹50</div>
+                                                <div className="text-xs">120% = ₹100</div>
+                                                <div className="text-xs">150% = ₹200</div>
+                                            </div>
+                                            <div className="p-4 bg-green-50 rounded-lg border-2 border-green-400 text-center">
+                                                <div className="text-xs font-bold text-green-700">WEEKLY</div>
+                                                <div className="text-2xl font-bold my-2">₹18,000</div>
+                                                <div className="text-xs mt-2">100% = ₹300</div>
+                                                <div className="text-xs">110% = ₹500</div>
+                                                <div className="text-xs">125% = ₹800</div>
+                                            </div>
+                                            <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-400 text-center">
+                                                <div className="text-xs font-bold text-purple-700">MONTHLY</div>
+                                                <div className="text-2xl font-bold my-2">₹75,000</div>
+                                                <div className="text-xs mt-2">100% = ₹1,500</div>
+                                                <div className="text-xs">110% = ₹2,500</div>
+                                                <div className="text-xs">125% = ₹4,000</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Auto-calculation flow */}
+                                        <div className="mt-6">
+                                            <h3 className="font-bold text-gray-700 mb-3">Automated Commission Flow</h3>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                <div className="p-3 bg-blue-100 rounded-lg border">POS Order + runner_id</div>
+                                                <span className="text-xl">→</span>
+                                                <div className="p-3 bg-yellow-100 rounded-lg border">Σ(qty × item_commission)</div>
+                                                <span className="text-xl">→</span>
+                                                <div className="p-3 bg-green-100 rounded-lg border font-mono">Dr: 210800 | Cr: 112410</div>
+                                                <span className="text-xl">→</span>
+                                                <div className="p-3 bg-purple-100 rounded-lg border">Payroll Integration</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Money Flows Tab */}
+                        {activeTab === 'flows' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    <div className="bg-gray-800 text-white p-4 font-bold">
+                                        LAYER 8: COMPLETE MONEY FLOWS
+                                    </div>
+                                    <div className="p-6 space-y-6">
+                                        
+                                        {/* Flow 1 */}
+                                        <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                            <div className="font-bold text-green-700 mb-3">FLOW 1: Counter Cash (ODS)</div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                <div className="p-2 bg-white rounded shadow">Customer</div>
+                                                <span className="text-green-600">→</span>
+                                                <div className="p-2 bg-white rounded shadow">Cash Counter</div>
+                                                <span className="text-green-600">→</span>
+                                                <div className="p-2 bg-green-200 rounded shadow font-mono">100101 Cash</div>
+                                                <span className="text-green-600">→</span>
+                                                <div className="p-2 bg-red-200 rounded shadow font-mono">100201 Bank</div>
+                                                <span className="text-xs text-gray-500">(deposit)</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Flow 2 */}
+                                        <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                            <div className="font-bold text-blue-700 mb-3">FLOW 2: Counter UPI (ODS)</div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                <div className="p-2 bg-white rounded shadow">Customer</div>
+                                                <span className="text-blue-600">→</span>
+                                                <div className="p-2 bg-indigo-200 rounded shadow">NAWABI-COUNTER QR</div>
+                                                <span className="text-blue-600">→</span>
+                                                <div className="p-2 bg-yellow-200 rounded shadow font-mono">100203 Outstanding</div>
+                                                <span className="text-xs text-gray-500">T+2</span>
+                                                <span className="text-blue-600">→</span>
+                                                <div className="p-2 bg-red-200 rounded shadow font-mono">100201 Bank</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Flow 3 */}
+                                        <div className="p-4 bg-orange-50 rounded-lg border-l-4 border-orange-500">
+                                            <div className="font-bold text-orange-700 mb-3">FLOW 3: Runner UPI (SBF) + Commission</div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                <div className="p-2 bg-white rounded shadow">Customer</div>
+                                                <span className="text-orange-600">→</span>
+                                                <div className="p-2 bg-orange-200 rounded shadow">Runner QR (R01-R05)</div>
+                                                <span className="text-orange-600">→</span>
+                                                <div className="p-2 bg-yellow-200 rounded shadow font-mono">100203</div>
+                                                <span className="text-orange-600">→</span>
+                                                <div className="p-2 bg-red-200 rounded shadow font-mono">100201</div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm mt-2 ml-4">
+                                                <span className="text-teal-600 font-medium">+ Commission:</span>
+                                                <div className="p-2 bg-teal-100 rounded shadow font-mono">Dr: 210800</div>
+                                                <span className="text-teal-600">→</span>
+                                                <div className="p-2 bg-teal-100 rounded shadow font-mono">Cr: 112410</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Flow 4 */}
+                                        <div className="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
+                                            <div className="font-bold text-purple-700 mb-3">FLOW 4: Runner Cash (SBF) + Commission</div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                                <div className="p-2 bg-white rounded shadow">Customer</div>
+                                                <span className="text-purple-600">→</span>
+                                                <div className="p-2 bg-purple-200 rounded shadow">Runner holds</div>
+                                                <span className="text-purple-600">→</span>
+                                                <div className="p-2 bg-orange-200 rounded shadow font-mono">100102</div>
+                                                <span className="text-purple-600">→</span>
+                                                <div className="p-2 bg-yellow-200 rounded shadow font-mono">100204</div>
+                                                <span className="text-xs text-gray-500">SLD</span>
+                                                <span className="text-purple-600">→</span>
+                                                <div className="p-2 bg-green-200 rounded shadow font-mono">100101</div>
+                                                <span className="text-purple-600">→</span>
+                                                <div className="p-2 bg-red-200 rounded shadow font-mono">100201</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="mt-8 text-center text-sm text-gray-500">
+                            NCH Financial Architecture v1.0 | Fool-Proof Automated System
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<NCHArchitecture />, document.getElementById('root'));
+    </script>
+</body>
+</html>
