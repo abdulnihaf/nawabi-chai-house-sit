@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Live Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--green),var(--cyan));border-radius:3px}
+    .header p{color:var(--text2);font-size:13px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#fff}
+    .filter-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .filter-group{display:flex;flex-direction:column;gap:4px}
+    .filter-label{font-size:10px;color:var(--muted);text-transform:uppercase}
+    input[type="date"],input[type="time"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    input:focus{outline:none;border-color:var(--green)}
+    input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .live-toggle{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+    .live-toggle.active{background:rgba(16,185,129,.15);border-color:var(--green)}
+    .live-switch{width:32px;height:18px;background:var(--border);border-radius:9px;position:relative}
+    .live-toggle.active .live-switch{background:var(--green)}
+    .live-switch::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:all .2s}
+    .live-toggle.active .live-switch::after{left:16px}
+    .live-toggle span{font-size:12px;color:var(--text2)}
+    .live-toggle.active span{color:var(--green)}
+    .quick-btns{display:flex;gap:6px;margin-left:auto}
+    .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
+    .quick-btn:hover,.quick-btn.active{border-color:var(--green);color:var(--text)}
+    .quick-btn.active{background:var(--green);color:#fff}
+    .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+    .card .value{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+    .green{color:var(--green)}.blue{color:var(--blue)}.yellow{color:var(--yellow)}.purple{color:var(--purple)}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';width:3px;height:14px;background:var(--green);border-radius:2px}
+    .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse}
+    th{text-align:left;padding:12px 16px;font-size:11px;color:var(--muted);text-transform:uppercase;background:var(--bg2)}
+    td{padding:12px 16px;font-size:13px;border-top:1px solid var(--border)}
+    .mono{font-family:'JetBrains Mono',monospace}
+    .badge{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:600}
+    .badge.pending{background:rgba(245,158,11,.15);color:var(--yellow)}
+    .grid-2{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+    .breakdown{display:grid;gap:8px}
+    .breakdown-row{display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg2);border-radius:6px}
+    .breakdown-row .label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2)}
+    .breakdown-row .dot{width:8px;height:8px;border-radius:2px}
+    .breakdown-row .value{font-family:'JetBrains Mono',monospace;font-weight:600}
+    .feed{max-height:320px;overflow-y:auto}
+    .feed-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .feed-item:last-child{border-bottom:none}
+    .feed-left{display:flex;align-items:center;gap:10px}
+    .feed-avatar{width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+    .feed-name{font-size:13px;font-weight:500}
+    .feed-time{font-size:10px;color:var(--muted)}
+    .feed-amount{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--green)}
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
+    .loading.hidden{display:none}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
+    .error.show{display:block}
+    @media(max-width:1024px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+    @media(max-width:640px){.grid-4{grid-template-columns:1fr}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%}}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div class="container">
+    <header class="header">
+      <div><h1>Live Dashboard</h1><p>Real-time sales & runner monitoring</p></div>
+      <div class="header-right">
+        <div class="status"><div class="status-dot" id="dot"></div><span id="statusText">Loading...</span></div>
+        <button class="btn" onclick="refresh()">Refresh</button>
+      </div>
+    </header>
+    <div class="filter-bar">
+      <div class="filter-group"><span class="filter-label">From</span><input type="date" id="fromDate"><input type="time" id="fromTime" value="00:00"></div>
+      <div class="filter-group"><span class="filter-label">To</span><input type="date" id="toDate"><input type="time" id="toTime"></div>
+      <div class="live-toggle active" id="liveToggle" onclick="toggleLive()"><div class="live-switch"></div><span>Live</span></div>
+      <button class="btn" onclick="applyFilter()">Apply</button>
+      <div class="quick-btns">
+        <button class="quick-btn active" onclick="quick('today',this)">Today</button>
+        <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
+        <button class="quick-btn" onclick="quick('week',this)">7 Days</button>
+      </div>
+    </div>
+    <div class="error" id="error"></div>
+    <div class="grid-4">
+      <div class="card"><div class="label">Total Sales</div><div class="value green" id="totalSales">₹0</div><div class="sub" id="totalOrders">0 orders</div></div>
+      <div class="card"><div class="label">Cash to Collect</div><div class="value yellow" id="cashCollect">₹0</div><div class="sub">Counter + Runners</div></div>
+      <div class="card"><div class="label">UPI Collected</div><div class="value blue" id="upiCollected">₹0</div><div class="sub">Counter + Razorpay</div></div>
+      <div class="card"><div class="label">Active Runners</div><div class="value purple" id="activeRunners">0</div><div class="sub">With activity</div></div>
+    </div>
+    <div class="section-title">Runner Position</div>
+    <div class="table-wrap"><table><thead><tr><th>Runner</th><th>Tokens</th><th>Sales</th><th>UPI</th><th>Cash to Collect</th><th>Status</th></tr></thead><tbody id="runnerTable"><tr><td colspan="6" style="text-align:center;color:var(--muted)">Loading...</td></tr></tbody></table></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Counter Breakdown</div>
+        <h4 style="font-size:12px;color:var(--text2);margin-bottom:10px">Cash Counter (POS 27)</h4>
+        <div class="breakdown">
+          <div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--green)"></span>Cash</span><span class="value" id="counterCash">₹0</span></div>
+          <div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--blue)"></span>UPI</span><span class="value" id="counterUpi">₹0</span></div>
+          <div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--purple)"></span>Card</span><span class="value" id="counterCard">₹0</span></div>
+          <div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--cyan)"></span>Token Issue</span><span class="value" id="counterToken">₹0</span></div>
+          <div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--muted)"></span>Complimentary</span><span class="value" id="counterComp">₹0</span></div>
+        </div>
+        <h4 style="font-size:12px;color:var(--text2);margin:16px 0 10px">Runner Counter (POS 28)</h4>
+        <div class="breakdown"><div class="breakdown-row"><span class="label"><span class="dot" style="background:var(--blue)"></span>Direct UPI</span><span class="value" id="runnerUpi">₹0</span></div></div>
+      </div>
+      <div class="card" style="padding:0">
+        <div class="section-title" style="padding:16px 16px 0">Razorpay UPI Feed</div>
+        <div class="feed" id="razorpayFeed"><div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API='/api/nch-data';
+    let isLive=true,timer=null;
+    const $=id=>document.getElementById(id);
+    const fmt=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+    const fmtT=t=>new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    const init=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase();
+    const dateStr=d=>d.toISOString().split('T')[0];
+    const timeStr=d=>d.toTimeString().slice(0,5);
+    function initDates(){const now=new Date();$('fromDate').value=dateStr(now);$('fromTime').value='00:00';$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}
+    function toggleLive(){isLive=!isLive;$('liveToggle').classList.toggle('active',isLive);$('toDate').disabled=isLive;$('toTime').disabled=isLive;if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);startTimer();}else{stopTimer();}}
+    function quick(r,btn){document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const now=new Date(),from=new Date();if(r==='today'){from.setHours(0,0,0,0);}else if(r==='yesterday'){from.setDate(from.getDate()-1);from.setHours(0,0,0,0);now.setDate(now.getDate()-1);now.setHours(23,59,0,0);isLive=false;$('liveToggle').classList.remove('active');$('toDate').disabled=false;$('toTime').disabled=false;stopTimer();}else if(r==='week'){from.setDate(from.getDate()-7);from.setHours(0,0,0,0);}$('fromDate').value=dateStr(from);$('fromTime').value=timeStr(from);if(r==='yesterday'){$('toDate').value=dateStr(now);$('toTime').value='23:59';}else{isLive=true;$('liveToggle').classList.add('active');$('toDate').disabled=true;$('toTime').disabled=true;const n=new Date();$('toDate').value=dateStr(n);$('toTime').value=timeStr(n);startTimer();}refresh();}
+    function applyFilter(){document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));refresh();}
+    function buildUrl(){let url=API+'?from='+$('fromDate').value+'T'+$('fromTime').value+':00';if(!isLive)url+='&to='+$('toDate').value+'T'+$('toTime').value+':00';return url;}
+    function update(data){const d=data.data;$('totalSales').textContent=fmt(d.grandTotal.allSales);$('totalOrders').textContent=d.summary.totalOrders+' orders';$('cashCollect').textContent=fmt(d.grandTotal.cashToCollect);$('upiCollected').textContent=fmt(d.grandTotal.upiCollected);$('activeRunners').textContent=d.summary.activeRunners;$('counterCash').textContent=fmt(d.mainCounter.cash);$('counterUpi').textContent=fmt(d.mainCounter.upi);$('counterCard').textContent=fmt(d.mainCounter.card);$('counterToken').textContent=fmt(d.mainCounter.tokenIssue);$('counterComp').textContent=fmt(d.mainCounter.complimentary);$('runnerUpi').textContent=fmt(d.runnerCounter.upi);$('runnerTable').innerHTML=d.runners.length?d.runners.map(r=>'<tr><td><strong>'+r.name+'</strong> <span class="mono" style="color:var(--muted);font-size:11px">'+r.barcode+'</span></td><td class="mono">'+fmt(r.tokens)+'</td><td class="mono">'+fmt(r.sales)+'</td><td class="mono blue">'+fmt(r.upi)+'</td><td class="mono '+(r.cashToCollect>=0?'green':'red')+'">'+fmt(r.cashToCollect)+'</td><td><span class="badge pending">pending</span></td></tr>').join(''):'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No runner activity</td></tr>';$('razorpayFeed').innerHTML=d.razorpay.payments.length?d.razorpay.payments.slice(0,15).map(p=>'<div class="feed-item"><div class="feed-left"><div class="feed-avatar">'+init(p.runner)+'</div><div><div class="feed-name">'+p.runner+'</div><div class="feed-time">'+fmtT(p.time)+'</div></div></div><span class="feed-amount">'+fmt(p.amount)+'</span></div>').join(''):'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">No Razorpay payments</div>';$('dot').style.background='var(--green)';$('statusText').textContent=(isLive?'Live · ':'')+fmtT(data.timestamp);if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}}
+    function startTimer(){stopTimer();if(isLive)timer=setInterval(refresh,30000);}
+    function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+    async function refresh(){$('dot').style.background='var(--yellow)';$('statusText').textContent='Loading...';$('error').classList.remove('show');try{const res=await fetch(buildUrl());const data=await res.json();if(!data.success)throw new Error(data.error||'API error');update(data);$('loading').classList.add('hidden');}catch(e){$('error').textContent=e.message;$('error').classList.add('show');$('dot').style.background='var(--red)';$('statusText').textContent='Error';$('loading').classList.add('hidden');}}
+    initDates();refresh();startTimer();
+  </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Sales Insights</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--orange),var(--yellow));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .btn-primary{background:linear-gradient(135deg,var(--orange),var(--yellow));color:#fff}
+    .btn svg{width:14px;height:14px}
+    .filter-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .filter-group{display:flex;flex-direction:column;gap:4px}
+    .filter-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    input[type="date"],input[type="time"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    input:focus{outline:none;border-color:var(--orange)}
+    input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .live-toggle{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+    .live-toggle.active{background:rgba(16,185,129,.15);border-color:var(--green)}
+    .live-switch{width:32px;height:18px;background:var(--border);border-radius:9px;position:relative}
+    .live-toggle.active .live-switch{background:var(--green)}
+    .live-switch::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:all .2s}
+    .live-toggle.active .live-switch::after{left:16px}
+    .live-toggle span{font-size:12px;color:var(--text2)}
+    .live-toggle.active span{color:var(--green)}
+    .quick-btns{display:flex;gap:6px;margin-left:auto}
+    .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
+    .quick-btn:hover,.quick-btn.active{border-color:var(--orange);color:var(--text)}
+    .quick-btn.active{background:var(--orange);color:#fff}
+    .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .summary-card .icon{font-size:20px;margin-bottom:8px}
+    .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .summary-card .value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+    .summary-card.total .value{color:var(--green)}
+    .summary-card.chai .value{color:var(--orange)}
+    .summary-card.bun .value{color:var(--yellow)}
+    .summary-card.osmania .value{color:var(--cyan)}
+    .summary-card.cutlet .value{color:var(--purple)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+    .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';width:3px;height:14px;background:var(--orange);border-radius:2px}
+    .channel-row{display:flex;gap:12px}
+    .channel-card{flex:1;background:var(--bg2);border-radius:8px;padding:12px;border-left:3px solid var(--blue)}
+    .channel-card.runners{border-left-color:var(--purple)}
+    .channel-card .name{font-size:12px;color:var(--text2);margin-bottom:4px}
+    .channel-card .amount{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .channel-card .pct{font-size:11px;color:var(--muted)}
+    .runner-list{display:grid;gap:10px;max-height:280px;overflow-y:auto}
+    .runner-card{background:var(--bg2);border-radius:8px;padding:10px 12px}
+    .runner-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .runner-name{font-size:13px;font-weight:600}
+    .runner-amount{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .runner-products{display:flex;gap:4px;flex-wrap:wrap}
+    .runner-product{font-size:10px;background:var(--card);padding:2px 6px;border-radius:4px;color:var(--text2)}
+    .product-filter{display:flex;gap:8px;margin-bottom:12px}
+    .product-filter select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px}
+    .product-list{display:grid;gap:6px;max-height:300px;overflow-y:auto}
+    .product-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:6px}
+    .product-item .name{font-size:12px}
+    .product-item .qty{font-size:10px;color:var(--muted)}
+    .product-item .amount{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .chart-container{height:140px;display:flex;align-items:flex-end;gap:3px;padding:10px 0}
+    .chart-bar{flex:1;background:var(--orange);border-radius:2px 2px 0 0;min-height:4px;transition:all .2s;cursor:pointer;position:relative}
+    .chart-bar:hover{background:var(--yellow)}
+    .chart-bar:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:4px 8px;border-radius:4px;font-size:10px;white-space:nowrap}
+    .chart-labels{display:flex;gap:3px}
+    .chart-labels span{flex:1;text-align:center;font-size:8px;color:var(--muted)}
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
+    .loading.hidden{display:none}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
+    .error.show{display:block}
+    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(3,1fr)}.grid-2{grid-template-columns:1fr}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:repeat(2,1fr)}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%;flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div class="container">
+    <header class="header">
+      <h1>Sales Insights</h1>
+      <div class="header-right">
+        <div class="status"><div class="status-dot" id="dot"></div><span id="statusText">Loading...</span></div>
+        <button class="btn btn-primary" onclick="refresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+      </div>
+    </header>
+    <div class="filter-bar">
+      <div class="filter-group"><span class="filter-label">From</span><input type="date" id="fromDate"><input type="time" id="fromTime"></div>
+      <div class="filter-group"><span class="filter-label">To</span><input type="date" id="toDate"><input type="time" id="toTime"></div>
+      <div class="live-toggle active" id="liveToggle" onclick="toggleLive()"><div class="live-switch"></div><span>Live</span></div>
+      <button class="btn btn-primary" onclick="applyFilter()">Apply</button>
+      <div class="quick-btns">
+        <button class="quick-btn active" onclick="quick('24h',this)">24 Hours</button>
+        <button class="quick-btn" onclick="quick('today',this)">Today</button>
+        <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
+        <button class="quick-btn" onclick="quick('week',this)">7 Days</button>
+      </div>
+    </div>
+    <div class="error" id="error"></div>
+    <div class="summary-grid">
+      <div class="summary-card total"><div class="icon">💰</div><div class="label">Total Revenue</div><div class="value" id="totalRevenue">₹0</div><div class="sub" id="totalOrders">0 orders</div></div>
+      <div class="summary-card chai"><div class="icon">☕</div><div class="label">Irani Chai</div><div class="value" id="chaiAmt">₹0</div><div class="sub" id="chaiQty">0 cups</div></div>
+      <div class="summary-card bun"><div class="icon">🥖</div><div class="label">Bun Maska</div><div class="value" id="bunAmt">₹0</div><div class="sub" id="bunQty">0 pcs</div></div>
+      <div class="summary-card osmania"><div class="icon">🍪</div><div class="label">Osmania Biscuit</div><div class="value" id="osmaniaAmt">₹0</div><div class="sub" id="osmaniaQty">0 pcs</div></div>
+      <div class="summary-card cutlet"><div class="icon">🍗</div><div class="label">Chicken Cutlet</div><div class="value" id="cutletAmt">₹0</div><div class="sub" id="cutletQty">0 pcs</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">Counter Breakdown</div>
+        <div class="channel-row">
+          <div class="channel-card"><div class="name">Cash Counter</div><div class="amount" id="counterAmt">₹0</div><div class="pct" id="counterPct">0% · 0 orders</div></div>
+          <div class="channel-card runners"><div class="name">Runners</div><div class="amount" id="runnersAmt">₹0</div><div class="pct" id="runnersPct">0% · 0 orders</div></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Runner Breakdown</div>
+        <div class="runner-list" id="runnerList"><div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">All Products</div>
+        <div class="product-filter"><select id="catFilter" onchange="filterProducts()"><option value="all">All Categories</option><option value="Chai">Chai</option><option value="Snacks">Snacks</option></select></div>
+        <div class="product-list" id="productList"><div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading...</div></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Peak Hours</div>
+        <div class="chart-container" id="chart"></div>
+        <div class="chart-labels" id="chartLabels"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API='/api/sales-insights';
+    let isLive=true,timer=null,allProducts=[];
+    const $=id=>document.getElementById(id);
+    const fmt=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+    const fmtT=t=>new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    const dateStr=d=>d.toISOString().split('T')[0];
+    const timeStr=d=>d.toTimeString().slice(0,5);
+
+    function init(){
+      const now=new Date(),from=new Date(now.getTime()-24*60*60*1000);
+      $('fromDate').value=dateStr(from);$('fromTime').value=timeStr(from);
+      $('toDate').value=dateStr(now);$('toTime').value=timeStr(now);
+    }
+
+    function toggleLive(){
+      isLive=!isLive;
+      $('liveToggle').classList.toggle('active',isLive);
+      $('toDate').disabled=isLive;$('toTime').disabled=isLive;
+      if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);startTimer();}else{stopTimer();}
+    }
+
+    function quick(r,btn){
+      document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const now=new Date(),from=new Date();
+      if(r==='24h'){from.setTime(now.getTime()-24*60*60*1000);}
+      else if(r==='today'){from.setHours(0,0,0,0);}
+      else if(r==='yesterday'){from.setDate(from.getDate()-1);from.setHours(0,0,0,0);now.setDate(now.getDate()-1);now.setHours(23,59,0,0);isLive=false;$('liveToggle').classList.remove('active');$('toDate').disabled=false;$('toTime').disabled=false;stopTimer();}
+      else if(r==='week'){from.setDate(from.getDate()-7);from.setHours(0,0,0,0);}
+      $('fromDate').value=dateStr(from);$('fromTime').value=timeStr(from);
+      if(r==='yesterday'){$('toDate').value=dateStr(now);$('toTime').value='23:59';}
+      else{isLive=true;$('liveToggle').classList.add('active');$('toDate').disabled=true;$('toTime').disabled=true;const n=new Date();$('toDate').value=dateStr(n);$('toTime').value=timeStr(n);startTimer();}
+      refresh();
+    }
+
+    function applyFilter(){document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));refresh();}
+
+    function buildUrl(){
+      let url=API+'?from='+$('fromDate').value+'T'+$('fromTime').value+':00';
+      if(!isLive)url+='&to='+$('toDate').value+'T'+$('toTime').value+':00';
+      return url;
+    }
+
+    function update(data){
+      const d=data.data;
+      $('totalRevenue').textContent=fmt(d.summary.totalRevenue);
+      $('totalOrders').textContent=d.summary.totalOrders+' orders · Avg '+fmt(d.summary.avgOrderValue);
+      const kp=d.keyProducts;
+      $('chaiAmt').textContent=fmt(kp['Irani Chai'].amount);$('chaiQty').textContent=kp['Irani Chai'].qty+' cups';
+      $('bunAmt').textContent=fmt(kp['Bun Maska'].amount);$('bunQty').textContent=kp['Bun Maska'].qty+' pcs';
+      $('osmaniaAmt').textContent=fmt(kp['Osmania Biscuit'].amount);$('osmaniaQty').textContent=kp['Osmania Biscuit'].qty+' pcs';
+      $('cutletAmt').textContent=fmt(kp['Chicken Cutlet'].amount);$('cutletQty').textContent=kp['Chicken Cutlet'].qty+' pcs';
+      $('counterAmt').textContent=fmt(d.channels.cashCounter.amount);
+      $('counterPct').textContent=d.channels.cashCounter.percentage+'% · '+d.channels.cashCounter.orders+' orders';
+      $('runnersAmt').textContent=fmt(d.channels.runners.amount);
+      $('runnersPct').textContent=d.channels.runners.percentage+'% · '+d.channels.runners.orders+' orders';
+      $('runnerList').innerHTML=d.runners.length?d.runners.map(r=>'<div class="runner-card"><div class="runner-header"><span class="runner-name">'+r.name+'</span><span class="runner-amount">'+fmt(r.amount)+'</span></div><div class="runner-products">'+r.products.slice(0,4).map(p=>'<span class="runner-product">'+p.name+': '+p.qty+'</span>').join('')+'</div></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No runner activity</div>';
+      allProducts=d.products;filterProducts();
+      const maxO=Math.max(...d.hourly.map(h=>h.orders),1);
+      $('chart').innerHTML=d.hourly.map(h=>'<div class="chart-bar" style="height:'+(h.orders/maxO*100)+'%" data-tooltip="'+h.label+': '+h.orders+' orders, '+fmt(h.amount)+'"></div>').join('');
+      $('chartLabels').innerHTML=d.hourly.map(h=>'<span>'+h.label+'</span>').join('');
+      $('dot').style.background='var(--green)';$('statusText').textContent=(isLive?'Live · ':'')+fmtT(data.timestamp);
+      if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}
+    }
+
+    function filterProducts(){
+      const cat=$('catFilter').value;
+      const filtered=cat==='all'?allProducts:allProducts.filter(p=>p.category===cat);
+      $('productList').innerHTML=filtered.length?filtered.map(p=>'<div class="product-item"><div><div class="name">'+p.name+'</div><div class="qty">'+p.qty+' sold</div></div><div class="amount">'+fmt(p.amount)+'</div></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No products</div>';
+    }
+
+    function startTimer(){stopTimer();if(isLive)timer=setInterval(refresh,30000);}
+    function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+
+    async function refresh(){
+      $('dot').style.background='var(--yellow)';$('statusText').textContent='Loading...';$('error').classList.remove('show');
+      try{
+        const res=await fetch(buildUrl());const data=await res.json();
+        if(!data.success)throw new Error(data.error||'API error');
+        update(data);$('loading').classList.add('hidden');
+      }catch(e){$('error').textContent=e.message;$('error').classList.add('show');$('dot').style.background='var(--red)';$('statusText').textContent='Error';$('loading').classList.add('hidden');}
+    }
+
+    init();refresh();startTimer();
+  </script>
+</body>
+</html>
