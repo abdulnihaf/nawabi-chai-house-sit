@@ -38,8 +38,7 @@ export async function onRequest(context) {
 }
 
 async function fetchOdooOrders(url, db, uid, apiKey, since, until) {
-  const domain = [['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['date_order', '<=', until], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]];
-  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order', 'search_read', [domain], {fields: ['id', 'name', 'date_order', 'amount_total', 'amount_paid', 'partner_id', 'config_id', 'payment_ids', 'pricelist_id', 'state'], order: 'date_order desc'}]}, id: 1};
+  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order', 'search_read', [[['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['date_order', '<=', until], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]], {fields: ['id', 'name', 'date_order', 'amount_total', 'amount_paid', 'partner_id', 'config_id', 'payment_ids', 'pricelist_id', 'state'], order: 'date_order desc'}]}, id: 1};
   const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
   const data = await response.json();
   if (data.error) throw new Error('Odoo orders error: ' + JSON.stringify(data.error));
@@ -47,8 +46,7 @@ async function fetchOdooOrders(url, db, uid, apiKey, since, until) {
 }
 
 async function fetchOdooPayments(url, db, uid, apiKey, since, until) {
-  const domain = [['payment_date', '>=', since], ['payment_date', '<=', until]];
-  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.payment', 'search_read', [domain], {fields: ['id', 'amount', 'payment_date', 'payment_method_id', 'pos_order_id', 'session_id']}]}, id: 2};
+  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.payment', 'search_read', [[['payment_date', '>=', since], ['payment_date', '<=', until]]], {fields: ['id', 'amount', 'payment_date', 'payment_method_id', 'pos_order_id', 'session_id']}]}, id: 2};
   const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
   const data = await response.json();
   if (data.error) throw new Error('Odoo payments error: ' + JSON.stringify(data.error));
@@ -64,13 +62,22 @@ async function fetchRazorpayPayments(key, secret, since, until) {
 }
 
 function processDashboardData(orders, payments, razorpayPayments) {
-  const runners = {64: {id: 64, name: 'FAROOQ', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0}, 65: {id: 65, name: 'AMIN', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0}, 66: {id: 66, name: 'NCH Runner 03', barcode: 'RUN003', tokens: 0, sales: 0, upi: 0}, 67: {id: 67, name: 'NCH Runner 04', barcode: 'RUN004', tokens: 0, sales: 0, upi: 0}, 68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0}};
+  const runners = {
+    64: {id: 64, name: 'FAROOQ', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0},
+    65: {id: 65, name: 'AMIN', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0},
+    66: {id: 66, name: 'NCH Runner 03', barcode: 'RUN003', tokens: 0, sales: 0, upi: 0},
+    67: {id: 67, name: 'NCH Runner 04', barcode: 'RUN004', tokens: 0, sales: 0, upi: 0},
+    68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0}
+  };
   const barcodeToPartner = {'RUN001': 64, 'RUN002': 65, 'RUN003': 66, 'RUN004': 67, 'RUN005': 68};
   const PM = {CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMPLIMENTARY: 49};
   const POS = {CASH_COUNTER: 27, RUNNER_COUNTER: 28};
 
   const paymentsByOrder = {};
-  payments.forEach(p => { const oid = p.pos_order_id ? p.pos_order_id[0] : null; if (oid) { if (!paymentsByOrder[oid]) paymentsByOrder[oid] = []; paymentsByOrder[oid].push(p); }});
+  payments.forEach(p => {
+    const oid = p.pos_order_id ? p.pos_order_id[0] : null;
+    if (oid) { if (!paymentsByOrder[oid]) paymentsByOrder[oid] = []; paymentsByOrder[oid].push(p); }
+  });
 
   const mainCounter = {total: 0, cash: 0, upi: 0, card: 0, complimentary: 0, tokenIssue: 0, orderCount: 0};
   const runnerCounter = {total: 0, upi: 0, orderCount: 0};
@@ -81,9 +88,16 @@ function processDashboardData(orders, payments, razorpayPayments) {
     const orderPayments = paymentsByOrder[order.id] || [];
 
     if (configId === POS.CASH_COUNTER) {
-      if (partnerId && runners[partnerId]) { runners[partnerId].tokens += order.amount_total; mainCounter.tokenIssue += order.amount_total; }
-      else { mainCounter.orderCount++; mainCounter.total += order.amount_total;
-        orderPayments.forEach(p => { const mid = p.payment_method_id ? p.payment_method_id[0] : null;
+      if (partnerId && runners[partnerId]) {
+        // Token issue to runner = Runner's chai revenue
+        runners[partnerId].tokens += order.amount_total;
+        mainCounter.tokenIssue += order.amount_total;
+      } else {
+        // Regular customer at counter
+        mainCounter.orderCount++;
+        mainCounter.total += order.amount_total;
+        orderPayments.forEach(p => {
+          const mid = p.payment_method_id ? p.payment_method_id[0] : null;
           if (mid === PM.CASH) mainCounter.cash += p.amount;
           else if (mid === PM.UPI) mainCounter.upi += p.amount;
           else if (mid === PM.CARD) mainCounter.card += p.amount;
@@ -91,26 +105,68 @@ function processDashboardData(orders, payments, razorpayPayments) {
         });
       }
     } else if (configId === POS.RUNNER_COUNTER) {
-      if (partnerId && runners[partnerId]) { runners[partnerId].sales += order.amount_total; }
-      else { runnerCounter.orderCount++; runnerCounter.total += order.amount_total;
-        orderPayments.forEach(p => { const mid = p.payment_method_id ? p.payment_method_id[0] : null; if (mid === PM.UPI) runnerCounter.upi += p.amount; });
+      if (partnerId && runners[partnerId]) {
+        // Runner's snack sales
+        runners[partnerId].sales += order.amount_total;
+      } else {
+        runnerCounter.orderCount++;
+        runnerCounter.total += order.amount_total;
+        orderPayments.forEach(p => {
+          const mid = p.payment_method_id ? p.payment_method_id[0] : null;
+          if (mid === PM.UPI) runnerCounter.upi += p.amount;
+        });
       }
     }
   });
 
+  // Razorpay UPI payments by runner
   const razorpayTotal = {amount: 0, count: 0, payments: []};
   razorpayPayments.forEach(p => {
     const barcode = p.notes.runner_barcode;
     const partnerId = barcodeToPartner[barcode];
     const amt = p.amount / 100;
     if (partnerId && runners[partnerId]) runners[partnerId].upi += amt;
-    razorpayTotal.amount += amt; razorpayTotal.count++;
+    razorpayTotal.amount += amt;
+    razorpayTotal.count++;
     razorpayTotal.payments.push({id: p.id, amount: amt, runner: p.notes.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
   });
 
-  const runnerSettlements = Object.values(runners).map(r => ({...r, cashToCollect: r.sales - r.upi, tokensRemaining: r.tokens - r.sales, status: r.sales === 0 && r.upi === 0 ? 'inactive' : (r.sales - r.upi === 0 ? 'settled' : 'pending')})).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
+  // FIXED: Runner settlement calculation
+  // Cash to Collect = (Tokens/Chai + Snacks) - UPI
+  const runnerSettlements = Object.values(runners).map(r => {
+    const totalRevenue = r.tokens + r.sales;
+    const cashToCollect = totalRevenue - r.upi;
+    return {
+      ...r,
+      totalRevenue: totalRevenue,
+      cashToCollect: cashToCollect,
+      tokensRemaining: r.tokens - r.sales, // informational only
+      status: totalRevenue === 0 ? 'inactive' : (cashToCollect === 0 ? 'settled' : 'pending')
+    };
+  }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
-  const grandTotal = {allSales: mainCounter.total + runnerCounter.total + Object.values(runners).reduce((sum, r) => sum + r.sales, 0), cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0), upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount, cardCollected: mainCounter.card};
+  // FIXED: Total sales includes token issue (runner chai sales) as revenue
+  // Complimentary is NOT included (it's free)
+  const grandTotal = {
+    // All revenue = Counter sales + Token issue (runner chai) + Runner snack sales
+    allSales: mainCounter.total + mainCounter.tokenIssue + runnerCounter.total + Object.values(runners).reduce((sum, r) => sum + r.sales, 0),
+    // Cash to collect = Counter cash + Runner cash settlements
+    cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0),
+    // UPI = Counter UPI + Runner Counter UPI + Razorpay
+    upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount,
+    cardCollected: mainCounter.card,
+    complimentary: mainCounter.complimentary
+  };
 
-  return {mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal, summary: {totalOrders: mainCounter.orderCount + runnerCounter.orderCount, activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length}};
+  return {
+    mainCounter,
+    runnerCounter,
+    runners: runnerSettlements,
+    razorpay: razorpayTotal,
+    grandTotal,
+    summary: {
+      totalOrders: mainCounter.orderCount + runnerCounter.orderCount,
+      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
+    }
+  };
 }
