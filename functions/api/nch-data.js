@@ -1,0 +1,193 @@
+// NCH Operations Dashboard - Cloudflare Function
+// This runs on Cloudflare's servers, keeping API credentials secure
+
+export async function onRequest(context) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
+
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+  const ODOO_DB = 'main';
+  const ODOO_UID = 2;
+  const ODOO_API_KEY = context.env.ODOO_API_KEY || '9ee27d7da807853f1d36b0d4967b73878c090d4c';
+  const RAZORPAY_KEY = context.env.RAZORPAY_KEY || 'rzp_live_SC8Lxu17B2veLd';
+  const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET || 'yp2nkch4QO7e7RwC55WQr39K';
+
+  const SETTLEMENT_BASELINE = '2026-02-04 11:30:00';
+  const SETTLEMENT_UNIX = 1738671000;
+
+  try {
+    const [ordersData, paymentsData, razorpayData] = await Promise.all([
+      fetchOdooOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, SETTLEMENT_BASELINE),
+      fetchOdooPayments(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, SETTLEMENT_BASELINE),
+      fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, SETTLEMENT_UNIX)
+    ]);
+
+    const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
+
+    return new Response(JSON.stringify({
+      success: true,
+      timestamp: new Date().toISOString(),
+      settlement_baseline: SETTLEMENT_BASELINE,
+      data: dashboard
+    }), { headers: corsHeaders });
+
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), { status: 500, headers: corsHeaders });
+  }
+}
+
+async function fetchOdooOrders(url, db, uid, apiKey, since) {
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'call',
+    params: {
+      service: 'object',
+      method: 'execute_kw',
+      args: [db, uid, apiKey, 'pos.order', 'search_read',
+        [[['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['state', 'in', ['paid', 'done', 'invoiced']]]],
+        { fields: ['id', 'name', 'date_order', 'amount_total', 'amount_paid', 'partner_id', 'config_id', 'payment_ids', 'pricelist_id', 'state'] }
+      ]
+    },
+    id: 1
+  };
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await response.json();
+  if (data.error) throw new Error('Odoo orders error: ' + JSON.stringify(data.error));
+  return data.result || [];
+}
+
+async function fetchOdooPayments(url, db, uid, apiKey, since) {
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'call',
+    params: {
+      service: 'object',
+      method: 'execute_kw',
+      args: [db, uid, apiKey, 'pos.payment', 'search_read',
+        [[['payment_date', '>=', since]]],
+        { fields: ['id', 'amount', 'payment_date', 'payment_method_id', 'pos_order_id', 'session_id'] }
+      ]
+    },
+    id: 2
+  };
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await response.json();
+  if (data.error) throw new Error('Odoo payments error: ' + JSON.stringify(data.error));
+  return data.result || [];
+}
+
+async function fetchRazorpayPayments(key, secret, since) {
+  const auth = btoa(`${key}:${secret}`);
+  const response = await fetch(`https://api.razorpay.com/v1/payments?from=${since}&count=100`, {
+    headers: { 'Authorization': `Basic ${auth}` }
+  });
+  const data = await response.json();
+  if (data.error) throw new Error('Razorpay error: ' + data.error.description);
+  return (data.items || []).filter(p => p.status === 'captured' && p.notes && p.notes.runner_barcode);
+}
+
+function processDashboardData(orders, payments, razorpayPayments) {
+  const runners = {
+    64: { id: 64, name: 'FAROOQ', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0 },
+    65: { id: 65, name: 'AMIN', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0 },
+    66: { id: 66, name: 'NCH Runner 03', barcode: 'RUN003', tokens: 0, sales: 0, upi: 0 },
+    67: { id: 67, name: 'NCH Runner 04', barcode: 'RUN004', tokens: 0, sales: 0, upi: 0 },
+    68: { id: 68, name: 'NCH Runner 05', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0 }
+  };
+
+  const barcodeToPartner = { 'RUN001': 64, 'RUN002': 65, 'RUN003': 66, 'RUN004': 67, 'RUN005': 68 };
+  const PAYMENT_METHODS = { CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMPLIMENTARY: 49 };
+  const POS = { CASH_COUNTER: 27, RUNNER_COUNTER: 28 };
+
+  const paymentsByOrder = {};
+  payments.forEach(p => {
+    const orderId = p.pos_order_id ? p.pos_order_id[0] : null;
+    if (orderId) {
+      if (!paymentsByOrder[orderId]) paymentsByOrder[orderId] = [];
+      paymentsByOrder[orderId].push(p);
+    }
+  });
+
+  const mainCounter = { total: 0, cash: 0, upi: 0, card: 0, complimentary: 0, tokenIssue: 0, orderCount: 0 };
+  const runnerCounter = { total: 0, upi: 0, orderCount: 0 };
+
+  orders.forEach(order => {
+    const configId = order.config_id ? order.config_id[0] : null;
+    const partnerId = order.partner_id ? order.partner_id[0] : null;
+    const orderPayments = paymentsByOrder[order.id] || [];
+
+    if (configId === POS.CASH_COUNTER) {
+      if (partnerId && runners[partnerId]) {
+        runners[partnerId].tokens += order.amount_total;
+        mainCounter.tokenIssue += order.amount_total;
+      } else {
+        mainCounter.orderCount++;
+        mainCounter.total += order.amount_total;
+        orderPayments.forEach(p => {
+          const methodId = p.payment_method_id ? p.payment_method_id[0] : null;
+          if (methodId === PAYMENT_METHODS.CASH) mainCounter.cash += p.amount;
+          else if (methodId === PAYMENT_METHODS.UPI) mainCounter.upi += p.amount;
+          else if (methodId === PAYMENT_METHODS.CARD) mainCounter.card += p.amount;
+          else if (methodId === PAYMENT_METHODS.COMPLIMENTARY) mainCounter.complimentary += p.amount;
+        });
+      }
+    } else if (configId === POS.RUNNER_COUNTER) {
+      if (partnerId && runners[partnerId]) {
+        runners[partnerId].sales += order.amount_total;
+      } else {
+        runnerCounter.orderCount++;
+        runnerCounter.total += order.amount_total;
+        orderPayments.forEach(p => {
+          const methodId = p.payment_method_id ? p.payment_method_id[0] : null;
+          if (methodId === PAYMENT_METHODS.UPI) runnerCounter.upi += p.amount;
+        });
+      }
+    }
+  });
+
+  const razorpayTotal = { amount: 0, count: 0, payments: [] };
+  razorpayPayments.forEach(p => {
+    const barcode = p.notes.runner_barcode;
+    const partnerId = barcodeToPartner[barcode];
+    const amountINR = p.amount / 100;
+    if (partnerId && runners[partnerId]) runners[partnerId].upi += amountINR;
+    razorpayTotal.amount += amountINR;
+    razorpayTotal.count++;
+    razorpayTotal.payments.push({
+      id: p.id, amount: amountINR, runner: p.notes.runner_name || barcode,
+      barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa
+    });
+  });
+
+  const runnerSettlements = Object.values(runners).map(r => ({
+    ...r, cashToCollect: r.sales - r.upi, tokensRemaining: r.tokens - r.sales,
+    status: r.sales === 0 ? 'inactive' : (r.sales - r.upi === 0 ? 'settled' : 'pending')
+  })).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
+
+  const grandTotal = {
+    allSales: mainCounter.total + runnerCounter.total + Object.values(runners).reduce((sum, r) => sum + r.sales, 0),
+    cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0),
+    upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount,
+    cardCollected: mainCounter.card
+  };
+
+  return {
+    mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal,
+    summary: {
+      totalOrders: mainCounter.orderCount + runnerCounter.orderCount + runnerSettlements.reduce((sum, r) => sum + (r.sales > 0 ? 1 : 0), 0),
+      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
+    }
+  };
+}
+
