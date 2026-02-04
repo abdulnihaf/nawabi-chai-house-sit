@@ -1,6 +1,3 @@
-// NCH Operations Dashboard - Cloudflare Function
-// This runs on Cloudflare's servers, keeping API credentials secure
-
 export async function onRequest(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -13,21 +10,43 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const url = new URL(context.request.url);
+  const fromDate = url.searchParams.get('from');
+  const toDate = url.searchParams.get('to');
+
   const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
   const ODOO_DB = 'main';
   const ODOO_UID = 2;
-  const ODOO_API_KEY = context.env.ODOO_API_KEY || '9ee27d7da807853f1d36b0d4967b73878c090d4c';
-  const RAZORPAY_KEY = context.env.RAZORPAY_KEY || 'rzp_live_SC8Lxu17B2veLd';
-  const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET || 'yp2nkch4QO7e7RwC55WQr39K';
+  const ODOO_API_KEY = context.env.ODOO_API_KEY;
+  const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
+  const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
 
-  const SETTLEMENT_BASELINE = '2026-02-04 11:30:00';
-  const SETTLEMENT_UNIX = 1738671000;
+  let settlementBaseline, settlementUnix, endBaseline, endUnix;
+  
+  if (fromDate) {
+    const fromIST = new Date(fromDate);
+    settlementBaseline = new Date(fromIST.getTime() - (5.5 * 60 * 60 * 1000)).toISOString().slice(0, 19).replace('T', ' ');
+    settlementUnix = Math.floor(fromIST.getTime() / 1000);
+  } else {
+    const now = new Date();
+    const todayIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    todayIST.setHours(17, 0, 0, 0);
+    if (now < todayIST) todayIST.setDate(todayIST.getDate() - 1);
+    settlementBaseline = new Date(todayIST.getTime() - (5.5 * 60 * 60 * 1000)).toISOString().slice(0, 19).replace('T', ' ');
+    settlementUnix = Math.floor(todayIST.getTime() / 1000);
+  }
+
+  if (toDate) {
+    const toIST = new Date(toDate);
+    endBaseline = new Date(toIST.getTime() - (5.5 * 60 * 60 * 1000)).toISOString().slice(0, 19).replace('T', ' ');
+    endUnix = Math.floor(toIST.getTime() / 1000);
+  }
 
   try {
     const [ordersData, paymentsData, razorpayData] = await Promise.all([
-      fetchOdooOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, SETTLEMENT_BASELINE),
-      fetchOdooPayments(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, SETTLEMENT_BASELINE),
-      fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, SETTLEMENT_UNIX)
+      fetchOdooOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, settlementBaseline, endBaseline),
+      fetchOdooPayments(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, settlementBaseline, endBaseline),
+      fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, settlementUnix, endUnix)
     ]);
 
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
@@ -35,7 +54,8 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({
       success: true,
       timestamp: new Date().toISOString(),
-      settlement_baseline: SETTLEMENT_BASELINE,
+      settlement_baseline: settlementBaseline,
+      settlement_unix: settlementUnix,
       data: dashboard
     }), { headers: corsHeaders });
 
@@ -47,15 +67,17 @@ export async function onRequest(context) {
   }
 }
 
-async function fetchOdooOrders(url, db, uid, apiKey, since) {
+async function fetchOdooOrders(url, db, uid, apiKey, since, until) {
+  const domain = [['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['state', 'in', ['paid', 'done', 'invoiced']]];
+  if (until) domain.push(['date_order', '<=', until]);
+  
   const payload = {
     jsonrpc: '2.0',
     method: 'call',
     params: {
       service: 'object',
       method: 'execute_kw',
-      args: [db, uid, apiKey, 'pos.order', 'search_read',
-        [[['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['state', 'in', ['paid', 'done', 'invoiced']]]],
+      args: [db, uid, apiKey, 'pos.order', 'search_read', [domain],
         { fields: ['id', 'name', 'date_order', 'amount_total', 'amount_paid', 'partner_id', 'config_id', 'payment_ids', 'pricelist_id', 'state'] }
       ]
     },
@@ -67,15 +89,17 @@ async function fetchOdooOrders(url, db, uid, apiKey, since) {
   return data.result || [];
 }
 
-async function fetchOdooPayments(url, db, uid, apiKey, since) {
+async function fetchOdooPayments(url, db, uid, apiKey, since, until) {
+  const domain = [['payment_date', '>=', since]];
+  if (until) domain.push(['payment_date', '<=', until]);
+  
   const payload = {
     jsonrpc: '2.0',
     method: 'call',
     params: {
       service: 'object',
       method: 'execute_kw',
-      args: [db, uid, apiKey, 'pos.payment', 'search_read',
-        [[['payment_date', '>=', since]]],
+      args: [db, uid, apiKey, 'pos.payment', 'search_read', [domain],
         { fields: ['id', 'amount', 'payment_date', 'payment_method_id', 'pos_order_id', 'session_id'] }
       ]
     },
@@ -87,11 +111,12 @@ async function fetchOdooPayments(url, db, uid, apiKey, since) {
   return data.result || [];
 }
 
-async function fetchRazorpayPayments(key, secret, since) {
+async function fetchRazorpayPayments(key, secret, since, until) {
   const auth = btoa(`${key}:${secret}`);
-  const response = await fetch(`https://api.razorpay.com/v1/payments?from=${since}&count=100`, {
-    headers: { 'Authorization': `Basic ${auth}` }
-  });
+  let url = `https://api.razorpay.com/v1/payments?from=${since}&count=100`;
+  if (until) url += `&to=${until}`;
+  
+  const response = await fetch(url, { headers: { 'Authorization': `Basic ${auth}` } });
   const data = await response.json();
   if (data.error) throw new Error('Razorpay error: ' + data.error.description);
   return (data.items || []).filter(p => p.status === 'captured' && p.notes && p.notes.runner_barcode);
@@ -172,7 +197,7 @@ function processDashboardData(orders, payments, razorpayPayments) {
 
   const runnerSettlements = Object.values(runners).map(r => ({
     ...r, cashToCollect: r.sales - r.upi, tokensRemaining: r.tokens - r.sales,
-    status: r.sales === 0 ? 'inactive' : (r.sales - r.upi === 0 ? 'settled' : 'pending')
+    status: r.sales === 0 && r.upi === 0 ? 'inactive' : (r.sales - r.upi === 0 ? 'settled' : 'pending')
   })).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
   const grandTotal = {
@@ -185,9 +210,8 @@ function processDashboardData(orders, payments, razorpayPayments) {
   return {
     mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal,
     summary: {
-      totalOrders: mainCounter.orderCount + runnerCounter.orderCount + runnerSettlements.reduce((sum, r) => sum + (r.sales > 0 ? 1 : 0), 0),
+      totalOrders: mainCounter.orderCount + runnerCounter.orderCount,
       activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
     }
   };
 }
-
