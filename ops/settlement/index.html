@@ -126,6 +126,18 @@
     }
     function logout(){currentUser=null;selectedRunner=null;$('dashboard').classList.remove('show');$('pinScreen').classList.remove('hidden');$('pinSuccess').classList.remove('show');pins.forEach(p=>{p.value='';p.classList.remove('filled');});pins[0].focus();}
     function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card" onclick="selectRunner('+r.id+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
+    
+    // Format date as local ISO string (for API that expects IST)
+    function toLocalISO(d){
+      const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,'0');
+      const day=String(d.getDate()).padStart(2,'0');
+      const h=String(d.getHours()).padStart(2,'0');
+      const min=String(d.getMinutes()).padStart(2,'0');
+      const sec=String(d.getSeconds()).padStart(2,'0');
+      return y+'-'+m+'-'+day+'T'+h+':'+min+':'+sec;
+    }
+    
     async function selectRunner(id,el){
       document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
       el.classList.add('selected');
@@ -137,17 +149,35 @@
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
-        const baseline='2026-02-04T11:30:00.000Z';
-        const periodStart=lastData.lastSettlement ? lastData.lastSettlement.settled_at : baseline;
-        const fromDate=new Date(periodStart);
-        const fmtD=(d)=>{const day=d.getDate().toString().padStart(2,'0');const mon=d.toLocaleString('en-IN',{month:'short'});const hr=d.getHours().toString().padStart(2,'0');const mn=d.getMinutes().toString().padStart(2,'0');return day+' '+mon+' '+hr+':'+mn;};
+        
+        // Baseline: Feb 4, 2026, 5 PM IST
+        const baseline=new Date(2026,1,4,17,0,0); // Month is 0-indexed
+        let fromDate;
+        
+        if(lastData.lastSettlement){
+          // Parse the stored settlement time
+          fromDate=new Date(lastData.lastSettlement.settled_at);
+        }else{
+          fromDate=baseline;
+        }
+        
+        const fmtD=(d)=>{
+          const day=d.getDate().toString().padStart(2,'0');
+          const mon=d.toLocaleString('en-IN',{month:'short'});
+          const hr=d.getHours().toString().padStart(2,'0');
+          const mn=d.getMinutes().toString().padStart(2,'0');
+          return day+' '+mon+' '+hr+':'+mn;
+        };
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
-        const res=await fetch('/api/nch-data?from='+fromDate.toISOString());
+        
+        // Send local time format (not UTC ISO)
+        const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
+        
         const runner=data.data.runners.find(r=>r.id===id);
-        if(runner){
+        if(runner && (runner.tokens>0 || runner.sales>0 || runner.upi>0)){
           const cash=runner.cashToCollect;
           const hasLast=lastData.lastSettlement;
           let statusBox='';
@@ -156,8 +186,11 @@
           $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox;
         }else{
           const hasLast=lastData.lastSettlement;
-          if(hasLast){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ No new activity since last settlement<br><small style="color:var(--text2)">Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+'</small></div>';}
-          else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
+          if(hasLast){
+            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ No pending settlement<br><small style="color:var(--text2)">Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+')</small></div>';
+          }else{
+            $('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';
+          }
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
