@@ -1,3 +1,5 @@
+// NCH Operations Dashboard - Cloudflare Function (v5 - Fixed Razorpay timezone)
+
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
   if (context.request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -13,16 +15,34 @@ export async function onRequest(context) {
   const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
   const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
 
+  // Parse input as IST (input comes without timezone, assumed IST)
+  // Cloudflare Workers run in UTC, so we need to handle this carefully
   let fromIST, toIST;
-  if (fromParam) { fromIST = new Date(fromParam); } else { fromIST = new Date(); fromIST.setHours(0, 0, 0, 0); }
-  if (toParam) { toIST = new Date(toParam); } else { toIST = new Date(); }
+  if (fromParam) { 
+    // Input is local IST time string like "2026-02-05T01:00:00"
+    // Parse and treat as IST by adding the offset info
+    fromIST = new Date(fromParam); 
+  } else { 
+    fromIST = new Date(); 
+    fromIST.setHours(0, 0, 0, 0); 
+  }
+  if (toParam) { 
+    toIST = new Date(toParam); 
+  } else { 
+    toIST = new Date(); 
+  }
 
+  // Convert IST to UTC for Odoo (subtract 5.5 hours)
   const fromUTC = new Date(fromIST.getTime() - (5.5 * 60 * 60 * 1000));
   const toUTC = new Date(toIST.getTime() - (5.5 * 60 * 60 * 1000));
+  
+  // Format for Odoo query (UTC)
   const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
   const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
-  const fromUnix = Math.floor(fromIST.getTime() / 1000);
-  const toUnix = Math.floor(toIST.getTime() / 1000);
+  
+  // FIXED: Use UTC time for Razorpay Unix timestamps (not IST!)
+  const fromUnix = Math.floor(fromUTC.getTime() / 1000);
+  const toUnix = Math.floor(toUTC.getTime() / 1000);
 
   try {
     const [ordersData, paymentsData, razorpayData] = await Promise.all([
@@ -31,9 +51,22 @@ export async function onRequest(context) {
       fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
     ]);
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {from: fromIST.toISOString(), to: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, data: dashboard}), { headers: corsHeaders });
+    return new Response(JSON.stringify({
+      success: true, 
+      timestamp: new Date().toISOString(), 
+      query: {
+        from: fromIST.toISOString(), 
+        to: toIST.toISOString(),
+        fromUTC: fromUTC.toISOString(),
+        toUTC: toUTC.toISOString(),
+        fromUnix: fromUnix,
+        toUnix: toUnix
+      }, 
+      counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, 
+      data: dashboard
+    }), { headers: corsHeaders });
   } catch (error) {
-    return new Response(JSON.stringify({success: false, error: error.message}), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
   }
 }
 
@@ -131,7 +164,7 @@ function processDashboardData(orders, payments, razorpayPayments) {
     razorpayTotal.payments.push({id: p.id, amount: amt, runner: p.notes.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
   });
 
-  // FIXED: Runner settlement calculation
+  // Runner settlement calculation
   // Cash to Collect = (Tokens/Chai + Snacks) - UPI
   const runnerSettlements = Object.values(runners).map(r => {
     const totalRevenue = r.tokens + r.sales;
@@ -140,19 +173,15 @@ function processDashboardData(orders, payments, razorpayPayments) {
       ...r,
       totalRevenue: totalRevenue,
       cashToCollect: cashToCollect,
-      tokensRemaining: r.tokens - r.sales, // informational only
-      status: totalRevenue === 0 ? 'inactive' : (cashToCollect === 0 ? 'settled' : 'pending')
+      status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')
     };
   }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
-  // FIXED: Total sales includes token issue (runner chai sales) as revenue
+  // Total sales includes token issue (runner chai sales) as revenue
   // Complimentary is NOT included (it's free)
   const grandTotal = {
-    // All revenue = Counter sales + Token issue (runner chai) + Runner snack sales
     allSales: mainCounter.total + mainCounter.tokenIssue + runnerCounter.total + Object.values(runners).reduce((sum, r) => sum + r.sales, 0),
-    // Cash to collect = Counter cash + Runner cash settlements
     cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0),
-    // UPI = Counter UPI + Runner Counter UPI + Razorpay
     upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount,
     cardCollected: mainCounter.card,
     complimentary: mainCounter.complimentary
