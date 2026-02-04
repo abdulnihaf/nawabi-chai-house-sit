@@ -202,7 +202,7 @@
       $('counterPct').textContent=d.channels.cashCounter.percentage+'% · '+d.channels.cashCounter.orders+' orders';
       $('runnersAmt').textContent=fmt(d.channels.runners.amount);
       $('runnersPct').textContent=d.channels.runners.percentage+'% · '+d.channels.runners.orders+' orders';
-      $('runnerList').innerHTML=d.runners.length?d.runners.map(r=>'<div class="runner-card"><div class="runner-header"><span class="runner-name">'+r.name+'</span><span class="runner-amount">'+fmt(r.amount)+'</span></div><div class="runner-products">'+r.products.slice(0,4).map(p=>'<span class="runner-product">'+p.name+': '+p.qty+'</span>').join('')+'</div></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No runner activity</div>';
+      $('runnerList').innerHTML=d.runners.length?d.runners.map(r=>'<div class="runner-card"><div class="runner-header"><span class="runner-name">'+r.name+'</span><span class="runner-amount">'+fmt(r.amount)+'</span></div><div class="runner-products">'+Object.entries(r.products).slice(0,4).map(([name,qty])=>'<span class="runner-product">'+name+': '+qty+'</span>').join('')+'</div></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No runner activity</div>';
       allProducts=d.products;filterProducts();
       const maxO=Math.max(...d.hourly.map(h=>h.orders),1);
       $('chart').innerHTML=d.hourly.map(h=>'<div class="chart-bar" style="height:'+(h.orders/maxO*100)+'%" data-tooltip="'+h.label+': '+h.orders+' orders, '+fmt(h.amount)+'"></div>').join('');
