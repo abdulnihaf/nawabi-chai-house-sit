@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v5 - Fixed Razorpay timezone)
+// NCH Operations Dashboard - Cloudflare Function (v6 - Fixed "to now" timezone)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -15,15 +15,37 @@ export async function onRequest(context) {
   const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
   const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
 
-  let fromIST, toIST;
-  if (fromParam) { fromIST = new Date(fromParam); } else { fromIST = new Date(); fromIST.setHours(0, 0, 0, 0); }
-  if (toParam) { toIST = new Date(toParam); } else { toIST = new Date(); }
+  // TIMEZONE HANDLING:
+  // - Input params are IST (local time strings like "2026-02-04T17:00:00")
+  // - Cloudflare Workers run in UTC
+  // - Odoo stores dates in UTC
+  // - Razorpay uses Unix timestamps (UTC)
+  
+  let fromUTC, toUTC;
+  
+  if (fromParam) {
+    // Input is IST time string, parse and convert to UTC
+    // "2026-02-04T17:00:00" means 5 PM IST = 11:30 AM UTC
+    const fromParsed = new Date(fromParam);
+    fromUTC = new Date(fromParsed.getTime() - (5.5 * 60 * 60 * 1000));
+  } else {
+    // Default: today midnight IST = yesterday 6:30 PM UTC
+    const now = new Date();
+    fromUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+    fromUTC = new Date(fromUTC.getTime() - (5.5 * 60 * 60 * 1000));
+  }
+  
+  if (toParam) {
+    // Input is IST time string
+    const toParsed = new Date(toParam);
+    toUTC = new Date(toParsed.getTime() - (5.5 * 60 * 60 * 1000));
+  } else {
+    // Default: NOW - already UTC, no conversion needed!
+    toUTC = new Date();
+  }
 
-  const fromUTC = new Date(fromIST.getTime() - (5.5 * 60 * 60 * 1000));
-  const toUTC = new Date(toIST.getTime() - (5.5 * 60 * 60 * 1000));
   const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
   const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
-  // FIXED: Use UTC for Razorpay Unix timestamps
   const fromUnix = Math.floor(fromUTC.getTime() / 1000);
   const toUnix = Math.floor(toUTC.getTime() / 1000);
 
@@ -34,7 +56,25 @@ export async function onRequest(context) {
       fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
     ]);
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {from: fromIST.toISOString(), to: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, data: dashboard}), { headers: corsHeaders });
+    
+    // Return debug info for verification
+    const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
+    const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
+    
+    return new Response(JSON.stringify({
+      success: true, 
+      timestamp: new Date().toISOString(), 
+      query: {
+        fromIST: fromIST.toISOString(),
+        toIST: toIST.toISOString(),
+        fromUTC: fromUTC.toISOString(), 
+        toUTC: toUTC.toISOString(),
+        fromOdoo: fromOdoo,
+        toOdoo: toOdoo
+      }, 
+      counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, 
+      data: dashboard
+    }), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
   }
