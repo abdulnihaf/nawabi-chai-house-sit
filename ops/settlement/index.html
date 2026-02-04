@@ -6,7 +6,7 @@
   <title>NCH Runner Settlement</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308}
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
     .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -37,6 +37,9 @@
     .runner-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s}
     .runner-card:hover{border-color:var(--purple);transform:translateY(-2px)}
     .runner-card.selected{border-color:var(--purple);background:rgba(168,85,247,0.1)}
+    .runner-card.counter{border-color:var(--orange)}
+    .runner-card.counter:hover{border-color:var(--orange);background:rgba(249,115,22,0.1)}
+    .runner-card.counter.selected{border-color:var(--orange);background:rgba(249,115,22,0.2)}
     .runner-card .name{font-weight:600;margin-bottom:4px}
     .runner-card .code{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
     .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;display:none}
@@ -51,12 +54,15 @@
     .row.total{padding-top:20px;margin-top:8px;border-top:2px solid var(--border);border-bottom:none}
     .row.total .label{font-weight:600;color:var(--text)}
     .row.total .value{font-size:24px}
+    .row.sub{opacity:0.7;padding:8px 0 8px 16px;font-size:14px}
     .info-box{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);border-radius:8px;padding:12px 16px;margin-top:20px;font-size:13px;color:var(--yellow)}
     .loading-text{text-align:center;color:var(--text2);padding:40px}
     .settle-btn{width:100%;background:var(--green);color:#fff;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:20px;transition:all 0.2s}
     .settle-btn:hover{background:#16a34a;transform:translateY(-1px)}
     .settle-btn:disabled{background:var(--border);cursor:not-allowed;transform:none}
     .settle-btn.loading{background:var(--yellow);cursor:wait}
+    .settle-btn.counter-btn{background:var(--orange)}
+    .settle-btn.counter-btn:hover{background:#ea580c}
   </style>
 </head>
 <body>
@@ -84,7 +90,7 @@
       </div>
     </div>
     <div class="content">
-      <div class="section-title">Select Runner</div>
+      <div class="section-title">Select Runner or Counter</div>
       <div class="runner-grid" id="runnerGrid"></div>
       <div class="panel" id="panel">
         <div class="panel-header">
@@ -98,8 +104,15 @@
   <script>
     const $=id=>document.getElementById(id);
     const fmt=n=>'₹'+n.toLocaleString('en-IN');
-    const RUNNERS=[{id:64,name:'FAROOQ',barcode:'RUN001'},{id:65,name:'AMIN',barcode:'RUN002'},{id:66,name:'NCH Runner 03',barcode:'RUN003'},{id:67,name:'NCH Runner 04',barcode:'RUN004'},{id:68,name:'NCH Runner 05',barcode:'RUN005'}];
-    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null;
+    const RUNNERS=[
+      {id:'counter',name:'💰 Cash Counter',barcode:'POS-27',isCounter:true},
+      {id:64,name:'FAROOQ',barcode:'RUN001'},
+      {id:65,name:'AMIN',barcode:'RUN002'},
+      {id:66,name:'NCH Runner 03',barcode:'RUN003'},
+      {id:67,name:'NCH Runner 04',barcode:'RUN004'},
+      {id:68,name:'NCH Runner 05',barcode:'RUN005'}
+    ];
+    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null;
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
       input.addEventListener('input',e=>{
@@ -129,7 +142,7 @@
       }catch(e){console.error(e);}
     }
     function logout(){currentUser=null;selectedRunner=null;$('dashboard').classList.remove('show');$('pinScreen').classList.remove('hidden');$('pinSuccess').classList.remove('show');pins.forEach(p=>{p.value='';p.classList.remove('filled');});pins[0].focus();}
-    function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card" onclick="selectRunner('+r.id+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
+    function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card'+(r.isCounter?' counter':'')+'" onclick="selectRunner('+(typeof r.id==='string'?"'"+r.id+"'":r.id)+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
     
     function toLocalISO(d){
       const y=d.getFullYear();
@@ -157,17 +170,78 @@
       $('runnerName').textContent=selectedRunner.name;
       $('period').textContent='Loading...';
       $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
+      
+      if(id==='counter'){
+        await loadCounterSettlement();
+      }else{
+        await loadRunnerSettlement(id);
+      }
+    }
+    
+    async function loadCounterSettlement(){
+      try{
+        const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
+        const lastData=await lastRes.json();
+        
+        const baseline=new Date(2026,1,4,17,0,0);
+        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
+        currentPeriodStart=fromDate;
+        
+        $('period').textContent=fmtD(fromDate)+' → Now';
+        $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo...</div>';
+        
+        const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
+        const data=await res.json();
+        if(!data.success)throw new Error(data.error);
+        
+        const mc=data.data.mainCounter;
+        currentCounterData=mc;
+        
+        // Counter Revenue = Cash + UPI + Card (NOT token issue, NOT complimentary)
+        const counterRevenue=mc.cash+mc.upi+mc.card;
+        // Cash to Settle = Cash (UPI & Card go directly to bank)
+        const cashToSettle=mc.cash;
+        
+        const hasLast=lastData.lastSettlement;
+        let statusBox='';
+        if(hasLast){
+          statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';
+        }else{
+          statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';
+        }
+        
+        let settleBtn='';
+        if(counterRevenue>0){
+          settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';
+        }
+        
+        if(counterRevenue>0 || hasLast){
+          $('panelContent').innerHTML=
+            '<div class="row"><span class="label">Counter Revenue</span><span class="value">'+fmt(counterRevenue)+'</span></div>'+
+            '<div class="row sub"><span class="label">↳ Cash</span><span class="value">'+fmt(mc.cash)+'</span></div>'+
+            '<div class="row sub"><span class="label">↳ UPI (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.upi)+'</span></div>'+
+            '<div class="row sub"><span class="label">↳ Card (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.card)+'</span></div>'+
+            '<div class="row" style="opacity:0.5"><span class="label">Token Issue (→ Runners)</span><span class="value">'+fmt(mc.tokenIssue)+'</span></div>'+
+            '<div class="row" style="opacity:0.5"><span class="label">Complimentary</span><span class="value">'+fmt(mc.complimentary)+'</span></div>'+
+            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+
+            statusBox+settleBtn;
+        }else{
+          if(hasLast){
+            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ No pending settlement<br><small style="color:var(--text2)">Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+'</small></div>';
+          }else{
+            $('panelContent').innerHTML='<div class="loading-text">No counter activity</div>';
+          }
+        }
+      }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
+    }
+    
+    async function loadRunnerSettlement(id){
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
         
         const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate;
-        if(lastData.lastSettlement){
-          fromDate=new Date(lastData.lastSettlement.settled_at);
-        }else{
-          fromDate=baseline;
-        }
+        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
         currentPeriodStart=fromDate;
         
         $('period').textContent=fmtD(fromDate)+' → Now';
@@ -222,6 +296,7 @@
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             runner_id:selectedRunner.id,
+            runner_name:selectedRunner.name,
             settled_by:currentUser,
             period_start:toLocalISO(currentPeriodStart),
             period_end:toLocalISO(now),
@@ -239,6 +314,51 @@
           setTimeout(()=>{
             const card=document.querySelector('.runner-card.selected');
             if(card)selectRunner(selectedRunner.id,card);
+          },1500);
+        }else{
+          throw new Error(data.error);
+        }
+      }catch(e){
+        btn.disabled=false;
+        btn.classList.remove('loading');
+        btn.textContent='Error: '+e.message;
+        btn.style.background='var(--red)';
+      }
+    }
+    
+    async function settleCounter(){
+      if(!currentCounterData)return;
+      const btn=document.querySelector('.settle-btn');
+      btn.disabled=true;
+      btn.classList.add('loading');
+      btn.textContent='Recording settlement...';
+      
+      try{
+        const now=new Date();
+        const cashToSettle=currentCounterData.cash;
+        const res=await fetch('/api/settlement?action=settle',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            runner_id:'counter',
+            runner_name:'Cash Counter',
+            settled_by:currentUser,
+            period_start:toLocalISO(currentPeriodStart),
+            period_end:toLocalISO(now),
+            tokens_amount:0,
+            sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,
+            upi_amount:currentCounterData.upi+currentCounterData.card,
+            cash_settled:cashToSettle,
+            notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card
+          })
+        });
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Settlement Recorded!';
+          btn.style.background='var(--green)';
+          setTimeout(()=>{
+            const card=document.querySelector('.runner-card.selected');
+            if(card)selectRunner('counter',card);
           },1500);
         }else{
           throw new Error(data.error);

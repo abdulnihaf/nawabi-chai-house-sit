@@ -9,6 +9,7 @@ export async function onRequest(context) {
   // PIN verification
   const PINS = {'1298': 'Tanveer', '0582': 'MD Kesmat', '0305': 'Nihaf'};
   const RUNNERS = {
+    'counter': {id: 'counter', name: 'Cash Counter', barcode: 'POS-27'},
     64: {id: 64, name: 'FAROOQ', barcode: 'RUN001'},
     65: {id: 65, name: 'AMIN', barcode: 'RUN002'},
     66: {id: 66, name: 'NCH Runner 03', barcode: 'RUN003'},
@@ -29,9 +30,10 @@ export async function onRequest(context) {
       const runnerId = url.searchParams.get('runner_id');
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
       
-      const result = await DB.prepare('SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1').bind(runnerId).first();
+      const result = await DB.prepare(`
+        SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1
+      `).bind(runnerId).first();
       
-      // Default baseline if no previous settlement
       const baseline = '2026-02-04T17:00:00+05:30';
       return new Response(JSON.stringify({
         success: true,
@@ -44,8 +46,9 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
       
       const body = await context.request.json();
-      const {runner_id, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes} = body;
+      const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes} = body;
       
+      // Validate runner_id (can be 'counter' or numeric runner ID)
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
 
@@ -53,8 +56,8 @@ export async function onRequest(context) {
         INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        runner_id, runner.name, new Date().toISOString(), settled_by,
-        period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes || ''
+        String(runner_id), runner_name || runner.name, new Date().toISOString(), settled_by,
+        period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, notes || ''
       ).run();
 
       return new Response(JSON.stringify({success: true, message: 'Settlement recorded'}), {headers: corsHeaders});
