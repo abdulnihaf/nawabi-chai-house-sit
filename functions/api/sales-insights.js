@@ -11,15 +11,37 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  let fromIST, toIST;
-  if (fromParam) { fromIST = new Date(fromParam); } 
-  else { fromIST = new Date(); fromIST.setTime(fromIST.getTime() - 24 * 60 * 60 * 1000); }
-  toIST = toParam ? new Date(toParam) : new Date();
+  // TIMEZONE HANDLING (same as nch-data.js):
+  // - Input params are IST (local time strings)
+  // - Cloudflare Workers run in UTC
+  // - Odoo stores dates in UTC
+  
+  let fromUTC, toUTC;
+  
+  if (fromParam) {
+    // Input is IST time string, convert to UTC
+    const fromParsed = new Date(fromParam);
+    fromUTC = new Date(fromParsed.getTime() - (5.5 * 60 * 60 * 1000));
+  } else {
+    // Default: 24 hours ago
+    fromUTC = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  }
+  
+  if (toParam) {
+    // Input is IST time string, convert to UTC
+    const toParsed = new Date(toParam);
+    toUTC = new Date(toParsed.getTime() - (5.5 * 60 * 60 * 1000));
+  } else {
+    // Default: NOW - already UTC, no conversion!
+    toUTC = new Date();
+  }
 
-  const fromUTC = new Date(fromIST.getTime() - (5.5 * 60 * 60 * 1000));
-  const toUTC = new Date(toIST.getTime() - (5.5 * 60 * 60 * 1000));
   const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
   const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
+  
+  // For display purposes
+  const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
+  const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
 
   try {
     const [orders, orderLines] = await Promise.all([
@@ -27,7 +49,7 @@ export async function onRequest(context) {
       fetchOrderLines(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo)
     ]);
     const insights = processInsights(orders, orderLines);
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {from: fromIST.toISOString(), to: toIST.toISOString()}, data: insights}), { headers: corsHeaders });
+    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {from: fromIST.toISOString(), to: toIST.toISOString(), fromUTC: fromUTC.toISOString(), toUTC: toUTC.toISOString()}, data: insights}), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), { status: 500, headers: corsHeaders });
   }
@@ -54,76 +76,72 @@ async function fetchOrderLines(url, db, uid, apiKey, since, until) {
 
 function processInsights(orders, orderLines) {
   const RUNNERS = {64: 'FAROOQ', 65: 'AMIN', 66: 'NCH Runner 03', 67: 'NCH Runner 04', 68: 'NCH Runner 05'};
-  const RUNNER_BARCODES = {64: 'RUN001', 65: 'RUN002', 66: 'RUN003', 67: 'RUN004', 68: 'RUN005'};
-  const POS = {CASH_COUNTER: 27, RUNNER_COUNTER: 28};
-
-  const orderLookup = {};
-  orders.forEach(o => { orderLookup[o.id] = {partnerId: o.partner_id ? o.partner_id[0] : null, configId: o.config_id ? o.config_id[0] : null, date: o.date_order, amount: o.amount_total}; });
-
-  const productSales = {};
-  const keyProducts = {
-    'Irani Chai': {name: 'Irani Chai', qty: 0, amount: 0, icon: '☕'},
-    'Bun Maska': {name: 'Bun Maska', qty: 0, amount: 0, icon: '🥖'},
-    'Osmania Biscuit': {name: 'Osmania Biscuit', qty: 0, amount: 0, icon: '🍪'},
-    'Chicken Cutlet': {name: 'Chicken Cutlet', qty: 0, amount: 0, icon: '🍗'}
-  };
-  
-  const channelSales = {cashCounter: {orders: 0, amount: 0}, runners: {orders: 0, amount: 0}};
-  const runnerSales = {};
+  const products = {};
   const hourlyData = {};
+  const channelSales = {cashCounter: {amount: 0, orders: 0}, runners: {amount: 0, orders: 0}};
+  const runnerSales = {};
   let totalRevenue = 0, totalQty = 0;
 
   orderLines.forEach(line => {
-    const order = orderLookup[line.order_id ? line.order_id[0] : null];
-    if (!order) return;
-    const productName = line.product_id ? line.product_id[1] : 'Unknown';
-    const qty = line.qty || 0;
-    const amount = line.price_subtotal_incl || 0;
-    const isChai = productName.toLowerCase().includes('chai');
-    const category = isChai ? 'Chai' : 'Snacks';
-    const isRunner = order.partnerId && RUNNERS[order.partnerId];
+    const pid = line.product_id ? line.product_id[0] : 0;
+    const pname = line.product_id ? line.product_id[1] : 'Unknown';
+    if (!products[pid]) products[pid] = {id: pid, name: pname, qty: 0, amount: 0};
+    products[pid].qty += line.qty;
+    products[pid].amount += line.price_subtotal_incl;
+    totalQty += line.qty;
+  });
 
-    if (!productSales[productName]) productSales[productName] = {name: productName, qty: 0, amount: 0, category};
-    productSales[productName].qty += qty;
-    productSales[productName].amount += amount;
+  orders.forEach(order => {
+    totalRevenue += order.amount_total;
+    const partnerId = order.partner_id ? order.partner_id[0] : null;
+    const configId = order.config_id ? order.config_id[0] : null;
+    const hour = order.date_order ? order.date_order.split(' ')[1].split(':')[0] : '00';
+    
+    // Adjust hour from UTC to IST (+5.5 hours)
+    let istHour = parseInt(hour) + 5;
+    const halfHour = parseInt(order.date_order?.split(' ')[1]?.split(':')[1] || '0') >= 30;
+    if (halfHour) istHour += 1;
+    if (istHour >= 24) istHour -= 24;
+    const hourKey = istHour.toString().padStart(2, '0');
+    
+    if (!hourlyData[hourKey]) hourlyData[hourKey] = {orders: 0, amount: 0};
+    hourlyData[hourKey].orders++;
+    hourlyData[hourKey].amount += order.amount_total;
 
-    const pLower = productName.toLowerCase();
-    if (pLower.includes('irani') || (pLower.includes('chai') && !pLower.includes('pack'))) { keyProducts['Irani Chai'].qty += qty; keyProducts['Irani Chai'].amount += amount; }
-    if (pLower.includes('bun') && pLower.includes('maska')) { keyProducts['Bun Maska'].qty += qty; keyProducts['Bun Maska'].amount += amount; }
-    if (pLower.includes('osmania') && !pLower.includes('pack')) { keyProducts['Osmania Biscuit'].qty += qty; keyProducts['Osmania Biscuit'].amount += amount; }
-    if (pLower.includes('chicken') && pLower.includes('cutlet')) { keyProducts['Chicken Cutlet'].qty += qty; keyProducts['Chicken Cutlet'].amount += amount; }
-
-    totalRevenue += amount;
-    totalQty += qty;
-
-    if (isRunner) {
-      const runnerId = order.partnerId;
-      if (!runnerSales[runnerId]) runnerSales[runnerId] = {id: runnerId, name: RUNNERS[runnerId], barcode: RUNNER_BARCODES[runnerId], qty: 0, amount: 0, products: {}};
-      runnerSales[runnerId].qty += qty;
-      runnerSales[runnerId].amount += amount;
-      if (!runnerSales[runnerId].products[productName]) runnerSales[runnerId].products[productName] = {name: productName, qty: 0, amount: 0};
-      runnerSales[runnerId].products[productName].qty += qty;
-      runnerSales[runnerId].products[productName].amount += amount;
+    if (partnerId && RUNNERS[partnerId]) {
+      channelSales.runners.amount += order.amount_total;
+      channelSales.runners.orders++;
+      if (!runnerSales[partnerId]) runnerSales[partnerId] = {id: partnerId, name: RUNNERS[partnerId], amount: 0, orders: 0, products: {}};
+      runnerSales[partnerId].amount += order.amount_total;
+      runnerSales[partnerId].orders++;
+    } else {
+      channelSales.cashCounter.amount += order.amount_total;
+      channelSales.cashCounter.orders++;
     }
   });
 
-  const processedOrders = new Set();
-  orders.forEach(o => {
-    if (processedOrders.has(o.id)) return;
-    processedOrders.add(o.id);
-    const partnerId = o.partner_id ? o.partner_id[0] : null;
-    const isRunner = partnerId && RUNNERS[partnerId];
-    if (o.config_id[0] === POS.CASH_COUNTER && !isRunner) { channelSales.cashCounter.orders++; channelSales.cashCounter.amount += o.amount_total; }
-    else { channelSales.runners.orders++; channelSales.runners.amount += o.amount_total; }
-    const hour = (new Date(o.date_order).getUTCHours() + 5) % 24;
-    const hourKey = hour.toString().padStart(2, '0');
-    if (!hourlyData[hourKey]) hourlyData[hourKey] = {orders: 0, amount: 0};
-    hourlyData[hourKey].orders++;
-    hourlyData[hourKey].amount += o.amount_total;
+  // Add product breakdown per runner
+  orderLines.forEach(line => {
+    const orderId = line.order_id ? line.order_id[0] : null;
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      const partnerId = order.partner_id ? order.partner_id[0] : null;
+      if (partnerId && runnerSales[partnerId]) {
+        const pname = line.product_id ? line.product_id[1] : 'Unknown';
+        if (!runnerSales[partnerId].products[pname]) runnerSales[partnerId].products[pname] = 0;
+        runnerSales[partnerId].products[pname] += line.qty;
+      }
+    }
   });
 
-  const productList = Object.values(productSales).filter(p => p.qty > 0).sort((a, b) => b.amount - a.amount);
-  const runnerList = Object.values(runnerSales).map(r => ({...r, products: Object.values(r.products).sort((a, b) => b.amount - a.amount)})).sort((a, b) => b.amount - a.amount);
+  const productList = Object.values(products).sort((a, b) => b.amount - a.amount);
+  const keyProducts = {
+    chai: productList.find(p => p.name.toLowerCase().includes('chai') || p.name.includes('[NCH-IC]')) || {qty: 0, amount: 0},
+    bunMaska: productList.find(p => p.name.toLowerCase().includes('bun') || p.name.includes('[NCH-BM]')) || {qty: 0, amount: 0},
+    osmania: productList.find(p => p.name.toLowerCase().includes('osmania') || p.name.includes('[NCH-OB]')) || {qty: 0, amount: 0},
+    cutlet: productList.find(p => p.name.toLowerCase().includes('cutlet') || p.name.includes('[NCH-CC]')) || {qty: 0, amount: 0}
+  };
+  const runnerList = Object.values(runnerSales).sort((a, b) => b.amount - a.amount);
   const hourlyArray = [];
   for (let h = 6; h <= 23; h++) { const key = h.toString().padStart(2, '0'); hourlyArray.push({hour: h, label: h > 12 ? (h-12)+' PM' : h === 12 ? '12 PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0}); }
 
