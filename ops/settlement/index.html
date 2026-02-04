@@ -53,6 +53,10 @@
     .row.total .value{font-size:24px}
     .info-box{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);border-radius:8px;padding:12px 16px;margin-top:20px;font-size:13px;color:var(--yellow)}
     .loading-text{text-align:center;color:var(--text2);padding:40px}
+    .settle-btn{width:100%;background:var(--green);color:#fff;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:20px;transition:all 0.2s}
+    .settle-btn:hover{background:#16a34a;transform:translateY(-1px)}
+    .settle-btn:disabled{background:var(--border);cursor:not-allowed;transform:none}
+    .settle-btn.loading{background:var(--yellow);cursor:wait}
   </style>
 </head>
 <body>
@@ -95,7 +99,7 @@
     const $=id=>document.getElementById(id);
     const fmt=n=>'₹'+n.toLocaleString('en-IN');
     const RUNNERS=[{id:64,name:'FAROOQ',barcode:'RUN001'},{id:65,name:'AMIN',barcode:'RUN002'},{id:66,name:'NCH Runner 03',barcode:'RUN003'},{id:67,name:'NCH Runner 04',barcode:'RUN004'},{id:68,name:'NCH Runner 05',barcode:'RUN005'}];
-    let currentUser=null,selectedRunner=null;
+    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null;
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
       input.addEventListener('input',e=>{
@@ -127,7 +131,6 @@
     function logout(){currentUser=null;selectedRunner=null;$('dashboard').classList.remove('show');$('pinScreen').classList.remove('hidden');$('pinSuccess').classList.remove('show');pins.forEach(p=>{p.value='';p.classList.remove('filled');});pins[0].focus();}
     function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card" onclick="selectRunner('+r.id+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
     
-    // Format date as local ISO string (for API that expects IST)
     function toLocalISO(d){
       const y=d.getFullYear();
       const m=String(d.getMonth()+1).padStart(2,'0');
@@ -137,6 +140,14 @@
       const sec=String(d.getSeconds()).padStart(2,'0');
       return y+'-'+m+'-'+day+'T'+h+':'+min+':'+sec;
     }
+    
+    const fmtD=(d)=>{
+      const day=d.getDate().toString().padStart(2,'0');
+      const mon=d.toLocaleString('en-IN',{month:'short'});
+      const hr=d.getHours().toString().padStart(2,'0');
+      const mn=d.getMinutes().toString().padStart(2,'0');
+      return day+' '+mon+' '+hr+':'+mn;
+    };
     
     async function selectRunner(id,el){
       document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
@@ -150,40 +161,42 @@
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
         
-        // Baseline: Feb 4, 2026, 5 PM IST
-        const baseline=new Date(2026,1,4,17,0,0); // Month is 0-indexed
+        const baseline=new Date(2026,1,4,17,0,0);
         let fromDate;
-        
         if(lastData.lastSettlement){
-          // Parse the stored settlement time
           fromDate=new Date(lastData.lastSettlement.settled_at);
         }else{
           fromDate=baseline;
         }
+        currentPeriodStart=fromDate;
         
-        const fmtD=(d)=>{
-          const day=d.getDate().toString().padStart(2,'0');
-          const mon=d.toLocaleString('en-IN',{month:'short'});
-          const hr=d.getHours().toString().padStart(2,'0');
-          const mn=d.getMinutes().toString().padStart(2,'0');
-          return day+' '+mon+' '+hr+':'+mn;
-        };
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
         
-        // Send local time format (not UTC ISO)
         const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
         
         const runner=data.data.runners.find(r=>r.id===id);
+        currentRunnerData=runner;
+        
         if(runner && (runner.tokens>0 || runner.sales>0 || runner.upi>0)){
           const cash=runner.cashToCollect;
           const hasLast=lastData.lastSettlement;
           let statusBox='';
           if(hasLast){statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+')</div>';}
           else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox;
+          
+          let settleBtn='';
+          if(cash>0){
+            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';
+          }else if(cash<0){
+            settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';
+          }else{
+            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';
+          }
+          
+          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox+settleBtn;
         }else{
           const hasLast=lastData.lastSettlement;
           if(hasLast){
@@ -194,6 +207,50 @@
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
+    
+    async function settleRunner(){
+      if(!selectedRunner||!currentRunnerData)return;
+      const btn=document.querySelector('.settle-btn');
+      btn.disabled=true;
+      btn.classList.add('loading');
+      btn.textContent='Recording settlement...';
+      
+      try{
+        const now=new Date();
+        const res=await fetch('/api/settlement?action=settle',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            runner_id:selectedRunner.id,
+            settled_by:currentUser,
+            period_start:toLocalISO(currentPeriodStart),
+            period_end:toLocalISO(now),
+            tokens_amount:currentRunnerData.tokens,
+            sales_amount:currentRunnerData.sales,
+            upi_amount:currentRunnerData.upi,
+            cash_settled:currentRunnerData.cashToCollect,
+            notes:'Settled via dashboard'
+          })
+        });
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Settlement Recorded!';
+          btn.style.background='var(--green)';
+          setTimeout(()=>{
+            const card=document.querySelector('.runner-card.selected');
+            if(card)selectRunner(selectedRunner.id,card);
+          },1500);
+        }else{
+          throw new Error(data.error);
+        }
+      }catch(e){
+        btn.disabled=false;
+        btn.classList.remove('loading');
+        btn.textContent='Error: '+e.message;
+        btn.style.background='var(--red)';
+      }
+    }
+    
     pins[0].focus();
   </script>
 </body>
