@@ -151,7 +151,7 @@
     const $=id=>document.getElementById(id);
     const fmt=n=>'₹'+Math.round(n).toLocaleString('en-IN');
     const fmtT=t=>new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
-    const dateStr=d=>d.toISOString().split('T')[0];
+    const dateStr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
     const timeStr=d=>d.toTimeString().slice(0,5);
 
     function init(){
