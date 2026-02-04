@@ -194,10 +194,10 @@
       $('totalRevenue').textContent=fmt(d.summary.totalRevenue);
       $('totalOrders').textContent=d.summary.totalOrders+' orders · Avg '+fmt(d.summary.avgOrderValue);
       const kp=d.keyProducts;
-      $('chaiAmt').textContent=fmt(kp['Irani Chai'].amount);$('chaiQty').textContent=kp['Irani Chai'].qty+' cups';
-      $('bunAmt').textContent=fmt(kp['Bun Maska'].amount);$('bunQty').textContent=kp['Bun Maska'].qty+' pcs';
-      $('osmaniaAmt').textContent=fmt(kp['Osmania Biscuit'].amount);$('osmaniaQty').textContent=kp['Osmania Biscuit'].qty+' pcs';
-      $('cutletAmt').textContent=fmt(kp['Chicken Cutlet'].amount);$('cutletQty').textContent=kp['Chicken Cutlet'].qty+' pcs';
+      $('chaiAmt').textContent=fmt(kp.chai.amount);$('chaiQty').textContent=kp.chai.qty+' cups';
+      $('bunAmt').textContent=fmt(kp.bunMaska.amount);$('bunQty').textContent=kp.bunMaska.qty+' pcs';
+      $('osmaniaAmt').textContent=fmt(kp.osmania.amount);$('osmaniaQty').textContent=kp.osmania.qty+' pcs';
+      $('cutletAmt').textContent=fmt(kp.cutlet.amount);$('cutletQty').textContent=kp.cutlet.qty+' pcs';
       $('counterAmt').textContent=fmt(d.channels.cashCounter.amount);
       $('counterPct').textContent=d.channels.cashCounter.percentage+'% · '+d.channels.cashCounter.orders+' orders';
       $('runnersAmt').textContent=fmt(d.channels.runners.amount);
