@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v7 - QR ID fallback for runner mapping)
+// NCH Operations Dashboard - Cloudflare Function (v8 - Fetch payments per QR code)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -38,7 +38,7 @@ export async function onRequest(context) {
     const [ordersData, paymentsData, razorpayData] = await Promise.all([
       fetchOdooOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
       fetchOdooPayments(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-      fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
+      fetchAllRunnerPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
     ]);
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
     const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
@@ -65,33 +65,73 @@ async function fetchOdooPayments(url, db, uid, apiKey, since, until) {
   return data.result || [];
 }
 
-async function fetchRazorpayPayments(key, secret, since, until) {
+// Fetch payments from all runner QR codes
+async function fetchAllRunnerPayments(key, secret, since, until) {
   const auth = btoa(key + ':' + secret);
-  const response = await fetch('https://api.razorpay.com/v1/payments?from=' + since + '&to=' + until + '&count=100', {headers: {'Authorization': 'Basic ' + auth}});
-  const data = await response.json();
-  if (data.error) throw new Error('Razorpay error: ' + data.error.description);
   
-  // QR ID to barcode mapping (fallback for QRs without runner_barcode in notes)
-  const QR_TO_BARCODE = {
-    'qr_SBdtZG1AMDwSmJ': 'RUN001',
-    'qr_SBdte3aRvGpRMY': 'RUN002',
-    'qr_SBgTo2a39kYmET': 'RUN003',
-    'qr_SBgTtFrfddY4AW': 'RUN004',
-    'qr_SBgTyFKUsdwLe1': 'RUN005'
-  };
+  // QR codes for each runner
+  const RUNNER_QRS = [
+    {qr_id: 'qr_SBdtZG1AMDwSmJ', barcode: 'RUN001', name: 'FAROOQ'},
+    {qr_id: 'qr_SBdte3aRvGpRMY', barcode: 'RUN002', name: 'AMIN'},
+    {qr_id: 'qr_SBgTo2a39kYmET', barcode: 'RUN003', name: 'NCH Runner 03'},
+    {qr_id: 'qr_SBgTtFrfddY4AW', barcode: 'RUN004', name: 'NCH Runner 04'},
+    {qr_id: 'qr_SBgTyFKUsdwLe1', barcode: 'RUN005', name: 'NCH Runner 05'}
+  ];
   
-  return (data.items || [])
-    .filter(p => p.status === 'captured')
-    .map(p => {
-      let barcode = p.notes?.runner_barcode || null;
-      let runnerName = p.notes?.runner_name || null;
-      if (!barcode && p.qr_code_id && QR_TO_BARCODE[p.qr_code_id]) {
-        barcode = QR_TO_BARCODE[p.qr_code_id];
-        runnerName = 'NCH Runner ' + barcode.replace('RUN00', '');
-      }
-      return { ...p, runner_barcode: barcode, runner_name: runnerName };
-    })
-    .filter(p => p.runner_barcode);
+  // Fetch payments from each QR code in parallel
+  const allPayments = await Promise.all(RUNNER_QRS.map(async (runner) => {
+    try {
+      const response = await fetch(
+        `https://api.razorpay.com/v1/payments?count=100&from=${since}&to=${until}`,
+        {headers: {'Authorization': 'Basic ' + auth}}
+      );
+      const data = await response.json();
+      if (data.error) return [];
+      
+      // Filter payments that have this runner's barcode in notes OR came from their QR
+      // Since we can't get qr_code_id from payments API, rely on notes
+      return (data.items || [])
+        .filter(p => p.status === 'captured' && p.notes?.runner_barcode === runner.barcode)
+        .map(p => ({
+          ...p,
+          runner_barcode: runner.barcode,
+          runner_name: p.notes?.runner_name || runner.name
+        }));
+    } catch (e) {
+      return [];
+    }
+  }));
+  
+  // Also try fetching payments directly from QR code endpoints for those without notes
+  const qrPayments = await Promise.all(RUNNER_QRS.map(async (runner) => {
+    try {
+      const response = await fetch(
+        `https://api.razorpay.com/v1/payments/qr_codes/${runner.qr_id}/payments?count=100&from=${since}&to=${until}`,
+        {headers: {'Authorization': 'Basic ' + auth}}
+      );
+      const data = await response.json();
+      if (data.error || !data.items) return [];
+      
+      return data.items
+        .filter(p => p.status === 'captured')
+        .map(p => ({
+          ...p,
+          runner_barcode: runner.barcode,
+          runner_name: runner.name
+        }));
+    } catch (e) {
+      return [];
+    }
+  }));
+  
+  // Combine and dedupe by payment ID
+  const combined = [...allPayments.flat(), ...qrPayments.flat()];
+  const seen = new Set();
+  return combined.filter(p => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
 }
 
 function processDashboardData(orders, payments, razorpayPayments) {
