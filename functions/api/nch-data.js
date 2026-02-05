@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v6 - Fixed "to now" timezone)
+// NCH Operations Dashboard - Cloudflare Function (v7 - QR ID fallback for runner mapping)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -15,32 +15,17 @@ export async function onRequest(context) {
   const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
   const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
 
-  // TIMEZONE HANDLING:
-  // - Input params are IST (local time strings like "2026-02-04T17:00:00")
-  // - Cloudflare Workers run in UTC
-  // - Odoo stores dates in UTC
-  // - Razorpay uses Unix timestamps (UTC)
-  
   let fromUTC, toUTC;
-  
   if (fromParam) {
-    // Input is IST time string, parse and convert to UTC
-    // "2026-02-04T17:00:00" means 5 PM IST = 11:30 AM UTC
     const fromParsed = new Date(fromParam);
     fromUTC = new Date(fromParsed.getTime() - (5.5 * 60 * 60 * 1000));
   } else {
-    // Default: today midnight IST = yesterday 6:30 PM UTC
-    const now = new Date();
-    fromUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-    fromUTC = new Date(fromUTC.getTime() - (5.5 * 60 * 60 * 1000));
+    fromUTC = new Date(Date.now() - 24 * 60 * 60 * 1000);
   }
-  
   if (toParam) {
-    // Input is IST time string
     const toParsed = new Date(toParam);
     toUTC = new Date(toParsed.getTime() - (5.5 * 60 * 60 * 1000));
   } else {
-    // Default: NOW - already UTC, no conversion needed!
     toUTC = new Date();
   }
 
@@ -56,25 +41,9 @@ export async function onRequest(context) {
       fetchRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
     ]);
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
-    
-    // Return debug info for verification
     const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
     const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
-    
-    return new Response(JSON.stringify({
-      success: true, 
-      timestamp: new Date().toISOString(), 
-      query: {
-        fromIST: fromIST.toISOString(),
-        toIST: toIST.toISOString(),
-        fromUTC: fromUTC.toISOString(), 
-        toUTC: toUTC.toISOString(),
-        fromOdoo: fromOdoo,
-        toOdoo: toOdoo
-      }, 
-      counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, 
-      data: dashboard
-    }), { headers: corsHeaders });
+    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, data: dashboard}), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
   }
@@ -101,7 +70,28 @@ async function fetchRazorpayPayments(key, secret, since, until) {
   const response = await fetch('https://api.razorpay.com/v1/payments?from=' + since + '&to=' + until + '&count=100', {headers: {'Authorization': 'Basic ' + auth}});
   const data = await response.json();
   if (data.error) throw new Error('Razorpay error: ' + data.error.description);
-  return (data.items || []).filter(p => p.status === 'captured' && p.notes && p.notes.runner_barcode);
+  
+  // QR ID to barcode mapping (fallback for QRs without runner_barcode in notes)
+  const QR_TO_BARCODE = {
+    'qr_SBdtZG1AMDwSmJ': 'RUN001',
+    'qr_SBdte3aRvGpRMY': 'RUN002',
+    'qr_SBgTo2a39kYmET': 'RUN003',
+    'qr_SBgTtFrfddY4AW': 'RUN004',
+    'qr_SBgTyFKUsdwLe1': 'RUN005'
+  };
+  
+  return (data.items || [])
+    .filter(p => p.status === 'captured')
+    .map(p => {
+      let barcode = p.notes?.runner_barcode || null;
+      let runnerName = p.notes?.runner_name || null;
+      if (!barcode && p.qr_code_id && QR_TO_BARCODE[p.qr_code_id]) {
+        barcode = QR_TO_BARCODE[p.qr_code_id];
+        runnerName = 'NCH Runner ' + barcode.replace('RUN00', '');
+      }
+      return { ...p, runner_barcode: barcode, runner_name: runnerName };
+    })
+    .filter(p => p.runner_barcode);
 }
 
 function processDashboardData(orders, payments, razorpayPayments) {
@@ -129,7 +119,6 @@ function processDashboardData(orders, payments, razorpayPayments) {
     const configId = order.config_id ? order.config_id[0] : null;
     const partnerId = order.partner_id ? order.partner_id[0] : null;
     const orderPayments = paymentsByOrder[order.id] || [];
-
     if (configId === POS.CASH_COUNTER) {
       if (partnerId && runners[partnerId]) {
         runners[partnerId].tokens += order.amount_total;
@@ -161,24 +150,19 @@ function processDashboardData(orders, payments, razorpayPayments) {
 
   const razorpayTotal = {amount: 0, count: 0, payments: []};
   razorpayPayments.forEach(p => {
-    const barcode = p.notes.runner_barcode;
+    const barcode = p.runner_barcode;
     const partnerId = barcodeToPartner[barcode];
     const amt = p.amount / 100;
     if (partnerId && runners[partnerId]) runners[partnerId].upi += amt;
     razorpayTotal.amount += amt;
     razorpayTotal.count++;
-    razorpayTotal.payments.push({id: p.id, amount: amt, runner: p.notes.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
+    razorpayTotal.payments.push({id: p.id, amount: amt, runner: p.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
   });
 
   const runnerSettlements = Object.values(runners).map(r => {
     const totalRevenue = r.tokens + r.sales;
     const cashToCollect = totalRevenue - r.upi;
-    return {
-      ...r,
-      totalRevenue: totalRevenue,
-      cashToCollect: cashToCollect,
-      status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')
-    };
+    return {...r, totalRevenue, cashToCollect, status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')};
   }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
   const grandTotal = {
@@ -189,15 +173,5 @@ function processDashboardData(orders, payments, razorpayPayments) {
     complimentary: mainCounter.complimentary
   };
 
-  return {
-    mainCounter,
-    runnerCounter,
-    runners: runnerSettlements,
-    razorpay: razorpayTotal,
-    grandTotal,
-    summary: {
-      totalOrders: mainCounter.orderCount + runnerCounter.orderCount,
-      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
-    }
-  };
+  return {mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal, summary: {totalOrders: mainCounter.orderCount + runnerCounter.orderCount, activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length}};
 }
