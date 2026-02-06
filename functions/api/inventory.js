@@ -331,7 +331,6 @@ export async function onRequest(context) {
         for (const item of items) {
           const prod = productMap[item.productId];
           const moveVals = {
-            name: item.productName || 'Kitchen Transfer',
             picking_id: pickingId,
             product_id: item.productId,
             product_uom: prod.uom_id[0],
