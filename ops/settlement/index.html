@@ -2,376 +2,893 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NCH Runner Settlement</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH Settlement</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--red-dim:rgba(239,68,68,.12);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);--purple:#a855f7;--purple-dim:rgba(168,85,247,.12);--yellow:#eab308;--yellow-dim:rgba(234,179,8,.12);--orange:#f97316;--orange-dim:rgba(249,115,22,.12)}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ─── PIN SCREEN ─────────────────── */
     .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
     .pin-screen.hidden{display:none}
     .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
     .pin-box .icon{font-size:48px;margin-bottom:20px}
     .pin-box h2{font-size:24px;margin-bottom:8px}
     .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
-    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
-    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
-    .pin-input input:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,0.2)}
-    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,0.1)}
-    .pin-success{display:none;align-items:center;gap:8px;justify-content:center;color:var(--green);font-weight:600;margin-top:16px}
-    .pin-success.show{display:flex}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:16px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all .2s}
+    .pin-input input:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,.1)}
+    .pin-error{color:var(--red);font-size:13px;display:none}
+    .pin-success{color:var(--green);font-weight:600;display:none}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+    /* ─── DASHBOARD ─────────────────── */
     .dashboard{display:none;min-height:100vh}
     .dashboard.show{display:block}
-    .header{background:var(--card);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center}
-    .header h1{font-size:20px;display:flex;align-items:center;gap:8px}
-    .header h1::before{content:'';width:4px;height:24px;background:var(--purple);border-radius:2px}
-    .user-badge{display:flex;align-items:center;gap:12px}
-    .user-badge .dot{width:8px;height:8px;background:var(--green);border-radius:50%}
-    .user-badge .name{font-weight:600}
-    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
-    .logout-btn:hover{background:var(--border)}
-    .content{padding:24px;max-width:1200px;margin:0 auto}
-    .section-title{font-size:14px;color:var(--text2);margin-bottom:16px}
-    .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:32px}
-    .runner-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s}
-    .runner-card:hover{border-color:var(--purple);transform:translateY(-2px)}
-    .runner-card.selected{border-color:var(--purple);background:rgba(168,85,247,0.1)}
-    .runner-card.counter{border-color:var(--orange)}
-    .runner-card.counter:hover{border-color:var(--orange);background:rgba(249,115,22,0.1)}
-    .runner-card.counter.selected{border-color:var(--orange);background:rgba(249,115,22,0.2)}
-    .runner-card .name{font-weight:600;margin-bottom:4px}
-    .runner-card .code{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
-    .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;display:none}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1 .accent{width:4px;height:22px;border-radius:2px}
+    .user-badge{display:flex;align-items:center;gap:10px}
+    .user-badge .name{font-weight:600;font-size:14px}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit}
+    .content{padding:20px;max-width:700px;margin:0 auto}
+
+    /* ─── TABS ──────────────────────── */
+    .tab-bar{display:flex;gap:4px;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:20px}
+    .tab{flex:1;padding:10px 8px;border-radius:10px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:all .2s}
+    .tab.active{background:var(--card);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+    /* ─── RUNNER GRID ──────────────── */
+    .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+    .runner-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:all .15s}
+    .runner-card:active{transform:scale(.97)}
+    .runner-card.selected{border-color:var(--purple);background:var(--purple-dim)}
+    .runner-card .rname{font-weight:600;font-size:14px;margin-bottom:2px}
+    .runner-card .rcode{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+
+    /* ─── PANEL ─────────────────────── */
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;display:none}
     .panel.show{display:block}
-    .panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
-    .panel-header h2{font-size:20px}
-    .panel-header .period{font-size:12px;color:var(--text2);background:var(--bg2);padding:6px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace}
-    .row{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--border)}
+    .panel-title{font-size:18px;font-weight:700;margin-bottom:4px}
+    .panel-period{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:20px}
+    .row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
     .row:last-of-type{border-bottom:none}
-    .row .label{color:var(--text2)}
-    .row .value{font-weight:600;font-family:'JetBrains Mono',monospace}
-    .row.total{padding-top:20px;margin-top:8px;border-top:2px solid var(--border);border-bottom:none}
-    .row.total .label{font-weight:600;color:var(--text)}
-    .row.total .value{font-size:24px}
-    .row.sub{opacity:0.7;padding:8px 0 8px 16px;font-size:14px}
-    .info-box{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);border-radius:8px;padding:12px 16px;margin-top:20px;font-size:13px;color:var(--yellow)}
-    .loading-text{text-align:center;color:var(--text2);padding:40px}
-    .settle-btn{width:100%;background:var(--green);color:#fff;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:20px;transition:all 0.2s}
-    .settle-btn:hover{background:#16a34a;transform:translateY(-1px)}
-    .settle-btn:disabled{background:var(--border);cursor:not-allowed;transform:none}
-    .settle-btn.loading{background:var(--yellow);cursor:wait}
-    .settle-btn.counter-btn{background:var(--orange)}
-    .settle-btn.counter-btn:hover{background:#ea580c}
+    .row .label{color:var(--text2);font-size:14px}
+    .row .value{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:14px}
+    .row.sub{padding:6px 0 6px 16px;opacity:.7;font-size:13px}
+    .row.total{padding-top:16px;margin-top:8px;border-top:2px solid var(--border);border-bottom:none}
+    .row.total .label{font-weight:700;color:var(--text)}
+    .row.total .value{font-size:20px}
+
+    /* ─── INPUT ROW ────────────────── */
+    .input-row{margin-top:16px;padding:16px;background:var(--bg2);border-radius:12px;border:2px solid var(--border)}
+    .input-row label{display:block;font-size:13px;color:var(--text2);margin-bottom:8px;font-weight:600}
+    .input-row input{width:100%;padding:14px;background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;font-family:'JetBrains Mono',monospace;font-weight:700;text-align:center}
+    .input-row input:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,.2)}
+
+    /* ─── DISCREPANCY ──────────────── */
+    .disc-section{display:none;margin-top:12px;padding:14px;background:var(--red-dim);border:1px solid var(--red);border-radius:10px}
+    .disc-section.show{display:block}
+    .disc-section .disc-amount{font-size:16px;font-weight:700;color:var(--red);margin-bottom:10px}
+    .disc-section label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px}
+    .disc-section textarea{width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;min-height:60px;resize:vertical}
+    .disc-section textarea:focus{outline:none;border-color:var(--red)}
+
+    /* ─── BUTTONS ──────────────────── */
+    .btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn:active{transform:scale(.98)}
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .btn-green{background:var(--green);color:#fff}
+    .btn-orange{background:var(--orange);color:#fff}
+    .btn-purple{background:var(--purple);color:#fff}
+    .btn-red{background:var(--red);color:#fff}
+    .btn-blue{background:var(--blue);color:#fff}
+    .btn.loading{opacity:.7;cursor:wait}
+
+    /* ─── INFO/STATUS BOXES ────────── */
+    .info-box{border-radius:10px;padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.5}
+    .info-green{background:var(--green-dim);border:1px solid var(--green);color:var(--green)}
+    .info-yellow{background:var(--yellow-dim);border:1px solid var(--yellow);color:var(--yellow)}
+    .info-red{background:var(--red-dim);border:1px solid var(--red);color:var(--red)}
+    .info-blue{background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue)}
+
+    /* ─── CASH SUMMARY (sticky bottom) */
+    .cash-summary{background:var(--card);border-top:2px solid var(--border);padding:16px 20px;position:sticky;bottom:0;z-index:50}
+    .cash-summary .summary-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}
+    .cash-summary .summary-row.net{font-size:18px;font-weight:700;padding:8px 0 0;border-top:1px solid var(--border);margin-top:4px}
+
+    /* ─── EXPENSE FORM ─────────────── */
+    .expense-form{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
+    .expense-form .cats{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .expense-form .cat{padding:8px 14px;background:var(--bg2);border:2px solid var(--border);border-radius:10px;font-size:13px;cursor:pointer;color:var(--text2);font-family:inherit;transition:all .15s}
+    .expense-form .cat:active{transform:scale(.97)}
+    .expense-form .cat.selected{border-color:var(--orange);background:var(--orange-dim);color:var(--orange)}
+    .expense-form input,.expense-form textarea{width:100%;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-family:inherit;margin-bottom:10px}
+    .expense-form input:focus,.expense-form textarea:focus{outline:none;border-color:var(--orange)}
+    .expense-item{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    .expense-item .exp-info{flex:1}
+    .expense-item .exp-cat{font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px}
+    .expense-item .exp-desc{font-size:13px;color:var(--text2);margin-top:2px}
+    .expense-item .exp-amt{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--red)}
+    .expense-item .exp-del{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;margin-left:10px;padding:4px}
+
+    /* ─── MANAGER TABLE ────────────── */
+    .mgr-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+    .mgr-table th{text-align:left;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 6px;border-bottom:2px solid var(--border)}
+    .mgr-table td{padding:10px 6px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:13px}
+    .mgr-table .name-col{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600}
+    .mgr-table .disc-col{color:var(--red)}
+    .mgr-table .net-col{color:var(--green);font-weight:700}
+    .mgr-table .total-row td{border-top:2px solid var(--border);font-weight:700;font-size:14px}
+    .mgr-table .expand-btn{background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px;font-family:inherit;text-decoration:underline}
+    .detail-expand{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin:8px 0 16px;font-size:13px}
+    .detail-expand.show{display:block}
+    .detail-expand .detail-title{font-weight:700;margin-bottom:8px;color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+    .detail-expand .detail-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(45,58,79,.5)}
+    .detail-expand .detail-row:last-child{border-bottom:none}
+
+    /* ─── COLLECTION HISTORY ───────── */
+    .history-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+    .history-card:active{border-color:var(--purple)}
+    .history-card .hc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .history-card .hc-date{font-weight:600}
+    .history-card .hc-amount{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green);font-size:16px}
+    .history-card .hc-meta{color:var(--text2);font-size:12px}
+
+    /* ─── LOADING/TOAST ────────────── */
+    .loading-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,26,.8);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+    .loading-overlay.show{display:flex}
+    .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+    .loading-overlay p{color:var(--text2);font-size:14px}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90%}
+    .toast.show{opacity:1}
+    .empty-state{text-align:center;padding:40px 20px;color:var(--text2)}
+    .empty-state .icon{font-size:48px;margin-bottom:12px;opacity:.6}
   </style>
 </head>
 <body>
-  <div class="pin-screen" id="pinScreen">
-    <div class="pin-box">
-      <div class="icon">🔐</div>
-      <h2>Runner Settlement</h2>
-      <p>Enter your 4-digit PIN to continue</p>
-      <div class="pin-input" id="pinInput">
-        <input type="password" maxlength="1" inputmode="numeric">
-        <input type="password" maxlength="1" inputmode="numeric">
-        <input type="password" maxlength="1" inputmode="numeric">
-        <input type="password" maxlength="1" inputmode="numeric">
-      </div>
-      <div class="pin-success" id="pinSuccess">✓ Welcome back</div>
+
+<div class="loading-overlay" id="loadingOverlay"><div class="loader"></div><p id="loadingText">Loading...</p></div>
+<div class="toast" id="toast"></div>
+
+<!-- ═══════ PIN SCREEN ═══════ -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-box">
+    <div class="icon">💰</div>
+    <h2>Settlement</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-input" id="pinInput">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+    </div>
+    <div class="pin-error" id="pinError">Invalid PIN. Try again.</div>
+    <div class="pin-success" id="pinSuccess"></div>
+  </div>
+</div>
+
+<!-- ═══════ CASHIER DASHBOARD ═══════ -->
+<div class="dashboard" id="cashierDash">
+  <div class="header">
+    <h1><span class="accent" style="background:var(--purple)"></span>Settlement</h1>
+    <div class="user-badge">
+      <span class="name" id="cashierName"></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
   </div>
-  <div class="dashboard" id="dashboard">
-    <div class="header">
-      <h1>Runner Settlement</h1>
-      <div class="user-badge">
-        <span class="dot"></span>
-        <span class="name" id="userName"></span>
-        <button class="logout-btn" onclick="logout()">Logout</button>
-      </div>
+
+  <div class="content">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('runners',this)">Runners</div>
+      <div class="tab" onclick="switchTab('counter',this)">Counter</div>
+      <div class="tab" onclick="switchTab('expenses',this)">Expenses</div>
     </div>
-    <div class="content">
-      <div class="section-title">Select Runner or Counter</div>
+
+    <!-- TAB 1: Runner Settlement -->
+    <div class="tab-content active" id="tab-runners">
       <div class="runner-grid" id="runnerGrid"></div>
-      <div class="panel" id="panel">
-        <div class="panel-header">
-          <h2 id="runnerName"></h2>
-          <span class="period" id="period"></span>
-        </div>
-        <div id="panelContent"></div>
+      <div class="panel" id="runnerPanel">
+        <div class="panel-title" id="rpName"></div>
+        <div class="panel-period" id="rpPeriod"></div>
+        <div id="rpContent"></div>
       </div>
     </div>
+
+    <!-- TAB 2: Counter Settlement -->
+    <div class="tab-content" id="tab-counter">
+      <div class="panel show" id="counterPanel">
+        <div class="panel-title">💰 Cash Counter</div>
+        <div class="panel-period" id="cpPeriod"></div>
+        <div id="cpContent"><div class="empty-state"><div class="icon">⏳</div>Loading counter data...</div></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Expenses -->
+    <div class="tab-content" id="tab-expenses">
+      <div class="expense-form">
+        <div style="font-weight:700;margin-bottom:12px">Record Expense</div>
+        <div class="cats" id="expCats">
+          <button class="cat" onclick="selectCat(this,'police')">🚔 Police</button>
+          <button class="cat" onclick="selectCat(this,'supplies')">🛒 Supplies</button>
+          <button class="cat" onclick="selectCat(this,'transport')">🚗 Transport</button>
+          <button class="cat" onclick="selectCat(this,'other')">📋 Other</button>
+        </div>
+        <input type="number" id="expAmount" placeholder="Amount (₹)" inputmode="decimal">
+        <textarea id="expDesc" placeholder="Description (e.g. Weekly police payment)" rows="2"></textarea>
+        <button class="btn btn-orange" onclick="addExpense()">+ Record Expense</button>
+      </div>
+      <div style="font-weight:600;margin-bottom:10px;color:var(--text2);font-size:13px">PENDING EXPENSES</div>
+      <div id="expenseList"></div>
+    </div>
   </div>
-  <script>
-    const $=id=>document.getElementById(id);
-    const fmt=n=>'₹'+n.toLocaleString('en-IN');
-    const RUNNERS=[
-      {id:'counter',name:'💰 Cash Counter',barcode:'POS-27',isCounter:true},
-      {id:64,name:'FAROOQ',barcode:'RUN001'},
-      {id:65,name:'AMIN',barcode:'RUN002'},
-      {id:66,name:'NCH Runner 03',barcode:'RUN003'},
-      {id:67,name:'NCH Runner 04',barcode:'RUN004'},
-      {id:68,name:'NCH Runner 05',barcode:'RUN005'}
-    ];
-    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null;
-    const pins=Array.from($('pinInput').querySelectorAll('input'));
-    pins.forEach((input,i)=>{
-      input.addEventListener('input',e=>{
-        const v=e.target.value;
-        if(v){input.classList.add('filled');if(i<3)pins[i+1].focus();else checkPin();}
-        else input.classList.remove('filled');
-      });
-      input.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){pins[i-1].focus();pins[i-1].value='';pins[i-1].classList.remove('filled');}});
+
+  <!-- Sticky Cash Summary -->
+  <div class="cash-summary" id="cashSummary" style="display:none">
+    <div class="summary-row"><span style="color:var(--text2)">From runners</span><span class="mono" id="sumRunners">₹0</span></div>
+    <div class="summary-row"><span style="color:var(--text2)">From counter</span><span class="mono" id="sumCounter">₹0</span></div>
+    <div class="summary-row"><span style="color:var(--text2)">Expenses</span><span class="mono" style="color:var(--red)" id="sumExpenses">-₹0</span></div>
+    <div class="summary-row net"><span>Cash I'm Holding</span><span class="mono" style="color:var(--green)" id="sumNet">₹0</span></div>
+    <button class="btn btn-purple" onclick="handoverToManager()" id="handoverBtn" style="margin-top:10px">Hand Over to Manager</button>
+  </div>
+</div>
+
+<!-- ═══════ MANAGER DASHBOARD ═══════ -->
+<div class="dashboard" id="managerDash">
+  <div class="header">
+    <h1><span class="accent" style="background:var(--orange)"></span>Collection</h1>
+    <div class="user-badge">
+      <span class="name" id="managerName"></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchMgrTab('pending',this)">Pending</div>
+      <div class="tab" onclick="switchMgrTab('history',this)">History</div>
+    </div>
+
+    <div class="tab-content active" id="mtab-pending">
+      <div id="mgrPendingContent"><div class="empty-state"><div class="icon">⏳</div>Loading...</div></div>
+    </div>
+
+    <div class="tab-content" id="mtab-history">
+      <div id="mgrHistoryContent"><div class="empty-state"><div class="icon">⏳</div>Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/settlement';
+const NCH_API = '/api/nch-data';
+const fmt = n => '₹' + Math.abs(n).toLocaleString('en-IN', {maximumFractionDigits: 0});
+const fmtD = d => { const dd = new Date(d); return dd.toLocaleDateString('en-IN', {day:'2-digit',month:'short'}) + ' ' + dd.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:false}); };
+const toISO = d => { const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0'),mn=String(d.getMinutes()).padStart(2,'0'),s=String(d.getSeconds()).padStart(2,'0'); return `${y}-${m}-${dy}T${h}:${mn}:${s}`; };
+
+let currentStaff = null;
+let runners = [];
+let selectedRunner = null;
+let currentRunnerOdoo = null;
+let currentCounterOdoo = null;
+let expenseCategory = null;
+
+// ═══════ PIN ═══════
+const pins = Array.from(document.querySelectorAll('#pinInput input'));
+pins.forEach((input, i) => {
+  input.addEventListener('input', e => {
+    if (e.target.value) { input.classList.add('filled'); if (i < 3) pins[i+1].focus(); else checkPin(); }
+    else input.classList.remove('filled');
+  });
+  input.addEventListener('keydown', e => { if (e.key==='Backspace'&&!e.target.value&&i>0){pins[i-1].focus();pins[i-1].value='';pins[i-1].classList.remove('filled');} });
+});
+pins[0].focus();
+
+async function checkPin() {
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${pin}`);
+    const data = await res.json();
+    if (data.success) {
+      currentStaff = data.staff;
+      document.getElementById('pinSuccess').textContent = '✓ Welcome, ' + data.staff.name;
+      document.getElementById('pinSuccess').style.display = 'block';
+      document.getElementById('pinError').style.display = 'none';
+      setTimeout(() => {
+        document.getElementById('pinScreen').classList.add('hidden');
+        if (data.staff.role === 'cashier') initCashier();
+        else if (data.staff.role === 'manager') initManager();
+        else { showToast('Access denied for this role'); logout(); }
+      }, 600);
+    } else {
+      document.getElementById('pinError').style.display = 'block';
+      const wrap = document.getElementById('pinInput');
+      wrap.style.animation = 'shake 0.4s ease';
+      setTimeout(() => { wrap.style.animation = ''; pins.forEach(p=>{p.value='';p.classList.remove('filled');}); pins[0].focus(); }, 500);
+    }
+  } catch(e) { showToast('Connection error'); }
+}
+
+function logout() {
+  currentStaff = null; selectedRunner = null; runners = [];
+  document.getElementById('cashierDash').classList.remove('show');
+  document.getElementById('managerDash').classList.remove('show');
+  document.getElementById('pinScreen').classList.remove('hidden');
+  document.getElementById('pinSuccess').style.display = 'none';
+  document.getElementById('pinError').style.display = 'none';
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  pins[0].focus();
+}
+
+// ═══════ CASHIER VIEW ═══════
+async function initCashier() {
+  document.getElementById('cashierDash').classList.add('show');
+  document.getElementById('cashierName').textContent = currentStaff.name;
+  document.getElementById('cashSummary').style.display = 'block';
+  await loadRunners();
+  loadCashierSummary();
+  loadCounterTab();
+  loadExpenses();
+}
+
+async function loadRunners() {
+  const res = await fetch(`${API}?action=get-runners`);
+  const data = await res.json();
+  runners = data.runners || [];
+  const grid = document.getElementById('runnerGrid');
+  grid.innerHTML = runners.map(r => `<div class="runner-card" data-id="${r.id}" onclick="selectRunner('${r.id}',this)"><div class="rname">${r.name}</div><div class="rcode">${r.runner_barcode}</div></div>`).join('');
+}
+
+async function selectRunner(id, el) {
+  document.querySelectorAll('.runner-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedRunner = runners.find(r => r.id === id);
+  const panel = document.getElementById('runnerPanel');
+  panel.classList.add('show');
+  document.getElementById('rpName').textContent = selectedRunner.name;
+  document.getElementById('rpContent').innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Loading...</div>';
+
+  // Get last handover
+  const statusRes = await fetch(`${API}?action=get-runner-status&runner_staff_id=${id}`);
+  const statusData = await statusRes.json();
+  const periodStart = statusData.periodStart;
+  document.getElementById('rpPeriod').textContent = fmtD(periodStart) + ' → Now';
+
+  // Get Odoo data
+  const odooRes = await fetch(`${NCH_API}?from=${periodStart}`);
+  const odooData = await odooRes.json();
+  if (!odooData.success) { document.getElementById('rpContent').innerHTML = '<div class="empty-state" style="color:var(--red)">Error loading data</div>'; return; }
+
+  const runner = odooData.data.runners.find(r => r.id === selectedRunner.runner_odoo_id);
+  currentRunnerOdoo = runner;
+
+  if (!runner || (runner.tokens === 0 && runner.sales === 0 && runner.upi === 0)) {
+    let lastInfo = '';
+    if (statusData.lastHandover) lastInfo = `<div class="info-box info-green">✓ Last settled: ${fmtD(statusData.lastHandover.created_at)} — ${fmt(statusData.lastHandover.actual_cash)} cash</div>`;
+    document.getElementById('rpContent').innerHTML = `<div class="empty-state"><div class="icon">✅</div><div style="font-weight:600;margin-bottom:4px">No pending activity</div></div>${lastInfo}`;
+    return;
+  }
+
+  const expectedCash = runner.cashToCollect;
+  let lastInfo = '';
+  if (statusData.lastHandover) lastInfo = `<div class="info-box info-green" style="margin-bottom:16px">Last: ${fmtD(statusData.lastHandover.created_at)} by ${statusData.lastHandover.created_by} — ${fmt(statusData.lastHandover.actual_cash)}</div>`;
+
+  document.getElementById('rpContent').innerHTML = `
+    ${lastInfo}
+    <div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">${fmt(runner.tokens)}</span></div>
+    <div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">${fmt(runner.sales)}</span></div>
+    <div class="row"><span class="label">UPI Collected</span><span class="value" style="color:var(--blue)">${fmt(runner.upi)}</span></div>
+    <div class="row total"><span class="label">Expected Cash</span><span class="value" style="color:${expectedCash >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(expectedCash)}</span></div>
+    <div class="input-row">
+      <label>ACTUAL CASH RECEIVED</label>
+      <input type="number" id="runnerActual" inputmode="decimal" value="${Math.max(0,expectedCash)}" onfocus="this.select()" oninput="checkRunnerDisc()">
+    </div>
+    <div class="disc-section" id="runnerDisc">
+      <div class="disc-amount" id="runnerDiscAmt"></div>
+      <label>Reason for discrepancy *</label>
+      <textarea id="runnerDiscReason" placeholder="e.g. Customer at building 3 didn't pay"></textarea>
+    </div>
+    <button class="btn btn-green" id="runnerSettleBtn" onclick="settleRunner()">✓ Confirm Handover</button>
+  `;
+}
+
+function checkRunnerDisc() {
+  if (!currentRunnerOdoo) return;
+  const actual = parseFloat(document.getElementById('runnerActual').value) || 0;
+  const expected = currentRunnerOdoo.cashToCollect;
+  const disc = expected - actual;
+  const section = document.getElementById('runnerDisc');
+  if (Math.abs(disc) > 0.5) {
+    section.classList.add('show');
+    document.getElementById('runnerDiscAmt').textContent = `⚠️ ${disc > 0 ? 'Short' : 'Over'} by ${fmt(Math.abs(disc))}`;
+  } else {
+    section.classList.remove('show');
+  }
+}
+
+async function settleRunner() {
+  if (!selectedRunner || !currentRunnerOdoo) return;
+  const actual = parseFloat(document.getElementById('runnerActual').value) || 0;
+  const expected = currentRunnerOdoo.cashToCollect;
+  const disc = expected - actual;
+
+  if (Math.abs(disc) > 0.5) {
+    const reason = document.getElementById('runnerDiscReason').value.trim();
+    if (!reason) { showToast('⚠️ Enter reason for discrepancy'); document.getElementById('runnerDiscReason').focus(); return; }
+  }
+
+  const btn = document.getElementById('runnerSettleBtn');
+  btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Recording...';
+  showLoading('Recording handover...');
+
+  try {
+    const statusRes = await fetch(`${API}?action=get-runner-status&runner_staff_id=${selectedRunner.id}`);
+    const statusData = await statusRes.json();
+
+    const res = await fetch(`${API}?action=runner-handover`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        runner_staff_id: selectedRunner.id,
+        cashier_staff_id: currentStaff.id,
+        period_start: statusData.periodStart,
+        period_end: toISO(new Date()),
+        expected_tokens: currentRunnerOdoo.tokens,
+        expected_sales: currentRunnerOdoo.sales,
+        expected_upi: currentRunnerOdoo.upi,
+        expected_cash: expected,
+        actual_cash: actual,
+        discrepancy_reason: document.getElementById('runnerDiscReason')?.value?.trim() || '',
+        notes: ''
+      })
     });
-    async function checkPin(){
-      const pin=pins.map(p=>p.value).join('');
-      if(pin.length!==4)return;
-      try{
-        const res=await fetch('/api/settlement?action=verify-pin&pin='+pin);
-        const data=await res.json();
-        if(data.success){
-          currentUser=data.user;
-          $('pinSuccess').textContent='✓ Welcome, '+data.user;
-          $('pinSuccess').classList.add('show');
-          $('userName').textContent=data.user;
-          setTimeout(()=>{$('pinScreen').classList.add('hidden');$('dashboard').classList.add('show');renderRunners();},800);
-        }else{
-          pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
-          setTimeout(()=>pins.forEach(p=>p.style.borderColor=''),500);
-          pins[0].focus();
-        }
-      }catch(e){console.error(e);}
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('✅ ' + selectedRunner.name + ' handover recorded');
+    // Re-select to refresh
+    const card = document.querySelector(`.runner-card[data-id="${selectedRunner.id}"]`);
+    if (card) selectRunner(selectedRunner.id, card);
+    loadCashierSummary();
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+    btn.disabled = false; btn.classList.remove('loading'); btn.textContent = '✓ Confirm Handover';
+  }
+  hideLoading();
+}
+
+// ─── Counter Tab ───
+async function loadCounterTab() {
+  const cpContent = document.getElementById('cpContent');
+  cpContent.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Loading counter data...</div>';
+
+  const statusRes = await fetch(`${API}?action=get-counter-status`);
+  const statusData = await statusRes.json();
+  const periodStart = statusData.periodStart;
+  document.getElementById('cpPeriod').textContent = fmtD(periodStart) + ' → Now';
+
+  const odooRes = await fetch(`${NCH_API}?from=${periodStart}`);
+  const odooData = await odooRes.json();
+  if (!odooData.success) { cpContent.innerHTML = '<div class="empty-state" style="color:var(--red)">Error</div>'; return; }
+
+  const mc = odooData.data.mainCounter;
+  currentCounterOdoo = mc;
+  const cashExpected = mc.cash;
+
+  if (mc.cash === 0 && mc.upi === 0 && mc.card === 0) {
+    let lastInfo = '';
+    if (statusData.lastHandover) lastInfo = `<div class="info-box info-green">✓ Last settled: ${fmtD(statusData.lastHandover.created_at)} — ${fmt(statusData.lastHandover.actual_cash)} cash</div>`;
+    cpContent.innerHTML = `<div class="empty-state"><div class="icon">✅</div><div style="font-weight:600">No pending counter activity</div></div>${lastInfo}`;
+    return;
+  }
+
+  let lastInfo = '';
+  if (statusData.lastHandover) lastInfo = `<div class="info-box info-green" style="margin-bottom:16px">Last: ${fmtD(statusData.lastHandover.created_at)} — ${fmt(statusData.lastHandover.actual_cash)} cash</div>`;
+
+  cpContent.innerHTML = `
+    ${lastInfo}
+    <div class="row"><span class="label">Counter Revenue</span><span class="value">${fmt(mc.cash + mc.upi + mc.card)}</span></div>
+    <div class="row sub"><span class="label">↳ Cash</span><span class="value">${fmt(mc.cash)}</span></div>
+    <div class="row sub"><span class="label">↳ UPI (to bank)</span><span class="value" style="color:var(--blue)">${fmt(mc.upi)}</span></div>
+    <div class="row sub"><span class="label">↳ Card (to bank)</span><span class="value" style="color:var(--blue)">${fmt(mc.card)}</span></div>
+    <div class="row" style="opacity:.5"><span class="label">Token Issue (→ Runners)</span><span class="value">${fmt(mc.tokenIssue)}</span></div>
+    <div class="row total"><span class="label">Expected Cash</span><span class="value" style="color:var(--orange)">${fmt(cashExpected)}</span></div>
+    <div class="input-row">
+      <label>ACTUAL CASH COUNTED</label>
+      <input type="number" id="counterActual" inputmode="decimal" value="${cashExpected}" onfocus="this.select()" oninput="checkCounterDisc()">
+    </div>
+    <div class="disc-section" id="counterDisc">
+      <div class="disc-amount" id="counterDiscAmt"></div>
+      <label>Reason</label>
+      <textarea id="counterDiscReason" placeholder="e.g. Change given from counter cash"></textarea>
+    </div>
+    <button class="btn btn-orange" id="counterSettleBtn" onclick="settleCounter()">✓ Settle Counter</button>
+  `;
+}
+
+function checkCounterDisc() {
+  if (!currentCounterOdoo) return;
+  const actual = parseFloat(document.getElementById('counterActual').value) || 0;
+  const disc = currentCounterOdoo.cash - actual;
+  const section = document.getElementById('counterDisc');
+  if (Math.abs(disc) > 0.5) {
+    section.classList.add('show');
+    document.getElementById('counterDiscAmt').textContent = `⚠️ ${disc > 0 ? 'Short' : 'Over'} by ${fmt(Math.abs(disc))}`;
+  } else {
+    section.classList.remove('show');
+  }
+}
+
+async function settleCounter() {
+  if (!currentCounterOdoo) return;
+  const actual = parseFloat(document.getElementById('counterActual').value) || 0;
+
+  const btn = document.getElementById('counterSettleBtn');
+  btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Recording...';
+  showLoading('Settling counter...');
+
+  try {
+    const statusRes = await fetch(`${API}?action=get-counter-status`);
+    const statusData = await statusRes.json();
+
+    const res = await fetch(`${API}?action=counter-handover`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        cashier_staff_id: currentStaff.id,
+        period_start: statusData.periodStart,
+        period_end: toISO(new Date()),
+        expected_cash: currentCounterOdoo.cash,
+        expected_upi: currentCounterOdoo.upi,
+        expected_card: currentCounterOdoo.card,
+        actual_cash: actual,
+        discrepancy_reason: document.getElementById('counterDiscReason')?.value?.trim() || '',
+        notes: ''
+      })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('✅ Counter settled');
+    loadCounterTab();
+    loadCashierSummary();
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+    btn.disabled = false; btn.classList.remove('loading'); btn.textContent = '✓ Settle Counter';
+  }
+  hideLoading();
+}
+
+// ─── Expenses Tab ───
+function selectCat(el, cat) {
+  document.querySelectorAll('.cat').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  expenseCategory = cat;
+}
+
+async function addExpense() {
+  if (!expenseCategory) { showToast('⚠️ Select a category'); return; }
+  const amount = parseFloat(document.getElementById('expAmount').value);
+  const desc = document.getElementById('expDesc').value.trim();
+  if (!amount || amount <= 0) { showToast('⚠️ Enter amount'); return; }
+  if (!desc) { showToast('⚠️ Enter description'); return; }
+
+  showLoading('Recording expense...');
+  try {
+    const res = await fetch(`${API}?action=add-expense`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ staff_id: currentStaff.id, amount, category: expenseCategory, description: desc })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('✅ Expense recorded');
+    document.getElementById('expAmount').value = '';
+    document.getElementById('expDesc').value = '';
+    document.querySelectorAll('.cat').forEach(c => c.classList.remove('selected'));
+    expenseCategory = null;
+    loadExpenses();
+    loadCashierSummary();
+  } catch(e) { showToast('❌ ' + e.message); }
+  hideLoading();
+}
+
+async function loadExpenses() {
+  const res = await fetch(`${API}?action=get-expenses&staff_id=${currentStaff.id}`);
+  const data = await res.json();
+  const list = document.getElementById('expenseList');
+  if (!data.expenses || data.expenses.length === 0) {
+    list.innerHTML = '<div class="empty-state">No pending expenses</div>';
+    return;
+  }
+  const catIcons = {police: '🚔', supplies: '🛒', transport: '🚗', other: '📋'};
+  list.innerHTML = data.expenses.map(e => `
+    <div class="expense-item">
+      <div class="exp-info">
+        <div class="exp-cat">${catIcons[e.category] || ''} ${e.category}</div>
+        <div class="exp-desc">${e.description}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${fmtD(e.created_at)}</div>
+      </div>
+      <div class="exp-amt">-${fmt(e.amount)}</div>
+      <button class="exp-del" onclick="deleteExpense(${e.id})" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+async function deleteExpense(id) {
+  if (!confirm('Delete this expense?')) return;
+  try {
+    const res = await fetch(`${API}?action=delete-expense`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ expense_id: id, staff_id: currentStaff.id })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('Expense deleted');
+    loadExpenses();
+    loadCashierSummary();
+  } catch(e) { showToast('❌ ' + e.message); }
+}
+
+// ─── Cash Summary ───
+async function loadCashierSummary() {
+  try {
+    const res = await fetch(`${API}?action=get-cashier-summary&cashier_staff_id=${currentStaff.id}`);
+    const data = await res.json();
+    if (!data.success) return;
+    const t = data.totals;
+    document.getElementById('sumRunners').textContent = fmt(t.totalRunnerCash);
+    document.getElementById('sumCounter').textContent = fmt(t.totalCounterCash);
+    document.getElementById('sumExpenses').textContent = '-' + fmt(t.totalExpenses);
+    document.getElementById('sumNet').textContent = fmt(t.netCash);
+
+    const btn = document.getElementById('handoverBtn');
+    if (t.netCash > 0 && !data.pendingManagerHandover) {
+      btn.style.display = 'flex';
+      btn.textContent = `Hand Over ${fmt(t.netCash)} to Manager`;
+    } else if (data.pendingManagerHandover) {
+      btn.style.display = 'flex';
+      btn.textContent = '✓ Already handed over';
+      btn.disabled = true;
+      btn.classList.add('btn-green');
+      btn.classList.remove('btn-purple');
+    } else {
+      btn.style.display = 'none';
     }
-    function logout(){currentUser=null;selectedRunner=null;$('dashboard').classList.remove('show');$('pinScreen').classList.remove('hidden');$('pinSuccess').classList.remove('show');pins.forEach(p=>{p.value='';p.classList.remove('filled');});pins[0].focus();}
-    function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card'+(r.isCounter?' counter':'')+'" onclick="selectRunner('+(typeof r.id==='string'?"'"+r.id+"'":r.id)+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
-    
-    function toLocalISO(d){
-      const y=d.getFullYear();
-      const m=String(d.getMonth()+1).padStart(2,'0');
-      const day=String(d.getDate()).padStart(2,'0');
-      const h=String(d.getHours()).padStart(2,'0');
-      const min=String(d.getMinutes()).padStart(2,'0');
-      const sec=String(d.getSeconds()).padStart(2,'0');
-      return y+'-'+m+'-'+day+'T'+h+':'+min+':'+sec;
+  } catch(e) { /* silent */ }
+}
+
+async function handoverToManager() {
+  const summaryRes = await fetch(`${API}?action=get-cashier-summary&cashier_staff_id=${currentStaff.id}`);
+  const summaryData = await summaryRes.json();
+  if (!summaryData.success) { showToast('Error loading summary'); return; }
+
+  const net = summaryData.totals.netCash;
+  const actualStr = prompt(`Cash to hand over to manager:\n\nExpected: ₹${net}\n\nEnter actual amount:`);
+  if (actualStr === null) return;
+  const actual = parseFloat(actualStr);
+  if (isNaN(actual)) { showToast('Invalid amount'); return; }
+
+  showLoading('Recording handover...');
+  try {
+    const res = await fetch(`${API}?action=cashier-to-manager`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ cashier_staff_id: currentStaff.id, actual_cash: actual, notes: '' })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast(`✅ Handed over ${fmt(actual)} to manager`);
+    loadCashierSummary();
+  } catch(e) { showToast('❌ ' + e.message); }
+  hideLoading();
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('#cashierDash .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('#cashierDash .tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ═══════ MANAGER VIEW ═══════
+async function initManager() {
+  document.getElementById('managerDash').classList.add('show');
+  document.getElementById('managerName').textContent = currentStaff.name;
+  loadPendingCollections();
+  loadCollectionHistory();
+}
+
+async function loadPendingCollections() {
+  const container = document.getElementById('mgrPendingContent');
+  container.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Loading pending collections...</div>';
+
+  try {
+    const res = await fetch(`${API}?action=get-pending-collections`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    if (data.pendingByStaff.length === 0) {
+      let lastInfo = '';
+      if (data.lastCollection) lastInfo = `<div class="info-box info-green" style="margin-top:16px">Last collection: ${fmtD(data.lastCollection.created_at)} — ${fmt(data.lastCollection.net_cash)}</div>`;
+      container.innerHTML = `<div class="empty-state"><div class="icon">✅</div><h3>No Pending Collections</h3><p style="color:var(--text2)">All cash has been collected.</p></div>${lastInfo}`;
+      return;
     }
-    
-    const fmtD=(d)=>{
-      const day=d.getDate().toString().padStart(2,'0');
-      const mon=d.toLocaleString('en-IN',{month:'short'});
-      const hr=d.getHours().toString().padStart(2,'0');
-      const mn=d.getMinutes().toString().padStart(2,'0');
-      return day+' '+mon+' '+hr+':'+mn;
-    };
-    
-    async function selectRunner(id,el){
-      document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
-      el.classList.add('selected');
-      selectedRunner=RUNNERS.find(r=>r.id===id);
-      $('panel').classList.add('show');
-      $('runnerName').textContent=selectedRunner.name;
-      $('period').textContent='Loading...';
-      $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
-      
-      if(id==='counter'){
-        await loadCounterSettlement();
-      }else{
-        await loadRunnerSettlement(id);
-      }
+
+    // Last collection info
+    let lastHtml = '';
+    if (data.lastCollection) {
+      lastHtml = `<div class="info-box info-green" style="margin-bottom:20px">Last collection: ${fmtD(data.lastCollection.created_at)} — ${fmt(data.lastCollection.net_cash)} by ${data.lastCollection.manager_name || 'Manager'}</div>`;
     }
-    
-    async function loadCounterSettlement(){
-      try{
-        const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
-        const lastData=await lastRes.json();
-        
-        const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
-        currentPeriodStart=fromDate;
-        
-        $('period').textContent=fmtD(fromDate)+' → Now';
-        $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo...</div>';
-        
-        const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
-        const data=await res.json();
-        if(!data.success)throw new Error(data.error);
-        
-        const mc=data.data.mainCounter;
-        currentCounterData=mc;
-        
-        // Counter Revenue = Cash + UPI + Card (NOT token issue, NOT complimentary)
-        const counterRevenue=mc.cash+mc.upi+mc.card;
-        // Cash to Settle = Cash (UPI & Card go directly to bank)
-        const cashToSettle=mc.cash;
-        
-        const hasLast=lastData.lastSettlement;
-        let statusBox='';
-        if(hasLast){
-          statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';
-        }else{
-          statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';
-        }
-        
-        let settleBtn='';
-        if(counterRevenue>0){
-          settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';
-        }
-        
-        if(counterRevenue>0 || hasLast){
-          $('panelContent').innerHTML=
-            '<div class="row"><span class="label">Counter Revenue</span><span class="value">'+fmt(counterRevenue)+'</span></div>'+
-            '<div class="row sub"><span class="label">↳ Cash</span><span class="value">'+fmt(mc.cash)+'</span></div>'+
-            '<div class="row sub"><span class="label">↳ UPI (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.upi)+'</span></div>'+
-            '<div class="row sub"><span class="label">↳ Card (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.card)+'</span></div>'+
-            '<div class="row" style="opacity:0.5"><span class="label">Token Issue (→ Runners)</span><span class="value">'+fmt(mc.tokenIssue)+'</span></div>'+
-            '<div class="row" style="opacity:0.5"><span class="label">Complimentary</span><span class="value">'+fmt(mc.complimentary)+'</span></div>'+
-            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+
-            statusBox+settleBtn;
-        }else{
-          if(hasLast){
-            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ No pending settlement<br><small style="color:var(--text2)">Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+'</small></div>';
-          }else{
-            $('panelContent').innerHTML='<div class="loading-text">No counter activity</div>';
-          }
-        }
-      }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
-    }
-    
-    async function loadRunnerSettlement(id){
-      try{
-        const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
-        const lastData=await lastRes.json();
-        
-        const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
-        currentPeriodStart=fromDate;
-        
-        $('period').textContent=fmtD(fromDate)+' → Now';
-        $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
-        
-        const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
-        const data=await res.json();
-        if(!data.success)throw new Error(data.error);
-        
-        const runner=data.data.runners.find(r=>r.id===id);
-        currentRunnerData=runner;
-        
-        if(runner && (runner.tokens>0 || runner.sales>0 || runner.upi>0)){
-          const cash=runner.cashToCollect;
-          const hasLast=lastData.lastSettlement;
-          let statusBox='';
-          if(hasLast){statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+')</div>';}
-          else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
-          
-          let settleBtn='';
-          if(cash>0){
-            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';
-          }else if(cash<0){
-            settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';
-          }else{
-            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';
-          }
-          
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox+settleBtn;
-        }else{
-          const hasLast=lastData.lastSettlement;
-          if(hasLast){
-            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ No pending settlement<br><small style="color:var(--text2)">Last settled: '+fmtD(new Date(hasLast.settled_at))+' by '+hasLast.settled_by+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+')</small></div>';
-          }else{
-            $('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';
-          }
-        }
-      }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
-    }
-    
-    async function settleRunner(){
-      if(!selectedRunner||!currentRunnerData)return;
-      const btn=document.querySelector('.settle-btn');
-      btn.disabled=true;
-      btn.classList.add('loading');
-      btn.textContent='Recording settlement...';
-      
-      try{
-        const now=new Date();
-        const res=await fetch('/api/settlement?action=settle',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            runner_id:selectedRunner.id,
-            runner_name:selectedRunner.name,
-            settled_by:currentUser,
-            period_start:toLocalISO(currentPeriodStart),
-            period_end:toLocalISO(now),
-            tokens_amount:currentRunnerData.tokens,
-            sales_amount:currentRunnerData.sales,
-            upi_amount:currentRunnerData.upi,
-            cash_settled:currentRunnerData.cashToCollect,
-            notes:'Settled via dashboard'
-          })
+
+    // Build all rows for the table: runners + cashiers
+    let allRunnerRows = [];
+    let cashierRows = [];
+    for (const entry of data.pendingByStaff) {
+      // Runner rows
+      for (const rh of entry.runnerHandovers) {
+        allRunnerRows.push({
+          name: rh.from_name,
+          expected: rh.expected_cash,
+          received: rh.actual_cash,
+          disc: rh.discrepancy,
+          reason: rh.discrepancy_reason,
+          cashier: entry.cashier.name,
+          time: rh.created_at
         });
-        const data=await res.json();
-        if(data.success){
-          btn.textContent='✓ Settlement Recorded!';
-          btn.style.background='var(--green)';
-          setTimeout(()=>{
-            const card=document.querySelector('.runner-card.selected');
-            if(card)selectRunner(selectedRunner.id,card);
-          },1500);
-        }else{
-          throw new Error(data.error);
-        }
-      }catch(e){
-        btn.disabled=false;
-        btn.classList.remove('loading');
-        btn.textContent='Error: '+e.message;
-        btn.style.background='var(--red)';
+      }
+      // Cashier summary row
+      cashierRows.push({
+        name: entry.cashier.name,
+        id: entry.cashier.id,
+        received: entry.cashierHandover.actual_cash,
+        expenses: entry.totals.expenses,
+        disc: entry.totals.cashierDiscrepancy + entry.totals.runnerDiscrepancy,
+        net: entry.totals.netCash,
+        entry: entry
+      });
+    }
+
+    // Build table
+    let tableRows = '';
+    // Runner rows
+    for (const r of allRunnerRows) {
+      const discHtml = r.disc !== 0 ? `<span style="color:var(--red)">${fmt(r.disc)}</span>` : '—';
+      tableRows += `<tr>
+        <td class="name-col">${r.name}</td>
+        <td>${fmt(r.expected)}</td>
+        <td>${fmt(r.received)}</td>
+        <td>—</td>
+        <td class="disc-col">${discHtml}</td>
+        <td>—</td>
+      </tr>`;
+    }
+    // Counter rows (from all cashiers)
+    for (const entry of data.pendingByStaff) {
+      for (const ch of entry.counterHandovers) {
+        tableRows += `<tr>
+          <td class="name-col">Counter → ${entry.cashier.name}</td>
+          <td>${fmt(ch.expected_cash)}</td>
+          <td>${fmt(ch.actual_cash)}</td>
+          <td>—</td>
+          <td class="disc-col">${ch.discrepancy !== 0 ? fmt(ch.discrepancy) : '—'}</td>
+          <td>—</td>
+        </tr>`;
       }
     }
-    
-    async function settleCounter(){
-      if(!currentCounterData)return;
-      const btn=document.querySelector('.settle-btn');
-      btn.disabled=true;
-      btn.classList.add('loading');
-      btn.textContent='Recording settlement...';
-      
-      try{
-        const now=new Date();
-        const cashToSettle=currentCounterData.cash;
-        const res=await fetch('/api/settlement?action=settle',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            runner_id:'counter',
-            runner_name:'Cash Counter',
-            settled_by:currentUser,
-            period_start:toLocalISO(currentPeriodStart),
-            period_end:toLocalISO(now),
-            tokens_amount:0,
-            sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,
-            upi_amount:currentCounterData.upi+currentCounterData.card,
-            cash_settled:cashToSettle,
-            notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card
-          })
-        });
-        const data=await res.json();
-        if(data.success){
-          btn.textContent='✓ Settlement Recorded!';
-          btn.style.background='var(--green)';
-          setTimeout(()=>{
-            const card=document.querySelector('.runner-card.selected');
-            if(card)selectRunner('counter',card);
-          },1500);
-        }else{
-          throw new Error(data.error);
-        }
-      }catch(e){
-        btn.disabled=false;
-        btn.classList.remove('loading');
-        btn.textContent='Error: '+e.message;
-        btn.style.background='var(--red)';
+    // Cashier total rows
+    for (const c of cashierRows) {
+      const discHtml = c.disc !== 0 ? `<span style="color:var(--red)">${fmt(c.disc)}</span>` : '—';
+      tableRows += `<tr style="background:var(--bg2)">
+        <td class="name-col" style="color:var(--purple)">📋 ${c.name} Total</td>
+        <td>—</td>
+        <td>${fmt(c.received + c.expenses)}</td>
+        <td style="color:var(--red)">${c.expenses > 0 ? '-' + fmt(c.expenses) : '—'}</td>
+        <td class="disc-col">${discHtml}</td>
+        <td class="net-col">${fmt(c.net)}</td>
+      </tr>`;
+      // Expandable detail
+      if (c.entry.expenses.length > 0) {
+        const expRows = c.entry.expenses.map(e => `<div class="detail-row"><span>${e.category}: ${e.description}</span><span style="color:var(--red)">-${fmt(e.amount)}</span></div>`).join('');
+        tableRows += `<tr><td colspan="6" style="padding:0"><div class="detail-expand show" style="margin:0 8px 8px"><div class="detail-title">Expenses by ${c.name}</div>${expRows}</div></td></tr>`;
+      }
+      // Discrepancy details
+      const discRunners = c.entry.runnerHandovers.filter(r => r.discrepancy !== 0);
+      if (discRunners.length > 0) {
+        const discRows = discRunners.map(r => `<div class="detail-row"><span>${r.from_name}: ${r.discrepancy_reason || 'No reason'}</span><span style="color:var(--red)">${fmt(r.discrepancy)} short</span></div>`).join('');
+        tableRows += `<tr><td colspan="6" style="padding:0"><div class="detail-expand show" style="margin:0 8px 8px;border-color:var(--red)"><div class="detail-title" style="color:var(--red)">⚠️ Discrepancies</div>${discRows}</div></td></tr>`;
       }
     }
-    
-    pins[0].focus();
-  </script>
+
+    // Grand total
+    const gt = data.grandTotals;
+    tableRows += `<tr class="total-row">
+      <td class="name-col">TOTAL</td>
+      <td>${fmt(gt.totalExpected)}</td>
+      <td>${fmt(gt.totalReceived)}</td>
+      <td style="color:var(--red)">${gt.totalExpenses > 0 ? '-' + fmt(gt.totalExpenses) : '—'}</td>
+      <td class="disc-col">${gt.totalDiscrepancy !== 0 ? fmt(gt.totalDiscrepancy) : '—'}</td>
+      <td class="net-col">${fmt(gt.netCash)}</td>
+    </tr>`;
+
+    container.innerHTML = `
+      ${lastHtml}
+      <div style="overflow-x:auto">
+        <table class="mgr-table">
+          <thead><tr>
+            <th>Staff</th><th>Expected</th><th>Received</th><th>Expenses</th><th>Disc.</th><th>Net</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+      <div class="input-row" style="margin-top:20px">
+        <label>ACTUAL CASH COLLECTED</label>
+        <input type="number" id="collectActual" inputmode="decimal" value="${gt.netCash}" onfocus="this.select()">
+      </div>
+      <button class="btn btn-green" style="font-size:18px;padding:18px" onclick="confirmCollection()">✓ Confirm Collection — ${fmt(gt.netCash)}</button>
+    `;
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+async function confirmCollection() {
+  const actual = parseFloat(document.getElementById('collectActual').value);
+  if (isNaN(actual)) { showToast('Enter amount'); return; }
+
+  showLoading('Recording collection...');
+  try {
+    const res = await fetch(`${API}?action=collect`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ manager_staff_id: currentStaff.id, actual_cash_received: actual, notes: '' })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('✅ Collection recorded — ' + fmt(actual));
+    loadPendingCollections();
+    loadCollectionHistory();
+  } catch(e) { showToast('❌ ' + e.message); }
+  hideLoading();
+}
+
+async function loadCollectionHistory() {
+  const container = document.getElementById('mgrHistoryContent');
+  try {
+    const res = await fetch(`${API}?action=collection-history`);
+    const data = await res.json();
+    if (!data.collections || data.collections.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📋</div>No collection history yet</div>';
+      return;
+    }
+    container.innerHTML = data.collections.map(c => `
+      <div class="history-card">
+        <div class="hc-header">
+          <span class="hc-date">${fmtD(c.created_at)}</span>
+          <span class="hc-amount">${fmt(c.net_cash)}</span>
+        </div>
+        <div class="hc-meta">
+          By ${c.manager_name} • Expected ${fmt(c.total_expected)} • Received ${fmt(c.total_received)}
+          ${c.total_expenses > 0 ? ' • Expenses -' + fmt(c.total_expenses) : ''}
+          ${c.total_discrepancy !== 0 ? ' • <span style="color:var(--red)">Disc ' + fmt(c.total_discrepancy) + '</span>' : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { container.innerHTML = '<div class="empty-state" style="color:var(--red)">Error</div>'; }
+}
+
+function switchMgrTab(name, el) {
+  document.querySelectorAll('#managerDash .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('#managerDash .tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('mtab-' + name).classList.add('active');
+}
+
+// ═══════ UTILS ═══════
+function showLoading(text) { document.getElementById('loadingText').textContent = text || 'Loading...'; document.getElementById('loadingOverlay').classList.add('show'); }
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+</script>
 </body>
 </html>
