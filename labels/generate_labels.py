@@ -26,18 +26,15 @@ OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Product definitions: (name, barcode_code, unit)
 PRODUCTS = [
-    ("Tea Powder (Greenland)", "RM-TEA",  "kg"),
-    ("Tea Powder (Ranveer)",   "RM-TEAR", "kg"),
-    ("Milk Powder (Vetha)",    "RM-SMP",  "kg"),
-    ("Osmania - Galaxy",       "RM-OSMG", "pcs"),
-    ("Osmania Box - Niloufer", "RM-OSMN", "box"),
+    ("Tea Powder",             "RM-TEA",  "kg"),
+    ("Milk Powder",            "RM-SMP",  "kg"),
+    ("Condensed Milk",         "RM-CM",   "kg"),
     ("Buffalo Milk",           "RM-BFM",  "L"),
     ("Sugar",                  "RM-SUG",  "kg"),
     ("Buns",                   "RM-BUN",  "pcs"),
     ("Chicken Cutlet (Raw)",   "RM-CCT",  "pcs"),
-    ("Condensed Milk",         "RM-MMD",  "kg"),
-    ("Milk Maid (Amul)",       "RM-MMA",  "kg"),
-    ("Milk Maid (Nestle)",     "RM-MMN",  "kg"),
+    ("Osmania (Loose)",        "RM-OSMG", "pcs"),
+    ("Osmania Box",            "RM-OSMN", "box"),
     ("Filter Water",           "RM-WTR",  "L"),
     ("Bottled Water",          "RM-BWR",  "pcs"),
 ]
