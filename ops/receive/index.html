@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH - Receive Delivery</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--red-dim:rgba(239,68,68,.12);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);--purple:#a855f7;--yellow:#eab308;--yellow-dim:rgba(234,179,8,.12);--orange:#f97316;--orange-dim:rgba(249,115,22,.12)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ─── HEADER ─────────────────────────── */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1 .accent{width:4px;height:22px;background:var(--green);border-radius:2px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .back-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;display:none}
+    .back-btn:active{background:var(--border)}
+    .refresh-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .refresh-btn:active{background:var(--border)}
+    .refresh-btn.spinning{animation:spin .6s ease}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    .screen.active{display:block}
+
+    /* ─── LIST SCREEN ─────────────────────── */
+    .status-bar{display:flex;gap:10px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px}
+    .status-chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:8px 16px;font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+    .status-chip .dot{width:8px;height:8px;border-radius:50%}
+    .status-chip .dot.pending{background:var(--orange)}
+    .status-chip .dot.done{background:var(--green)}
+
+    .delivery-card{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+    .delivery-card:active{transform:scale(.98);border-color:var(--green)}
+    .delivery-card .vendor{font-size:18px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .delivery-card .vendor-icon{width:40px;height:40px;background:var(--green-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+    .delivery-card .vendor-info{flex:1}
+    .delivery-card .meta{color:var(--text2);font-size:13px;margin-top:2px}
+    .delivery-card .items-preview{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px}
+    .delivery-card .item-chip{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text2)}
+    .delivery-card .item-chip .qty{color:var(--text);font-weight:600}
+    .delivery-card .arrow{position:absolute;right:20px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:22px}
+    .delivery-card .note-badge{background:var(--yellow-dim);color:var(--yellow);font-size:11px;padding:3px 8px;border-radius:6px;margin-left:8px}
+
+    .empty-state{text-align:center;padding:60px 20px}
+    .empty-state .icon{font-size:64px;margin-bottom:16px;opacity:.6}
+    .empty-state h2{font-size:20px;margin-bottom:8px}
+    .empty-state p{color:var(--text2);font-size:14px;line-height:1.6}
+
+    /* ─── RECEIVE SCREEN ──────────────────── */
+    .receipt-header{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
+    .receipt-header .vendor-name{font-size:22px;font-weight:700;margin-bottom:4px}
+    .receipt-header .po-ref{color:var(--text2);font-size:14px}
+    .receipt-header .zoya-note{background:var(--yellow-dim);border:1px solid rgba(234,179,8,.3);border-radius:10px;padding:12px 14px;margin-top:14px;font-size:13px;color:var(--yellow);line-height:1.5}
+    .receipt-header .zoya-note strong{color:var(--yellow)}
+
+    .item-card{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:20px;margin-bottom:12px;transition:border-color .2s}
+    .item-card.matched{border-color:var(--green)}
+    .item-card.mismatch{border-color:var(--red)}
+    .item-card .product-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+    .item-card .product-name{font-size:16px;font-weight:600;flex:1}
+    .item-card .product-code{color:var(--text2);font-size:12px;margin-top:2px}
+    .item-card .expected{text-align:right}
+    .item-card .expected .label{color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .item-card .expected .value{font-size:20px;font-weight:700;color:var(--blue)}
+
+    .qty-input-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .qty-input-row label{color:var(--text2);font-size:13px;white-space:nowrap;min-width:70px}
+    .qty-controls{display:flex;align-items:center;gap:0;flex:1;max-width:260px}
+    .qty-btn{width:48px;height:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .1s}
+    .qty-btn:first-child{border-radius:10px 0 0 10px}
+    .qty-btn:last-child{border-radius:0 10px 10px 0}
+    .qty-btn:active{background:var(--border)}
+    .qty-input{width:80px;height:48px;background:var(--bg);border:1px solid var(--border);border-left:none;border-right:none;color:var(--text);font-size:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:600}
+    .qty-input:focus{outline:none;border-color:var(--blue);background:rgba(59,130,246,.08)}
+    .qty-unit{color:var(--text2);font-size:14px;margin-left:4px}
+
+    .dest-row{display:flex;gap:8px}
+    .dest-btn{flex:1;padding:10px;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text2);font-size:13px;cursor:pointer;text-align:center;font-family:inherit;transition:all .15s}
+    .dest-btn:active{transform:scale(.97)}
+    .dest-btn.selected-storage{border-color:var(--blue);background:var(--blue-dim);color:var(--blue)}
+    .dest-btn.selected-kitchen{border-color:var(--orange);background:var(--orange-dim);color:var(--orange)}
+
+    .match-indicator{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:10px;padding:6px 10px;border-radius:8px}
+    .match-indicator.ok{background:var(--green-dim);color:var(--green)}
+    .match-indicator.warn{background:var(--red-dim);color:var(--red)}
+
+    /* ─── CONFIRM BUTTON ──────────────────── */
+    .confirm-section{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:20px 0 24px;margin-top:8px}
+    .confirm-btn{width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .confirm-btn:active{transform:scale(.98)}
+    .confirm-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+    .confirm-btn.loading{background:var(--yellow);cursor:wait}
+
+    /* ─── SUCCESS SCREEN ──────────────────── */
+    .success-screen{text-align:center;padding:60px 20px}
+    .success-screen .checkmark{width:80px;height:80px;background:var(--green-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 24px}
+    .success-screen h2{font-size:24px;margin-bottom:8px}
+    .success-screen p{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:8px}
+    .success-screen .detail-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:20px auto;max-width:360px;text-align:left}
+    .success-screen .detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+    .success-screen .detail-row:last-child{border-bottom:none}
+    .success-screen .detail-row .lbl{color:var(--text2)}
+    .success-screen .detail-row .val{font-weight:600}
+    .success-screen .detail-row .val.warn{color:var(--red)}
+    .success-screen .new-btn{display:inline-block;margin-top:24px;padding:14px 32px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+    .success-screen .new-btn:active{background:var(--border)}
+
+    /* ─── SCANNER INPUT ───────────────────── */
+    .scanner-input{position:fixed;top:-100px;left:-100px;opacity:0;width:1px;height:1px}
+
+    /* ─── TOAST ────────────────────────────── */
+    .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1}
+
+    /* ─── LOADING ──────────────────────────── */
+    .loading-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,26,.8);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+    .loading-overlay.show{display:flex}
+    .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+    .loading-overlay p{color:var(--text2);font-size:14px}
+  </style>
+</head>
+<body>
+
+<!-- Hidden input for barcode scanner -->
+<input type="text" class="scanner-input" id="scannerInput" autocomplete="off">
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <p id="loadingText">Loading deliveries...</p>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Header -->
+<div class="header">
+  <h1><span class="accent"></span>📦 Receive Delivery</h1>
+  <div class="header-right">
+    <button class="back-btn" id="backBtn" onclick="goBack()">← Back</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">↻</button>
+  </div>
+</div>
+
+<!-- Screen 1: Delivery List -->
+<div class="screen active" id="listScreen">
+  <div class="status-bar" id="statusBar"></div>
+  <div id="deliveryList"></div>
+</div>
+
+<!-- Screen 2: Receive Items -->
+<div class="screen" id="receiveScreen">
+  <div class="receipt-header" id="receiptHeader"></div>
+  <div id="itemsList"></div>
+  <div class="confirm-section">
+    <button class="confirm-btn" id="confirmBtn" onclick="confirmReceipt()">
+      ✅ Confirm Delivery
+    </button>
+  </div>
+</div>
+
+<!-- Screen 3: Success -->
+<div class="screen" id="successScreen"></div>
+
+<script>
+const API_BASE = '/api/inventory';
+const LOC = {MAIN_STORAGE: 39, KITCHEN: 41};
+const LOC_NAMES = {39: 'Main Storage', 41: 'Kitchen'};
+
+let currentReceipts = [];
+let currentPicking = null;
+let currentItems = [];
+
+// ─── INIT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadPendingReceipts();
+  setupScanner();
+});
+
+// ─── SCANNER SUPPORT ─────────────────────────────────────────
+function setupScanner() {
+  const scanInput = document.getElementById('scannerInput');
+  let scanBuffer = '';
+  let scanTimer = null;
+
+  // Keep focus on scanner input when no other input is focused
+  document.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'INPUT' || e.target === scanInput) {
+      scanInput.focus();
+    }
+  });
+
+  // Listen for rapid keystrokes (barcode scanner sends chars fast)
+  document.addEventListener('keydown', (e) => {
+    const active = document.activeElement;
+    // If focused on a qty input, let normal input happen
+    if (active && active.classList.contains('qty-input')) return;
+
+    if (e.key === 'Enter' && scanBuffer.length > 2) {
+      e.preventDefault();
+      handleScan(scanBuffer.trim());
+      scanBuffer = '';
+      return;
+    }
+
+    if (e.key.length === 1) {
+      scanBuffer += e.key;
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => { scanBuffer = ''; }, 100);
+    }
+  });
+}
+
+function handleScan(code) {
+  const screen = getActiveScreen();
+  if (screen === 'listScreen') {
+    // Try to match PO name or receipt name
+    const match = currentReceipts.find(r =>
+      r.poName === code || r.name === code || r.poName.replace('P', '') === code
+    );
+    if (match) {
+      openReceipt(match.pickingId);
+      showToast(`📦 Opened ${match.poName}`);
+    } else {
+      showToast(`❌ No delivery found for "${code}"`);
+    }
+  } else if (screen === 'receiveScreen') {
+    // Try to match product barcode/code
+    const idx = currentItems.findIndex(item =>
+      item.barcode === code || item.productCode === code || item.productCode === code.toUpperCase()
+    );
+    if (idx >= 0) {
+      // Scroll to and highlight the item
+      const cards = document.querySelectorAll('.item-card');
+      if (cards[idx]) {
+        cards[idx].scrollIntoView({behavior: 'smooth', block: 'center'});
+        cards[idx].style.borderColor = 'var(--blue)';
+        setTimeout(() => updateItemCardState(idx), 1500);
+        // Focus the qty input
+        const input = cards[idx].querySelector('.qty-input');
+        if (input) input.focus();
+        showToast(`🔍 ${currentItems[idx].productName}`);
+      }
+    } else {
+      showToast(`❌ Product "${code}" not in this delivery`);
+    }
+  }
+}
+
+function getActiveScreen() {
+  if (document.getElementById('listScreen').classList.contains('active')) return 'listScreen';
+  if (document.getElementById('receiveScreen').classList.contains('active')) return 'receiveScreen';
+  return 'successScreen';
+}
+
+// ─── LOAD DATA ───────────────────────────────────────────────
+async function loadPendingReceipts() {
+  showLoading('Loading pending deliveries...');
+  try {
+    const res = await fetch(`${API_BASE}?action=pending-receipts`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    currentReceipts = data.receipts;
+    renderDeliveryList();
+  } catch (e) {
+    document.getElementById('deliveryList').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⚠️</div>
+        <h2>Connection Error</h2>
+        <p>${e.message}<br>Pull down to retry.</p>
+      </div>`;
+  }
+  hideLoading();
+}
+
+// ─── RENDER DELIVERY LIST ────────────────────────────────────
+function renderDeliveryList() {
+  const list = document.getElementById('deliveryList');
+  const bar = document.getElementById('statusBar');
+
+  bar.innerHTML = `
+    <div class="status-chip"><span class="dot pending"></span>${currentReceipts.length} pending</div>
+  `;
+
+  if (currentReceipts.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">✅</div>
+        <h2>All Caught Up!</h2>
+        <p>No pending deliveries right now.<br>Zoya will create purchase orders when stock is needed.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = currentReceipts.map(r => {
+    const dateStr = r.scheduledDate ? formatDate(r.scheduledDate) : 'Today';
+    const noteTag = r.note ? `<span class="note-badge">📝 Note</span>` : '';
+    return `
+      <div class="delivery-card" onclick="openReceipt(${r.pickingId})">
+        <div class="vendor" style="display:flex;align-items:center;gap:12px">
+          <div class="vendor-icon">🚛</div>
+          <div class="vendor-info">
+            <div style="font-size:17px;font-weight:700">${r.vendorName}${noteTag}</div>
+            <div class="meta">${r.poName} • ${dateStr} • ${r.itemCount} item${r.itemCount > 1 ? 's' : ''}</div>
+          </div>
+        </div>
+        <div class="items-preview">
+          ${r.items.map(i => `<span class="item-chip"><span class="qty">${i.expectedQty}</span> ${i.uom} ${shortName(i.productName)}</span>`).join('')}
+        </div>
+        <span class="arrow">›</span>
+      </div>`;
+  }).join('');
+}
+
+// ─── OPEN RECEIPT ────────────────────────────────────────────
+function openReceipt(pickingId) {
+  const receipt = currentReceipts.find(r => r.pickingId === pickingId);
+  if (!receipt) return;
+
+  currentPicking = receipt;
+  currentItems = receipt.items.map(item => ({
+    ...item,
+    receivedQty: item.expectedQty, // Pre-fill with expected
+    destinationId: item.destinationId || LOC.MAIN_STORAGE,
+  }));
+
+  renderReceiveScreen();
+  showScreen('receiveScreen');
+  document.getElementById('backBtn').style.display = 'block';
+}
+
+// ─── RENDER RECEIVE SCREEN ───────────────────────────────────
+function renderReceiveScreen() {
+  const header = document.getElementById('receiptHeader');
+  const noteHtml = currentPicking.note
+    ? `<div class="zoya-note"><strong>📝 Zoya's note:</strong> ${currentPicking.note}</div>`
+    : '';
+
+  header.innerHTML = `
+    <div class="vendor-name">${currentPicking.vendorName}</div>
+    <div class="po-ref">${currentPicking.poName} • ${currentPicking.name}</div>
+    ${noteHtml}
+  `;
+
+  const itemsList = document.getElementById('itemsList');
+  itemsList.innerHTML = currentItems.map((item, idx) => {
+    const destStorage = item.destinationId === LOC.MAIN_STORAGE ? 'selected-storage' : '';
+    const destKitchen = item.destinationId === LOC.KITCHEN ? 'selected-kitchen' : '';
+
+    return `
+      <div class="item-card" id="itemCard${idx}" data-idx="${idx}">
+        <div class="product-row">
+          <div>
+            <div class="product-name">${item.productName}</div>
+            <div class="product-code mono">${item.productCode}</div>
+          </div>
+          <div class="expected">
+            <div class="label">Expected</div>
+            <div class="value mono">${item.expectedQty}</div>
+          </div>
+        </div>
+
+        <div class="qty-input-row">
+          <label>Received:</label>
+          <div class="qty-controls">
+            <button class="qty-btn" onclick="adjustQty(${idx}, -1)">−</button>
+            <input type="number" class="qty-input mono" id="qty${idx}" value="${item.receivedQty}"
+                   inputmode="decimal" step="any"
+                   onchange="setQty(${idx}, this.value)"
+                   onfocus="this.select()">
+            <button class="qty-btn" onclick="adjustQty(${idx}, 1)">+</button>
+          </div>
+          <span class="qty-unit">${item.uom}</span>
+        </div>
+
+        <div class="dest-row">
+          <button class="dest-btn ${destStorage}" onclick="setDest(${idx}, ${LOC.MAIN_STORAGE})" id="destStorage${idx}">
+            📦 Storage
+          </button>
+          <button class="dest-btn ${destKitchen}" onclick="setDest(${idx}, ${LOC.KITCHEN})" id="destKitchen${idx}">
+            🍳 Kitchen
+          </button>
+        </div>
+
+        <div class="match-indicator ${item.receivedQty === item.expectedQty ? 'ok' : 'warn'}" id="match${idx}">
+          ${item.receivedQty === item.expectedQty
+            ? '✓ Quantity matches'
+            : `⚠️ ${Math.abs(item.receivedQty - item.expectedQty)} ${item.uom} ${item.receivedQty < item.expectedQty ? 'short' : 'extra'}`
+          }
+        </div>
+      </div>`;
+  }).join('');
+
+  updateConfirmBtn();
+}
+
+// ─── QUANTITY CONTROLS ───────────────────────────────────────
+function adjustQty(idx, delta) {
+  const input = document.getElementById(`qty${idx}`);
+  let val = parseFloat(input.value) || 0;
+  // Smart step: use 1 for units, 0.5 for kg/L
+  const uom = currentItems[idx].uom;
+  const step = (uom === 'kg' || uom === 'L') ? 0.5 : 1;
+  val = Math.max(0, val + (delta * step));
+  // Round to avoid floating point issues
+  val = Math.round(val * 100) / 100;
+  input.value = val;
+  setQty(idx, val);
+}
+
+function setQty(idx, val) {
+  const qty = parseFloat(val) || 0;
+  currentItems[idx].receivedQty = qty;
+  updateItemCardState(idx);
+  updateConfirmBtn();
+}
+
+function setDest(idx, locId) {
+  currentItems[idx].destinationId = locId;
+  // Update button states
+  const s = document.getElementById(`destStorage${idx}`);
+  const k = document.getElementById(`destKitchen${idx}`);
+  s.className = `dest-btn ${locId === LOC.MAIN_STORAGE ? 'selected-storage' : ''}`;
+  k.className = `dest-btn ${locId === LOC.KITCHEN ? 'selected-kitchen' : ''}`;
+}
+
+function updateItemCardState(idx) {
+  const item = currentItems[idx];
+  const card = document.getElementById(`itemCard${idx}`);
+  const match = document.getElementById(`match${idx}`);
+  const diff = item.receivedQty - item.expectedQty;
+
+  if (diff === 0) {
+    card.className = 'item-card matched';
+    match.className = 'match-indicator ok';
+    match.innerHTML = '✓ Quantity matches';
+  } else {
+    card.className = 'item-card mismatch';
+    match.className = 'match-indicator warn';
+    const absDiff = Math.abs(diff);
+    match.innerHTML = `⚠️ ${absDiff} ${item.uom} ${diff < 0 ? 'short' : 'extra'} — Zoya will be notified`;
+  }
+}
+
+function updateConfirmBtn() {
+  const btn = document.getElementById('confirmBtn');
+  const allZero = currentItems.every(item => item.receivedQty === 0);
+  const hasDiscrepancy = currentItems.some(item => item.receivedQty !== item.expectedQty);
+
+  btn.disabled = allZero;
+  if (allZero) {
+    btn.innerHTML = '⚠️ Enter received quantities';
+  } else if (hasDiscrepancy) {
+    btn.innerHTML = '⚠️ Confirm with Discrepancy';
+    btn.style.background = 'var(--orange)';
+  } else {
+    btn.innerHTML = '✅ Confirm Delivery';
+    btn.style.background = 'var(--green)';
+  }
+}
+
+// ─── CONFIRM RECEIPT ─────────────────────────────────────────
+async function confirmReceipt() {
+  const btn = document.getElementById('confirmBtn');
+  if (btn.disabled) return;
+
+  // Generate lot names for tracked products
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  const items = currentItems.map(item => {
+    // Generate lot name for tracked products
+    let lotName = null;
+    if (item.tracking === 'lot') {
+      // Pattern: VENDOR-PRODUCT-DATE
+      const vendorShort = currentPicking.vendorName.split(' ')[0].toUpperCase();
+      const productShort = item.productCode.replace('RM-', '');
+      lotName = `${vendorShort}-${productShort}-${dateStr}`;
+    }
+
+    return {
+      moveId: item.moveId,
+      moveLineId: item.moveLineId,
+      productId: item.productId,
+      productName: item.productName,
+      receivedQty: item.receivedQty,
+      expectedQty: item.expectedQty,
+      destinationId: item.destinationId,
+      lotName: lotName,
+    };
+  });
+
+  btn.classList.add('loading');
+  btn.innerHTML = '⏳ Confirming...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}?action=confirm-receipt`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        pickingId: currentPicking.pickingId,
+        items: items,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    renderSuccessScreen(data);
+    showScreen('successScreen');
+    document.getElementById('backBtn').style.display = 'none';
+
+  } catch (e) {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    updateConfirmBtn();
+    showToast(`❌ Error: ${e.message}`);
+  }
+}
+
+// ─── SUCCESS SCREEN ──────────────────────────────────────────
+function renderSuccessScreen(data) {
+  const screen = document.getElementById('successScreen');
+  const itemRows = (data.items || []).map(i => {
+    const isMatch = i.received === i.expected;
+    return `<div class="detail-row">
+      <span class="lbl">${i.product}</span>
+      <span class="val ${isMatch ? '' : 'warn'}">${i.received} / ${i.expected}${isMatch ? ' ✓' : ' ⚠️'}</span>
+    </div>`;
+  }).join('');
+
+  screen.innerHTML = `
+    <div class="success-screen">
+      <div class="checkmark">✅</div>
+      <h2>Delivery Confirmed!</h2>
+      <p>${currentPicking.vendorName} • ${currentPicking.poName}</p>
+      <p style="font-size:13px;color:var(--text2)">Confirmed by ${data.confirmedBy || 'Staff'} at ${new Date().toLocaleTimeString('en-IN')}</p>
+      ${data.backorderCreated ? '<p style="color:var(--orange);font-size:13px;margin-top:8px">📋 Backorder created for missing items</p>' : ''}
+      ${data.hasDiscrepancy ? '<p style="color:var(--red);font-size:13px">⚠️ Zoya has been notified about quantity mismatch</p>' : ''}
+      <div class="detail-box">
+        ${itemRows}
+      </div>
+      <button class="new-btn" onclick="goToList()">← Back to Deliveries</button>
+    </div>`;
+}
+
+// ─── NAVIGATION ──────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goBack() {
+  showScreen('listScreen');
+  document.getElementById('backBtn').style.display = 'none';
+  currentPicking = null;
+  currentItems = [];
+}
+
+function goToList() {
+  showScreen('listScreen');
+  document.getElementById('backBtn').style.display = 'none';
+  currentPicking = null;
+  currentItems = [];
+  loadPendingReceipts(); // Refresh list
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  await loadPendingReceipts();
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Loading...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function shortName(name) {
+  // Shorten for preview chips: "Skimmed Milk Powder (Vetha)" → "SMP Vetha"
+  return name.length > 20 ? name.substring(0, 18) + '...' : name;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  // Convert to IST
+  const ist = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+  const today = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  if (ist.toDateString() === today.toDateString()) return 'Today';
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  if (ist.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return ist.toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+}
+</script>
+</body>
+</html>
