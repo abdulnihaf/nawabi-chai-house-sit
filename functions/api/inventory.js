@@ -16,8 +16,8 @@ export async function onRequest(context) {
   // Location IDs
   const LOC = {VENDORS: 1, STOCK: 34, MAIN_STORAGE: 39, COLD_STORAGE: 40, KITCHEN: 41, WASTAGE: 42};
 
-  // PIN verification for sensitive actions
-  const PINS = {'1298': 'Tanveer', '0582': 'MD Kesmat', '0305': 'Nihaf', '2026': 'Zoya'};
+  // PIN verification — matches Odoo POS employee PINs
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya'};
 
   try {
     // ─── GET PENDING RECEIPTS ────────────────────────────────────
