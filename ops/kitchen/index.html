@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH - Kitchen Operations</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--red-dim:rgba(239,68,68,.12);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);--purple:#a855f7;--yellow:#eab308;--yellow-dim:rgba(234,179,8,.12);--orange:#f97316;--orange-dim:rgba(249,115,22,.12)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ─── HEADER ─────────────────────────── */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1 .accent{width:4px;height:22px;border-radius:2px}
+    .back-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;display:none}
+    .back-btn:active{background:var(--border)}
+    .refresh-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .refresh-btn:active{background:var(--border)}
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    .screen.active{display:block}
+
+    /* ─── ACTION SELECTION ────────────────── */
+    .action-card{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:24px;margin-bottom:14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:16px}
+    .action-card:active{transform:scale(.98)}
+    .action-card .action-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+    .action-card .action-info h2{font-size:18px;font-weight:700;margin-bottom:4px}
+    .action-card .action-info p{color:var(--text2);font-size:13px}
+    .action-card .arrow{margin-left:auto;color:var(--text2);font-size:22px}
+    .action-card.take{border-left:4px solid var(--green)}
+    .action-card.take .action-icon{background:var(--green-dim)}
+    .action-card.return{border-left:4px solid var(--blue)}
+    .action-card.return .action-icon{background:var(--blue-dim)}
+    .action-card.wastage{border-left:4px solid var(--red)}
+    .action-card.wastage .action-icon{background:var(--red-dim)}
+
+    /* ─── ITEMS SCREEN ───────────────────── */
+    .screen-title{font-size:14px;color:var(--text2);margin-bottom:16px;padding:8px 12px;background:var(--card);border-radius:10px;border:1px solid var(--border);text-align:center}
+
+    .item-card{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:18px;margin-bottom:12px;transition:border-color .2s}
+    .item-card.has-qty{border-color:var(--green)}
+    .item-card .product-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+    .item-card .product-name{font-size:16px;font-weight:600;flex:1}
+    .item-card .product-code{color:var(--text2);font-size:12px;margin-top:2px}
+    .item-card .available{text-align:right}
+    .item-card .available .label{color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .item-card .available .value{font-size:20px;font-weight:700;color:var(--blue)}
+    .item-card .location-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin-top:4px;background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
+    .item-card .location-badge.cold{background:var(--blue-dim);color:var(--blue);border-color:rgba(59,130,246,.3)}
+
+    .qty-input-row{display:flex;align-items:center;gap:12px}
+    .qty-input-row label{color:var(--text2);font-size:13px;white-space:nowrap;min-width:60px}
+    .qty-controls{display:flex;align-items:center;gap:0;flex:1;max-width:240px}
+    .qty-btn{width:48px;height:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .1s}
+    .qty-btn:first-child{border-radius:10px 0 0 10px}
+    .qty-btn:last-child{border-radius:0 10px 10px 0}
+    .qty-btn:active{background:var(--border)}
+    .qty-input{width:80px;height:48px;background:var(--bg);border:1px solid var(--border);border-left:none;border-right:none;color:var(--text);font-size:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:600}
+    .qty-input:focus{outline:none;border-color:var(--blue);background:rgba(59,130,246,.08)}
+    .qty-unit{color:var(--text2);font-size:14px;margin-left:4px}
+
+    /* ─── REASON CHIPS (wastage) ─────────── */
+    .reason-section{margin-bottom:16px}
+    .reason-section label{display:block;color:var(--text2);font-size:13px;margin-bottom:8px}
+    .reason-chips{display:flex;gap:8px;flex-wrap:wrap}
+    .reason-chip{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .15s}
+    .reason-chip:active{transform:scale(.96)}
+    .reason-chip.selected{border-color:var(--red);background:var(--red-dim);color:var(--red)}
+
+    /* ─── CONFIRM BUTTON ─────────────────── */
+    .confirm-section{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:20px 0 24px;margin-top:8px}
+    .confirm-btn{width:100%;padding:18px;color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .confirm-btn:active{transform:scale(.98)}
+    .confirm-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+    .confirm-btn.loading{background:var(--yellow);cursor:wait}
+
+    /* ─── PIN SCREEN ─────────────────────── */
+    .pin-box{text-align:center;padding:40px 20px}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:22px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all .2s}
+    .pin-input input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,.1)}
+    .pin-error{color:var(--red);font-size:13px;margin-top:8px;display:none}
+    .pin-summary{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:20px auto;max-width:320px;text-align:left}
+    .pin-summary .summary-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border)}
+    .pin-summary .summary-row:last-child{border-bottom:none}
+    .pin-summary .summary-row .lbl{color:var(--text2)}
+    .pin-summary .summary-row .val{font-weight:600}
+
+    /* ─── SUCCESS SCREEN ─────────────────── */
+    .success-screen{text-align:center;padding:60px 20px}
+    .success-screen .checkmark{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 24px}
+    .success-screen h2{font-size:24px;margin-bottom:8px}
+    .success-screen p{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:8px}
+    .success-screen .detail-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:20px auto;max-width:360px;text-align:left}
+    .success-screen .detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+    .success-screen .detail-row:last-child{border-bottom:none}
+    .success-screen .detail-row .lbl{color:var(--text2)}
+    .success-screen .detail-row .val{font-weight:600}
+    .success-screen .new-btn{display:inline-block;margin-top:24px;padding:14px 32px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+    .success-screen .new-btn:active{background:var(--border)}
+
+    /* ─── EMPTY STATE ────────────────────── */
+    .empty-state{text-align:center;padding:60px 20px}
+    .empty-state .icon{font-size:64px;margin-bottom:16px;opacity:.6}
+    .empty-state h2{font-size:20px;margin-bottom:8px}
+    .empty-state p{color:var(--text2);font-size:14px;line-height:1.6}
+
+    /* ─── SCANNER INPUT ──────────────────── */
+    .scanner-input{position:fixed;top:-100px;left:-100px;opacity:0;width:1px;height:1px}
+
+    /* ─── TOAST ───────────────────────────── */
+    .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1}
+
+    /* ─── LOADING ─────────────────────────── */
+    .loading-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,26,.8);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+    .loading-overlay.show{display:flex}
+    .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+    .loading-overlay p{color:var(--text2);font-size:14px}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+  </style>
+</head>
+<body>
+
+<!-- Hidden input for barcode scanner -->
+<input type="text" class="scanner-input" id="scannerInput" autocomplete="off">
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <p id="loadingText">Loading...</p>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Header -->
+<div class="header" id="mainHeader">
+  <h1><span class="accent" id="accentBar" style="background:var(--green)"></span><span id="headerTitle">Kitchen Operations</span></h1>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="back-btn" id="backBtn" onclick="goBack()">← Back</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">↻</button>
+  </div>
+</div>
+
+<!-- Screen 1: Action Selection -->
+<div class="screen active" id="actionScreen">
+  <div class="action-card take" onclick="selectAction('take-to-kitchen')">
+    <div class="action-icon">📦</div>
+    <div class="action-info">
+      <h2>Take to Kitchen</h2>
+      <p>Move items from storage shelves to kitchen</p>
+    </div>
+    <span class="arrow">›</span>
+  </div>
+
+  <div class="action-card return" onclick="selectAction('return-to-storage')">
+    <div class="action-icon">↩️</div>
+    <div class="action-info">
+      <h2>Return to Storage</h2>
+      <p>Send unused items back to shelves</p>
+    </div>
+    <span class="arrow">›</span>
+  </div>
+
+  <div class="action-card wastage" onclick="selectAction('wastage')">
+    <div class="action-icon">🗑️</div>
+    <div class="action-info">
+      <h2>Record Wastage</h2>
+      <p>Log expired or damaged items</p>
+    </div>
+    <span class="arrow">›</span>
+  </div>
+</div>
+
+<!-- Screen 2: Items Selection -->
+<div class="screen" id="itemsScreen">
+  <div class="screen-title" id="itemsTitle"></div>
+  <div id="reasonArea"></div>
+  <div id="itemsList"></div>
+  <div class="confirm-section">
+    <button class="confirm-btn" id="confirmBtn" disabled onclick="goToPin()">
+      Select items to continue
+    </button>
+  </div>
+</div>
+
+<!-- Screen 3: PIN Entry -->
+<div class="screen" id="pinScreen">
+  <div class="pin-box">
+    <div class="icon">🔐</div>
+    <h2 id="pinTitle">Confirm Transfer</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-input" id="pinInput">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+    </div>
+    <div class="pin-error" id="pinError">Invalid PIN. Try again.</div>
+    <div class="pin-summary" id="pinSummary"></div>
+  </div>
+</div>
+
+<!-- Screen 4: Success -->
+<div class="screen" id="successScreen"></div>
+
+<script>
+const API_BASE = '/api/inventory';
+const LOC = {MAIN_STORAGE: 39, COLD_STORAGE: 40, KITCHEN: 41, WASTAGE: 42};
+
+const ACTION_CONFIG = {
+  'take-to-kitchen':   {label: 'Take to Kitchen',  icon: '📦→🍳', color: 'green',  stockEndpoint: 'storage-stock', headerTitle: 'Take to Kitchen'},
+  'return-to-storage': {label: 'Return to Storage', icon: '↩️→📦', color: 'blue',   stockEndpoint: 'kitchen-stock', headerTitle: 'Return to Storage'},
+  'wastage':           {label: 'Record Wastage',    icon: '🗑️',    color: 'red',    stockEndpoint: 'kitchen-stock', headerTitle: 'Record Wastage'},
+};
+
+let currentAction = null;
+let currentStock = [];
+let selectedQtys = {};    // {productId: qty}
+let wastageReason = '';
+
+// ─── INIT ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setupScanner();
+  setupPinInputs();
+});
+
+// ─── SCANNER SUPPORT ──────────────────────────────────────────
+function setupScanner() {
+  const scanInput = document.getElementById('scannerInput');
+  let scanBuffer = '';
+  let scanTimer = null;
+
+  document.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'INPUT' || e.target === scanInput) {
+      scanInput.focus();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const active = document.activeElement;
+    if (active && (active.classList.contains('qty-input') || active.closest('.pin-input'))) return;
+
+    if (e.key === 'Enter' && scanBuffer.length > 2) {
+      e.preventDefault();
+      handleScan(scanBuffer.trim());
+      scanBuffer = '';
+      return;
+    }
+
+    if (e.key.length === 1) {
+      scanBuffer += e.key;
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => { scanBuffer = ''; }, 100);
+    }
+  });
+}
+
+function handleScan(code) {
+  if (!document.getElementById('itemsScreen').classList.contains('active')) return;
+
+  const idx = currentStock.findIndex(item =>
+    item.barcode === code || item.productCode === code || item.productCode === code.toUpperCase()
+  );
+  if (idx >= 0) {
+    const cards = document.querySelectorAll('.item-card');
+    if (cards[idx]) {
+      cards[idx].scrollIntoView({behavior: 'smooth', block: 'center'});
+      cards[idx].style.borderColor = 'var(--blue)';
+      setTimeout(() => {
+        const qty = selectedQtys[currentStock[idx].productId] || 0;
+        cards[idx].style.borderColor = qty > 0 ? 'var(--green)' : 'var(--border)';
+      }, 1500);
+      const input = cards[idx].querySelector('.qty-input');
+      if (input) input.focus();
+      showToast(`🔍 ${currentStock[idx].productName}`);
+    }
+  } else {
+    showToast(`❌ "${code}" not found`);
+  }
+}
+
+// ─── ACTION SELECTION ─────────────────────────────────────────
+async function selectAction(action) {
+  currentAction = action;
+  const config = ACTION_CONFIG[action];
+
+  // Update header
+  document.getElementById('headerTitle').textContent = config.headerTitle;
+  document.getElementById('accentBar').style.background = `var(--${config.color})`;
+  document.getElementById('backBtn').style.display = 'block';
+
+  // Load stock
+  showLoading(`Loading ${action === 'take-to-kitchen' ? 'storage' : 'kitchen'} stock...`);
+  try {
+    const res = await fetch(`${API_BASE}?action=${config.stockEndpoint}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    currentStock = data.stock;
+    selectedQtys = {};
+    wastageReason = '';
+    renderItemsScreen();
+    showScreen('itemsScreen');
+  } catch (e) {
+    document.getElementById('itemsList').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⚠️</div>
+        <h2>Connection Error</h2>
+        <p>${e.message}</p>
+      </div>`;
+    showScreen('itemsScreen');
+  }
+  hideLoading();
+}
+
+// ─── RENDER ITEMS SCREEN ──────────────────────────────────────
+function renderItemsScreen() {
+  const config = ACTION_CONFIG[currentAction];
+  const title = document.getElementById('itemsTitle');
+  const reasonArea = document.getElementById('reasonArea');
+
+  if (currentAction === 'take-to-kitchen') {
+    title.textContent = 'Scan a shelf barcode or select items below';
+  } else if (currentAction === 'return-to-storage') {
+    title.textContent = 'Select items to return from kitchen';
+  } else {
+    title.textContent = 'Select items to write off';
+  }
+
+  // Reason chips for wastage
+  if (currentAction === 'wastage') {
+    reasonArea.innerHTML = `
+      <div class="reason-section">
+        <label>Wastage reason:</label>
+        <div class="reason-chips">
+          <button class="reason-chip" onclick="setReason(this,'Expired')">Expired</button>
+          <button class="reason-chip" onclick="setReason(this,'Damaged')">Damaged</button>
+          <button class="reason-chip" onclick="setReason(this,'Spilled')">Spilled</button>
+          <button class="reason-chip" onclick="setReason(this,'Other')">Other</button>
+        </div>
+      </div>`;
+  } else {
+    reasonArea.innerHTML = '';
+  }
+
+  if (currentStock.length === 0) {
+    document.getElementById('itemsList').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">${currentAction === 'take-to-kitchen' ? '📦' : '🍳'}</div>
+        <h2>No Stock Available</h2>
+        <p>${currentAction === 'take-to-kitchen' ? 'Storage is empty. Receive a delivery first.' : 'Kitchen has no items to ' + (currentAction === 'wastage' ? 'write off' : 'return') + '.'}</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('itemsList').innerHTML = currentStock.map((item, idx) => {
+    // Determine location badges for take-to-kitchen
+    let locationHtml = '';
+    if (currentAction === 'take-to-kitchen') {
+      const mainQty = item.lots.filter(l => l.locationId === LOC.MAIN_STORAGE).reduce((s, l) => s + l.qty, 0);
+      const coldQty = item.lots.filter(l => l.locationId === LOC.COLD_STORAGE).reduce((s, l) => s + l.qty, 0);
+      if (mainQty > 0) locationHtml += `<span class="location-badge">Storage: ${roundQty(mainQty)}</span> `;
+      if (coldQty > 0) locationHtml += `<span class="location-badge cold">Cold: ${roundQty(coldQty)}</span>`;
+    }
+
+    return `
+      <div class="item-card" id="itemCard${idx}">
+        <div class="product-row">
+          <div>
+            <div class="product-name">${item.productName}</div>
+            <div class="product-code mono">${item.productCode}</div>
+            ${locationHtml ? `<div style="margin-top:6px">${locationHtml}</div>` : ''}
+          </div>
+          <div class="available">
+            <div class="label">Available</div>
+            <div class="value mono">${roundQty(item.total)}</div>
+          </div>
+        </div>
+        <div class="qty-input-row">
+          <label>Qty:</label>
+          <div class="qty-controls">
+            <button class="qty-btn" onclick="adjustQty(${idx}, -1)">−</button>
+            <input type="number" class="qty-input mono" id="qty${idx}" value="0"
+                   inputmode="decimal" step="any"
+                   onchange="setQty(${idx}, this.value)"
+                   onfocus="this.select()">
+            <button class="qty-btn" onclick="adjustQty(${idx}, 1)">+</button>
+          </div>
+          <span class="qty-unit">${item.uom}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  updateConfirmBtn();
+}
+
+function setReason(el, reason) {
+  wastageReason = reason;
+  document.querySelectorAll('.reason-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ─── QUANTITY CONTROLS ────────────────────────────────────────
+function adjustQty(idx, delta) {
+  const item = currentStock[idx];
+  const input = document.getElementById(`qty${idx}`);
+  let val = parseFloat(input.value) || 0;
+  const step = (item.uom === 'kg' || item.uom === 'L') ? 0.5 : 1;
+  val = Math.max(0, Math.min(item.total, val + (delta * step)));
+  val = Math.round(val * 100) / 100;
+  input.value = val;
+  setQty(idx, val);
+}
+
+function setQty(idx, val) {
+  const item = currentStock[idx];
+  let qty = Math.max(0, Math.min(item.total, parseFloat(val) || 0));
+  qty = Math.round(qty * 100) / 100;
+  selectedQtys[item.productId] = qty;
+
+  const card = document.getElementById(`itemCard${idx}`);
+  card.className = qty > 0 ? 'item-card has-qty' : 'item-card';
+  updateConfirmBtn();
+}
+
+function updateConfirmBtn() {
+  const btn = document.getElementById('confirmBtn');
+  const config = ACTION_CONFIG[currentAction];
+  const itemCount = Object.values(selectedQtys).filter(q => q > 0).length;
+
+  btn.disabled = itemCount === 0;
+  if (itemCount === 0) {
+    btn.innerHTML = 'Select items to continue';
+    btn.style.background = 'var(--border)';
+  } else {
+    const actionLabel = currentAction === 'take-to-kitchen' ? 'Take' : currentAction === 'return-to-storage' ? 'Return' : 'Write Off';
+    btn.innerHTML = `${actionLabel} ${itemCount} item${itemCount > 1 ? 's' : ''} →`;
+    btn.style.background = `var(--${config.color})`;
+  }
+}
+
+// ─── GO TO PIN ────────────────────────────────────────────────
+function goToPin() {
+  if (document.getElementById('confirmBtn').disabled) return;
+
+  // Build summary for PIN screen
+  const summaryItems = currentStock
+    .filter(item => (selectedQtys[item.productId] || 0) > 0)
+    .map(item => `
+      <div class="summary-row">
+        <span class="lbl">${item.productName}</span>
+        <span class="val">${selectedQtys[item.productId]} ${item.uom}</span>
+      </div>`);
+
+  document.getElementById('pinSummary').innerHTML = summaryItems.join('');
+
+  const config = ACTION_CONFIG[currentAction];
+  document.getElementById('pinTitle').textContent = `Confirm ${config.label}`;
+
+  // Clear PIN inputs
+  const pins = document.querySelectorAll('#pinInput input');
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  document.getElementById('pinError').style.display = 'none';
+
+  showScreen('pinScreen');
+  setTimeout(() => pins[0].focus(), 100);
+}
+
+// ─── PIN INPUT SETUP ──────────────────────────────────────────
+function setupPinInputs() {
+  const pins = Array.from(document.querySelectorAll('#pinInput input'));
+  pins.forEach((input, i) => {
+    input.addEventListener('input', (e) => {
+      const v = e.target.value;
+      if (v.length === 1) {
+        input.classList.add('filled');
+        if (i < 3) pins[i + 1].focus();
+        if (i === 3) submitPin();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        pins[i - 1].focus();
+        pins[i - 1].value = '';
+        pins[i - 1].classList.remove('filled');
+      }
+    });
+  });
+}
+
+async function submitPin() {
+  const pins = Array.from(document.querySelectorAll('#pinInput input'));
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+
+  showLoading('Verifying PIN...');
+
+  try {
+    // Verify PIN
+    const pinRes = await fetch(`${API_BASE}?action=verify-pin&pin=${pin}`);
+    const pinData = await pinRes.json();
+    if (!pinData.success) {
+      hideLoading();
+      document.getElementById('pinError').style.display = 'block';
+      document.querySelector('.pin-input').style.animation = 'shake 0.4s ease';
+      setTimeout(() => {
+        document.querySelector('.pin-input').style.animation = '';
+        pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+        pins[0].focus();
+      }, 500);
+      return;
+    }
+
+    // Execute transfer
+    document.getElementById('loadingText').textContent = 'Processing transfer...';
+
+    const items = currentStock
+      .filter(item => (selectedQtys[item.productId] || 0) > 0)
+      .map(item => {
+        const qty = selectedQtys[item.productId];
+        // Pick the best lot (FIFO — first lot with enough qty, or distribute)
+        let lotId = null;
+        if (item.tracking === 'lot' && item.lots.length > 0) {
+          // For simplicity, pick the first lot that has stock
+          // If transferring from a specific location, filter lots by that location
+          const relevantLots = currentAction === 'take-to-kitchen'
+            ? item.lots.filter(l => l.locationId === LOC.MAIN_STORAGE || l.locationId === LOC.COLD_STORAGE)
+            : item.lots;
+          if (relevantLots.length > 0) {
+            lotId = relevantLots[0].lotId;
+          }
+        }
+
+        // Determine transfer type (for cold storage items)
+        let transferType = currentAction;
+        if (currentAction === 'take-to-kitchen') {
+          const mainLots = item.lots.filter(l => l.locationId === LOC.MAIN_STORAGE);
+          const coldLots = item.lots.filter(l => l.locationId === LOC.COLD_STORAGE);
+          const mainTotal = mainLots.reduce((s, l) => s + l.qty, 0);
+          // If no main storage stock, must be from cold storage
+          if (mainTotal <= 0 && coldLots.length > 0) {
+            transferType = 'take-from-cold';
+            lotId = coldLots[0].lotId;
+          }
+        }
+
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: qty,
+          lotId: lotId,
+          transferType: transferType,
+        };
+      });
+
+    // Group items by transfer type (in case some are from cold storage)
+    const byType = {};
+    for (const item of items) {
+      const t = item.transferType;
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(item);
+    }
+
+    let lastResult = null;
+    for (const [type, typeItems] of Object.entries(byType)) {
+      const res = await fetch(`${API_BASE}?action=transfer`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          pin: pin,
+          type: type,
+          items: typeItems,
+          reason: wastageReason || null,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      lastResult = data;
+    }
+
+    renderSuccessScreen(lastResult, items);
+    showScreen('successScreen');
+    document.getElementById('backBtn').style.display = 'none';
+
+  } catch (e) {
+    showToast(`❌ Error: ${e.message}`);
+  }
+  hideLoading();
+}
+
+// ─── SUCCESS SCREEN ───────────────────────────────────────────
+function renderSuccessScreen(data, items) {
+  const config = ACTION_CONFIG[currentAction];
+  const screen = document.getElementById('successScreen');
+
+  const checkColor = config.color === 'red' ? 'var(--red-dim)' : config.color === 'blue' ? 'var(--blue-dim)' : 'var(--green-dim)';
+  const checkEmoji = currentAction === 'wastage' ? '🗑️' : '✅';
+
+  const itemRows = items.map(i => `
+    <div class="detail-row">
+      <span class="lbl">${i.productName}</span>
+      <span class="val">${i.quantity} ${currentStock.find(s => s.productId === i.productId)?.uom || ''}</span>
+    </div>`).join('');
+
+  const actionLabels = {
+    'take-to-kitchen': 'Moved to Kitchen',
+    'return-to-storage': 'Returned to Storage',
+    'wastage': 'Wastage Recorded',
+  };
+
+  screen.innerHTML = `
+    <div class="success-screen">
+      <div class="checkmark" style="background:${checkColor}">${checkEmoji}</div>
+      <h2>${actionLabels[currentAction]}!</h2>
+      <p>${data.pickingName || ''}</p>
+      <p style="font-size:13px;color:var(--text2)">By ${data.confirmedBy} at ${new Date().toLocaleTimeString('en-IN')}</p>
+      ${currentAction === 'wastage' && wastageReason ? `<p style="color:var(--red);font-size:13px;margin-top:8px">Reason: ${wastageReason}</p>` : ''}
+      <div class="detail-box">
+        ${itemRows}
+      </div>
+      <button class="new-btn" onclick="goHome()">← Back to Kitchen Ops</button>
+    </div>`;
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goBack() {
+  const active = getActiveScreen();
+  if (active === 'pinScreen') {
+    showScreen('itemsScreen');
+    return;
+  }
+  goHome();
+}
+
+function goHome() {
+  showScreen('actionScreen');
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('headerTitle').textContent = 'Kitchen Operations';
+  document.getElementById('accentBar').style.background = 'var(--green)';
+  currentAction = null;
+  currentStock = [];
+  selectedQtys = {};
+  wastageReason = '';
+}
+
+function getActiveScreen() {
+  if (document.getElementById('actionScreen').classList.contains('active')) return 'actionScreen';
+  if (document.getElementById('itemsScreen').classList.contains('active')) return 'itemsScreen';
+  if (document.getElementById('pinScreen').classList.contains('active')) return 'pinScreen';
+  return 'successScreen';
+}
+
+async function refreshData() {
+  if (currentAction) {
+    await selectAction(currentAction);
+  }
+}
+
+// ─── UTILS ────────────────────────────────────────────────────
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Loading...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function roundQty(val) {
+  return Math.round(val * 100) / 100;
+}
+</script>
+</body>
+</html>

@@ -243,7 +243,145 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, receipts: pickings}), {headers: corsHeaders});
     }
 
-    return new Response(JSON.stringify({success: false, error: 'Invalid action. Use: pending-receipts, confirm-receipt, stock-on-hand, verify-pin, recent-receipts'}), {headers: corsHeaders});
+    // ─── STORAGE STOCK (for Take to Kitchen) ──────────────────────
+    // Returns stock in Main Storage + Cold Storage, grouped by product with lot details
+    if (action === 'storage-stock') {
+      const stock = await fetchLocationStock(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        [LOC.MAIN_STORAGE, LOC.COLD_STORAGE]);
+      return new Response(JSON.stringify({success: true, stock}), {headers: corsHeaders});
+    }
+
+    // ─── KITCHEN STOCK (for Return/Wastage) ───────────────────────
+    // Returns stock currently in Kitchen, grouped by product with lot details
+    if (action === 'kitchen-stock') {
+      const stock = await fetchLocationStock(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        [LOC.KITCHEN]);
+      return new Response(JSON.stringify({success: true, stock}), {headers: corsHeaders});
+    }
+
+    // ─── INTERNAL TRANSFER ────────────────────────────────────────
+    // Creates and validates a stock.picking for internal moves
+    if (action === 'transfer' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      const {pin, type, items, reason} = body;
+
+      if (!pin || !type || !items || !Array.isArray(items) || items.length === 0) {
+        return new Response(JSON.stringify({success: false, error: 'Missing pin, type, or items'}), {headers: corsHeaders});
+      }
+
+      const confirmedBy = PINS[pin];
+      if (!confirmedBy) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid PIN'}), {headers: corsHeaders});
+      }
+
+      // Transfer type configuration
+      const TRANSFER_CONFIG = {
+        'take-to-kitchen':   {pickingTypeId: 20, srcLoc: LOC.MAIN_STORAGE, destLoc: LOC.KITCHEN},
+        'take-from-cold':    {pickingTypeId: 21, srcLoc: LOC.COLD_STORAGE, destLoc: LOC.KITCHEN},
+        'return-to-storage': {pickingTypeId: 22, srcLoc: LOC.KITCHEN,      destLoc: LOC.MAIN_STORAGE},
+        'wastage':           {pickingTypeId: 23, srcLoc: LOC.KITCHEN,      destLoc: LOC.WASTAGE},
+      };
+
+      const config = TRANSFER_CONFIG[type];
+      if (!config) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid transfer type'}), {headers: corsHeaders});
+      }
+
+      // Generate origin reference
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const originRef = `Kitchen/${confirmedBy}/${dateStr} ${timeStr}`;
+
+      // Create stock.picking
+      const pickingVals = {
+        picking_type_id: config.pickingTypeId,
+        location_id: config.srcLoc,
+        location_dest_id: config.destLoc,
+        origin: originRef,
+        company_id: 10,
+      };
+      if (reason) {
+        pickingVals.note = `Wastage reason: ${reason}`;
+      }
+
+      const pickingId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'create', [pickingVals]);
+
+      // Create stock.move for each item
+      for (const item of items) {
+        const moveVals = {
+          name: item.productName || 'Kitchen Transfer',
+          picking_id: pickingId,
+          product_id: item.productId,
+          product_uom_qty: item.quantity,
+          quantity: item.quantity,
+          location_id: config.srcLoc,
+          location_dest_id: config.destLoc,
+          company_id: 10,
+          picked: true,
+        };
+
+        const moveId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.move', 'create', [moveVals]);
+
+        // For lot-tracked products, set lot_id on the auto-created move line
+        if (item.lotId) {
+          // Read back the move to get its move_line_ids
+          const moveData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'read', [[moveId]], {fields: ['move_line_ids']});
+
+          if (moveData[0] && moveData[0].move_line_ids && moveData[0].move_line_ids.length > 0) {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move.line', 'write',
+              [moveData[0].move_line_ids, {lot_id: item.lotId, quantity: item.quantity, picked: true}]);
+          }
+        }
+      }
+
+      // Confirm → Assign → Validate
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'action_confirm', [[pickingId]]);
+
+      try {
+        await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'action_assign', [[pickingId]]);
+      } catch (e) {
+        // action_assign may fail if stock is already reserved, continue
+      }
+
+      const validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'button_validate', [[pickingId]]);
+
+      // Handle immediate transfer or backorder wizards
+      if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
+        try {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            validateResult.res_model, 'process', [[validateResult.res_id]]);
+        } catch (e) {
+          // Wizard processing failed, check picking state
+        }
+      }
+
+      // Read final picking state
+      const finalPicking = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [[pickingId]], {fields: ['state', 'name']});
+
+      const picking = finalPicking[0] || {};
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Transfer completed',
+        pickingName: picking.name,
+        pickingState: picking.state,
+        confirmedBy: confirmedBy,
+        type: type,
+        reason: reason || null,
+        items: items.map(i => ({product: i.productName, quantity: i.quantity}))
+      }), {headers: corsHeaders});
+    }
+
+    return new Response(JSON.stringify({success: false, error: 'Invalid action. Use: pending-receipts, confirm-receipt, stock-on-hand, verify-pin, recent-receipts, storage-stock, kitchen-stock, transfer'}), {headers: corsHeaders});
 
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), {status: 500, headers: corsHeaders});
@@ -279,4 +417,59 @@ async function odooCall(url, db, uid, apiKey, model, method, positionalArgs, kwa
   const data = await response.json();
   if (data.error) throw new Error(`Odoo ${model}.${method}: ${data.error.message || JSON.stringify(data.error)}`);
   return data.result;
+}
+
+// ─── FETCH STOCK BY LOCATION (shared helper) ──────────────────
+// Returns stock grouped by product with lot details for given location IDs
+async function fetchLocationStock(odooUrl, db, uid, apiKey, locationIds) {
+  // Get all quants in the specified locations
+  const quants = await odooCall(odooUrl, db, uid, apiKey,
+    'stock.quant', 'search_read',
+    [[['location_id', 'in', locationIds], ['quantity', '>', 0]]],
+    {fields: ['id', 'product_id', 'quantity', 'lot_id', 'location_id', 'in_date']}
+  );
+
+  if (quants.length === 0) return [];
+
+  // Get product details
+  const productIds = [...new Set(quants.map(q => q.product_id[0]))];
+  const products = await odooCall(odooUrl, db, uid, apiKey,
+    'product.product', 'read',
+    [productIds],
+    {fields: ['id', 'name', 'default_code', 'uom_id', 'tracking', 'barcode']}
+  );
+  const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+
+  // Group quants by product
+  const grouped = {};
+  for (const q of quants) {
+    const pid = q.product_id[0];
+    if (!grouped[pid]) {
+      const p = productMap[pid] || {};
+      grouped[pid] = {
+        productId: pid,
+        productName: p.name || q.product_id[1],
+        productCode: p.default_code || '',
+        barcode: p.barcode || p.default_code || '',
+        uom: p.uom_id ? p.uom_id[1] : '',
+        tracking: p.tracking || 'none',
+        total: 0,
+        lots: [],
+      };
+    }
+    grouped[pid].total += q.quantity;
+    grouped[pid].lots.push({
+      lotId: q.lot_id ? q.lot_id[0] : null,
+      lotName: q.lot_id ? q.lot_id[1] : null,
+      qty: q.quantity,
+      locationId: q.location_id[0],
+      locationName: q.location_id[1],
+    });
+  }
+
+  // Sort lots by date (FIFO) and return as array
+  return Object.values(grouped).map(item => {
+    item.total = Math.round(item.total * 100) / 100;
+    return item;
+  });
 }
