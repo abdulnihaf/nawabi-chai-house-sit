@@ -14,13 +14,15 @@ from barcode.writer import ImageWriter
 from PIL import Image, ImageDraw, ImageFont
 
 # --- Configuration ---
-LABEL_WIDTH = 400    # 50mm at 203 DPI
-LABEL_HEIGHT = 200   # 25mm at 203 DPI
+# 2x oversampled for thermal printer clarity (50mm x 25mm at 406 effective DPI)
+LABEL_WIDTH = 800
+LABEL_HEIGHT = 400
+DPI = 406
 BG_COLOR = "white"
 FG_COLOR = "black"
-PADDING_X = 12
-PADDING_TOP = 8
-PADDING_BOTTOM = 6
+PADDING_X = 24
+PADDING_TOP = 16
+PADDING_BOTTOM = 12
 
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -75,12 +77,12 @@ def generate_barcode_image(code_value):
     buf = BytesIO()
     bc.write(buf, options={
         "write_text": False,
-        "module_width": 0.35,
-        "module_height": 12,
-        "quiet_zone": 2,
+        "module_width": 0.5,
+        "module_height": 18,
+        "quiet_zone": 3,
         "font_size": 0,
         "text_distance": 0,
-        "dpi": 203,
+        "dpi": DPI,
     })
     buf.seek(0)
     return Image.open(buf).convert("RGB")
@@ -91,9 +93,9 @@ def create_label(name, code, unit):
     img = Image.new("RGB", (LABEL_WIDTH, LABEL_HEIGHT), BG_COLOR)
     draw = ImageDraw.Draw(img)
 
-    # Fonts
-    font_title = get_font(16, bold=True)
-    font_small = get_font(12, bold=False)
+    # Fonts (2x size for high-res)
+    font_title = get_font(32, bold=True)
+    font_small = get_font(24, bold=False)
 
     # --- Product name (top center, bold) ---
     title_bbox = draw.textbbox((0, 0), name, font=font_title)
@@ -120,9 +122,9 @@ def create_label(name, code, unit):
               fill=FG_COLOR, font=font_small)
 
     # --- Barcode (middle area) ---
-    title_bottom = title_y + (title_bbox[3] - title_bbox[1]) + 6
+    title_bottom = title_y + (title_bbox[3] - title_bbox[1]) + 12
     barcode_top = title_bottom
-    barcode_bottom = bottom_y - 6
+    barcode_bottom = bottom_y - 12
     available_h = barcode_bottom - barcode_top
 
     bc_img = generate_barcode_image(code)
@@ -180,7 +182,7 @@ def create_combined_pdf(label_images, output_path):
         output_path,
         save_all=True,
         append_images=pages[1:],
-        resolution=203,
+        resolution=DPI,
     )
 
 
@@ -194,14 +196,14 @@ def main():
         img = create_label(name, code, unit)
         filename = f"{code}.png"
         filepath = os.path.join(OUTPUT_DIR, filename)
-        img.save(filepath, "PNG", dpi=(203, 203))
+        img.save(filepath, "PNG", dpi=(DPI, DPI))
         label_images.append(img)
         print(f"  Created: {filename}  ({name})")
 
     # Combined grid image
     grid_img = create_combined_grid(label_images, cols=2)
     grid_path = os.path.join(OUTPUT_DIR, "ALL_LABELS_GRID.png")
-    grid_img.save(grid_path, "PNG", dpi=(203, 203))
+    grid_img.save(grid_path, "PNG", dpi=(DPI, DPI))
     print(f"\n  Combined grid: ALL_LABELS_GRID.png")
 
     # Combined PDF
