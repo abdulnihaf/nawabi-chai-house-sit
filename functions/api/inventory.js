@@ -177,10 +177,9 @@ export async function onRequest(context) {
             // Try alternative: process_cancel_backorder to just receive what was given
             try {
               await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                validateResult.res_model, 'process',
+                validateResult.res_model, 'process_cancel_backorder',
                 [[validateResult.res_id]]
               );
-              backorderCreated = true;
             } catch (e2) {
               // Wizard handling failed, but the picking may still have been validated
             }
@@ -287,10 +286,10 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({success: false, error: 'Invalid transfer type'}), {headers: corsHeaders});
       }
 
-      // Generate origin reference
-      const now = new Date();
-      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      // Generate origin reference (IST = UTC + 5:30)
+      const now = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+      const dateStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
+      const timeStr = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
       const originRef = `Kitchen/${confirmedBy}/${dateStr} ${timeStr}`;
 
       // Create stock.picking
@@ -305,69 +304,115 @@ export async function onRequest(context) {
         pickingVals.note = `Wastage reason: ${reason}`;
       }
 
+      // Fetch product data (UOM + tracking) before creating anything
+      const productIds = [...new Set(items.map(i => i.productId))];
+      const productData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'product.product', 'read', [productIds], {fields: ['id', 'uom_id', 'tracking']});
+      const productMap = Object.fromEntries(productData.map(p => [p.id, p]));
+
+      // Validate all items have valid UOMs before creating anything
+      for (const item of items) {
+        const prod = productMap[item.productId];
+        if (!prod) {
+          return new Response(JSON.stringify({success: false, error: `Product ${item.productName || item.productId} not found`}), {headers: corsHeaders});
+        }
+        // Lot-tracked products MUST have a lotId
+        if (prod.tracking === 'lot' && !item.lotId) {
+          return new Response(JSON.stringify({success: false, error: `${item.productName} requires lot tracking but no lot was found. Receive stock first.`}), {headers: corsHeaders});
+        }
+      }
+
       const pickingId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'create', [pickingVals]);
 
-      // Fetch product UOM data for all items (required for stock.move.create)
-      const productIds = [...new Set(items.map(i => i.productId))];
-      const productUomData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'product.product', 'read', [productIds], {fields: ['id', 'uom_id']});
-      const uomMap = Object.fromEntries(productUomData.map(p => [p.id, p.uom_id[0]]));
+      // Wrap move creation in try/catch — cancel picking on failure
+      try {
+        // Create stock.move for each item
+        for (const item of items) {
+          const prod = productMap[item.productId];
+          const moveVals = {
+            name: item.productName || 'Kitchen Transfer',
+            picking_id: pickingId,
+            product_id: item.productId,
+            product_uom: prod.uom_id[0],
+            product_uom_qty: item.quantity,
+            location_id: config.srcLoc,
+            location_dest_id: config.destLoc,
+            company_id: 10,
+          };
 
-      // Create stock.move for each item
-      for (const item of items) {
-        const moveVals = {
-          name: item.productName || 'Kitchen Transfer',
-          picking_id: pickingId,
-          product_id: item.productId,
-          product_uom: uomMap[item.productId] || 1,
-          product_uom_qty: item.quantity,
-          quantity: item.quantity,
-          location_id: config.srcLoc,
-          location_dest_id: config.destLoc,
-          company_id: 10,
-          picked: true,
-        };
+          const moveId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'create', [moveVals]);
 
-        const moveId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'stock.move', 'create', [moveVals]);
+          // For lot-tracked products, set lot_id on the auto-created move line
+          if (item.lotId) {
+            const moveData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move', 'read', [[moveId]], {fields: ['move_line_ids']});
 
-        // For lot-tracked products, set lot_id on the auto-created move line
-        if (item.lotId) {
-          // Read back the move to get its move_line_ids
-          const moveData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'stock.move', 'read', [[moveId]], {fields: ['move_line_ids']});
-
-          if (moveData[0] && moveData[0].move_line_ids && moveData[0].move_line_ids.length > 0) {
-            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.move.line', 'write',
-              [moveData[0].move_line_ids, {lot_id: item.lotId, quantity: item.quantity, picked: true}]);
+            if (moveData[0] && moveData[0].move_line_ids && moveData[0].move_line_ids.length > 0) {
+              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                'stock.move.line', 'write',
+                [moveData[0].move_line_ids, {lot_id: item.lotId, quantity: item.quantity, picked: true}]);
+            }
           }
         }
-      }
 
-      // Confirm → Assign → Validate
-      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'stock.picking', 'action_confirm', [[pickingId]]);
-
-      try {
+        // Confirm → Assign → set picked + quantity on moves → Validate
         await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'stock.picking', 'action_assign', [[pickingId]]);
-      } catch (e) {
-        // action_assign may fail if stock is already reserved, continue
-      }
+          'stock.picking', 'action_confirm', [[pickingId]]);
 
-      const validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'stock.picking', 'button_validate', [[pickingId]]);
-
-      // Handle immediate transfer or backorder wizards
-      if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
         try {
           await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            validateResult.res_model, 'process', [[validateResult.res_id]]);
+            'stock.picking', 'action_assign', [[pickingId]]);
         } catch (e) {
-          // Wizard processing failed, check picking state
+          // action_assign may fail if stock is already reserved, continue
         }
+
+        // After confirm/assign, read back all moves and set picked=true + done quantity
+        const confirmedPicking = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'read', [[pickingId]], {fields: ['move_ids']});
+        if (confirmedPicking[0] && confirmedPicking[0].move_ids.length > 0) {
+          const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'read', [confirmedPicking[0].move_ids], {fields: ['id', 'product_uom_qty', 'move_line_ids']});
+          for (const move of moves) {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move', 'write', [[move.id], {quantity: move.product_uom_qty, picked: true}]);
+            // Also set picked on move lines
+            if (move.move_line_ids && move.move_line_ids.length > 0) {
+              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                'stock.move.line', 'write', [move.move_line_ids, {picked: true}]);
+            }
+          }
+        }
+
+        const validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'button_validate', [[pickingId]]);
+
+        // Handle immediate transfer or backorder wizards
+        if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
+          try {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              validateResult.res_model, 'process', [[validateResult.res_id]]);
+          } catch (e) {
+            // Wizard processing failed, try process_cancel_backorder
+            try {
+              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                validateResult.res_model, 'process_cancel_backorder', [[validateResult.res_id]]);
+            } catch (e2) {
+              // Both methods failed — picking may still be validated
+            }
+          }
+        }
+
+      } catch (moveError) {
+        // If anything failed after creating the picking, cancel it to avoid orphans
+        try {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.picking', 'action_cancel', [[pickingId]]);
+        } catch (cancelErr) {
+          // Cancel failed too — orphan will need manual cleanup
+        }
+        throw new Error(`Transfer failed: ${moveError.message}`);
       }
 
       // Read final picking state
@@ -432,7 +477,7 @@ async function fetchLocationStock(odooUrl, db, uid, apiKey, locationIds) {
   // Get all quants in the specified locations
   const quants = await odooCall(odooUrl, db, uid, apiKey,
     'stock.quant', 'search_read',
-    [[['location_id', 'in', locationIds], ['quantity', '>', 0]]],
+    [[['location_id', 'in', locationIds], ['quantity', '>', 0], ['company_id', '=', 10]]],
     {fields: ['id', 'product_id', 'quantity', 'lot_id', 'location_id', 'in_date']}
   );
 

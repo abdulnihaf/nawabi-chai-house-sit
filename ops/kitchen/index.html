@@ -242,14 +242,19 @@ function setupScanner() {
   let scanTimer = null;
 
   document.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'INPUT' || e.target === scanInput) {
+    // Only steal focus for scanner when on items screen (not PIN or success)
+    const onItemsScreen = document.getElementById('itemsScreen').classList.contains('active');
+    if (onItemsScreen && (e.target.tagName !== 'INPUT' || e.target === scanInput)) {
       scanInput.focus();
     }
   });
 
   document.addEventListener('keydown', (e) => {
     const active = document.activeElement;
-    if (active && (active.classList.contains('qty-input') || active.closest('.pin-input'))) return;
+    // Don't intercept when user is typing in qty inputs or PIN inputs
+    if (active && (active.classList.contains('qty-input') || active.closest('.pin-input') || active.type === 'password')) return;
+    // Don't intercept when not on items screen
+    if (!document.getElementById('itemsScreen').classList.contains('active')) return;
 
     if (e.key === 'Enter' && scanBuffer.length > 2) {
       e.preventDefault();
@@ -330,11 +335,11 @@ function renderItemsScreen() {
   const reasonArea = document.getElementById('reasonArea');
 
   if (currentAction === 'take-to-kitchen') {
-    title.textContent = 'Scan a shelf barcode or select items below';
+    title.textContent = 'Tap + to set quantity for items you are taking';
   } else if (currentAction === 'return-to-storage') {
-    title.textContent = 'Select items to return from kitchen';
+    title.textContent = 'Tap + to set quantity for items being returned';
   } else {
-    title.textContent = 'Select items to write off';
+    title.textContent = 'Tap + to set quantity for wasted items';
   }
 
   // Reason chips for wastage
@@ -391,7 +396,7 @@ function renderItemsScreen() {
           <div class="qty-controls">
             <button class="qty-btn" onclick="adjustQty(${idx}, -1)">−</button>
             <input type="number" class="qty-input mono" id="qty${idx}" value="0"
-                   inputmode="decimal" step="any"
+                   inputmode="decimal" step="any" min="0" max="${item.total}"
                    onchange="setQty(${idx}, this.value)"
                    onfocus="this.select()">
             <button class="qty-btn" onclick="adjustQty(${idx}, 1)">+</button>

@@ -122,6 +122,7 @@
     .loading-overlay.show{display:flex}
     .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
     .loading-overlay p{color:var(--text2);font-size:14px}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
   </style>
 </head>
 <body>
@@ -164,7 +165,24 @@
   </div>
 </div>
 
-<!-- Screen 3: Success -->
+<!-- Screen 3: PIN Entry -->
+<div class="screen" id="pinScreen">
+  <div style="text-align:center;padding:40px 20px">
+    <div style="font-size:48px;margin-bottom:20px">🔐</div>
+    <h2 style="font-size:22px;margin-bottom:8px">Confirm Delivery</h2>
+    <p style="color:var(--text2);font-size:14px;margin-bottom:24px">Enter your 4-digit PIN to confirm</p>
+    <div class="pin-input-wrap" id="pinInput" style="display:flex;gap:12px;justify-content:center;margin-bottom:20px">
+      <input type="password" maxlength="1" inputmode="numeric" style="width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace">
+      <input type="password" maxlength="1" inputmode="numeric" style="width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace">
+      <input type="password" maxlength="1" inputmode="numeric" style="width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace">
+      <input type="password" maxlength="1" inputmode="numeric" style="width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace">
+    </div>
+    <div id="pinError" style="color:var(--red);font-size:13px;display:none">Invalid PIN. Try again.</div>
+    <div id="pinSummary" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:20px auto;max-width:320px;text-align:left"></div>
+  </div>
+</div>
+
+<!-- Screen 4: Success -->
 <div class="screen" id="successScreen"></div>
 
 <script>
@@ -180,6 +198,7 @@ let currentItems = [];
 document.addEventListener('DOMContentLoaded', () => {
   loadPendingReceipts();
   setupScanner();
+  setupPinInputs();
 });
 
 // ─── SCANNER SUPPORT ─────────────────────────────────────────
@@ -188,9 +207,10 @@ function setupScanner() {
   let scanBuffer = '';
   let scanTimer = null;
 
-  // Keep focus on scanner input when no other input is focused
+  // Keep focus on scanner input when no other input is focused (not on PIN screen)
   document.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'INPUT' || e.target === scanInput) {
+    const onPinScreen = document.getElementById('pinScreen').classList.contains('active');
+    if (!onPinScreen && (e.target.tagName !== 'INPUT' || e.target === scanInput)) {
       scanInput.focus();
     }
   });
@@ -198,8 +218,11 @@ function setupScanner() {
   // Listen for rapid keystrokes (barcode scanner sends chars fast)
   document.addEventListener('keydown', (e) => {
     const active = document.activeElement;
-    // If focused on a qty input, let normal input happen
-    if (active && active.classList.contains('qty-input')) return;
+    // If focused on a qty or PIN input, let normal input happen
+    if (active && (active.classList.contains('qty-input') || active.type === 'password')) return;
+    // Don't intercept when on PIN or success screen
+    const screen = getActiveScreen();
+    if (screen === 'pinScreen' || screen === 'successScreen') return;
 
     if (e.key === 'Enter' && scanBuffer.length > 2) {
       e.preventDefault();
@@ -255,6 +278,7 @@ function handleScan(code) {
 function getActiveScreen() {
   if (document.getElementById('listScreen').classList.contains('active')) return 'listScreen';
   if (document.getElementById('receiveScreen').classList.contains('active')) return 'receiveScreen';
+  if (document.getElementById('pinScreen').classList.contains('active')) return 'pinScreen';
   return 'successScreen';
 }
 
@@ -464,20 +488,92 @@ function updateConfirmBtn() {
   }
 }
 
-// ─── CONFIRM RECEIPT ─────────────────────────────────────────
-async function confirmReceipt() {
+// ─── GO TO PIN SCREEN ────────────────────────────────────────
+function confirmReceipt() {
   const btn = document.getElementById('confirmBtn');
   if (btn.disabled) return;
 
+  // Build summary for PIN screen
+  const summaryHtml = currentItems.map(item => {
+    const match = item.receivedQty === item.expectedQty;
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text2)">${item.productName}</span>
+      <span style="font-weight:600;${match ? '' : 'color:var(--red)'}">${item.receivedQty} / ${item.expectedQty} ${item.uom}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pinSummary').innerHTML = summaryHtml;
+
+  // Clear PIN inputs
+  const pins = Array.from(document.querySelectorAll('#pinInput input'));
+  pins.forEach(p => { p.value = ''; p.style.borderColor = 'var(--border)'; p.style.background = 'var(--bg2)'; });
+  document.getElementById('pinError').style.display = 'none';
+
+  showScreen('pinScreen');
+  setTimeout(() => pins[0].focus(), 100);
+}
+
+// ─── PIN INPUT SETUP ─────────────────────────────────────────
+function setupPinInputs() {
+  const pins = Array.from(document.querySelectorAll('#pinInput input'));
+  pins.forEach((input, i) => {
+    input.addEventListener('input', (e) => {
+      const v = e.target.value;
+      if (v.length === 1) {
+        input.style.borderColor = 'var(--green)';
+        input.style.background = 'rgba(34,197,94,.1)';
+        if (i < 3) pins[i + 1].focus();
+        if (i === 3) submitWithPin();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        pins[i - 1].focus();
+        pins[i - 1].value = '';
+        pins[i - 1].style.borderColor = 'var(--border)';
+        pins[i - 1].style.background = 'var(--bg2)';
+      }
+    });
+  });
+}
+
+// ─── CONFIRM RECEIPT WITH PIN ────────────────────────────────
+async function submitWithPin() {
+  const pins = Array.from(document.querySelectorAll('#pinInput input'));
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+
+  showLoading('Verifying PIN...');
+
+  // Verify PIN first
+  try {
+    const pinRes = await fetch(`${API_BASE}?action=verify-pin&pin=${pin}`);
+    const pinData = await pinRes.json();
+    if (!pinData.success) {
+      hideLoading();
+      document.getElementById('pinError').style.display = 'block';
+      const wrap = document.getElementById('pinInput');
+      wrap.style.animation = 'shake 0.4s ease';
+      setTimeout(() => {
+        wrap.style.animation = '';
+        pins.forEach(p => { p.value = ''; p.style.borderColor = 'var(--border)'; p.style.background = 'var(--bg2)'; });
+        pins[0].focus();
+      }, 500);
+      return;
+    }
+  } catch (e) {
+    hideLoading();
+    showToast(`❌ Connection error`);
+    return;
+  }
+
   // Generate lot names for tracked products
+  document.getElementById('loadingText').textContent = 'Confirming delivery...';
   const today = new Date();
   const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   const items = currentItems.map(item => {
-    // Generate lot name for tracked products
     let lotName = null;
     if (item.tracking === 'lot') {
-      // Pattern: VENDOR-PRODUCT-DATE
       const vendorShort = currentPicking.vendorName.split(' ')[0].toUpperCase();
       const productShort = item.productCode.replace('RM-', '');
       lotName = `${vendorShort}-${productShort}-${dateStr}`;
@@ -495,16 +591,13 @@ async function confirmReceipt() {
     };
   });
 
-  btn.classList.add('loading');
-  btn.innerHTML = '⏳ Confirming...';
-  btn.disabled = true;
-
   try {
     const res = await fetch(`${API_BASE}?action=confirm-receipt`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         pickingId: currentPicking.pickingId,
+        pin: pin,
         items: items,
       }),
     });
@@ -516,11 +609,11 @@ async function confirmReceipt() {
     document.getElementById('backBtn').style.display = 'none';
 
   } catch (e) {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    updateConfirmBtn();
     showToast(`❌ Error: ${e.message}`);
+    // Go back to receive screen so they can retry
+    showScreen('receiveScreen');
   }
+  hideLoading();
 }
 
 // ─── SUCCESS SCREEN ──────────────────────────────────────────
@@ -557,6 +650,11 @@ function showScreen(id) {
 }
 
 function goBack() {
+  const active = getActiveScreen();
+  if (active === 'pinScreen') {
+    showScreen('receiveScreen');
+    return;
+  }
   showScreen('listScreen');
   document.getElementById('backBtn').style.display = 'none';
   currentPicking = null;
