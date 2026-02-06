@@ -308,12 +308,19 @@ export async function onRequest(context) {
       const pickingId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'create', [pickingVals]);
 
+      // Fetch product UOM data for all items (required for stock.move.create)
+      const productIds = [...new Set(items.map(i => i.productId))];
+      const productUomData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'product.product', 'read', [productIds], {fields: ['id', 'uom_id']});
+      const uomMap = Object.fromEntries(productUomData.map(p => [p.id, p.uom_id[0]]));
+
       // Create stock.move for each item
       for (const item of items) {
         const moveVals = {
           name: item.productName || 'Kitchen Transfer',
           picking_id: pickingId,
           product_id: item.productId,
+          product_uom: uomMap[item.productId] || 1,
           product_uom_qty: item.quantity,
           quantity: item.quantity,
           location_id: config.srcLoc,
