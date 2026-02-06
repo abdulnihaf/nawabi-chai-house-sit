@@ -862,20 +862,78 @@ async function loadCollectionHistory() {
       container.innerHTML = '<div class="empty-state"><div class="icon">📋</div>No collection history yet</div>';
       return;
     }
-    container.innerHTML = data.collections.map(c => `
-      <div class="history-card">
+    container.innerHTML = data.collections.map((c, idx) => {
+      // Separate runner handovers, counter handovers, cashier-to-manager handovers
+      const runners = (c.handovers || []).filter(h => h.handover_type === 'runner_to_cashier');
+      const counters = (c.handovers || []).filter(h => h.handover_type === 'counter_to_cashier');
+      const expenses = c.expenses || [];
+
+      // Build detail rows for each handover
+      let detailRows = '';
+      for (const h of runners) {
+        const discHtml = h.discrepancy !== 0
+          ? `<span style="color:var(--red);font-size:11px;margin-left:6px">disc ${fmt(h.discrepancy)}</span>` : '';
+        detailRows += `<div class="detail-row">
+          <span style="color:var(--text)">${h.from_name}</span>
+          <span>
+            <span class="mono" style="color:var(--green);font-weight:600">${fmt(h.actual_cash)}</span>${discHtml}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:2px 0 6px;font-size:11px;color:var(--text2);border-bottom:1px solid rgba(45,58,79,.3)">
+          <span>${fmtD(h.period_start)} → ${fmtD(h.period_end)}</span>
+          <span>Tokens ${fmt(h.expected_tokens)} • Sales ${fmt(h.expected_sales)} • UPI ${fmt(h.expected_upi)}</span>
+        </div>`;
+        if (h.discrepancy !== 0 && h.discrepancy_reason) {
+          detailRows += `<div style="padding:4px 0 6px;font-size:11px;color:var(--red)">⚠️ ${h.discrepancy_reason}</div>`;
+        }
+      }
+
+      for (const h of counters) {
+        const discHtml = h.discrepancy !== 0
+          ? `<span style="color:var(--red);font-size:11px;margin-left:6px">disc ${fmt(h.discrepancy)}</span>` : '';
+        detailRows += `<div class="detail-row">
+          <span style="color:var(--text)">Cash Counter</span>
+          <span>
+            <span class="mono" style="color:var(--green);font-weight:600">${fmt(h.actual_cash)}</span>${discHtml}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:2px 0 6px;font-size:11px;color:var(--text2);border-bottom:1px solid rgba(45,58,79,.3)">
+          <span>${fmtD(h.period_start)} → ${fmtD(h.period_end)}</span>
+          <span>Cash ${fmt(h.expected_cash)} • UPI ${fmt(h.expected_upi)}</span>
+        </div>`;
+      }
+
+      if (expenses.length > 0) {
+        const catIcons = {police:'🚔',supplies:'🛒',transport:'🚗',other:'📋'};
+        for (const e of expenses) {
+          detailRows += `<div class="detail-row">
+            <span style="color:var(--orange)">${catIcons[e.category]||''} ${e.category}: ${e.description}</span>
+            <span class="mono" style="color:var(--red);font-weight:600">-${fmt(e.amount)}</span>
+          </div>`;
+        }
+      }
+
+      return `<div class="history-card" onclick="this.querySelector('.detail-expand').classList.toggle('show')" style="cursor:pointer">
         <div class="hc-header">
           <span class="hc-date">${fmtD(c.created_at)}</span>
           <span class="hc-amount">${fmt(c.net_cash)}</span>
         </div>
         <div class="hc-meta">
-          By ${c.manager_name} • Expected ${fmt(c.total_expected)} • Received ${fmt(c.total_received)}
-          ${c.total_expenses > 0 ? ' • Expenses -' + fmt(c.total_expenses) : ''}
+          By ${c.manager_name} • ${runners.length} runner${runners.length!==1?'s':''} • ${counters.length} counter
+          ${expenses.length > 0 ? ' • ' + expenses.length + ' expense' + (expenses.length!==1?'s':'') : ''}
           ${c.total_discrepancy !== 0 ? ' • <span style="color:var(--red)">Disc ' + fmt(c.total_discrepancy) + '</span>' : ''}
+          <span style="float:right;color:var(--blue);font-size:11px">tap to expand ▾</span>
         </div>
-      </div>
-    `).join('');
-  } catch(e) { container.innerHTML = '<div class="empty-state" style="color:var(--red)">Error</div>'; }
+        <div class="detail-expand">
+          ${detailRows}
+          <div class="detail-row" style="border-top:2px solid var(--border);margin-top:6px;padding-top:8px;font-weight:700">
+            <span style="color:var(--text)">Total Collected</span>
+            <span class="mono" style="color:var(--green);font-size:15px">${fmt(c.net_cash)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { container.innerHTML = '<div class="empty-state" style="color:var(--red)">Error: ' + e.message + '</div>'; }
 }
 
 function switchMgrTab(name, el) {

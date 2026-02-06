@@ -460,7 +460,28 @@ export async function onRequest(context) {
          ORDER BY c.created_at DESC LIMIT ?`
       ).bind(limit).all();
 
-      return json({success: true, collections: collections.results}, corsHeaders);
+      // Enrich each collection with its handovers and expenses
+      const enriched = [];
+      for (const c of collections.results) {
+        const handovers = await DB.prepare(
+          `SELECT h.*, s.name as from_name FROM handovers h
+           JOIN staff s ON s.id = h.from_staff_id
+           WHERE h.collection_id = ?
+           ORDER BY h.created_at ASC`
+        ).bind(c.id).all();
+
+        const expenses = await DB.prepare(
+          `SELECT * FROM expenses WHERE collection_id = ? ORDER BY created_at ASC`
+        ).bind(c.id).all();
+
+        enriched.push({
+          ...c,
+          handovers: handovers.results,
+          expenses: expenses.results
+        });
+      }
+
+      return json({success: true, collections: enriched}, corsHeaders);
     }
 
     // ─── DELETE EXPENSE ──────────────────────────────────────────
