@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Consumption Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .mono{font-family:'JetBrains Mono',monospace}
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--green),var(--cyan));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit}
+    .btn-primary{background:linear-gradient(135deg,var(--green),var(--cyan));color:#fff}
+
+    /* Filter Bar */
+    .filter-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .filter-group{display:flex;flex-direction:column;gap:4px}
+    .filter-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    input[type="date"],input[type="time"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    input:focus{outline:none;border-color:var(--green)}
+    input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .quick-btns{display:flex;gap:6px;margin-left:auto}
+    .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit}
+    .quick-btn:hover,.quick-btn.active{border-color:var(--green);color:var(--text)}
+    .quick-btn.active{background:var(--green);color:#fff}
+
+    /* Summary Cards */
+    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .summary-card .icon{font-size:20px;margin-bottom:8px}
+    .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .summary-card .value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+
+    /* Sections */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+    .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';width:3px;height:14px;background:var(--green);border-radius:2px}
+
+    /* Sales Table */
+    .sales-table{width:100%;border-collapse:collapse}
+    .sales-table th{text-align:left;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+    .sales-table th:nth-child(2),.sales-table th:nth-child(3){text-align:right}
+    .sales-table td{padding:10px;border-bottom:1px solid var(--border);font-size:13px}
+    .sales-table td:nth-child(2),.sales-table td:nth-child(3){text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600}
+    .sales-table tr:last-child td{border-bottom:none}
+    .material-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+    .material-tag{font-size:10px;background:var(--bg2);padding:2px 6px;border-radius:4px;color:var(--cyan)}
+
+    /* Consumption Items */
+    .consumption-list{display:grid;gap:8px}
+    .consumption-item{background:var(--bg2);border-radius:8px;padding:12px}
+    .consumption-item .row{display:flex;justify-content:space-between;align-items:center}
+    .consumption-item .name{font-size:14px;font-weight:600}
+    .consumption-item .net{font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .consumption-item .details{display:flex;gap:16px;font-size:11px;color:var(--text2);margin-top:6px}
+    .consumption-item .details .sent{color:var(--orange)}
+    .consumption-item .details .returned{color:var(--blue)}
+    .consumption-item .details .wasted{color:var(--red)}
+    .consumption-bar{height:6px;background:var(--card);border-radius:3px;margin-top:8px;overflow:hidden;display:flex}
+    .consumption-bar .fill-sent{background:var(--orange);height:100%;border-radius:3px 0 0 3px}
+    .consumption-bar .fill-returned{background:var(--blue);height:100%}
+    .consumption-bar .fill-wasted{background:var(--red);height:100%;border-radius:0 3px 3px 0}
+
+    /* Kitchen Stock Grid */
+    .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .stock-item{background:var(--bg2);border-radius:8px;padding:12px;text-align:center}
+    .stock-item .name{font-size:11px;color:var(--text2);margin-bottom:6px;line-height:1.3}
+    .stock-item .qty{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .stock-item .uom{font-size:10px;color:var(--muted);margin-top:2px}
+
+    /* Mapping Reference */
+    .mapping-grid{display:grid;gap:8px}
+    .mapping-row{background:var(--bg2);border-radius:8px;padding:12px}
+    .mapping-row .product-name{font-size:13px;font-weight:600;margin-bottom:6px}
+    .mapping-row .materials{display:flex;gap:4px;flex-wrap:wrap}
+    .mat-chip{font-size:10px;background:var(--card);border:1px solid var(--border);padding:3px 8px;border-radius:6px;color:var(--cyan)}
+
+    /* Empty & Loading States */
+    .empty{color:var(--muted);text-align:center;padding:24px;font-size:13px}
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
+    .loading.hidden{display:none}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
+    .error.show{display:block}
+
+    /* Back link */
+    .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:13px;margin-bottom:16px}
+    .back-link:hover{color:var(--text)}
+
+    /* Responsive */
+    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:repeat(2,1fr)}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%;flex-wrap:wrap}.stock-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div class="container">
+    <a href="/ops/" class="back-link">← Operations Hub</a>
+    <header class="header">
+      <h1>Consumption Tracker</h1>
+      <div class="header-right">
+        <div class="status"><div class="status-dot" id="dot"></div><span id="statusText">Loading...</span></div>
+        <button class="btn btn-primary" onclick="refresh()">↻ Refresh</button>
+      </div>
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group"><span class="filter-label">From</span><input type="date" id="fromDate"><input type="time" id="fromTime"></div>
+      <div class="filter-group"><span class="filter-label">To</span><input type="date" id="toDate"><input type="time" id="toTime"></div>
+      <button class="btn btn-primary" onclick="applyFilter()">Apply</button>
+      <div class="quick-btns">
+        <button class="quick-btn active" onclick="quick('today',this)">Today</button>
+        <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
+        <button class="quick-btn" onclick="quick('week',this)">7 Days</button>
+      </div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+      <div class="summary-card"><div class="icon">☕</div><div class="label">Items Sold</div><div class="value" id="totalSold" style="color:var(--orange)">0</div><div class="sub" id="totalRevenue">₹0 revenue</div></div>
+      <div class="summary-card"><div class="icon">📦</div><div class="label">Sent to Kitchen</div><div class="value" id="totalSent" style="color:var(--green)">0</div><div class="sub" id="sentCount">0 raw materials</div></div>
+      <div class="summary-card"><div class="icon">🗑️</div><div class="label">Wastage</div><div class="value" id="totalWasted" style="color:var(--red)">0</div><div class="sub" id="wastedCount">0 items</div></div>
+      <div class="summary-card"><div class="icon">🍳</div><div class="label">Kitchen Stock</div><div class="value" id="kitchenCount" style="color:var(--cyan)">0</div><div class="sub">items in kitchen now</div></div>
+    </div>
+
+    <!-- Sales + Material Usage -->
+    <div class="section">
+      <div class="section-title">POS Sales & Raw Material Usage</div>
+      <table class="sales-table">
+        <thead><tr><th>Product</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+        <tbody id="salesTable"><tr><td colspan="3" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Consumption Breakdown + Kitchen Stock -->
+    <div class="grid-2">
+      <div class="section" style="margin-bottom:0">
+        <div class="section-title">Raw Material Consumption</div>
+        <div class="consumption-list" id="consumptionList"><div class="empty">Loading...</div></div>
+      </div>
+      <div class="section" style="margin-bottom:0">
+        <div class="section-title">Current Kitchen Stock</div>
+        <div class="stock-grid" id="kitchenStockGrid"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Mapping Reference -->
+    <div class="section" style="margin-top:20px">
+      <div class="section-title" style="cursor:pointer" onclick="toggleMapping()">Product → Material Mapping <span id="mappingToggle" style="font-size:11px;color:var(--muted);margin-left:auto">▼ Show</span></div>
+      <div class="mapping-grid" id="mappingGrid" style="display:none"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/consumption';
+    const $ = id => document.getElementById(id);
+    const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+    const fmtT = t => new Date(t).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true});
+    const dateStr = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const timeStr = d => d.toTimeString().slice(0, 5);
+    const round2 = v => Math.round(v * 100) / 100;
+
+    let mappingVisible = false;
+
+    function init() {
+      const now = new Date();
+      $('fromDate').value = dateStr(now);
+      $('fromTime').value = '00:00';
+      $('toDate').value = dateStr(now);
+      $('toTime').value = timeStr(now);
+    }
+
+    function quick(r, btn) {
+      document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const now = new Date(), from = new Date();
+      if (r === 'today') {
+        from.setHours(0, 0, 0, 0);
+        $('fromDate').value = dateStr(from); $('fromTime').value = '00:00';
+        $('toDate').value = dateStr(now); $('toTime').value = timeStr(now);
+      } else if (r === 'yesterday') {
+        from.setDate(from.getDate() - 1); from.setHours(0, 0, 0, 0);
+        const end = new Date(from); end.setHours(23, 59, 0, 0);
+        $('fromDate').value = dateStr(from); $('fromTime').value = '00:00';
+        $('toDate').value = dateStr(end); $('toTime').value = '23:59';
+      } else if (r === 'week') {
+        from.setDate(from.getDate() - 7); from.setHours(0, 0, 0, 0);
+        $('fromDate').value = dateStr(from); $('fromTime').value = '00:00';
+        $('toDate').value = dateStr(now); $('toTime').value = timeStr(now);
+      }
+      refresh();
+    }
+
+    function applyFilter() {
+      document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+      refresh();
+    }
+
+    function buildUrl() {
+      return API + '?action=summary&from=' + $('fromDate').value + 'T' + $('fromTime').value + ':00&to=' + $('toDate').value + 'T' + $('toTime').value + ':00';
+    }
+
+    async function refresh() {
+      $('dot').style.background = 'var(--yellow)';
+      $('statusText').textContent = 'Loading...';
+      $('error').classList.remove('show');
+      try {
+        const res = await fetch(buildUrl());
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'API error');
+        update(data);
+        $('loading').classList.add('hidden');
+      } catch (e) {
+        $('error').textContent = e.message;
+        $('error').classList.add('show');
+        $('dot').style.background = 'var(--red)';
+        $('statusText').textContent = 'Error';
+        $('loading').classList.add('hidden');
+      }
+    }
+
+    function update(data) {
+      const d = data.data;
+
+      // Summary cards
+      const totalSold = d.sales.reduce((s, p) => s + p.qtySold, 0);
+      const totalRevenue = d.sales.reduce((s, p) => s + p.amount, 0);
+      const activeMaterials = d.consumption.filter(c => c.sentToKitchen > 0 || c.returnedToStorage > 0 || c.wasted > 0);
+      const totalSent = d.consumption.reduce((s, c) => s + c.sentToKitchen, 0);
+      const totalWasted = d.consumption.reduce((s, c) => s + c.wasted, 0);
+      const wastedItems = d.consumption.filter(c => c.wasted > 0).length;
+
+      $('totalSold').textContent = totalSold;
+      $('totalRevenue').textContent = fmt(totalRevenue) + ' revenue';
+      $('totalSent').textContent = round2(totalSent);
+      $('sentCount').textContent = activeMaterials.length + ' raw materials';
+      $('totalWasted').textContent = round2(totalWasted);
+      $('wastedCount').textContent = wastedItems + ' items';
+      $('kitchenCount').textContent = d.kitchenStock.length;
+
+      renderSalesTable(d.sales, d.mapping, d.rawMaterials);
+      renderConsumption(d.consumption);
+      renderKitchenStock(d.kitchenStock);
+      renderMapping(d.mapping, d.rawMaterials);
+
+      $('dot').style.background = 'var(--green)';
+      $('statusText').textContent = fmtT(data.timestamp);
+    }
+
+    function renderSalesTable(sales, mapping, rawMaterials) {
+      if (!sales.length) {
+        $('salesTable').innerHTML = '<tr><td colspan="3" class="empty">No sales for this period</td></tr>';
+        return;
+      }
+      $('salesTable').innerHTML = sales.map(p => {
+        const matIds = mapping[p.productId] ? mapping[p.productId].materials : [];
+        const matTags = matIds.map(id => {
+          const rm = rawMaterials[id];
+          return '<span class="material-tag">' + (rm ? rm.name : id) + '</span>';
+        }).join('');
+        return '<tr><td>' + p.productName + (matTags ? '<div class="material-tags">' + matTags + '</div>' : '') +
+          '</td><td class="mono">' + p.qtySold +
+          '</td><td class="mono">' + fmt(p.amount) + '</td></tr>';
+      }).join('');
+    }
+
+    function renderConsumption(consumption) {
+      const active = consumption.filter(c => c.sentToKitchen > 0 || c.returnedToStorage > 0 || c.wasted > 0);
+
+      if (!active.length) {
+        $('consumptionList').innerHTML = '<div class="empty">No transfers for this period</div>';
+        return;
+      }
+
+      // Find max for bar scaling
+      const maxQty = Math.max(...active.map(c => c.sentToKitchen + c.returnedToStorage + c.wasted), 1);
+
+      $('consumptionList').innerHTML = active.map(c => {
+        const total = c.sentToKitchen + c.returnedToStorage + c.wasted;
+        const sentPct = (c.sentToKitchen / maxQty * 100);
+        const retPct = (c.returnedToStorage / maxQty * 100);
+        const wastePct = (c.wasted / maxQty * 100);
+
+        return '<div class="consumption-item">' +
+          '<div class="row"><div class="name">' + c.productName + ' <span style="font-size:11px;color:var(--muted)">(' + c.uom + ')</span></div>' +
+          '<div class="net">Net: ' + c.netConsumed + '</div></div>' +
+          '<div class="details">' +
+            '<span class="sent">↓ Sent: ' + c.sentToKitchen + '</span>' +
+            (c.returnedToStorage > 0 ? '<span class="returned">↩ Returned: ' + c.returnedToStorage + '</span>' : '') +
+            (c.wasted > 0 ? '<span class="wasted">✕ Wasted: ' + c.wasted + '</span>' : '') +
+          '</div>' +
+          '<div class="consumption-bar">' +
+            '<div class="fill-sent" style="width:' + sentPct + '%"></div>' +
+            (c.returnedToStorage > 0 ? '<div class="fill-returned" style="width:' + retPct + '%"></div>' : '') +
+            (c.wasted > 0 ? '<div class="fill-wasted" style="width:' + wastePct + '%"></div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderKitchenStock(stock) {
+      if (!stock.length) {
+        $('kitchenStockGrid').innerHTML = '<div class="empty">No stock in kitchen</div>';
+        return;
+      }
+      $('kitchenStockGrid').innerHTML = stock.map(s =>
+        '<div class="stock-item">' +
+          '<div class="name">' + s.productName + '</div>' +
+          '<div class="qty">' + round2(s.qty) + '</div>' +
+          '<div class="uom">' + s.uom + '</div>' +
+        '</div>'
+      ).join('');
+    }
+
+    function renderMapping(mapping, rawMaterials) {
+      $('mappingGrid').innerHTML = Object.entries(mapping).map(([pid, info]) =>
+        '<div class="mapping-row">' +
+          '<div class="product-name">' + info.name + '</div>' +
+          '<div class="materials">' + info.materials.map(mid => {
+            const rm = rawMaterials[mid];
+            return '<span class="mat-chip">' + (rm ? rm.name : mid) + '</span>';
+          }).join('') + '</div>' +
+        '</div>'
+      ).join('');
+    }
+
+    function toggleMapping() {
+      mappingVisible = !mappingVisible;
+      $('mappingGrid').style.display = mappingVisible ? 'grid' : 'none';
+      $('mappingToggle').textContent = mappingVisible ? '▲ Hide' : '▼ Show';
+    }
+
+    init();
+    refresh();
+  </script>
+</body>
+</html>
