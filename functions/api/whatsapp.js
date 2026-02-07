@@ -1,23 +1,25 @@
-// WhatsApp Ordering System v2 — Cloudflare Worker
+// WhatsApp Ordering System v3 — Cloudflare Worker (MPM Catalog)
 // Handles: webhook verification, message processing, state machine, dashboard API
 // Target: HKP Road businesses — exclusive delivery with 2 free chai on first order
+// Uses Meta Commerce Catalog + Multi-Product Messages for native cart with quantity selector
 
-const MENU = {
-  'IC1':  { name: 'Irani Chai',            qty: 1, price: 15,  odooId: 1028, section: 'Chai' },
-  'IC2':  { name: 'Irani Chai',            qty: 2, price: 15,  odooId: 1028, section: 'Chai' },
-  'IC5':  { name: 'Irani Chai',            qty: 5, price: 15,  odooId: 1028, section: 'Chai' },
-  'NSC1': { name: 'Nawabi Special Coffee',  qty: 1, price: 30,  odooId: 1102, section: 'Chai' },
-  'LT1':  { name: 'Lemon Tea',             qty: 1, price: 20,  odooId: 1103, section: 'Chai' },
-  'BM1':  { name: 'Bun Maska',             qty: 1, price: 40,  odooId: 1029, section: 'Snacks' },
-  'OB3':  { name: 'Osmania Biscuit x3',    qty: 1, price: 20,  odooId: 1033, section: 'Snacks' },
-  'CC1':  { name: 'Chicken Cutlet',        qty: 1, price: 25,  odooId: 1031, section: 'Snacks' },
-  'PS1':  { name: 'Pyaaz Samosa',          qty: 1, price: 15,  odooId: 1115, section: 'Snacks' },
-  'CB1':  { name: 'Cheese Balls (2pcs)',   qty: 1, price: 50,  odooId: 1117, section: 'Snacks' },
+// ── Product catalog mapping: retailer_id → Odoo product + price ──
+const CATALOG_ID = '1639757440737691';
+
+const PRODUCTS = {
+  'NCH-IC':  { name: 'Irani Chai',            price: 15,  odooId: 1028 },
+  'NCH-NSC': { name: 'Nawabi Special Coffee',  price: 30,  odooId: 1102 },
+  'NCH-LT':  { name: 'Lemon Tea',             price: 20,  odooId: 1103 },
+  'NCH-BM':  { name: 'Bun Maska',             price: 40,  odooId: 1029 },
+  'NCH-OB3': { name: 'Osmania Biscuit x3',    price: 20,  odooId: 1033 },
+  'NCH-CC':  { name: 'Chicken Cutlet',        price: 25,  odooId: 1031 },
+  'NCH-PS':  { name: 'Pyaaz Samosa',          price: 15,  odooId: 1115 },
+  'NCH-CB':  { name: 'Cheese Balls (2pcs)',   price: 50,  odooId: 1117 },
 };
 
 const NCH_LAT = 12.9868674;
 const NCH_LNG = 77.6044311;
-const MAX_DELIVERY_RADIUS_M = 600; // Covers entire HKP Road stretch
+const MAX_DELIVERY_RADIUS_M = 600;
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const RUNNERS = ['FAROOQ', 'AMIN', 'NCH Runner 03', 'NCH Runner 04', 'NCH Runner 05'];
@@ -32,10 +34,10 @@ const BIZ_CATEGORIES = [
 const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
 const ODOO_DB = 'main';
 const ODOO_UID = 2;
-const POS_CONFIG_ID = 29;         // NCH - Delivery
-const PRICELIST_ID = 3;           // NCH Retail (INR)
-const PAYMENT_METHOD_COD = 50;    // NCH WABA COD
-const PAYMENT_METHOD_UPI = 51;    // NCH WABA UPI
+const POS_CONFIG_ID = 29;
+const PRICELIST_ID = 3;
+const PAYMENT_METHOD_COD = 50;
+const PAYMENT_METHOD_UPI = 51;
 
 export async function onRequest(context) {
   const corsHeaders = {
@@ -52,17 +54,14 @@ export async function onRequest(context) {
   const url = new URL(context.request.url);
   const action = url.searchParams.get('action');
 
-  // Dashboard API routes
   if (action) {
     return handleDashboardAPI(context, action, url, corsHeaders);
   }
 
-  // WhatsApp webhook verification (GET)
   if (context.request.method === 'GET') {
     return handleWebhookVerify(context, url);
   }
 
-  // WhatsApp webhook messages (POST)
   if (context.request.method === 'POST') {
     try {
       const body = await context.request.json();
@@ -70,7 +69,7 @@ export async function onRequest(context) {
       return new Response('OK', { status: 200 });
     } catch (error) {
       console.error('Webhook error:', error.message, error.stack);
-      return new Response('OK', { status: 200 }); // Always 200 for Meta
+      return new Response('OK', { status: 200 });
     }
   }
 
@@ -95,7 +94,7 @@ async function processWebhook(context, body) {
   const changes = entry?.changes?.[0];
   const value = changes?.value;
 
-  if (!value?.messages?.length) return; // Status update or no message
+  if (!value?.messages?.length) return;
 
   const message = value.messages[0];
   const waId = message.from;
@@ -134,7 +133,6 @@ async function processWebhook(context, body) {
     await db.prepare('UPDATE wa_users SET last_active_at = ? WHERE wa_id = ?').bind(new Date().toISOString(), waId).run();
   }
 
-  // Route to state handler
   const msgType = getMessageType(message);
   await routeState(context, session, user, message, msgType, waId, phoneId, token, db);
 }
@@ -148,6 +146,17 @@ function getMessageType(message) {
   if (message.type === 'location') {
     return { type: 'location', lat: message.location.latitude, lng: message.location.longitude, name: message.location.name || '', address: message.location.address || '' };
   }
+  if (message.type === 'order') {
+    // Native cart submission from MPM
+    const order = message.order;
+    const items = (order.product_items || []).map(item => ({
+      retailer_id: item.product_retailer_id,
+      qty: parseInt(item.quantity) || 1,
+      price: parseFloat(item.item_price) || 0,
+      currency: item.currency || 'INR',
+    }));
+    return { type: 'order', catalog_id: order.catalog_id, items, text: order.text || '' };
+  }
   if (message.type === 'text') {
     return { type: 'text', body: message.text.body.trim(), bodyLower: message.text.body.trim().toLowerCase() };
   }
@@ -155,8 +164,14 @@ function getMessageType(message) {
 }
 
 // ─── STATE MACHINE ROUTER ─────────────────────────────────────────
+// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_menu → awaiting_payment → order_placed
 async function routeState(context, session, user, message, msg, waId, phoneId, token, db) {
   const state = session.state;
+
+  // Order message can come at any time from the MPM cart — handle it directly
+  if (msg.type === 'order') {
+    return handleOrderMessage(context, session, user, msg, waId, phoneId, token, db);
+  }
 
   if (state === 'order_placed' || state === 'idle') {
     return handleIdle(context, session, user, msg, waId, phoneId, token, db);
@@ -170,17 +185,13 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
   if (state === 'awaiting_location') {
     return handleLocation(context, session, user, msg, waId, phoneId, token, db);
   }
-  if (state === 'awaiting_selection') {
-    return handleSelection(context, session, user, msg, waId, phoneId, token, db);
-  }
-  if (state === 'awaiting_more_or_checkout') {
-    return handleMoreOrCheckout(context, session, user, msg, waId, phoneId, token, db);
+  if (state === 'awaiting_menu') {
+    return handleMenuState(context, session, user, msg, waId, phoneId, token, db);
   }
   if (state === 'awaiting_payment') {
     return handlePayment(context, session, user, msg, waId, phoneId, token, db);
   }
 
-  // Fallback — reset to idle
   return handleIdle(context, session, user, msg, waId, phoneId, token, db);
 }
 
@@ -198,16 +209,16 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
         { type: 'reply', reply: { id: 'new_order', title: 'New Order' } }
       ];
       await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
-      await updateSession(db, waId, 'awaiting_selection', session.cart, session.cart_total);
+      await updateSession(db, waId, 'awaiting_menu', session.cart, session.cart_total);
       return;
     }
   }
 
-  // ── PREVIOUSLY VERIFIED USER (no orders yet): go straight to menu ──
+  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog ──
   if (user.business_type && user.name && user.location_lat) {
-    const greeting = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}! Browse our menu 👇\n\n🎁 *Your first 2 Irani Chai are FREE!*`;
-    await sendWhatsApp(phoneId, token, buildMenuList(waId, greeting));
-    await updateSession(db, waId, 'awaiting_selection', '[]', 0);
+    const greeting = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu, add items to cart, and send your order 👇`;
+    await sendWhatsApp(phoneId, token, buildMPM(waId, greeting));
+    await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
 
@@ -218,62 +229,52 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
   await updateSession(db, waId, 'awaiting_biz_type', '[]', 0);
 }
 
-// ─── STATE: AWAITING BIZ TYPE → Business category selected ───────
+// ─── STATE: AWAITING BIZ TYPE ─────────────────────────────────────
 async function handleBizType(context, session, user, msg, waId, phoneId, token, db) {
   if (msg.type === 'button_reply' && msg.id.startsWith('biz_')) {
     const categoryTitle = BIZ_CATEGORIES.find(c => c.id === msg.id)?.title || msg.title;
-
-    // Save business_type to wa_users
     await db.prepare('UPDATE wa_users SET business_type = ? WHERE wa_id = ?').bind(categoryTitle, waId).run();
     user.business_type = categoryTitle;
 
-    // Ask for name
     await sendWhatsApp(phoneId, token, buildText(waId, `Great! What's your name?`));
     await updateSession(db, waId, 'awaiting_name', '[]', 0);
     return;
   }
 
-  // Unrecognized — resend buttons
   const buttons = BIZ_CATEGORIES.map(c => ({ type: 'reply', reply: { id: c.id, title: c.title } }));
   await sendWhatsApp(phoneId, token, buildReplyButtons(waId, 'Please select your business type to continue:', buttons));
 }
 
-// ─── STATE: AWAITING NAME → Name typed ───────────────────────────
+// ─── STATE: AWAITING NAME ─────────────────────────────────────────
 async function handleName(context, session, user, msg, waId, phoneId, token, db) {
   if (msg.type === 'text' && msg.body.length > 0) {
-    // Capitalize first letter of each word
     const name = msg.body.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ').slice(0, 50);
-
-    // Save to wa_users
     await db.prepare('UPDATE wa_users SET name = ? WHERE wa_id = ?').bind(name, waId).run();
     user.name = name;
 
-    // Check if user already has saved location
+    // Check if user already has saved location within range
     if (user.location_lat && user.location_lng) {
       const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
       if (dist <= MAX_DELIVERY_RADIUS_M) {
-        // Saved location is valid — skip to menu
         const isNew = !user.first_order_redeemed && user.total_orders === 0;
-        let menuIntro = `Thanks ${name.split(' ')[0]}! Browse our menu 👇`;
-        if (isNew) menuIntro = `Thanks ${name.split(' ')[0]}!\n\n🎁 *Remember: your first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
-        await sendWhatsApp(phoneId, token, buildMenuList(waId, menuIntro));
-        await updateSession(db, waId, 'awaiting_selection', '[]', 0);
+        let menuIntro = `Thanks ${name.split(' ')[0]}! Browse our menu, pick what you like, and send your order 👇`;
+        if (isNew) menuIntro = `Thanks ${name.split(' ')[0]}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
+        await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
+        await updateSession(db, waId, 'awaiting_menu', '[]', 0);
         return;
       }
     }
 
-    // Request location
     const body = `Welcome ${name.split(' ')[0]}! 📍 Please share your location so we can deliver to you.`;
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, body));
     await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
-  // Non-text input
   await sendWhatsApp(phoneId, token, buildText(waId, 'Please type your name to continue.'));
 }
 
-// ─── STATE: AWAITING LOCATION → Pin drop ─────────────────────────
+// ─── STATE: AWAITING LOCATION ─────────────────────────────────────
 async function handleLocation(context, session, user, msg, waId, phoneId, token, db) {
   if (msg.type !== 'location') {
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Please share your delivery location using the attach (📎) button → Location'));
@@ -291,7 +292,6 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
     return;
   }
 
-  // Save location to user
   const locationText = name || address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   await db.prepare('UPDATE wa_users SET location_lat = ?, location_lng = ?, location_address = ? WHERE wa_id = ?').bind(lat, lng, locationText, waId).run();
   user.location_lat = lat;
@@ -299,7 +299,7 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
   user.location_address = locationText;
   user.delivery_distance_m = Math.round(distance);
 
-  // Check if cart already has items (reorder flow where location was missing)
+  // Check if cart already has items (reorder flow needing location)
   const cart = JSON.parse(session.cart || '[]');
   if (cart.length > 0) {
     const body = `📍 Location saved! (${Math.round(distance)}m from NCH)\n\nHow would you like to pay?`;
@@ -312,33 +312,32 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
     return;
   }
 
-  // Normal new-user flow — show menu after location
+  // Show MPM catalog
   const isNew = !user.first_order_redeemed && user.total_orders === 0;
   const firstName = user.name ? user.name.split(' ')[0] : '';
   let menuIntro = `📍 Saved! You're ${Math.round(distance)}m from NCH — we'll be there in minutes!\n\nBrowse our menu 👇`;
   if (isNew) {
     menuIntro = `📍 Saved! You're ${Math.round(distance)}m from NCH.\n\n🎁 *${firstName ? firstName + ', your' : 'Your'} first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
   }
-  await sendWhatsApp(phoneId, token, buildMenuList(waId, menuIntro));
-  await updateSession(db, waId, 'awaiting_selection', '[]', 0);
+  await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
+  await updateSession(db, waId, 'awaiting_menu', '[]', 0);
 }
 
-// ─── STATE: AWAITING SELECTION → Item picked / Reorder ───────────
-async function handleSelection(context, session, user, msg, waId, phoneId, token, db) {
+// ─── STATE: AWAITING MENU → Waiting for cart or reorder ───────────
+async function handleMenuState(context, session, user, msg, waId, phoneId, token, db) {
   // ── Reorder button ──
   if (msg.type === 'button_reply' && msg.id === 'reorder') {
     const lastOrder = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(user.last_order_id).first();
     if (lastOrder) {
       const items = JSON.parse(lastOrder.items);
-      // Recalculate prices from current menu
+      // Recalculate prices from current PRODUCTS
       const updatedItems = items.map(item => {
-        const currentMenuItem = Object.values(MENU).find(m => m.odooId === item.odooId);
-        return currentMenuItem ? { ...item, price: currentMenuItem.price } : item;
+        const prod = Object.values(PRODUCTS).find(p => p.odooId === item.odooId);
+        return prod ? { ...item, price: prod.price } : item;
       });
       const cartTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
       if (user.location_lat && user.location_lng) {
-        // Saved location — skip to payment
         await updateSession(db, waId, 'awaiting_payment', JSON.stringify(updatedItems), cartTotal);
         const body = `📍 Delivering to your saved location.\n\nHow would you like to pay?`;
         const buttons = [
@@ -349,7 +348,6 @@ async function handleSelection(context, session, user, msg, waId, phoneId, token
         return;
       }
 
-      // Need location
       await updateSession(db, waId, 'awaiting_location', JSON.stringify(updatedItems), cartTotal);
       await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your delivery location so we can get your order to you!'));
       return;
@@ -358,84 +356,79 @@ async function handleSelection(context, session, user, msg, waId, phoneId, token
 
   // ── New Order button ──
   if (msg.type === 'button_reply' && msg.id === 'new_order') {
-    await sendWhatsApp(phoneId, token, buildMenuList(waId, 'Pick from our menu 👇'));
-    await updateSession(db, waId, 'awaiting_selection', '[]', 0);
+    await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu, pick what you like, and send your order 👇'));
+    await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
 
-  // ── List item selection (quantity baked in) ──
-  if (msg.type === 'list_reply') {
-    const itemCode = msg.id;
-    const menuItem = MENU[itemCode];
-    if (!menuItem) {
-      await sendWhatsApp(phoneId, token, buildText(waId, "Sorry, that item isn't available. Please pick from the menu."));
-      return;
-    }
-
-    const cart = JSON.parse(session.cart || '[]');
-    const qty = menuItem.qty;
-    const itemName = menuItem.name;
-    const itemPrice = menuItem.price;
-    const lineTotal = itemPrice * qty;
-
-    // Merge with existing cart entry for same product (by odooId)
-    const existing = cart.find(c => c.odooId === menuItem.odooId);
-    if (existing) {
-      existing.qty += qty;
-    } else {
-      cart.push({ code: itemCode, name: itemName, price: itemPrice, qty, odooId: menuItem.odooId });
-    }
-    const cartTotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
-
-    const cartSummary = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
-    const body = `✅ Added ${qty}x ${itemName} — ₹${lineTotal}\n\n*Your cart:*\n${cartSummary}\n*Total: ₹${cartTotal}*`;
-    const buttons = [
-      { type: 'reply', reply: { id: 'add_more', title: 'Add More' } },
-      { type: 'reply', reply: { id: 'checkout', title: `Checkout ₹${cartTotal}` } }
-    ];
-    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
-    await updateSession(db, waId, 'awaiting_more_or_checkout', JSON.stringify(cart), cartTotal);
-    return;
-  }
-
-  // Unrecognized — show menu again
-  await sendWhatsApp(phoneId, token, buildMenuList(waId, 'Please pick an item from our menu 👇'));
+  // ── Any text → resend catalog ──
+  await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu below, add items to cart, and tap Send to order! 👇'));
 }
 
-// ─── STATE: ADD MORE / CHECKOUT ───────────────────────────────────
-async function handleMoreOrCheckout(context, session, user, msg, waId, phoneId, token, db) {
-  if (msg.type === 'button_reply' && msg.id === 'add_more') {
-    await sendWhatsApp(phoneId, token, buildMenuList(waId, 'Pick another item 👇'));
-    await updateSession(db, waId, 'awaiting_selection', session.cart, session.cart_total);
+// ─── HANDLE ORDER MESSAGE (from MPM native cart) ──────────────────
+async function handleOrderMessage(context, session, user, msg, waId, phoneId, token, db) {
+  const orderItems = msg.items;
+  if (!orderItems || orderItems.length === 0) {
+    await sendWhatsApp(phoneId, token, buildText(waId, "We couldn't read your order. Please try again from the menu."));
+    await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu 👇'));
     return;
   }
 
-  if (msg.type === 'button_reply' && msg.id === 'checkout') {
-    // Location should already be saved (collected before menu for new users)
-    // Fallback: if somehow missing, request it
-    if (!user.location_lat || !user.location_lng) {
-      await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
-      await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your delivery location so we can get your order to you!'));
-      return;
+  // Build cart from catalog order
+  const cart = [];
+  let cartTotal = 0;
+  for (const item of orderItems) {
+    const product = PRODUCTS[item.retailer_id];
+    if (!product) continue;
+    const qty = item.qty;
+    const price = product.price; // Use our price, not the catalog price (in case of sync issues)
+    cart.push({
+      code: item.retailer_id,
+      name: product.name,
+      price,
+      qty,
+      odooId: product.odooId,
+    });
+    cartTotal += price * qty;
+  }
+
+  if (cart.length === 0) {
+    await sendWhatsApp(phoneId, token, buildText(waId, "Sorry, we couldn't process those items. Please try again."));
+    return;
+  }
+
+  // Save cart to session
+  await updateSession(db, waId, 'awaiting_payment', JSON.stringify(cart), cartTotal);
+
+  // Check if user has location
+  if (!user.location_lat || !user.location_lng) {
+    // Need location first
+    await updateSession(db, waId, 'awaiting_location', JSON.stringify(cart), cartTotal);
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Great choices! Share your delivery location so we can get your order to you.'));
+    return;
+  }
+
+  // Show order summary + payment buttons
+  const cartSummary = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+
+  // Preview discount for first-time users
+  let discountPreview = '';
+  if (!user.first_order_redeemed) {
+    const chaiInCart = cart.filter(c => c.odooId === 1028).reduce((sum, c) => sum + c.qty, 0);
+    if (chaiInCart > 0) {
+      const freeCount = Math.min(chaiInCart, 2);
+      const discountAmt = freeCount * 15;
+      discountPreview = `\n🎁 ${freeCount}x FREE Irani Chai — -₹${discountAmt}`;
+      cartTotal = Math.max(0, cartTotal - discountAmt);
     }
-
-    await updateSession(db, waId, 'awaiting_payment', session.cart, session.cart_total);
-    const body = `How would you like to pay?`;
-    const buttons = [
-      { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
-      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
-    ];
-    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
-    return;
   }
 
-  // Unrecognized — repeat options
-  const cartTotal = session.cart_total;
+  const body = `*Your order:*\n${cartSummary}${discountPreview}\n\n💰 *Total: ₹${cartTotal}*\n\nHow would you like to pay?`;
   const buttons = [
-    { type: 'reply', reply: { id: 'add_more', title: 'Add More' } },
-    { type: 'reply', reply: { id: 'checkout', title: `Checkout ₹${cartTotal}` } }
+    { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
+    { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
   ];
-  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, 'Would you like to add more or checkout?', buttons));
+  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
 }
 
 // ─── STATE: AWAITING PAYMENT → COD or UPI ─────────────────────────
@@ -459,7 +452,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   if (!user.first_order_redeemed) {
     const chaiInCart = cart.filter(c => c.odooId === 1028).reduce((sum, c) => sum + c.qty, 0);
     if (chaiInCart > 0) {
-      const freeChaiCount = Math.min(chaiInCart, 2); // Up to 2 free
+      const freeChaiCount = Math.min(chaiInCart, 2);
       discount = freeChaiCount * 15;
       discountReason = 'first_order_2_free_chai';
     }
@@ -468,12 +461,11 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   const total = Math.max(0, subtotal - discount);
   const now = new Date().toISOString();
 
-  // Generate order code
   const countResult = await db.prepare("SELECT COUNT(*) as cnt FROM wa_orders WHERE created_at >= date('now', 'start of day')").first();
   const todayCount = (countResult?.cnt || 0) + 1;
   const orderCode = `WA-${String(todayCount).padStart(4, '0')}`;
 
-  // Assign runner (round-robin — fewest WA orders today)
+  // Assign runner (round-robin)
   const runnerCounts = await db.prepare("SELECT runner_name, COUNT(*) as cnt FROM wa_orders WHERE created_at >= date('now', 'start of day') AND runner_name IS NOT NULL GROUP BY runner_name").all();
   const countMap = {};
   (runnerCounts.results || []).forEach(r => { countMap[r.runner_name] = r.cnt; });
@@ -484,24 +476,20 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     if (cnt < minOrders) { minOrders = cnt; assignedRunner = name; }
   });
 
-  // Get delivery location
   const deliveryLat = user.location_lat;
   const deliveryLng = user.location_lng;
   const deliveryAddress = user.location_address || '';
   const deliveryDistance = user.delivery_distance_m || (deliveryLat ? Math.round(haversineDistance(deliveryLat, deliveryLng, NCH_LAT, NCH_LNG)) : null);
 
-  // Insert order
   const result = await db.prepare(`INSERT INTO wa_orders (order_code, wa_id, items, subtotal, discount, discount_reason, total, payment_method, delivery_lat, delivery_lng, delivery_address, delivery_distance_m, runner_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(orderCode, waId, JSON.stringify(cart), subtotal, discount, discountReason, total, paymentMethod, deliveryLat, deliveryLng, deliveryAddress, deliveryDistance, assignedRunner, now, now).run();
 
   const orderId = result.meta?.last_row_id;
 
-  // Update user
   await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
-  // Create order in Odoo POS (NCH - Delivery)
+  // Create order in Odoo POS
   const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, paymentMethod, waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
 
-  // Build confirmation message
   const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
   let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
   if (discount > 0) {
@@ -554,38 +542,40 @@ function buildReplyButtons(to, body, buttons) {
   };
 }
 
-function buildMenuList(to, bodyText) {
-  const sections = [
-    {
-      title: 'Chai & Beverages',
-      rows: [
-        { id: 'IC1',  title: '1x Irani Chai',          description: '₹15' },
-        { id: 'IC2',  title: '2x Irani Chai',          description: '₹30' },
-        { id: 'IC5',  title: '5x Irani Chai',          description: '₹75' },
-        { id: 'NSC1', title: 'Nawabi Special Coffee',   description: '₹30' },
-        { id: 'LT1',  title: 'Lemon Tea',              description: '₹20' },
-      ]
-    },
-    {
-      title: 'Snacks',
-      rows: [
-        { id: 'BM1', title: 'Bun Maska',              description: '₹40' },
-        { id: 'OB3', title: 'Osmania Biscuit x3',     description: '₹20' },
-        { id: 'CC1', title: 'Chicken Cutlet',          description: '₹25' },
-        { id: 'PS1', title: 'Pyaaz Samosa',            description: '₹15' },
-        { id: 'CB1', title: 'Cheese Balls (2pcs)',     description: '₹50' },
-      ]
-    }
-  ];
-
+// ── Multi-Product Message (MPM) — Native catalog with cart + qty selector ──
+function buildMPM(to, bodyText) {
   return {
-    messaging_product: 'whatsapp', to, type: 'interactive',
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
     interactive: {
-      type: 'list',
+      type: 'product_list',
       header: { type: 'text', text: '☕ Nawabi Chai House' },
       body: { text: bodyText },
       footer: { text: 'HKP Road delivery • ~5 min' },
-      action: { button: 'View Menu', sections }
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [
+          {
+            title: 'Chai & Beverages',
+            product_items: [
+              { product_retailer_id: 'NCH-IC' },
+              { product_retailer_id: 'NCH-NSC' },
+              { product_retailer_id: 'NCH-LT' },
+            ]
+          },
+          {
+            title: 'Snacks',
+            product_items: [
+              { product_retailer_id: 'NCH-BM' },
+              { product_retailer_id: 'NCH-OB3' },
+              { product_retailer_id: 'NCH-CC' },
+              { product_retailer_id: 'NCH-PS' },
+              { product_retailer_id: 'NCH-CB' },
+            ]
+          }
+        ]
+      }
     }
   };
 }
@@ -617,7 +607,6 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
   if (!apiKey) { console.error('ODOO_API_KEY not set'); return null; }
 
   try {
-    // 1. Get active session for config 29
     const sessionRes = await odooRPC(apiKey, 'pos.session', 'search_read',
       [[['config_id', '=', POS_CONFIG_ID], ['state', '=', 'opened']]],
       { fields: ['id', 'name'], limit: 1 });
@@ -627,7 +616,6 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
     }
     const sessionId = sessionRes[0].id;
 
-    // 2. Build order lines
     const lines = cart.map(item => [0, 0, {
       product_id: item.odooId,
       qty: item.qty,
@@ -639,7 +627,6 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
       full_product_name: item.name,
     }]);
 
-    // 3. Build delivery note for staff — phone, maps link, runner, business type
     const mapsLink = deliveryLat ? `https://maps.google.com/?q=${deliveryLat},${deliveryLng}` : '';
     const customerPhone = phone || waId;
     const formattedPhone = customerPhone.startsWith('91') ? '+' + customerPhone : customerPhone;
@@ -654,7 +641,6 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
       discount > 0 ? `🎁 FREE Irani Chai applied (-₹${discount})` : '',
     ].filter(Boolean).join('\n');
 
-    // 4. Create the POS order
     const odooPaymentMethodId = paymentMethod === 'cod' ? PAYMENT_METHOD_COD : PAYMENT_METHOD_UPI;
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -674,7 +660,6 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
 
     if (!orderId) { console.error('Failed to create POS order'); return null; }
 
-    // 5. Add payment
     await odooRPC(apiKey, 'pos.payment', 'create', [{
       pos_order_id: orderId,
       payment_method_id: odooPaymentMethodId,
@@ -683,10 +668,8 @@ async function createOdooOrder(context, orderCode, cart, total, discount, paymen
       session_id: sessionId,
     }]);
 
-    // 6. Mark order as paid
     await odooRPC(apiKey, 'pos.order', 'action_pos_order_paid', [[orderId]]);
 
-    // 7. Get the order name for reference
     const orderData = await odooRPC(apiKey, 'pos.order', 'search_read',
       [[['id', '=', orderId]]], { fields: ['name'] });
     const odooOrderName = orderData?.[0]?.name || `Order #${orderId}`;
@@ -745,7 +728,6 @@ async function handleDashboardAPI(context, action, url, corsHeaders) {
         query += ' WHERE status = ?';
         params.push(status);
       } else {
-        // Default: today's orders
         query += " WHERE created_at >= date('now', 'start of day')";
       }
       query += ' ORDER BY created_at DESC LIMIT 100';
@@ -793,7 +775,6 @@ async function handleDashboardAPI(context, action, url, corsHeaders) {
       await db.prepare('UPDATE wa_orders SET status = ?, updated_at = ?, delivered_at = COALESCE(?, delivered_at) WHERE id = ?')
         .bind(status, now, deliveredAt, orderId).run();
 
-      // Notify customer via WhatsApp
       const order = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(orderId).first();
       if (order) {
         const phoneId = context.env.WA_PHONE_ID;
