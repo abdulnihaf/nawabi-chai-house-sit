@@ -13,8 +13,6 @@ const PRODUCTS = {
   'NCH-BM':  { name: 'Bun Maska',             price: 40,  odooId: 1029 },
   'NCH-OB3': { name: 'Osmania Biscuit x3',    price: 20,  odooId: 1033 },
   'NCH-CC':  { name: 'Chicken Cutlet',        price: 25,  odooId: 1031 },
-  'NCH-PS':  { name: 'Pyaaz Samosa',          price: 15,  odooId: 1115 },
-  'NCH-CB':  { name: 'Cheese Balls (2pcs)',   price: 50,  odooId: 1117 },
 };
 
 const NCH_LAT = 12.9868674;
@@ -570,8 +568,6 @@ function buildMPM(to, bodyText) {
               { product_retailer_id: 'NCH-BM' },
               { product_retailer_id: 'NCH-OB3' },
               { product_retailer_id: 'NCH-CC' },
-              { product_retailer_id: 'NCH-PS' },
-              { product_retailer_id: 'NCH-CB' },
             ]
           }
         ]
