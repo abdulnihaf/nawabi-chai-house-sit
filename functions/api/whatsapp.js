@@ -538,6 +538,19 @@ async function handleDashboardAPI(context, action, url, corsHeaders) {
   const db = context.env.DB;
 
   try {
+    // Temporary: Odoo query for POS config extraction
+    if (action === 'odoo-query') {
+      const model = url.searchParams.get('model');
+      const fields = url.searchParams.get('fields');
+      const domain = url.searchParams.get('domain') || '[]';
+      if (!model || !fields) return new Response(JSON.stringify({error:'need model and fields'}), {headers: corsHeaders});
+      const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+      const payload = {jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',args:['main',2,context.env.ODOO_API_KEY,model,'search_read',JSON.parse(domain),{fields:fields.split(',')}]}};
+      const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data = await res.json();
+      return new Response(JSON.stringify(data?.result || data), {headers: corsHeaders});
+    }
+
     if (action === 'orders') {
       const status = url.searchParams.get('status');
       let query = 'SELECT * FROM wa_orders';
