@@ -242,7 +242,7 @@ function setupScanner() {
 function handleScan(code) {
   const screen = getActiveScreen();
   if (screen === 'listScreen') {
-    // Try to match PO name or receipt name
+    // Try to match PO name or receipt name first
     const match = currentReceipts.find(r =>
       r.poName === code || r.name === code || r.poName.replace('P', '') === code
     );
@@ -250,7 +250,32 @@ function handleScan(code) {
       openReceipt(match.pickingId);
       showToast(`📦 Opened ${match.poName}`);
     } else {
-      showToast(`❌ No delivery found for "${code}"`);
+      // Try to match a product barcode inside any delivery
+      const productMatch = currentReceipts.find(r =>
+        r.items.some(item => item.barcode === code || item.productCode === code || item.productCode === code.toUpperCase())
+      );
+      if (productMatch) {
+        openReceipt(productMatch.pickingId);
+        // After opening, find and highlight the scanned item
+        setTimeout(() => {
+          const idx = currentItems.findIndex(item =>
+            item.barcode === code || item.productCode === code || item.productCode === code.toUpperCase()
+          );
+          if (idx >= 0) {
+            const cards = document.querySelectorAll('.item-card');
+            if (cards[idx]) {
+              cards[idx].scrollIntoView({behavior: 'smooth', block: 'center'});
+              cards[idx].style.borderColor = 'var(--blue)';
+              setTimeout(() => updateItemCardState(idx), 1500);
+              const input = cards[idx].querySelector('.qty-input');
+              if (input) input.focus();
+            }
+          }
+          showToast(`🔍 Found in ${productMatch.poName}`);
+        }, 100);
+      } else {
+        showToast(`❌ No delivery found for "${code}"`);
+      }
     }
   } else if (screen === 'receiveScreen') {
     // Try to match product barcode/code
