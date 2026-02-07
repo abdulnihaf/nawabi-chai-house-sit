@@ -7,7 +7,7 @@ export async function onRequest(context) {
   const DB = context.env.DB;
 
   // PIN verification — matches Odoo POS employee PINs
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen'};
   const RUNNERS = {
     'counter': {id: 'counter', name: 'Cash Counter', barcode: 'POS-27'},
     64: {id: 64, name: 'FAROOQ', barcode: 'RUN001'},
