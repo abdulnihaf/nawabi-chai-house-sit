@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v8 - Fetch payments per QR code)
+// NCH Operations Dashboard - Cloudflare Function (v9 - Paginated Razorpay fetch, fixes UPI undercounting)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -65,10 +65,45 @@ async function fetchOdooPayments(url, db, uid, apiKey, since, until) {
   return data.result || [];
 }
 
-// Fetch payments from all runner QR codes
+// Fetch ALL payments from a runner's QR code with pagination (Razorpay max 100 per page)
+async function fetchQrPaymentsPaginated(auth, qrId, barcode, runnerName, since, until) {
+  const allItems = [];
+  let skip = 0;
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 10; // Safety limit: 1000 payments max per runner per period
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    try {
+      const response = await fetch(
+        `https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments?count=${PAGE_SIZE}&skip=${skip}&from=${since}&to=${until}`,
+        {headers: {'Authorization': 'Basic ' + auth}}
+      );
+      const data = await response.json();
+      if (data.error || !data.items || data.items.length === 0) break;
+
+      const captured = data.items
+        .filter(p => p.status === 'captured')
+        .map(p => ({
+          ...p,
+          runner_barcode: barcode,
+          runner_name: runnerName
+        }));
+      allItems.push(...captured);
+
+      // If we got fewer items than PAGE_SIZE, we've reached the end
+      if (data.items.length < PAGE_SIZE) break;
+      skip += PAGE_SIZE;
+    } catch (e) {
+      break;
+    }
+  }
+  return allItems;
+}
+
+// Fetch payments from all runner QR codes with full pagination
 async function fetchAllRunnerPayments(key, secret, since, until) {
   const auth = btoa(key + ':' + secret);
-  
+
   // QR codes for each runner
   const RUNNER_QRS = [
     {qr_id: 'qr_SBdtZG1AMDwSmJ', barcode: 'RUN001', name: 'FAROOQ'},
@@ -77,55 +112,16 @@ async function fetchAllRunnerPayments(key, secret, since, until) {
     {qr_id: 'qr_SBgTtFrfddY4AW', barcode: 'RUN004', name: 'NCH Runner 04'},
     {qr_id: 'qr_SBgTyFKUsdwLe1', barcode: 'RUN005', name: 'NCH Runner 05'}
   ];
-  
-  // Fetch payments from each QR code in parallel
-  const allPayments = await Promise.all(RUNNER_QRS.map(async (runner) => {
-    try {
-      const response = await fetch(
-        `https://api.razorpay.com/v1/payments?count=100&from=${since}&to=${until}`,
-        {headers: {'Authorization': 'Basic ' + auth}}
-      );
-      const data = await response.json();
-      if (data.error) return [];
-      
-      // Filter payments that have this runner's barcode in notes OR came from their QR
-      // Since we can't get qr_code_id from payments API, rely on notes
-      return (data.items || [])
-        .filter(p => p.status === 'captured' && p.notes?.runner_barcode === runner.barcode)
-        .map(p => ({
-          ...p,
-          runner_barcode: runner.barcode,
-          runner_name: p.notes?.runner_name || runner.name
-        }));
-    } catch (e) {
-      return [];
-    }
-  }));
-  
-  // Also try fetching payments directly from QR code endpoints for those without notes
-  const qrPayments = await Promise.all(RUNNER_QRS.map(async (runner) => {
-    try {
-      const response = await fetch(
-        `https://api.razorpay.com/v1/payments/qr_codes/${runner.qr_id}/payments?count=100&from=${since}&to=${until}`,
-        {headers: {'Authorization': 'Basic ' + auth}}
-      );
-      const data = await response.json();
-      if (data.error || !data.items) return [];
-      
-      return data.items
-        .filter(p => p.status === 'captured')
-        .map(p => ({
-          ...p,
-          runner_barcode: runner.barcode,
-          runner_name: runner.name
-        }));
-    } catch (e) {
-      return [];
-    }
-  }));
-  
-  // Combine and dedupe by payment ID
-  const combined = [...allPayments.flat(), ...qrPayments.flat()];
+
+  // Fetch ALL payments from each QR code in parallel (with pagination)
+  const results = await Promise.all(
+    RUNNER_QRS.map(runner =>
+      fetchQrPaymentsPaginated(auth, runner.qr_id, runner.barcode, runner.name, since, until)
+    )
+  );
+
+  // Combine and dedupe by payment ID (safety net against any overlap)
+  const combined = results.flat();
   const seen = new Set();
   return combined.filter(p => {
     if (seen.has(p.id)) return false;
