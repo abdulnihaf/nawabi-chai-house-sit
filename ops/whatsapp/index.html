@@ -245,7 +245,7 @@
             <span class="badge ${order.status}">${order.status.replace(/_/g, ' ')}</span>
           </div>
           <div class="order-items">${itemLines}</div>
-          ${order.discount > 0 ? `<div class="discount-line">🎉 FREE Irani Chai -₹${order.discount}</div>` : ''}
+          ${order.discount > 0 ? `<div class="discount-line">🎁 ${Math.round(order.discount / 15)}x FREE Irani Chai -₹${order.discount}</div>` : ''}
           <div class="order-total">${fmt(order.total)} <span style="font-size:12px;font-weight:400;color:var(--text2)">${order.payment_method === 'cod' ? 'COD' : 'UPI'}</span></div>
           <div class="order-meta">
             <div class="meta-item">📱 ${phone}</div>
