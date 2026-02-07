@@ -44,13 +44,22 @@ export async function onRequest(context) {
 
     if (action === 'settle' && context.request.method === 'POST') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
-      
+
       const body = await context.request.json();
       const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes} = body;
-      
+
       // Validate runner_id (can be 'counter' or numeric runner ID)
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
+
+      // Duplicate prevention: reject if same runner was settled in last 2 minutes
+      const recentDup = await DB.prepare(
+        `SELECT id, settled_at FROM settlements WHERE runner_id = ? AND settled_at > datetime('now', '-2 minutes') ORDER BY settled_at DESC LIMIT 1`
+      ).bind(String(runner_id)).first();
+
+      if (recentDup) {
+        return new Response(JSON.stringify({success: false, error: 'Duplicate prevention: settlement for this runner was recorded less than 2 minutes ago (ID: ' + recentDup.id + ')'}), {headers: corsHeaders});
+      }
 
       await DB.prepare(`
         INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes)
