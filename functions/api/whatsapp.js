@@ -53,24 +53,27 @@ export async function onRequest(context) {
   const url = new URL(context.request.url);
   const action = url.searchParams.get('action');
 
+  // ── Razorpay callback (GET redirect after customer pays) — MUST come before webhook verify ──
+  if (context.request.method === 'GET' && action === 'razorpay-callback') {
+    return handleRazorpayCallback(context, url, corsHeaders);
+  }
+
+  // ── Razorpay webhook (POST from Razorpay servers) — MUST come before WhatsApp POST handler ──
+  if (context.request.method === 'POST' && action === 'razorpay-webhook') {
+    return handleRazorpayWebhook(context, corsHeaders);
+  }
+
+  // ── Dashboard API (GET with action param) ──
   if (action) {
     return handleDashboardAPI(context, action, url, corsHeaders);
   }
 
+  // ── WhatsApp webhook verification (GET) ──
   if (context.request.method === 'GET') {
     return handleWebhookVerify(context, url);
   }
 
-  // Razorpay payment webhook callback (POST from Razorpay webhooks)
-  if (context.request.method === 'POST' && url.searchParams.get('action') === 'razorpay-webhook') {
-    return handleRazorpayWebhook(context, corsHeaders);
-  }
-
-  // Razorpay payment callback (GET redirect after customer pays)
-  if (context.request.method === 'GET' && url.searchParams.get('action') === 'razorpay-webhook') {
-    return handleRazorpayCallback(context, url, corsHeaders);
-  }
-
+  // ── WhatsApp incoming messages (POST) ──
   if (context.request.method === 'POST') {
     try {
       const body = await context.request.json();
@@ -668,8 +671,8 @@ async function createRazorpayPaymentLink(context, { amount, orderCode, orderId, 
   const itemDescription = cart.map(c => `${c.qty}x ${c.name}`).join(', ');
   const description = itemDescription.length > 250 ? itemDescription.slice(0, 247) + '...' : itemDescription;
 
-  // Webhook URL for payment confirmation
-  const webhookUrl = `https://nawabi-chai-house-sit.pages.dev/api/whatsapp?action=razorpay-webhook`;
+  // Callback URL — customer's browser redirects here after payment (GET)
+  const callbackUrl = `https://nawabi-chai-house-sit.pages.dev/api/whatsapp?action=razorpay-callback`;
 
   try {
     const res = await fetch('https://api.razorpay.com/v1/payment_links', {
@@ -687,7 +690,7 @@ async function createRazorpayPaymentLink(context, { amount, orderCode, orderId, 
           contact: customerPhone,
         },
         notify: { sms: false, email: false, whatsapp: false }, // We handle notification ourselves
-        callback_url: webhookUrl,
+        callback_url: callbackUrl,
         callback_method: 'get',
         notes: {
           order_code: orderCode,
