@@ -41,6 +41,7 @@ PRODUCTS = [
     ("Bottled Water",          "RM-BWR",  "pcs"),
     ("Samosa Raw",             "RM-SAM",  "pcs"),
     ("Oil",                    "RM-OIL",  "L"),
+    ("Cheese Balls Raw",       "RM-CHB",  "pcs"),
 ]
 
 

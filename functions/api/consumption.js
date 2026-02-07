@@ -23,8 +23,9 @@ export async function onRequest(context) {
     1094: {name: 'Water',                    code: 'NCH-WTR',   materials: [1107]},
     1102: {name: 'Nawabi Special Coffee',    code: 'NCH-NSC',   materials: [1095, 1097, 1112, 1101]},
     1103: {name: 'Lemon Tea',               code: 'LT',        materials: [1098, 1097, 1101]},
-    1111: {name: 'Osmania Biscuit Box 500g', code: 'NCH-OBBOX', materials: [1110]},
+    1111: {name: 'Niloufer Osmania Biscuit 500g', code: 'NCH-OBBOX', materials: [1110]},
     1115: {name: 'Pyaaz Samosa',            code: 'NCH-PS',    materials: [1113, 1114]},
+    1117: {name: 'Cheese Balls',            code: 'NCH-CB',    materials: [1116, 1114]},
   };
 
   const RAW_MATERIALS = {
@@ -41,6 +42,7 @@ export async function onRequest(context) {
     1112: {name: 'Condensed Milk',          code: 'RM-CM',   uom: 'kg'},
     1113: {name: 'Samosa Raw',              code: 'RM-SAM',  uom: 'Units'},
     1114: {name: 'Oil',                     code: 'RM-OIL',  uom: 'L'},
+    1116: {name: 'Cheese Balls Raw',        code: 'RM-CHB',  uom: 'Units'},
   };
 
   // Picking type IDs
