@@ -64,7 +64,7 @@ export async function onRequest(context) {
             moveId: move.id,
             moveLineId: mLine ? mLine.id : null,
             productId: move.product_id[0],
-            productName: move.product_id[1],
+            productName: product.name || move.product_id[1],
             productCode: product.default_code || '',
             uom: product.uom_id ? product.uom_id[1] : '',
             tracking: product.tracking || 'none',
