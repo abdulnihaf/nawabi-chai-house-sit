@@ -555,14 +555,22 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     // Update user stats
     await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
-    // Send payment link message — clean, minimal, familiar
-    const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
-    let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
-    if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
-    payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
-    payMsg += `\n\n_Link expires in 20 minutes_`;
+    // Send native order_details payment card (Review & Pay inside WhatsApp)
+    // Falls back to text link if order_details message type is not supported
+    const orderDetailsMsg = buildOrderDetailsPayment(waId, orderCode, cart, total, discount, paymentLink.short_url);
+    const payResponse = await sendWhatsApp(phoneId, token, orderDetailsMsg);
 
-    await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
+    if (payResponse && !payResponse.ok) {
+      // Fallback: send payment link as plain text if order_details fails
+      console.log('order_details message failed, falling back to text link');
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
+      if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+      payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
+      payMsg += `\n\n_Link expires in 20 minutes_`;
+      await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
+    }
+
     await updateSession(db, waId, 'awaiting_upi_payment', '[]', 0);
     return;
   }
@@ -959,6 +967,59 @@ function buildMPM(to, bodyText) {
             ]
           }
         ]
+      }
+    }
+  };
+}
+
+// ── Native Order Details Payment Message — "Review and Pay" inside WhatsApp ──
+function buildOrderDetailsPayment(to, orderCode, cart, total, discount, paymentLinkUrl) {
+  const items = cart.map(c => ({
+    retailer_id: c.code,
+    name: c.name,
+    amount: { value: Math.round(c.price * c.qty * 100), offset: 100 },
+    quantity: c.qty,
+  }));
+
+  const subtotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+
+  const orderObj = {
+    status: 'pending',
+    catalog_id: CATALOG_ID,
+    items,
+    subtotal: { value: Math.round(subtotal * 100), offset: 100 },
+  };
+
+  if (discount > 0) {
+    orderObj.discount = {
+      value: Math.round(discount * 100),
+      offset: 100,
+      description: 'First order — 2 FREE Irani Chai',
+    };
+  }
+
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'order_details',
+      body: { text: `☕ Order ${orderCode}\n\nTap below to pay ₹${total} via UPI` },
+      footer: { text: 'Nawabi Chai House • HKP Road' },
+      action: {
+        name: 'review_and_pay',
+        parameters: {
+          reference_id: orderCode,
+          type: 'digital-goods',
+          payment_type: 'upi',
+          payment_settings: [{
+            type: 'payment_link',
+            payment_link: { uri: paymentLinkUrl }
+          }],
+          currency: 'INR',
+          total_amount: { value: Math.round(total * 100), offset: 100 },
+          order: orderObj,
+        }
       }
     }
   };
