@@ -8,7 +8,7 @@
 const CATALOG_ID = '1986268632293641';
 
 const PRODUCTS = {
-  'NCH-IRANI': { name: 'Irani Chai',          price: 15,  odooId: 1028 },
+  'NCH-IC':  { name: 'Irani Chai',            price: 15,  odooId: 1028 },
   'NCH-NSC': { name: 'Nawabi Special Coffee',  price: 30,  odooId: 1102 },
   'NCH-LT':  { name: 'Lemon Tea',             price: 20,  odooId: 1103 },
   'NCH-BM':  { name: 'Bun Maska',             price: 40,  odooId: 1029 },
@@ -953,7 +953,7 @@ function buildMPM(to, bodyText) {
           {
             title: 'Chai & Beverages',
             product_items: [
-              { product_retailer_id: 'NCH-IRANI' },
+              { product_retailer_id: 'NCH-IC' },
               { product_retailer_id: 'NCH-NSC' },
               { product_retailer_id: 'NCH-LT' },
             ]
