@@ -105,8 +105,11 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({success: false, error: 'Missing pickingId or items'}), {headers: corsHeaders});
       }
 
-      // PIN is optional but logged
-      const confirmedBy = PINS[pin] || 'Staff';
+      // PIN is required — must know who confirmed the receipt
+      const confirmedBy = PINS[pin];
+      if (!confirmedBy) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid PIN'}), {headers: corsHeaders});
+      }
 
       // Process each item
       for (const item of items) {
