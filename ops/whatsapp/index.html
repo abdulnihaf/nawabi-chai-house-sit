@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH WhatsApp Orders</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--wa:#25D366}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .container{max-width:900px;margin:0 auto;padding:16px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+    .header h1{font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:5px;height:26px;background:linear-gradient(180deg,var(--wa),var(--green));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:8px}
+    .status{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--card);border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--wa);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .back-btn{padding:6px 12px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text2);text-decoration:none;font-size:12px}
+
+    /* Stats row */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .stat .label{font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .stat .value{font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .stat .sub{font-size:11px;color:var(--text2);margin-top:3px}
+    .green{color:var(--green)}.blue{color:var(--blue)}.yellow{color:var(--yellow)}.purple{color:var(--purple)}.wa-green{color:var(--wa)}
+
+    /* Filter tabs */
+    .tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+    .tab{padding:6px 14px;background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-size:12px;cursor:pointer;font-weight:500}
+    .tab:hover{border-color:var(--text2)}
+    .tab.active{background:var(--wa);color:#fff;border-color:var(--wa)}
+    .tab .count{display:inline-block;min-width:18px;text-align:center;padding:1px 5px;background:rgba(255,255,255,.2);border-radius:9px;font-size:10px;margin-left:4px}
+    .tab.active .count{background:rgba(0,0,0,.2)}
+
+    /* Order cards */
+    .orders{display:grid;gap:12px}
+    .order-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;transition:border-color .2s}
+    .order-card.new-order{border-color:var(--wa);animation:glow 2s ease-out}
+    @keyframes glow{0%{box-shadow:0 0 20px rgba(37,211,102,.3)}100%{box-shadow:none}}
+    .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+    .order-code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:var(--wa)}
+    .order-time{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+    .badge{padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;text-transform:uppercase}
+    .badge.confirmed{background:rgba(59,130,246,.15);color:var(--blue)}
+    .badge.preparing{background:rgba(245,158,11,.15);color:var(--yellow)}
+    .badge.out_for_delivery{background:rgba(139,92,246,.15);color:var(--purple)}
+    .badge.delivered{background:rgba(16,185,129,.15);color:var(--green)}
+    .badge.cancelled{background:rgba(239,68,68,.15);color:var(--red)}
+
+    .order-items{font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.6}
+    .order-items span{color:var(--text2);font-size:12px}
+    .order-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-bottom:10px}
+    .order-meta .meta-item{display:flex;align-items:center;gap:4px}
+    .discount-line{color:var(--wa);font-size:12px;font-weight:600;margin-bottom:8px}
+    .order-total{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;margin-bottom:10px}
+    .order-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .action-btn{padding:6px 14px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+    .action-btn.primary{background:var(--wa);color:#fff}
+    .action-btn.primary:hover{opacity:.85}
+    .action-btn.secondary{background:var(--bg2);border:1px solid var(--border);color:var(--text2)}
+    .action-btn.danger{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+    .action-btn:disabled{opacity:.4;cursor:not-allowed}
+
+    .maps-link{color:var(--blue);text-decoration:none;font-size:12px}
+    .maps-link:hover{text-decoration:underline}
+
+    .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+    .empty .icon{font-size:48px;margin-bottom:12px}
+
+    @media(max-width:768px){
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .stat .value{font-size:20px}
+    }
+    @media(max-width:480px){
+      .container{padding:10px}
+      .header h1{font-size:18px}
+      .order-meta{flex-direction:column;gap:6px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>WhatsApp Orders</h1>
+        <p style="color:var(--text2);font-size:12px;margin-top:4px">Live order management</p>
+      </div>
+      <div class="header-right">
+        <div class="status"><span class="status-dot"></span> <span id="refreshTimer">15s</span></div>
+        <a href="/ops/" class="back-btn">← Hub</a>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">WA Orders</div><div class="value wa-green" id="totalOrders">—</div><div class="sub" id="deliveredCount"></div></div>
+      <div class="stat"><div class="label">Revenue</div><div class="value green" id="revenue">—</div></div>
+      <div class="stat"><div class="label">Avg Delivery</div><div class="value blue" id="avgDelivery">—</div><div class="sub">minutes</div></div>
+      <div class="stat"><div class="label">New Customers</div><div class="value purple" id="newCustomers">—</div></div>
+    </div>
+
+    <div class="tabs" id="filterTabs">
+      <div class="tab active" data-filter="active">Active<span class="count" id="countActive">0</span></div>
+      <div class="tab" data-filter="all">All Today<span class="count" id="countAll">0</span></div>
+      <div class="tab" data-filter="delivered">Delivered<span class="count" id="countDelivered">0</span></div>
+      <div class="tab" data-filter="cancelled">Cancelled<span class="count" id="countCancelled">0</span></div>
+    </div>
+
+    <div class="orders" id="ordersContainer">
+      <div class="empty"><div class="icon">📱</div>No WhatsApp orders yet today.<br>Orders will appear here in real-time.</div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/whatsapp';
+    let allOrders = [];
+    let currentFilter = 'active';
+    let knownOrderIds = new Set();
+    let refreshInterval;
+    let countdown = 15;
+
+    const $ = id => document.getElementById(id);
+    const fmt = n => '₹' + (n || 0).toLocaleString('en-IN');
+
+    // ── Audio alert (Web Audio API oscillator) ──
+    let audioCtx;
+    function beep() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.5);
+        // Double beep
+        setTimeout(() => {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.frequency.value = 1100;
+          osc2.type = 'sine';
+          gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+          osc2.start(audioCtx.currentTime);
+          osc2.stop(audioCtx.currentTime + 0.4);
+        }, 300);
+      } catch(e) {}
+    }
+
+    // ── Fetch data ──
+    async function loadData() {
+      try {
+        const [ordersRes, statsRes] = await Promise.all([
+          fetch(`${API}?action=orders&status=all`),
+          fetch(`${API}?action=stats`)
+        ]);
+        const ordersData = await ordersRes.json();
+        const statsData = await statsRes.json();
+
+        if (ordersData.success) {
+          const newOrders = ordersData.orders || [];
+
+          // Check for new orders → beep
+          newOrders.forEach(o => {
+            if (!knownOrderIds.has(o.id) && knownOrderIds.size > 0 && ['confirmed', 'preparing'].includes(o.status)) {
+              beep();
+            }
+            knownOrderIds.add(o.id);
+          });
+
+          allOrders = newOrders;
+          renderOrders();
+        }
+
+        if (statsData.success) {
+          const s = statsData.stats;
+          $('totalOrders').textContent = s.totalOrders;
+          $('deliveredCount').textContent = `${s.delivered} delivered`;
+          $('revenue').textContent = fmt(s.revenue);
+          $('avgDelivery').textContent = s.avgDeliveryMins != null ? `~${s.avgDeliveryMins}` : '—';
+          $('newCustomers').textContent = s.newCustomers;
+        }
+      } catch(e) {
+        console.error('Load error:', e);
+      }
+
+      countdown = 15;
+    }
+
+    // ── Render orders ──
+    function renderOrders() {
+      const activeStatuses = ['confirmed', 'preparing', 'out_for_delivery'];
+      const filtered = currentFilter === 'active'
+        ? allOrders.filter(o => activeStatuses.includes(o.status))
+        : currentFilter === 'all'
+          ? allOrders
+          : allOrders.filter(o => o.status === currentFilter);
+
+      // Update tab counts
+      $('countActive').textContent = allOrders.filter(o => activeStatuses.includes(o.status)).length;
+      $('countAll').textContent = allOrders.length;
+      $('countDelivered').textContent = allOrders.filter(o => o.status === 'delivered').length;
+      $('countCancelled').textContent = allOrders.filter(o => o.status === 'cancelled').length;
+
+      if (filtered.length === 0) {
+        $('ordersContainer').innerHTML = `<div class="empty"><div class="icon">${currentFilter === 'active' ? '✅' : '📱'}</div>${currentFilter === 'active' ? 'No active orders right now.' : 'No orders found.'}</div>`;
+        return;
+      }
+
+      $('ordersContainer').innerHTML = filtered.map(order => {
+        const items = JSON.parse(order.items || '[]');
+        const itemLines = items.map(i => `<div>${i.qty}x ${i.name} <span>₹${i.price * i.qty}</span></div>`).join('');
+        const createdAt = new Date(order.created_at);
+        const now = new Date();
+        const minsAgo = Math.floor((now - createdAt) / 60000);
+        const timeAgo = minsAgo < 1 ? 'Just now' : minsAgo < 60 ? `${minsAgo}m ago` : `${Math.floor(minsAgo / 60)}h ${minsAgo % 60}m ago`;
+
+        const phone = order.wa_id ? order.wa_id.replace(/^91/, '+91 ').replace(/(\d{5})(\d{5})$/, '$1•••••') : '';
+        const mapsUrl = order.delivery_lat ? `https://www.google.com/maps?q=${order.delivery_lat},${order.delivery_lng}` : '';
+        const distText = order.delivery_distance_m ? `${order.delivery_distance_m}m away` : '';
+
+        let actions = '';
+        if (order.status === 'confirmed') {
+          actions = `<button class="action-btn primary" onclick="updateStatus(${order.id},'preparing')">🍵 Mark Preparing</button><button class="action-btn danger" onclick="updateStatus(${order.id},'cancelled')">Cancel</button>`;
+        } else if (order.status === 'preparing') {
+          actions = `<button class="action-btn primary" onclick="updateStatus(${order.id},'out_for_delivery')">🏃 Out for Delivery</button>`;
+        } else if (order.status === 'out_for_delivery') {
+          actions = `<button class="action-btn primary" onclick="updateStatus(${order.id},'delivered')">✅ Mark Delivered</button>`;
+        }
+
+        return `<div class="order-card ${minsAgo < 1 ? 'new-order' : ''}">
+          <div class="order-top">
+            <div>
+              <div class="order-code">${order.order_code}</div>
+              <div class="order-time">${timeAgo}</div>
+            </div>
+            <span class="badge ${order.status}">${order.status.replace(/_/g, ' ')}</span>
+          </div>
+          <div class="order-items">${itemLines}</div>
+          ${order.discount > 0 ? `<div class="discount-line">🎉 FREE Irani Chai -₹${order.discount}</div>` : ''}
+          <div class="order-total">${fmt(order.total)} <span style="font-size:12px;font-weight:400;color:var(--text2)">${order.payment_method === 'cod' ? 'COD' : 'UPI'}</span></div>
+          <div class="order-meta">
+            <div class="meta-item">📱 ${phone}</div>
+            ${order.runner_name ? `<div class="meta-item">🏃 ${order.runner_name}</div>` : ''}
+            ${mapsUrl ? `<div class="meta-item"><a href="${mapsUrl}" target="_blank" class="maps-link">📍 Map ${distText}</a></div>` : ''}
+          </div>
+          ${actions ? `<div class="order-actions">${actions}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Update order status ──
+    async function updateStatus(orderId, status) {
+      try {
+        const res = await fetch(`${API}?action=update-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, status })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadData(); // Refresh immediately
+        } else {
+          alert('Error: ' + (data.error || 'Unknown'));
+        }
+      } catch(e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
+    // ── Filter tabs ──
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentFilter = tab.dataset.filter;
+        renderOrders();
+      });
+    });
+
+    // ── Auto-refresh ──
+    function startRefresh() {
+      loadData();
+      refreshInterval = setInterval(() => {
+        countdown--;
+        $('refreshTimer').textContent = countdown + 's';
+        if (countdown <= 0) loadData();
+      }, 1000);
+    }
+
+    // Initialize audio context on first interaction (browser policy)
+    document.addEventListener('click', () => {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }, { once: true });
+
+    startRefresh();
+  </script>
+</body>
+</html>
