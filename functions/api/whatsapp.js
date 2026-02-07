@@ -4,7 +4,7 @@
 // Uses Meta Commerce Catalog + Multi-Product Messages for native cart with quantity selector
 
 // ── Product catalog mapping: retailer_id → Odoo product + price ──
-const CATALOG_ID = '1639757440737691';
+const CATALOG_ID = '1986268632293641';
 
 const PRODUCTS = {
   'NCH-IC':  { name: 'Irani Chai',            price: 15,  odooId: 1028 },
