@@ -1,7 +1,8 @@
-// WhatsApp Ordering System v3 — Cloudflare Worker (MPM Catalog)
-// Handles: webhook verification, message processing, state machine, dashboard API
+// WhatsApp Ordering System v3.1 — Cloudflare Worker (MPM Catalog + Razorpay UPI)
+// Handles: webhook verification, message processing, state machine, dashboard API, payment callbacks
 // Target: HKP Road businesses — exclusive delivery with 2 free chai on first order
 // Uses Meta Commerce Catalog + Multi-Product Messages for native cart with quantity selector
+// Payment: COD (instant confirm) or UPI via Razorpay Payment Links
 
 // ── Product catalog mapping: retailer_id → Odoo product + price ──
 const CATALOG_ID = '1986268632293641';
@@ -58,6 +59,16 @@ export async function onRequest(context) {
 
   if (context.request.method === 'GET') {
     return handleWebhookVerify(context, url);
+  }
+
+  // Razorpay payment webhook callback (POST from Razorpay webhooks)
+  if (context.request.method === 'POST' && url.searchParams.get('action') === 'razorpay-webhook') {
+    return handleRazorpayWebhook(context, corsHeaders);
+  }
+
+  // Razorpay payment callback (GET redirect after customer pays)
+  if (context.request.method === 'GET' && url.searchParams.get('action') === 'razorpay-webhook') {
+    return handleRazorpayCallback(context, url, corsHeaders);
   }
 
   if (context.request.method === 'POST') {
@@ -162,7 +173,7 @@ function getMessageType(message) {
 }
 
 // ─── STATE MACHINE ROUTER ─────────────────────────────────────────
-// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_menu → awaiting_payment → order_placed
+// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
 async function routeState(context, session, user, message, msg, waId, phoneId, token, db) {
   const state = session.state;
 
@@ -188,6 +199,9 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
   }
   if (state === 'awaiting_payment') {
     return handlePayment(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_upi_payment') {
+    return handleAwaitingUpiPayment(context, session, user, msg, waId, phoneId, token, db);
   }
 
   return handleIdle(context, session, user, msg, waId, phoneId, token, db);
@@ -479,14 +493,88 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   const deliveryAddress = user.location_address || '';
   const deliveryDistance = user.delivery_distance_m || (deliveryLat ? Math.round(haversineDistance(deliveryLat, deliveryLng, NCH_LAT, NCH_LNG)) : null);
 
-  const result = await db.prepare(`INSERT INTO wa_orders (order_code, wa_id, items, subtotal, discount, discount_reason, total, payment_method, delivery_lat, delivery_lng, delivery_address, delivery_distance_m, runner_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(orderCode, waId, JSON.stringify(cart), subtotal, discount, discountReason, total, paymentMethod, deliveryLat, deliveryLng, deliveryAddress, deliveryDistance, assignedRunner, now, now).run();
+  // ── UPI FLOW: Create Razorpay Payment Link → send to customer ──
+  if (paymentMethod === 'upi') {
+    // Create order in DB with payment_pending status
+    const orderStatus = total === 0 ? 'confirmed' : 'payment_pending';
+    const result = await db.prepare(
+      `INSERT INTO wa_orders (order_code, wa_id, items, subtotal, discount, discount_reason, total, payment_method, payment_status, delivery_lat, delivery_lng, delivery_address, delivery_distance_m, runner_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(orderCode, waId, JSON.stringify(cart), subtotal, discount, discountReason, total, 'upi', total === 0 ? 'paid' : 'pending', deliveryLat, deliveryLng, deliveryAddress, deliveryDistance, assignedRunner, orderStatus, now, now).run();
+    const orderId = result.meta?.last_row_id;
+
+    // If total is ₹0 (free chai only), skip payment — confirm immediately
+    if (total === 0) {
+      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
+      const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'upi', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
+      if (discount > 0) confirmMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+      confirmMsg += `\n\n💰 *Total: ₹0* (Free!)`;
+      confirmMsg += `\n📍 ${deliveryAddress}\n🏃 Runner: ${assignedRunner}\n⏱️ *Arriving in ~5 minutes!*`;
+      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+      await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
+      await updateSession(db, waId, 'order_placed', '[]', 0);
+      return;
+    }
+
+    // Create Razorpay Payment Link
+    const paymentLink = await createRazorpayPaymentLink(context, {
+      amount: total,
+      orderCode,
+      orderId,
+      customerName: user.name || 'Customer',
+      customerPhone: waId.startsWith('91') ? '+' + waId : waId,
+      cart,
+      discount,
+    });
+
+    if (!paymentLink) {
+      // Razorpay failed — fall back to COD
+      console.error('Razorpay Payment Link creation failed, falling back to COD');
+      await db.prepare('UPDATE wa_orders SET payment_method = ?, payment_status = ?, status = ? WHERE id = ?').bind('cod', 'pending', 'confirmed', orderId).run();
+      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
+      const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'cod', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
+      if (discount > 0) confirmMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+      confirmMsg += `\n\n⚠️ UPI link couldn't be created. Switched to *Cash on Delivery*.\n💰 *Total: ₹${total}*`;
+      confirmMsg += `\n📍 ${deliveryAddress}\n🏃 Runner: ${assignedRunner}\n⏱️ *Arriving in ~5 minutes!*`;
+      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+      await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
+      await updateSession(db, waId, 'order_placed', '[]', 0);
+      return;
+    }
+
+    // Save Razorpay link ID to order
+    await db.prepare('UPDATE wa_orders SET razorpay_link_id = ?, razorpay_link_url = ? WHERE id = ?')
+      .bind(paymentLink.id, paymentLink.short_url, orderId).run();
+
+    // Update user stats
+    await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
+
+    // Send payment link message — clean, minimal, familiar
+    const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+    let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
+    if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+    payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
+    payMsg += `\n\n_Link expires in 15 minutes_`;
+
+    await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
+    await updateSession(db, waId, 'awaiting_upi_payment', '[]', 0);
+    return;
+  }
+
+  // ── COD FLOW: Instant confirmation (unchanged) ──
+  const result = await db.prepare(
+    `INSERT INTO wa_orders (order_code, wa_id, items, subtotal, discount, discount_reason, total, payment_method, payment_status, delivery_lat, delivery_lng, delivery_address, delivery_distance_m, runner_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(orderCode, waId, JSON.stringify(cart), subtotal, discount, discountReason, total, 'cod', 'pending', deliveryLat, deliveryLng, deliveryAddress, deliveryDistance, assignedRunner, now, now).run();
 
   const orderId = result.meta?.last_row_id;
 
   await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
   // Create order in Odoo POS
-  const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, paymentMethod, waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
+  const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'cod', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
 
   const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
   let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
@@ -494,7 +582,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     const freeCount = Math.round(discount / 15);
     confirmMsg += `\n🎁 ${freeCount}x FREE Irani Chai — -₹${discount}`;
   }
-  confirmMsg += `\n\n💰 *Total: ₹${total}* (${paymentMethod === 'cod' ? 'Cash on Delivery' : 'UPI'})`;
+  confirmMsg += `\n\n💰 *Total: ₹${total}* (Cash on Delivery)`;
   confirmMsg += `\n📍 ${deliveryAddress}`;
   confirmMsg += `\n🏃 Runner: ${assignedRunner}`;
   confirmMsg += `\n⏱️ *Arriving in ~5 minutes!*`;
@@ -502,6 +590,303 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
 
   await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
   await updateSession(db, waId, 'order_placed', '[]', 0);
+}
+
+// ─── STATE: AWAITING UPI PAYMENT → Customer has payment link ────
+async function handleAwaitingUpiPayment(context, session, user, msg, waId, phoneId, token, db) {
+  // Check if their last order's payment came through
+  const pendingOrder = await db.prepare("SELECT * FROM wa_orders WHERE wa_id = ? AND status = 'payment_pending' ORDER BY created_at DESC LIMIT 1").bind(waId).first();
+
+  if (pendingOrder) {
+    // Check if payment link has expired (15 min)
+    const orderTime = new Date(pendingOrder.created_at).getTime();
+    const isExpired = (Date.now() - orderTime) > (16 * 60 * 1000); // 16 min buffer
+
+    // Allow cancel
+    if (msg.type === 'text' && msg.bodyLower === 'cancel') {
+      await db.prepare("UPDATE wa_orders SET status = 'cancelled', payment_status = 'cancelled', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), pendingOrder.id).run();
+      await sendWhatsApp(phoneId, token, buildText(waId, `❌ Order *${pendingOrder.order_code}* cancelled.\n\nSend "hi" to start a new order!`));
+      await updateSession(db, waId, 'idle', '[]', 0);
+      return;
+    }
+
+    // Allow switching to COD
+    if (msg.type === 'text' && msg.bodyLower === 'cod') {
+      const now = new Date().toISOString();
+      await db.prepare("UPDATE wa_orders SET payment_method = 'cod', payment_status = 'pending', status = 'confirmed', updated_at = ? WHERE id = ?").bind(now, pendingOrder.id).run();
+
+      const cart = JSON.parse(pendingOrder.items);
+      const odooResult = await createOdooOrder(
+        context, pendingOrder.order_code, cart, pendingOrder.total, pendingOrder.discount, 'cod',
+        pendingOrder.wa_id, user?.name, user?.phone, pendingOrder.delivery_address,
+        pendingOrder.delivery_lat, pendingOrder.delivery_lng, pendingOrder.delivery_distance_m,
+        pendingOrder.runner_name, user?.business_type
+      );
+
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let confirmMsg = `✅ *Order ${pendingOrder.order_code} confirmed!*\n\n${itemLines}`;
+      if (pendingOrder.discount > 0) confirmMsg += `\n🎁 ${Math.round(pendingOrder.discount / 15)}x FREE Irani Chai — -₹${pendingOrder.discount}`;
+      confirmMsg += `\n\n💰 *Total: ₹${pendingOrder.total}* (Cash on Delivery)`;
+      confirmMsg += `\n📍 ${pendingOrder.delivery_address || 'Location saved'}\n🏃 Runner: ${pendingOrder.runner_name}\n⏱️ *Arriving in ~5 minutes!*`;
+      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+      await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
+      await updateSession(db, waId, 'order_placed', '[]', 0);
+      return;
+    }
+
+    if (isExpired) {
+      // Auto-expire the order
+      await db.prepare("UPDATE wa_orders SET status = 'cancelled', payment_status = 'expired', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), pendingOrder.id).run();
+      await sendWhatsApp(phoneId, token, buildText(waId, `⏰ Your payment link for *${pendingOrder.order_code}* has expired.\n\nNo worries — send "hi" to start a new order!`));
+      await updateSession(db, waId, 'idle', '[]', 0);
+      return;
+    }
+
+    // Still waiting — nudge with payment link + options
+    const linkUrl = pendingOrder.razorpay_link_url;
+    let nudgeMsg = `⏳ Your payment for *${pendingOrder.order_code}* (₹${pendingOrder.total}) is pending.`;
+    if (linkUrl) nudgeMsg += `\n\n👇 Tap to pay via UPI:\n${linkUrl}`;
+    nudgeMsg += `\n\n_Reply *"cod"* to switch to Cash on Delivery_\n_Reply *"cancel"* to cancel this order_`;
+    await sendWhatsApp(phoneId, token, buildText(waId, nudgeMsg));
+    return;
+  }
+
+  // No pending order found — payment might have come through, reset to idle
+  await updateSession(db, waId, 'idle', '[]', 0);
+  return handleIdle(context, session, user, msg, waId, phoneId, token, db);
+}
+
+// ─── RAZORPAY PAYMENT LINK CREATION ─────────────────────────────
+async function createRazorpayPaymentLink(context, { amount, orderCode, orderId, customerName, customerPhone, cart, discount }) {
+  const keyId = context.env.RAZORPAY_KEY_ID;
+  const keySecret = context.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) {
+    console.error('Razorpay credentials not configured');
+    return null;
+  }
+
+  const itemDescription = cart.map(c => `${c.qty}x ${c.name}`).join(', ');
+  const description = itemDescription.length > 250 ? itemDescription.slice(0, 247) + '...' : itemDescription;
+
+  // Webhook URL for payment confirmation
+  const webhookUrl = `https://nawabi-chai-house-sit.pages.dev/api/whatsapp?action=razorpay-webhook`;
+
+  try {
+    const res = await fetch('https://api.razorpay.com/v1/payment_links', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${keyId}:${keySecret}`),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: Math.round(amount * 100), // Razorpay uses paise
+        currency: 'INR',
+        description: `NCH ${orderCode}: ${description}`,
+        customer: {
+          name: customerName,
+          contact: customerPhone,
+        },
+        notify: { sms: false, email: false, whatsapp: false }, // We handle notification ourselves
+        callback_url: webhookUrl,
+        callback_method: 'get',
+        notes: {
+          order_code: orderCode,
+          order_id: String(orderId),
+          source: 'whatsapp_bot',
+        },
+        options: {
+          checkout: {
+            name: 'Nawabi Chai House',
+            description: `Order ${orderCode}`,
+            prefill: {
+              method: 'upi',
+            },
+          },
+        },
+        expire_by: Math.floor(Date.now() / 1000) + (15 * 60), // 15 min expiry
+        reminder_enable: false,
+        upi_link: true, // Creates a direct UPI intent link
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Razorpay API error:', res.status, errText);
+      return null;
+    }
+
+    const data = await res.json();
+    console.log(`Razorpay Payment Link created: ${data.id} → ${data.short_url}`);
+    return data;
+  } catch (error) {
+    console.error('Razorpay Payment Link error:', error.message);
+    return null;
+  }
+}
+
+// ─── RAZORPAY WEBHOOK HANDLER ───────────────────────────────────
+async function handleRazorpayWebhook(context, corsHeaders) {
+  try {
+    const db = context.env.DB;
+    const phoneId = context.env.WA_PHONE_ID;
+    const token = context.env.WA_ACCESS_TOKEN;
+
+    const body = await context.request.json();
+    const event = body.event;
+
+    console.log('Razorpay webhook received:', event, JSON.stringify(body).slice(0, 500));
+
+    // We care about payment.captured and payment_link.paid
+    if (event === 'payment_link.paid') {
+      const paymentLink = body.payload?.payment_link?.entity;
+      const payment = body.payload?.payment?.entity;
+
+      if (!paymentLink) {
+        console.error('No payment_link entity in webhook');
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      const razorpayLinkId = paymentLink.id;
+      const razorpayPaymentId = payment?.id || null;
+      const orderCode = paymentLink.notes?.order_code;
+      const orderId = paymentLink.notes?.order_id;
+
+      // Find the order by razorpay_link_id
+      let order = await db.prepare('SELECT * FROM wa_orders WHERE razorpay_link_id = ?').bind(razorpayLinkId).first();
+
+      // Fallback: find by order_id from notes
+      if (!order && orderId) {
+        order = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(parseInt(orderId)).first();
+      }
+
+      if (!order) {
+        console.error('Order not found for Razorpay link:', razorpayLinkId);
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // Already processed?
+      if (order.payment_status === 'paid') {
+        console.log('Order already paid:', order.order_code);
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // Update order: payment confirmed!
+      const now = new Date().toISOString();
+      await db.prepare('UPDATE wa_orders SET payment_status = ?, razorpay_payment_id = ?, status = ?, updated_at = ? WHERE id = ?')
+        .bind('paid', razorpayPaymentId, 'confirmed', now, order.id).run();
+
+      // Load user for Odoo order creation
+      const user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(order.wa_id).first();
+      const cart = JSON.parse(order.items);
+
+      // Create Odoo POS order
+      const odooResult = await createOdooOrder(
+        context, order.order_code, cart, order.total, order.discount, 'upi',
+        order.wa_id, user?.name, user?.phone, order.delivery_address,
+        order.delivery_lat, order.delivery_lng, order.delivery_distance_m,
+        order.runner_name, user?.business_type
+      );
+
+      // Send confirmation to customer via WhatsApp
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let confirmMsg = `✅ *Payment received! Order ${order.order_code} confirmed!*\n\n${itemLines}`;
+      if (order.discount > 0) {
+        const freeCount = Math.round(order.discount / 15);
+        confirmMsg += `\n🎁 ${freeCount}x FREE Irani Chai — -₹${order.discount}`;
+      }
+      confirmMsg += `\n\n💰 *Total: ₹${order.total}* (UPI ✓ Paid)`;
+      confirmMsg += `\n📍 ${order.delivery_address || 'Location saved'}`;
+      confirmMsg += `\n🏃 Runner: ${order.runner_name}`;
+      confirmMsg += `\n⏱️ *Arriving in ~5 minutes!*`;
+      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+
+      await sendWhatsApp(phoneId, token, buildText(order.wa_id, confirmMsg));
+
+      // Update session back to order_placed
+      await updateSession(db, order.wa_id, 'order_placed', '[]', 0);
+
+      console.log(`Payment confirmed for ${order.order_code}: ₹${order.total}`);
+    }
+
+    return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+  } catch (error) {
+    console.error('Razorpay webhook error:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
+  }
+}
+
+// ─── RAZORPAY CALLBACK (GET redirect after payment) ─────────────
+async function handleRazorpayCallback(context, url, corsHeaders) {
+  const razorpayPaymentId = url.searchParams.get('razorpay_payment_id');
+  const razorpayPaymentLinkId = url.searchParams.get('razorpay_payment_link_id');
+  const razorpayPaymentLinkStatus = url.searchParams.get('razorpay_payment_link_status');
+
+  const db = context.env.DB;
+  const phoneId = context.env.WA_PHONE_ID;
+  const token = context.env.WA_ACCESS_TOKEN;
+
+  if (razorpayPaymentLinkStatus === 'paid' && razorpayPaymentLinkId) {
+    // Find the order
+    const order = await db.prepare('SELECT * FROM wa_orders WHERE razorpay_link_id = ?').bind(razorpayPaymentLinkId).first();
+
+    if (order && order.payment_status !== 'paid') {
+      const now = new Date().toISOString();
+      await db.prepare('UPDATE wa_orders SET payment_status = ?, razorpay_payment_id = ?, status = ?, updated_at = ? WHERE id = ?')
+        .bind('paid', razorpayPaymentId, 'confirmed', now, order.id).run();
+
+      const user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(order.wa_id).first();
+      const cart = JSON.parse(order.items);
+
+      // Create Odoo POS order
+      const odooResult = await createOdooOrder(
+        context, order.order_code, cart, order.total, order.discount, 'upi',
+        order.wa_id, user?.name, user?.phone, order.delivery_address,
+        order.delivery_lat, order.delivery_lng, order.delivery_distance_m,
+        order.runner_name, user?.business_type
+      );
+
+      // Send WhatsApp confirmation
+      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+      let confirmMsg = `✅ *Payment received! Order ${order.order_code} confirmed!*\n\n${itemLines}`;
+      if (order.discount > 0) {
+        const freeCount = Math.round(order.discount / 15);
+        confirmMsg += `\n🎁 ${freeCount}x FREE Irani Chai — -₹${order.discount}`;
+      }
+      confirmMsg += `\n\n💰 *Total: ₹${order.total}* (UPI ✓ Paid)`;
+      confirmMsg += `\n📍 ${order.delivery_address || 'Location saved'}`;
+      confirmMsg += `\n🏃 Runner: ${order.runner_name}`;
+      confirmMsg += `\n⏱️ *Arriving in ~5 minutes!*`;
+      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+
+      await sendWhatsApp(phoneId, token, buildText(order.wa_id, confirmMsg));
+      await updateSession(db, order.wa_id, 'order_placed', '[]', 0);
+    }
+  }
+
+  // Redirect customer to a thank you page
+  const thankYouHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Received — Nawabi Chai House</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0f1a;color:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:#1a2234;border-radius:16px;padding:40px 32px;text-align:center;max-width:360px;width:100%;border:1px solid #2d3a4f}
+.check{font-size:64px;margin-bottom:16px}
+h1{font-size:22px;margin-bottom:8px;color:#10b981}
+p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:20px}
+.wa-btn{display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px}
+</style></head>
+<body><div class="card">
+<div class="check">✅</div>
+<h1>Payment Received!</h1>
+<p>Your order is confirmed and on its way.<br>You'll get updates on WhatsApp.</p>
+<a href="https://wa.me/919019575555" class="wa-btn">☕ Back to WhatsApp</a>
+</div></body></html>`;
+
+  return new Response(thankYouHtml, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+  });
 }
 
 // ─── SESSION HELPER ───────────────────────────────────────────────

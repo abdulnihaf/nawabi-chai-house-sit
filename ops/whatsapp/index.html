@@ -45,10 +45,14 @@
     .order-time{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
     .badge{padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;text-transform:uppercase}
     .badge.confirmed{background:rgba(59,130,246,.15);color:var(--blue)}
+    .badge.payment_pending{background:rgba(245,158,11,.15);color:var(--yellow);animation:pulse 2s infinite}
     .badge.preparing{background:rgba(245,158,11,.15);color:var(--yellow)}
     .badge.out_for_delivery{background:rgba(139,92,246,.15);color:var(--purple)}
     .badge.delivered{background:rgba(16,185,129,.15);color:var(--green)}
     .badge.cancelled{background:rgba(239,68,68,.15);color:var(--red)}
+    .payment-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;margin-left:6px}
+    .payment-badge.paid{background:rgba(16,185,129,.15);color:var(--green)}
+    .payment-badge.pending{background:rgba(245,158,11,.15);color:var(--yellow)}
 
     .order-items{font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.6}
     .order-items span{color:var(--text2);font-size:12px}
@@ -197,7 +201,7 @@
 
     // ── Render orders ──
     function renderOrders() {
-      const activeStatuses = ['confirmed', 'preparing', 'out_for_delivery'];
+      const activeStatuses = ['confirmed', 'preparing', 'out_for_delivery', 'payment_pending'];
       const filtered = currentFilter === 'active'
         ? allOrders.filter(o => activeStatuses.includes(o.status))
         : currentFilter === 'all'
@@ -228,7 +232,9 @@
         const distText = order.delivery_distance_m ? `${order.delivery_distance_m}m away` : '';
 
         let actions = '';
-        if (order.status === 'confirmed') {
+        if (order.status === 'payment_pending') {
+          actions = `<button class="action-btn secondary" disabled>⏳ Awaiting UPI Payment</button><button class="action-btn danger" onclick="updateStatus(${order.id},'cancelled')">Cancel</button>`;
+        } else if (order.status === 'confirmed') {
           actions = `<button class="action-btn primary" onclick="updateStatus(${order.id},'preparing')">🍵 Mark Preparing</button><button class="action-btn danger" onclick="updateStatus(${order.id},'cancelled')">Cancel</button>`;
         } else if (order.status === 'preparing') {
           actions = `<button class="action-btn primary" onclick="updateStatus(${order.id},'out_for_delivery')">🏃 Out for Delivery</button>`;
@@ -246,7 +252,7 @@
           </div>
           <div class="order-items">${itemLines}</div>
           ${order.discount > 0 ? `<div class="discount-line">🎁 ${Math.round(order.discount / 15)}x FREE Irani Chai -₹${order.discount}</div>` : ''}
-          <div class="order-total">${fmt(order.total)} <span style="font-size:12px;font-weight:400;color:var(--text2)">${order.payment_method === 'cod' ? 'COD' : 'UPI'}</span></div>
+          <div class="order-total">${fmt(order.total)} <span style="font-size:12px;font-weight:400;color:var(--text2)">${order.payment_method === 'cod' ? 'COD' : 'UPI'}</span>${order.payment_method === 'upi' ? `<span class="payment-badge ${order.payment_status === 'paid' ? 'paid' : 'pending'}">${order.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}</span>` : ''}</div>
           <div class="order-meta">
             <div class="meta-item">📱 ${phone}</div>
             ${order.runner_name ? `<div class="meta-item">🏃 ${order.runner_name}</div>` : ''}
