@@ -39,6 +39,8 @@ PRODUCTS = [
     ("Osmania Box",            "RM-OSMN", "box"),
     ("Filter Water",           "RM-WTR",  "L"),
     ("Bottled Water",          "RM-BWR",  "pcs"),
+    ("Samosa Raw",             "RM-SAM",  "pcs"),
+    ("Oil",                    "RM-OIL",  "L"),
 ]
 
 

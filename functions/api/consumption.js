@@ -18,12 +18,13 @@ export async function onRequest(context) {
     1028: {name: 'Irani Chai',               code: 'NCH-IC',    materials: [1095, 1098, 1097, 1096, 1112, 1101]},
     1029: {name: 'Bun Maska',                code: 'NCH-BM',    materials: [1104]},
     1030: {name: 'Osmania Biscuit',          code: 'NCH-OB',    materials: [1105]},
-    1031: {name: 'Chicken Cutlet',           code: 'NCH-CC',    materials: [1106]},
+    1031: {name: 'Chicken Cutlet',           code: 'NCH-CC',    materials: [1106, 1114]},
     1033: {name: 'Osmania Biscuit Pack of 3',code: 'NCH-OB3',   materials: [1105]},
     1094: {name: 'Water',                    code: 'NCH-WTR',   materials: [1107]},
     1102: {name: 'Nawabi Special Coffee',    code: 'NCH-NSC',   materials: [1095, 1097, 1112, 1101]},
     1103: {name: 'Lemon Tea',               code: 'LT',        materials: [1098, 1097, 1101]},
     1111: {name: 'Osmania Biscuit Box 500g', code: 'NCH-OBBOX', materials: [1110]},
+    1115: {name: 'Pyaaz Samosa',            code: 'NCH-PS',    materials: [1113, 1114]},
   };
 
   const RAW_MATERIALS = {
@@ -38,6 +39,8 @@ export async function onRequest(context) {
     1107: {name: 'Bottled Water',           code: 'RM-BWR',  uom: 'Units'},
     1110: {name: 'Osmania Biscuit Box',     code: 'RM-OSMN', uom: 'Units'},
     1112: {name: 'Condensed Milk',          code: 'RM-CM',   uom: 'kg'},
+    1113: {name: 'Samosa Raw',              code: 'RM-SAM',  uom: 'Units'},
+    1114: {name: 'Oil',                     code: 'RM-OIL',  uom: 'L'},
   };
 
   // Picking type IDs
