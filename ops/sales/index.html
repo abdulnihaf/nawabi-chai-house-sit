@@ -82,12 +82,13 @@
     .product-item .name{font-size:12px}
     .product-item .qty{font-size:10px;color:var(--muted)}
     .product-item .amount{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
-    .chart-container{height:140px;display:flex;align-items:flex-end;gap:3px;padding:10px 0}
-    .chart-bar{flex:1;background:var(--orange);border-radius:2px 2px 0 0;min-height:4px;transition:all .2s;cursor:pointer;position:relative}
+    .chart-container{height:180px;display:flex;align-items:flex-end;gap:4px;padding:10px 0}
+    .chart-bar{flex:1;background:var(--orange);border-radius:3px 3px 0 0;min-height:4px;transition:all .2s;cursor:pointer;position:relative}
+    .chart-bar.offpeak{background:rgba(249,115,22,.35)}
     .chart-bar:hover{background:var(--yellow)}
-    .chart-bar:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:4px 8px;border-radius:4px;font-size:10px;white-space:nowrap}
-    .chart-labels{display:flex;gap:3px}
-    .chart-labels span{flex:1;text-align:center;font-size:8px;color:var(--muted)}
+    .chart-bar:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:4px 8px;border-radius:4px;font-size:10px;white-space:nowrap;z-index:10}
+    .chart-labels{display:flex;gap:4px}
+    .chart-labels span{flex:1;text-align:center;font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace}
     .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
     .loading.hidden{display:none}
     .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite}
@@ -141,17 +142,15 @@
         <div class="runner-list" id="runnerList"><div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading...</div></div>
       </div>
     </div>
-    <div class="grid-2">
-      <div class="section">
-        <div class="section-title">All Products</div>
-        <div class="product-filter"><select id="catFilter" onchange="filterProducts()"><option value="all">All Categories</option><option value="Chai">Chai</option><option value="Snacks">Snacks</option></select></div>
-        <div class="product-list" id="productList"><div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading...</div></div>
-      </div>
-      <div class="section">
-        <div class="section-title">Peak Hours</div>
-        <div class="chart-container" id="chart"></div>
-        <div class="chart-labels" id="chartLabels"></div>
-      </div>
+    <div class="section" style="margin-bottom:20px">
+      <div class="section-title">Peak Hours (24h)</div>
+      <div class="chart-container" id="chart"></div>
+      <div class="chart-labels" id="chartLabels"></div>
+    </div>
+    <div class="section" style="margin-bottom:20px">
+      <div class="section-title">All Products</div>
+      <div class="product-filter"><select id="catFilter" onchange="filterProducts()"><option value="all">All Categories</option><option value="Chai">Chai</option><option value="Snacks">Snacks</option></select></div>
+      <div class="product-list" id="productList"><div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading...</div></div>
     </div>
   </div>
   <script>
@@ -234,10 +233,18 @@
       // All products list
       allProducts=d.products;filterProducts();
 
-      // Peak hours chart
+      // Peak hours chart — 24 bars, labels every 3 hours, off-peak dimmed
       const maxO=Math.max(...d.hourly.map(h=>h.orders),1);
-      $('chart').innerHTML=d.hourly.map(h=>'<div class="chart-bar" style="height:'+(h.orders/maxO*100)+'%" data-tooltip="'+h.label+': '+h.orders+' orders, '+fmt(h.amount)+'"></div>').join('');
-      $('chartLabels').innerHTML=d.hourly.map(h=>'<span>'+h.label+'</span>').join('');
+      const LABELED_HOURS=[0,3,6,9,12,15,18,21]; // Show label every 3 hours
+      $('chart').innerHTML=d.hourly.map(h=>{
+        const offpeak=h.hour>=0&&h.hour<6?' offpeak':'';
+        return '<div class="chart-bar'+offpeak+'" style="height:'+(h.orders/maxO*100)+'%" data-tooltip="'+h.label+': '+h.orders+' orders, '+fmt(h.amount)+'"></div>';
+      }).join('');
+      $('chartLabels').innerHTML=d.hourly.map(h=>{
+        const show=LABELED_HOURS.includes(h.hour);
+        const shortLabel=h.hour===0?'12A':h.hour===12?'12P':h.hour>12?(h.hour-12)+'P':h.hour+'A';
+        return '<span>'+(show?shortLabel:'')+'</span>';
+      }).join('');
 
       $('dot').style.background='var(--green)';$('statusText').textContent=(isLive?'Live · ':'')+fmtT(data.timestamp);
       if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}

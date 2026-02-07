@@ -164,9 +164,9 @@ function processInsights(orders, orderLines) {
   }));
 
   const runnerList = Object.values(runnerSales).sort((a, b) => b.amount - a.amount);
-  // Hourly window: 6 AM to 11 PM IST (covers NCH operating hours 7AM-10PM with buffer)
+  // Full 24-hour window (NCH is a 24-hour cafe): 12 AM → 11 PM IST
   const hourlyArray = [];
-  for (let h = 6; h <= 23; h++) { const key = h.toString().padStart(2, '0'); hourlyArray.push({hour: h, label: h > 12 ? (h-12)+' PM' : h === 12 ? '12 PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0}); }
+  for (let h = 0; h <= 23; h++) { const key = h.toString().padStart(2, '0'); hourlyArray.push({hour: h, label: h === 0 ? '12 AM' : h === 12 ? '12 PM' : h > 12 ? (h-12)+' PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0}); }
 
   const totalOrders = channelSales.cashCounter.orders + channelSales.runners.orders;
   return {
