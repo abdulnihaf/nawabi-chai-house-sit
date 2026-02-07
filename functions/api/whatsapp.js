@@ -21,6 +21,15 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const RUNNERS = ['FAROOQ', 'AMIN', 'NCH Runner 03', 'NCH Runner 04', 'NCH Runner 05'];
 
+// Odoo POS Integration
+const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+const ODOO_DB = 'main';
+const ODOO_UID = 2;
+const POS_CONFIG_ID = 29;         // NCH - Delivery
+const PRICELIST_ID = 3;           // NCH Retail (INR)
+const PAYMENT_METHOD_COD = 50;    // NCH WABA COD
+const PAYMENT_METHOD_UPI = 51;    // NCH WABA UPI
+
 export async function onRequest(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -429,6 +438,9 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   // Update user
   await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
+  // Create order in Odoo POS (NCH - Delivery)
+  const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, paymentMethod, waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner);
+
   // Build confirmation message
   const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
   let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
@@ -437,6 +449,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   confirmMsg += `\n📍 ${deliveryAddress}`;
   confirmMsg += `\n🏃 Runner: ${assignedRunner}`;
   confirmMsg += `\n⏱️ *Arriving in ~5 minutes!*`;
+  if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
 
   await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
   await updateSession(db, waId, 'order_placed', '[]', 0, null);
@@ -531,6 +544,112 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── ODOO POS ORDER CREATION ──────────────────────────────────────
+async function createOdooOrder(context, orderCode, cart, total, discount, paymentMethod, waId, userName, phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, runnerName) {
+  const apiKey = context.env.ODOO_API_KEY;
+  if (!apiKey) { console.error('ODOO_API_KEY not set'); return null; }
+
+  try {
+    // 1. Get active session for config 29
+    const sessionRes = await odooRPC(apiKey, 'pos.session', 'search_read',
+      [[['config_id', '=', POS_CONFIG_ID], ['state', '=', 'opened']]],
+      { fields: ['id', 'name'], limit: 1 });
+    if (!sessionRes || sessionRes.length === 0) {
+      console.error('No active session for NCH-Delivery POS');
+      return null;
+    }
+    const sessionId = sessionRes[0].id;
+
+    // 2. Build order lines
+    const lines = cart.map(item => [0, 0, {
+      product_id: item.odooId,
+      qty: item.qty,
+      price_unit: item.price,
+      price_subtotal: item.price * item.qty,
+      price_subtotal_incl: item.price * item.qty,
+      discount: 0,
+      tax_ids: [[6, 0, []]],
+      full_product_name: item.name,
+    }]);
+
+    // 3. Build delivery note for staff — phone, maps link, runner
+    const mapsLink = deliveryLat ? `https://maps.google.com/?q=${deliveryLat},${deliveryLng}` : '';
+    const customerPhone = phone || waId;
+    const formattedPhone = customerPhone.startsWith('91') ? '+' + customerPhone : customerPhone;
+    const noteLines = [
+      `📱 WHATSAPP ORDER: ${orderCode}`,
+      `👤 ${userName || 'Customer'} — ${formattedPhone}`,
+      `📍 ${deliveryAddress || 'Location shared'} (${deliveryDistance || '?'}m)`,
+      mapsLink ? `🗺️ ${mapsLink}` : '',
+      `🏃 Runner: ${runnerName}`,
+      `💰 ${paymentMethod === 'cod' ? 'CASH ON DELIVERY' : 'UPI (Pre-paid)'}`,
+      discount > 0 ? `🎉 FREE Irani Chai applied (-₹${discount})` : '',
+    ].filter(Boolean).join('\n');
+
+    // 4. Create the POS order
+    const odooPaymentMethodId = paymentMethod === 'cod' ? PAYMENT_METHOD_COD : PAYMENT_METHOD_UPI;
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    const orderId = await odooRPC(apiKey, 'pos.order', 'create', [{
+      session_id: sessionId,
+      config_id: POS_CONFIG_ID,
+      pricelist_id: PRICELIST_ID,
+      amount_total: total,
+      amount_paid: total,
+      amount_tax: 0,
+      amount_return: 0,
+      date_order: now,
+      lines: lines,
+      internal_note: noteLines,
+      state: 'draft',
+    }]);
+
+    if (!orderId) { console.error('Failed to create POS order'); return null; }
+
+    // 5. Add payment
+    await odooRPC(apiKey, 'pos.payment', 'create', [{
+      pos_order_id: orderId,
+      payment_method_id: odooPaymentMethodId,
+      amount: total,
+      payment_date: now,
+      session_id: sessionId,
+    }]);
+
+    // 6. Mark order as paid
+    await odooRPC(apiKey, 'pos.order', 'action_pos_order_paid', [[orderId]]);
+
+    // 7. Get the order name for reference
+    const orderData = await odooRPC(apiKey, 'pos.order', 'search_read',
+      [[['id', '=', orderId]]], { fields: ['name'] });
+    const odooOrderName = orderData?.[0]?.name || `Order #${orderId}`;
+
+    console.log(`Odoo POS order created: ${odooOrderName} (ID: ${orderId})`);
+    return { id: orderId, name: odooOrderName };
+  } catch (error) {
+    console.error('Odoo order creation error:', error.message);
+    return null;
+  }
+}
+
+async function odooRPC(apiKey, model, method, args, kwargs) {
+  const payload = {
+    jsonrpc: '2.0', method: 'call', id: 1,
+    params: { service: 'object', method: 'execute_kw',
+      args: [ODOO_DB, ODOO_UID, apiKey, model, method, ...args, kwargs || {}] }
+  };
+  const res = await fetch(ODOO_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error('Odoo RPC error:', JSON.stringify(data.error.data?.message || data.error.message));
+    return null;
+  }
+  return data.result;
 }
 
 // ─── DASHBOARD API ────────────────────────────────────────────────
