@@ -205,13 +205,24 @@ function processDashboardData(orders, payments, razorpayPayments) {
     return {...r, totalRevenue, cashToCollect, status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')};
   }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
+  // Revenue calculation:
+  // - mainCounter.total = direct counter sales (customer pays at counter, no runner)
+  // - mainCounter.tokenIssue = Token Issue at Cash Counter (chai orders issued TO runners)
+  // - runners[].sales = Runner Counter sales (snacks only, attributed to specific runner)
+  // - runnerCounter.total = Runner Counter orders without specific runner partner
+  // Token Issue IS revenue: Cash Counter handles chai, Runner Counter handles snacks only.
+  // So Token Issue (chai) + Runner Sales (snacks) = distinct product categories, not double-counting.
+  const totalRunnerSales = Object.values(runners).reduce((sum, r) => sum + r.sales, 0);
   const grandTotal = {
-    allSales: mainCounter.total + mainCounter.tokenIssue + runnerCounter.total + Object.values(runners).reduce((sum, r) => sum + r.sales, 0),
+    allSales: mainCounter.total + mainCounter.tokenIssue + totalRunnerSales + runnerCounter.total,
+    tokenIssue: mainCounter.tokenIssue,
     cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0),
     upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount,
     cardCollected: mainCounter.card,
-    complimentary: mainCounter.complimentary
+    complimentary: mainCounter.complimentary,
+    avgOrderValue: 0
   };
+  grandTotal.avgOrderValue = orders.length > 0 ? Math.round(grandTotal.allSales / orders.length) : 0;
 
-  return {mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal, summary: {totalOrders: mainCounter.orderCount + runnerCounter.orderCount, activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length}};
+  return {mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal, summary: {totalOrders: orders.length, activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length}};
 }

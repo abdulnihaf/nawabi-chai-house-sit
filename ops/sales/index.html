@@ -38,17 +38,26 @@
     .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
     .quick-btn:hover,.quick-btn.active{border-color:var(--orange);color:var(--text)}
     .quick-btn.active{background:var(--orange);color:#fff}
-    .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
     .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
     .summary-card .icon{font-size:20px;margin-bottom:8px}
     .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
     .summary-card .value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
     .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
     .summary-card.total .value{color:var(--green)}
-    .summary-card.chai .value{color:var(--orange)}
-    .summary-card.bun .value{color:var(--yellow)}
-    .summary-card.osmania .value{color:var(--cyan)}
-    .summary-card.cutlet .value{color:var(--purple)}
+    .summary-card.aov .value{color:var(--blue)}
+    .category-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+    .cat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;border-left:3px solid var(--orange)}
+    .cat-card.snacks{border-left-color:var(--purple)}
+    .cat-card .cat-name{font-size:12px;color:var(--text2);margin-bottom:4px}
+    .cat-card .cat-amount{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .cat-card .cat-detail{font-size:11px;color:var(--muted);margin-top:4px}
+    .top-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+    .top-product-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .top-product-card .tp-rank{font-size:10px;color:var(--muted);margin-bottom:4px}
+    .top-product-card .tp-name{font-size:13px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .top-product-card .tp-amount{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .top-product-card .tp-qty{font-size:11px;color:var(--text2);margin-top:2px}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
     .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
     .section-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -85,8 +94,8 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
     .error.show{display:block}
-    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(3,1fr)}.grid-2{grid-template-columns:1fr}}
-    @media(max-width:640px){.summary-grid{grid-template-columns:repeat(2,1fr)}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%;flex-wrap:wrap}}
+    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.top-products-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:1fr}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%;flex-wrap:wrap}.top-products-grid{grid-template-columns:repeat(2,1fr)}.category-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -105,8 +114,7 @@
       <div class="live-toggle active" id="liveToggle" onclick="toggleLive()"><div class="live-switch"></div><span>Live</span></div>
       <button class="btn btn-primary" onclick="applyFilter()">Apply</button>
       <div class="quick-btns">
-        <button class="quick-btn active" onclick="quick('24h',this)">24 Hours</button>
-        <button class="quick-btn" onclick="quick('today',this)">Today</button>
+        <button class="quick-btn active" onclick="quick('today',this)">Today</button>
         <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
         <button class="quick-btn" onclick="quick('week',this)">7 Days</button>
       </div>
@@ -114,11 +122,12 @@
     <div class="error" id="error"></div>
     <div class="summary-grid">
       <div class="summary-card total"><div class="icon">💰</div><div class="label">Total Revenue</div><div class="value" id="totalRevenue">₹0</div><div class="sub" id="totalOrders">0 orders</div></div>
-      <div class="summary-card chai"><div class="icon">☕</div><div class="label">Irani Chai</div><div class="value" id="chaiAmt">₹0</div><div class="sub" id="chaiQty">0 cups</div></div>
-      <div class="summary-card bun"><div class="icon">🥖</div><div class="label">Bun Maska</div><div class="value" id="bunAmt">₹0</div><div class="sub" id="bunQty">0 pcs</div></div>
-      <div class="summary-card osmania"><div class="icon">🍪</div><div class="label">Osmania Biscuit</div><div class="value" id="osmaniaAmt">₹0</div><div class="sub" id="osmaniaQty">0 pcs</div></div>
-      <div class="summary-card cutlet"><div class="icon">🍗</div><div class="label">Chicken Cutlet</div><div class="value" id="cutletAmt">₹0</div><div class="sub" id="cutletQty">0 pcs</div></div>
+      <div class="summary-card aov"><div class="icon">📊</div><div class="label">Avg Order Value</div><div class="value" id="aov">₹0</div><div class="sub" id="totalQty">0 items sold</div></div>
     </div>
+    <div class="section-title">Category Revenue</div>
+    <div class="category-grid" id="categoryGrid"></div>
+    <div class="section-title">Top Products</div>
+    <div class="top-products-grid" id="topProductsGrid"></div>
     <div class="grid-2">
       <div class="section">
         <div class="section-title">Counter Breakdown</div>
@@ -155,8 +164,9 @@
     const timeStr=d=>d.toTimeString().slice(0,5);
 
     function init(){
-      const now=new Date(),from=new Date(now.getTime()-24*60*60*1000);
-      $('fromDate').value=dateStr(from);$('fromTime').value=timeStr(from);
+      // Default to "Today" (midnight to now) — consistent with Live Dashboard
+      const now=new Date();
+      $('fromDate').value=dateStr(now);$('fromTime').value='00:00';
       $('toDate').value=dateStr(now);$('toTime').value=timeStr(now);
     }
 
@@ -171,8 +181,7 @@
       document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       const now=new Date(),from=new Date();
-      if(r==='24h'){from.setTime(now.getTime()-24*60*60*1000);}
-      else if(r==='today'){from.setHours(0,0,0,0);}
+      if(r==='today'){from.setHours(0,0,0,0);}
       else if(r==='yesterday'){from.setDate(from.getDate()-1);from.setHours(0,0,0,0);now.setDate(now.getDate()-1);now.setHours(23,59,0,0);isLive=false;$('liveToggle').classList.remove('active');$('toDate').disabled=false;$('toTime').disabled=false;stopTimer();}
       else if(r==='week'){from.setDate(from.getDate()-7);from.setHours(0,0,0,0);}
       $('fromDate').value=dateStr(from);$('fromTime').value=timeStr(from);
@@ -189,24 +198,47 @@
       return url;
     }
 
+    const CATEGORY_ICONS = {'Chai': '☕', 'Snacks': '🍽️'};
+    const CATEGORY_COLORS = {'Chai': 'var(--orange)', 'Snacks': 'var(--purple)'};
+
     function update(data){
       const d=data.data;
+      // Summary cards
       $('totalRevenue').textContent=fmt(d.summary.totalRevenue);
-      $('totalOrders').textContent=d.summary.totalOrders+' orders · Avg '+fmt(d.summary.avgOrderValue);
-      const kp=d.keyProducts;
-      $('chaiAmt').textContent=fmt(kp.chai.amount);$('chaiQty').textContent=kp.chai.qty+' cups';
-      $('bunAmt').textContent=fmt(kp.bunMaska.amount);$('bunQty').textContent=kp.bunMaska.qty+' pcs';
-      $('osmaniaAmt').textContent=fmt(kp.osmania.amount);$('osmaniaQty').textContent=kp.osmania.qty+' pcs';
-      $('cutletAmt').textContent=fmt(kp.cutlet.amount);$('cutletQty').textContent=kp.cutlet.qty+' pcs';
+      $('totalOrders').textContent=d.summary.totalOrders+' orders';
+      $('aov').textContent=fmt(d.summary.avgOrderValue);
+      $('totalQty').textContent=d.summary.totalQty+' items sold';
+
+      // Category cards (dynamic — auto-adapts as categories change)
+      $('categoryGrid').innerHTML=(d.categories||[]).map(c=>{
+        const icon=CATEGORY_ICONS[c.name]||'📦';
+        const color=CATEGORY_COLORS[c.name]||'var(--green)';
+        const pct=d.summary.totalRevenue>0?Math.round(c.amount/d.summary.totalRevenue*100):0;
+        return '<div class="cat-card'+(c.name==='Snacks'?' snacks':'')+'"><div class="cat-name">'+icon+' '+c.name+'</div><div class="cat-amount">'+fmt(c.amount)+'</div><div class="cat-detail">'+c.qty+' items · '+c.products+' products · '+pct+'%</div></div>';
+      }).join('')||'<div style="color:var(--muted);font-size:12px">No category data</div>';
+
+      // Top products (dynamic — auto-ranks by revenue, no hardcoding)
+      $('topProductsGrid').innerHTML=(d.topProducts||[]).map((p,i)=>{
+        return '<div class="top-product-card"><div class="tp-rank">#'+(i+1)+' · '+p.category+'</div><div class="tp-name" title="'+p.name+'">'+p.name+'</div><div class="tp-amount">'+fmt(p.amount)+'</div><div class="tp-qty">'+p.qty+' sold</div></div>';
+      }).join('')||'<div style="color:var(--muted);font-size:12px">No sales data</div>';
+
+      // Channels
       $('counterAmt').textContent=fmt(d.channels.cashCounter.amount);
       $('counterPct').textContent=d.channels.cashCounter.percentage+'% · '+d.channels.cashCounter.orders+' orders';
       $('runnersAmt').textContent=fmt(d.channels.runners.amount);
       $('runnersPct').textContent=d.channels.runners.percentage+'% · '+d.channels.runners.orders+' orders';
+
+      // Runners
       $('runnerList').innerHTML=d.runners.length?d.runners.map(r=>'<div class="runner-card"><div class="runner-header"><span class="runner-name">'+r.name+'</span><span class="runner-amount">'+fmt(r.amount)+'</span></div><div class="runner-products">'+Object.entries(r.products).slice(0,4).map(([name,qty])=>'<span class="runner-product">'+name+': '+qty+'</span>').join('')+'</div></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">No runner activity</div>';
+
+      // All products list
       allProducts=d.products;filterProducts();
+
+      // Peak hours chart
       const maxO=Math.max(...d.hourly.map(h=>h.orders),1);
       $('chart').innerHTML=d.hourly.map(h=>'<div class="chart-bar" style="height:'+(h.orders/maxO*100)+'%" data-tooltip="'+h.label+': '+h.orders+' orders, '+fmt(h.amount)+'"></div>').join('');
       $('chartLabels').innerHTML=d.hourly.map(h=>'<span>'+h.label+'</span>').join('');
+
       $('dot').style.background='var(--green)';$('statusText').textContent=(isLive?'Live · ':'')+fmtT(data.timestamp);
       if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}
     }

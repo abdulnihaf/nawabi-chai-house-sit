@@ -74,36 +74,51 @@ async function fetchOrderLines(url, db, uid, apiKey, since, until) {
   return data.result || [];
 }
 
+function categorizeProduct(name) {
+  // Categorize products based on name keywords — matches POS categories (Chai=48, Snacks=47)
+  const lower = name.toLowerCase();
+  if (lower.includes('chai') || lower.includes('coffee') || lower.includes('tea')) return 'Chai';
+  return 'Snacks';
+}
+
 function processInsights(orders, orderLines) {
   const RUNNERS = {64: 'FAROOQ', 65: 'AMIN', 66: 'NCH Runner 03', 67: 'NCH Runner 04', 68: 'NCH Runner 05'};
   const products = {};
   const hourlyData = {};
   const channelSales = {cashCounter: {amount: 0, orders: 0}, runners: {amount: 0, orders: 0}};
   const runnerSales = {};
+  const categoryTotals = {}; // Dynamic category aggregation
   let totalRevenue = 0, totalQty = 0;
+
+  // Build order lookup map for O(1) access (fixes O(n²) runner product breakdown)
+  const orderMap = {};
+  orders.forEach(o => { orderMap[o.id] = o; });
 
   orderLines.forEach(line => {
     const pid = line.product_id ? line.product_id[0] : 0;
     const pname = line.product_id ? line.product_id[1] : 'Unknown';
-    if (!products[pid]) products[pid] = {id: pid, name: pname, qty: 0, amount: 0};
+    const category = categorizeProduct(pname);
+    if (!products[pid]) products[pid] = {id: pid, name: pname, qty: 0, amount: 0, category};
     products[pid].qty += line.qty;
     products[pid].amount += line.price_subtotal_incl;
     totalQty += line.qty;
+
+    // Category-level aggregation
+    if (!categoryTotals[category]) categoryTotals[category] = {name: category, amount: 0, qty: 0, products: 0};
+    categoryTotals[category].amount += line.price_subtotal_incl;
+    categoryTotals[category].qty += line.qty;
   });
 
   orders.forEach(order => {
     totalRevenue += order.amount_total;
     const partnerId = order.partner_id ? order.partner_id[0] : null;
     const configId = order.config_id ? order.config_id[0] : null;
-    const hour = order.date_order ? order.date_order.split(' ')[1].split(':')[0] : '00';
-    
-    // Adjust hour from UTC to IST (+5.5 hours)
-    let istHour = parseInt(hour) + 5;
-    const halfHour = parseInt(order.date_order?.split(' ')[1]?.split(':')[1] || '0') >= 30;
-    if (halfHour) istHour += 1;
-    if (istHour >= 24) istHour -= 24;
+    // Convert UTC date_order to IST hour using proper Date math (+5:30)
+    const orderDate = order.date_order ? new Date(order.date_order.replace(' ', 'T') + 'Z') : null;
+    const istTime = orderDate ? new Date(orderDate.getTime() + 5.5 * 60 * 60 * 1000) : null;
+    const istHour = istTime ? istTime.getUTCHours() : 0;
     const hourKey = istHour.toString().padStart(2, '0');
-    
+
     if (!hourlyData[hourKey]) hourlyData[hourKey] = {orders: 0, amount: 0};
     hourlyData[hourKey].orders++;
     hourlyData[hourKey].amount += order.amount_total;
@@ -111,6 +126,7 @@ function processInsights(orders, orderLines) {
     if (partnerId && RUNNERS[partnerId]) {
       channelSales.runners.amount += order.amount_total;
       channelSales.runners.orders++;
+      // Initialize runner sales entry BEFORE processing order lines
       if (!runnerSales[partnerId]) runnerSales[partnerId] = {id: partnerId, name: RUNNERS[partnerId], amount: 0, orders: 0, products: {}};
       runnerSales[partnerId].amount += order.amount_total;
       runnerSales[partnerId].orders++;
@@ -120,10 +136,11 @@ function processInsights(orders, orderLines) {
     }
   });
 
-  // Add product breakdown per runner
+  // Second pass for runner product breakdown — needed because runnerSales entries
+  // are created in the orders loop above, but orderLines loop needs them to exist
   orderLines.forEach(line => {
     const orderId = line.order_id ? line.order_id[0] : null;
-    const order = orders.find(o => o.id === orderId);
+    const order = orderId ? orderMap[orderId] : null;
     if (order) {
       const partnerId = order.partner_id ? order.partner_id[0] : null;
       if (partnerId && runnerSales[partnerId]) {
@@ -134,21 +151,28 @@ function processInsights(orders, orderLines) {
     }
   });
 
+  // Count unique products per category
+  Object.values(products).forEach(p => {
+    if (categoryTotals[p.category]) categoryTotals[p.category].products++;
+  });
+
   const productList = Object.values(products).sort((a, b) => b.amount - a.amount);
-  const keyProducts = {
-    chai: productList.find(p => p.name.toLowerCase().includes('chai') || p.name.includes('[NCH-IC]')) || {qty: 0, amount: 0},
-    bunMaska: productList.find(p => p.name.toLowerCase().includes('bun') || p.name.includes('[NCH-BM]')) || {qty: 0, amount: 0},
-    osmania: productList.find(p => p.name.toLowerCase().includes('osmania') || p.name.includes('[NCH-OB]')) || {qty: 0, amount: 0},
-    cutlet: productList.find(p => p.name.toLowerCase().includes('cutlet') || p.name.includes('[NCH-CC]')) || {qty: 0, amount: 0}
-  };
+
+  // Dynamic top products: top 5 by revenue (auto-adapts as menu grows)
+  const topProducts = productList.slice(0, 5).map(p => ({
+    id: p.id, name: p.name, qty: p.qty, amount: p.amount, category: p.category
+  }));
+
   const runnerList = Object.values(runnerSales).sort((a, b) => b.amount - a.amount);
+  // Hourly window: 6 AM to 11 PM IST (covers NCH operating hours 7AM-10PM with buffer)
   const hourlyArray = [];
   for (let h = 6; h <= 23; h++) { const key = h.toString().padStart(2, '0'); hourlyArray.push({hour: h, label: h > 12 ? (h-12)+' PM' : h === 12 ? '12 PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0}); }
 
   const totalOrders = channelSales.cashCounter.orders + channelSales.runners.orders;
   return {
     summary: {totalRevenue, totalOrders, totalQty, avgOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0},
-    keyProducts,
+    topProducts,
+    categories: Object.values(categoryTotals).sort((a, b) => b.amount - a.amount),
     products: productList,
     channels: {cashCounter: {...channelSales.cashCounter, percentage: totalRevenue > 0 ? Math.round((channelSales.cashCounter.amount / totalRevenue) * 100) : 0}, runners: {...channelSales.runners, percentage: totalRevenue > 0 ? Math.round((channelSales.runners.amount / totalRevenue) * 100) : 0}},
     runners: runnerList,
