@@ -557,7 +557,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
     if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
     payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
-    payMsg += `\n\n_Link expires in 15 minutes_`;
+    payMsg += `\n\n_Link expires in 20 minutes_`;
 
     await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
     await updateSession(db, waId, 'awaiting_upi_payment', '[]', 0);
@@ -598,9 +598,9 @@ async function handleAwaitingUpiPayment(context, session, user, msg, waId, phone
   const pendingOrder = await db.prepare("SELECT * FROM wa_orders WHERE wa_id = ? AND status = 'payment_pending' ORDER BY created_at DESC LIMIT 1").bind(waId).first();
 
   if (pendingOrder) {
-    // Check if payment link has expired (15 min)
+    // Check if payment link has expired (20 min link + 1 min buffer)
     const orderTime = new Date(pendingOrder.created_at).getTime();
-    const isExpired = (Date.now() - orderTime) > (16 * 60 * 1000); // 16 min buffer
+    const isExpired = (Date.now() - orderTime) > (21 * 60 * 1000); // 21 min buffer
 
     // Allow cancel
     if (msg.type === 'text' && msg.bodyLower === 'cancel') {
@@ -703,19 +703,19 @@ async function createRazorpayPaymentLink(context, { amount, orderCode, orderId, 
             },
           },
         },
-        expire_by: Math.floor(Date.now() / 1000) + (15 * 60), // 15 min expiry
+        expire_by: Math.floor(Date.now() / 1000) + (20 * 60), // 20 min expiry (Razorpay requires strictly >15 min)
         reminder_enable: false,
         upi_link: true, // Creates a direct UPI intent link
       }),
     });
 
+    const responseText = await res.text();
     if (!res.ok) {
-      const errText = await res.text();
-      console.error('Razorpay API error:', res.status, errText);
+      console.error(`Razorpay API error: ${res.status} — ${responseText}`);
       return null;
     }
 
-    const data = await res.json();
+    const data = JSON.parse(responseText);
     console.log(`Razorpay Payment Link created: ${data.id} → ${data.short_url}`);
     return data;
   } catch (error) {
