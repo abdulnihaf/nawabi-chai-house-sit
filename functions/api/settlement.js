@@ -37,11 +37,26 @@ export async function onRequest(context) {
         SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1
       `).bind(runnerId).first();
 
+      // Get last collection — when cash was collected, ALL runners reset to zero
+      const lastCollection = await DB.prepare(
+        'SELECT collected_at FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
+      ).first();
+
       const baseline = '2026-02-04T17:00:00+05:30';
+      const lastSettledAt = result ? result.settled_at : baseline;
+      const lastCollectedAt = lastCollection ? lastCollection.collected_at : baseline;
+
+      // Period starts from whichever is LATER: last settlement or last collection
+      // Because collection wipes the cash slate — any unsettled runner obligations
+      // before the collection were included in the collected cash
+      const periodStart = new Date(lastSettledAt) > new Date(lastCollectedAt) ? lastSettledAt : lastCollectedAt;
+
       return new Response(JSON.stringify({
         success: true,
         lastSettlement: result || null,
-        periodStart: result ? result.settled_at : baseline
+        lastCollection: lastCollection || null,
+        periodStart,
+        periodReason: new Date(lastSettledAt) > new Date(lastCollectedAt) ? 'last_settlement' : 'last_collection'
       }), {headers: corsHeaders});
     }
 
