@@ -5,6 +5,9 @@ export async function onRequest(context) {
   const url = new URL(context.request.url);
   const action = url.searchParams.get('action');
   const DB = context.env.DB;
+  const WA_TOKEN = context.env.WA_ACCESS_TOKEN;
+  const WA_PHONE_ID = context.env.WA_PHONE_ID || '970365416152029';
+  const ALERT_RECIPIENTS = ['917010426808', '918073476051']; // Nihaf, Naveen
 
   // PIN verification — matches Odoo POS employee PINs
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen'};
@@ -82,13 +85,22 @@ export async function onRequest(context) {
         }), {headers: corsHeaders});
       }
 
+      const settledAt = new Date().toISOString();
       await DB.prepare(`
         INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        String(runner_id), runner_name || runner.name, new Date().toISOString(), settled_by,
+        String(runner_id), runner_name || runner.name, settledAt, settled_by,
         period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, notes || ''
       ).run();
+
+      // Trigger background audit — runs async, user gets immediate response
+      if (WA_TOKEN) {
+        const auditUrl = new URL(context.request.url);
+        auditUrl.pathname = '/api/audit';
+        auditUrl.search = `?action=run-audit&from=${encodeURIComponent(period_start)}&to=${encodeURIComponent(period_end)}`;
+        context.waitUntil(fetch(auditUrl.toString()).catch(e => console.error('Audit trigger error:', e.message)));
+      }
 
       return new Response(JSON.stringify({success: true, message: 'Settlement recorded'}), {headers: corsHeaders});
     }
@@ -288,6 +300,23 @@ export async function onRequest(context) {
         prevPettyCash, ids.join(','), notes || ''
       ).run();
 
+      // Immediate WhatsApp alert if discrepancy > ₹50
+      if (WA_TOKEN && Math.abs(discrepancy) > 50) {
+        const direction = discrepancy > 0 ? 'short (cash missing)' : 'over (extra cash)';
+        const alertMsg = `🔍 *NCH Audit Alert*\n\n🚨 Cash Collection Discrepancy\nExpected at counter: ₹${expected}\nCollected: ₹${amount} + Petty: ₹${petty_cash || 0}\nDiscrepancy: ₹${Math.abs(discrepancy).toFixed(0)} ${direction}\nCollected by: ${collected_by}\nSettlements covered: ${ids.length}`;
+        context.waitUntil(Promise.all(ALERT_RECIPIENTS.map(to =>
+          sendWhatsAppAlert(WA_PHONE_ID, WA_TOKEN, to, alertMsg)
+        )).catch(e => console.error('Collection alert error:', e.message)));
+      }
+
+      // Also trigger full audit in background
+      if (WA_TOKEN) {
+        const auditUrl = new URL(context.request.url);
+        auditUrl.pathname = '/api/audit';
+        auditUrl.search = `?action=run-audit`;
+        context.waitUntil(fetch(auditUrl.toString()).catch(e => console.error('Audit trigger error:', e.message)));
+      }
+
       return new Response(JSON.stringify({
         success: true, message: 'Cash collection recorded',
         collected: amount, petty_cash: petty_cash || 0, expenses: totalExpenses,
@@ -309,5 +338,18 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), {status: 500, headers: corsHeaders});
+  }
+}
+
+// ─── WHATSAPP ALERT HELPER ──────────────────────────────────
+async function sendWhatsAppAlert(phoneId, token, to, message) {
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+      body: JSON.stringify({messaging_product: 'whatsapp', to, type: 'text', text: {body: message}})
+    });
+  } catch (e) {
+    console.error('WA alert error:', e.message);
   }
 }

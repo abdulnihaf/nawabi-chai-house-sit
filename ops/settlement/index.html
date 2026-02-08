@@ -118,6 +118,18 @@
     .verify-row:last-child{border-bottom:none}
     .verify-row .vr-label{color:var(--text2)}
     .verify-row .vr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .audit-banner{border-radius:10px;padding:14px;margin-top:16px;font-size:13px;display:flex;gap:10px;align-items:flex-start}
+    .audit-banner.warning{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);color:var(--yellow)}
+    .audit-banner.critical{background:rgba(239,68,68,0.1);border:1px solid var(--red);color:var(--red)}
+    .audit-banner .ab-icon{font-size:18px;flex-shrink:0}
+    .audit-banner .ab-text{flex:1;line-height:1.4}
+    .discrepancy-list{margin-top:16px}
+    .discrepancy-item{background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+    .discrepancy-item.warning{border-left:3px solid var(--yellow)}
+    .discrepancy-item.critical{border-left:3px solid var(--red)}
+    .discrepancy-item .di-icon{flex-shrink:0}
+    .discrepancy-item .di-text{flex:1;color:var(--text2);line-height:1.4}
+    .discrepancy-item .di-text strong{color:var(--text)}
   </style>
 </head>
 <body>
@@ -330,6 +342,8 @@
         if(!data.success)throw new Error(data.error);
         const mc=data.data.mainCounter;currentCounterData=mc;
         const vf=data.data.verification;const rc=data.data.runnerCounter;
+        // Check for discrepancies at counter level
+        const counterDisc=(data.data.discrepancies||[]).filter(d=>d.type==='token_issue_no_runner'||d.type==='runner_ledger_no_runner');
         const counterRevenue=mc.cash+mc.upi+mc.card;const cashToSettle=mc.cash;
         const hasLast=lastData.lastSettlement;
         let statusBox='';
@@ -373,6 +387,7 @@
             '<div class="row" style="opacity:0.5"><span class="label">Complimentary</span><span class="value">'+fmt(mc.complimentary)+'</span></div>'+
             rcHtml+
             '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+
+            (counterDisc.length>0?'<div class="discrepancy-list">'+counterDisc.map(d=>'<div class="discrepancy-item '+(d.severity==='critical'?'critical':'warning')+'"><span class="di-icon">'+(d.severity==='critical'?'🚨':'⚠️')+'</span><span class="di-text">'+d.message+'</span></div>').join('')+'</div>':'')+
             verifyHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
@@ -395,6 +410,19 @@
         const data=await res.json();if(!data.success)throw new Error(data.error);
         const runner=data.data.runners.find(r=>r.id===id);currentRunnerData=runner;
         const hasLast=lastData.lastSettlement;const hasActivity=runner&&(runner.tokens>0||runner.sales>0||runner.upi>0);
+        // Check for discrepancies affecting this runner
+        const disc=data.data.discrepancies||[];
+        const runnerDisc=disc.filter(d=>d.runner===selectedRunner.name||d.type==='runner_ledger_no_runner');
+        let discHtml='';
+        if(runnerDisc.length>0){
+          discHtml='<div class="discrepancy-list">';
+          for(const d of runnerDisc){
+            const cls=d.severity==='critical'?'critical':'warning';
+            const icon=d.severity==='critical'?'🚨':'⚠️';
+            discHtml+='<div class="discrepancy-item '+cls+'"><span class="di-icon">'+icon+'</span><span class="di-text">'+d.message+'</span></div>';
+          }
+          discHtml+='</div>';
+        }
         let statusBox='';
         if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
         else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
@@ -404,7 +432,7 @@
           if(cash>0){settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';}
           else if(cash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
           else{settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox+settleBtn;
+          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+discHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
           else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}

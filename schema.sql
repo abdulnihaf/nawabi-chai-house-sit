@@ -57,3 +57,39 @@ CREATE TABLE counter_expenses (
 );
 
 CREATE INDEX idx_expense_recorded_at ON counter_expenses(recorded_at);
+
+-- Audit logs: every discrepancy detected by the intelligent auditor
+DROP TABLE IF EXISTS audit_logs;
+
+CREATE TABLE audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  check_type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'info',
+  message TEXT NOT NULL,
+  details TEXT NOT NULL DEFAULT '{}',
+  period_from TEXT,
+  period_to TEXT,
+  alerted_to TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_audit_type ON audit_logs(check_type);
+CREATE INDEX idx_audit_created ON audit_logs(created_at);
+
+-- Razorpay payment sync: local cache of all QR payments for audit trail
+DROP TABLE IF EXISTS razorpay_sync;
+
+CREATE TABLE razorpay_sync (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  qr_id TEXT NOT NULL,
+  qr_label TEXT NOT NULL,
+  payment_id TEXT NOT NULL UNIQUE,
+  amount REAL NOT NULL,
+  vpa TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'captured',
+  captured_at TEXT NOT NULL,
+  synced_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_rp_label ON razorpay_sync(qr_label);
+CREATE INDEX idx_rp_captured ON razorpay_sync(captured_at);

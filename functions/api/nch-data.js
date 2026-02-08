@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v10 - Full UPI cross-verification, Runner Counter UPI tracking)
+// NCH Operations Dashboard - Cloudflare Function (v11 - Full UPI cross-verification, discrepancy detection, Razorpay D1 sync)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -14,6 +14,7 @@ export async function onRequest(context) {
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
   const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
   const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
+  const DB = context.env.DB;
 
   let fromUTC, toUTC;
   if (fromParam) {
@@ -44,6 +45,12 @@ export async function onRequest(context) {
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
     const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
     const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
+
+    // Sync Razorpay payments to D1 in background (every API call stores data locally)
+    if (DB) {
+      context.waitUntil(syncRazorpayToD1(DB, razorpayData).catch(e => console.error('Razorpay D1 sync error:', e.message)));
+    }
+
     return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString(), fromUnix, toUnix}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.runnerPayments.length + razorpayData.counterPayments.length + razorpayData.runnerCounterPayments.length}, data: dashboard}), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
@@ -158,6 +165,8 @@ function processDashboardData(orders, payments, razorpayData) {
   const mainCounter = {total: 0, cash: 0, upi: 0, card: 0, complimentary: 0, tokenIssue: 0, orderCount: 0};
   // Runner counter now tracks UPI separately (direct walk-in UPI sales, nothing to do with runners)
   const runnerCounter = {total: 0, upi: 0, runnerLedger: 0, orderCount: 0};
+  // Discrepancies detected during processing
+  const discrepancies = [];
 
   orders.forEach(order => {
     const configId = order.config_id ? order.config_id[0] : null;
@@ -170,6 +179,11 @@ function processDashboardData(orders, payments, razorpayData) {
         runners[partnerId].tokens += order.amount_total;
         mainCounter.tokenIssue += order.amount_total;
       } else {
+        // Check D5: Token Issue PM used without a runner selected
+        const hasTokenIssuePM = orderPayments.some(p => (p.payment_method_id ? p.payment_method_id[0] : null) === PM.TOKEN_ISSUE);
+        if (hasTokenIssuePM && !partnerId) {
+          discrepancies.push({type: 'token_issue_no_runner', severity: 'critical', order: order.name, amount: order.amount_total, message: `${order.name} — ₹${order.amount_total} Token Issue without runner selected. Tokens given but no runner will be charged.`});
+        }
         // Direct counter sale to customer
         mainCounter.orderCount++;
         mainCounter.total += order.amount_total;
@@ -197,6 +211,8 @@ function processDashboardData(orders, payments, razorpayData) {
         });
 
         if (isUpiSale) {
+          // D3: Runner-attributed order paid as UPI instead of Runner Ledger
+          discrepancies.push({type: 'runner_upi_sale', severity: 'warning', order: order.name, runner: runners[partnerId].name, amount: order.amount_total, message: `${order.name} → ${runners[partnerId].name} — ₹${order.amount_total} paid UPI, should be Runner Ledger`});
           // This sale is attributed to a runner BUT paid via UPI (PM 38)
           // The runner should NOT be responsible for this cash
           // Track it as runner counter UPI, not runner sales
@@ -210,6 +226,11 @@ function processDashboardData(orders, payments, razorpayData) {
         }
       } else {
         // Direct walk-in sale at runner counter (no runner attribution)
+        // Check D4: Runner Ledger PM used without runner selected
+        const hasRunnerLedger = orderPayments.some(p => (p.payment_method_id ? p.payment_method_id[0] : null) === PM.RUNNER_LEDGER);
+        if (hasRunnerLedger) {
+          discrepancies.push({type: 'runner_ledger_no_runner', severity: 'critical', order: order.name, amount: order.amount_total, message: `${order.name} — ₹${order.amount_total} Runner Ledger without runner selected. Cash is unaccounted.`});
+        }
         // This is the rush-hour UPI flow: customer pays at runner counter QR
         runnerCounter.orderCount++;
         runnerCounter.total += order.amount_total;
@@ -327,9 +348,31 @@ function processDashboardData(orders, payments, razorpayData) {
     razorpayRunnerCounter,
     verification,
     grandTotal,
+    discrepancies,
     summary: {
       totalOrders: orders.length,
-      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
+      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length,
+      discrepancyCount: discrepancies.length
     }
   };
+}
+
+// Sync Razorpay payments to D1 for local audit trail
+async function syncRazorpayToD1(DB, razorpayData) {
+  const COUNTER_QR = 'qr_SBdtUCLSHVfRtT';
+  const RUNNER_COUNTER_QR = 'qr_SBuDBQDKrC8Bch';
+  const RUNNER_QR_MAP = {'RUN001': 'qr_SBdtZG1AMDwSmJ', 'RUN002': 'qr_SBdte3aRvGpRMY', 'RUN003': 'qr_SBgTo2a39kYmET', 'RUN004': 'qr_SBgTtFrfddY4AW', 'RUN005': 'qr_SBgTyFKUsdwLe1'};
+
+  const allPayments = [
+    ...razorpayData.counterPayments.map(p => ({...p, qr_id: COUNTER_QR, qr_label: 'COUNTER'})),
+    ...razorpayData.runnerCounterPayments.map(p => ({...p, qr_id: RUNNER_COUNTER_QR, qr_label: 'RUNNER_COUNTER'})),
+    ...razorpayData.runnerPayments.map(p => ({...p, qr_id: RUNNER_QR_MAP[p.runner_barcode] || '', qr_label: p.runner_barcode || ''}))
+  ];
+
+  for (const p of allPayments) {
+    try {
+      await DB.prepare('INSERT OR IGNORE INTO razorpay_sync (qr_id, qr_label, payment_id, amount, vpa, status, captured_at, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(p.qr_id, p.qr_label, p.id, p.amount / 100, p.vpa || '', p.status || 'captured', new Date(p.created_at * 1000).toISOString(), new Date().toISOString()).run();
+    } catch (e) { /* duplicate, ignore */ }
+  }
 }
