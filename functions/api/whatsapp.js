@@ -976,7 +976,7 @@ function buildOrderDetailsPayment(to, orderCode, cart, total, discount) {
   const items = cart.map(c => ({
     retailer_id: c.code,
     name: c.name,
-    amount: { value: Math.round(c.price * c.qty * 100), offset: 100 },
+    amount: { value: Math.round(c.price * 100), offset: 100 },
     quantity: c.qty,
   }));
 
