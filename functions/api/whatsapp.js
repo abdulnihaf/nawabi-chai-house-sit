@@ -496,7 +496,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   const deliveryAddress = user.location_address || '';
   const deliveryDistance = user.delivery_distance_m || (deliveryLat ? Math.round(haversineDistance(deliveryLat, deliveryLng, NCH_LAT, NCH_LNG)) : null);
 
-  // ── UPI FLOW: Create Razorpay Payment Link → send to customer ──
+  // ── UPI FLOW: Native WhatsApp Payment via Razorpay Gateway ──
   if (paymentMethod === 'upi') {
     // Create order in DB with payment_pending status
     const orderStatus = total === 0 ? 'confirmed' : 'payment_pending';
@@ -520,49 +520,47 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
       return;
     }
 
-    // Create Razorpay Payment Link
-    const paymentLink = await createRazorpayPaymentLink(context, {
-      amount: total,
-      orderCode,
-      orderId,
-      customerName: user.name || 'Customer',
-      customerPhone: waId.startsWith('91') ? '+' + waId : waId,
-      cart,
-      discount,
-    });
-
-    if (!paymentLink) {
-      // Razorpay failed — fall back to COD
-      console.error('Razorpay Payment Link creation failed, falling back to COD');
-      await db.prepare('UPDATE wa_orders SET payment_method = ?, payment_status = ?, status = ? WHERE id = ?').bind('cod', 'pending', 'confirmed', orderId).run();
-      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
-      const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'cod', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
-      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
-      let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
-      if (discount > 0) confirmMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
-      confirmMsg += `\n\n⚠️ UPI link couldn't be created. Switched to *Cash on Delivery*.\n💰 *Total: ₹${total}*`;
-      confirmMsg += `\n📍 ${deliveryAddress}\n🏃 Runner: ${assignedRunner}\n⏱️ *Arriving in ~5 minutes!*`;
-      if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
-      await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
-      await updateSession(db, waId, 'order_placed', '[]', 0);
-      return;
-    }
-
-    // Save Razorpay link ID to order
-    await db.prepare('UPDATE wa_orders SET razorpay_link_id = ?, razorpay_link_url = ? WHERE id = ?')
-      .bind(paymentLink.id, paymentLink.short_url, orderId).run();
-
     // Update user stats
     await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
-    // Send payment link message
-    const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
-    let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
-    if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
-    payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
-    payMsg += `\n\n_Link expires in 20 minutes_\n_Reply *"cod"* to switch to Cash on Delivery_`;
+    // Send native order_details payment card — Razorpay handles payment inside WhatsApp
+    const orderDetailsMsg = buildOrderDetailsPayment(waId, orderCode, cart, total, discount);
+    const payResponse = await sendWhatsApp(phoneId, token, orderDetailsMsg);
 
-    await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
+    if (payResponse && !payResponse.ok) {
+      // Fallback: create Razorpay Payment Link and send as text
+      console.error('order_details failed, falling back to payment link');
+      const paymentLink = await createRazorpayPaymentLink(context, {
+        amount: total, orderCode, orderId,
+        customerName: user.name || 'Customer',
+        customerPhone: waId.startsWith('91') ? '+' + waId : waId,
+        cart, discount,
+      });
+      if (paymentLink) {
+        await db.prepare('UPDATE wa_orders SET razorpay_link_id = ?, razorpay_link_url = ? WHERE id = ?')
+          .bind(paymentLink.id, paymentLink.short_url, orderId).run();
+        const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+        let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
+        if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+        payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay\n${paymentLink.short_url}`;
+        payMsg += `\n\n_Link expires in 20 minutes_\n_Reply *"cod"* to switch to Cash on Delivery_`;
+        await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
+      } else {
+        // Both failed — fall back to COD
+        await db.prepare('UPDATE wa_orders SET payment_method = ?, payment_status = ?, status = ? WHERE id = ?').bind('cod', 'pending', 'confirmed', orderId).run();
+        const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'cod', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
+        const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+        let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
+        if (discount > 0) confirmMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+        confirmMsg += `\n\n⚠️ Payment couldn't be set up. Switched to *Cash on Delivery*.\n💰 *Total: ₹${total}*`;
+        confirmMsg += `\n📍 ${deliveryAddress}\n🏃 Runner: ${assignedRunner}\n⏱️ *Arriving in ~5 minutes!*`;
+        if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+        await sendWhatsApp(phoneId, token, buildText(waId, confirmMsg));
+        await updateSession(db, waId, 'order_placed', '[]', 0);
+        return;
+      }
+    }
+
     await updateSession(db, waId, 'awaiting_upi_payment', '[]', 0);
     return;
   }
@@ -965,7 +963,10 @@ function buildMPM(to, bodyText) {
 }
 
 // ── Native Order Details Payment Message — "Review and Pay" inside WhatsApp ──
-function buildOrderDetailsPayment(to, orderCode, cart, total, discount, paymentLinkUrl) {
+// Uses Razorpay Payment Gateway mode via WhatsApp Manager payment_configuration
+const PAYMENT_CONFIGURATION = 'nch_razorpay';
+
+function buildOrderDetailsPayment(to, orderCode, cart, total, discount) {
   const items = cart.map(c => ({
     retailer_id: c.code,
     name: c.name,
@@ -996,18 +997,14 @@ function buildOrderDetailsPayment(to, orderCode, cart, total, discount, paymentL
     type: 'interactive',
     interactive: {
       type: 'order_details',
-      body: { text: `☕ Order ${orderCode}\n\nTap below to pay ₹${total} via UPI` },
+      body: { text: `☕ Order ${orderCode}\n\nTap below to pay ₹${total}` },
       footer: { text: 'Nawabi Chai House • HKP Road' },
       action: {
         name: 'review_and_pay',
         parameters: {
           reference_id: orderCode,
           type: 'digital-goods',
-          payment_type: 'upi',
-          payment_settings: [{
-            type: 'payment_link',
-            payment_link: { uri: paymentLinkUrl }
-          }],
+          payment_configuration: PAYMENT_CONFIGURATION,
           currency: 'INR',
           total_amount: { value: Math.round(total * 100), offset: 100 },
           order: orderObj,
