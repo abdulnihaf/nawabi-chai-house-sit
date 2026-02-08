@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Chai Counter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f1a;
+      --card: #1a2234;
+      --border: #2d3a4f;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --muted: #64748b;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --chai: #D4A44C;
+      --coffee: #8B6914;
+      --lemon: #84CC16;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header h1 .icon { font-size: 24px; }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+      display: inline-block;
+    }
+    .live-dot.loading { background: var(--yellow); }
+    .live-dot.error { background: var(--red); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+    .live-label {
+      font-size: 11px;
+      color: var(--green);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      background: rgba(16,185,129,.12);
+      border-radius: 20px;
+    }
+    .live-label.off { color: var(--muted); background: rgba(100,116,139,.12); }
+    .live-label.off .live-dot { background: var(--muted); animation: none; }
+
+    /* ── Date Period Banner ── */
+    .period-banner {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .period-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .period-dates {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .period-dates .arrow { color: var(--chai); margin: 0 6px; }
+
+    /* ── Quick Buttons ── */
+    .quick-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .quick-row::-webkit-scrollbar { display: none; }
+    .qbtn {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .qbtn:active { transform: scale(0.96); }
+    .qbtn.active {
+      background: var(--chai);
+      color: #fff;
+      border-color: var(--chai);
+    }
+
+    /* ── Date Picker ── */
+    .date-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .date-row label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .date-input {
+      flex: 1;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      -webkit-appearance: none;
+    }
+    .date-input:focus { outline: none; border-color: var(--chai); }
+    .date-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+
+    /* ── Big Counter Cards ── */
+    .counters { display: grid; gap: 12px; margin-bottom: 16px; }
+
+    .counter-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .counter-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .counter-card.chai::before { background: var(--chai); }
+    .counter-card.coffee::before { background: var(--coffee); }
+    .counter-card.lemon::before { background: var(--lemon); }
+
+    .counter-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+    }
+    .chai .counter-icon { background: rgba(212,164,76,.15); }
+    .coffee .counter-icon { background: rgba(139,105,20,.15); }
+    .lemon .counter-icon { background: rgba(132,204,22,.15); }
+
+    .counter-info { flex: 1; }
+    .counter-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+    .counter-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .chai .counter-value { color: var(--chai); }
+    .coffee .counter-value { color: var(--coffee); }
+    .lemon .counter-value { color: var(--lemon); }
+
+    /* ── Total Row ── */
+    .total-row {
+      background: linear-gradient(135deg, rgba(212,164,76,.15), rgba(212,164,76,.05));
+      border: 1.5px solid var(--chai);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .total-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .total-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 40px;
+      font-weight: 800;
+      color: var(--chai);
+    }
+
+    /* ── Last Updated ── */
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      padding: 8px 0 24px;
+    }
+    .footer .time {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text2);
+    }
+
+    /* ── Loading overlay ── */
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10,15,26,.92);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      transition: opacity .3s;
+    }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--chai);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error toast ── */
+    .error-toast {
+      display: none;
+      background: rgba(239,68,68,.15);
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: var(--red);
+      text-align: center;
+    }
+    .error-toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+
+  <div class="container">
+    <div class="header">
+      <h1><span class="icon">☕</span> Chai Counter</h1>
+      <div class="live-label" id="liveLabel">
+        <span class="live-dot" id="liveDot"></span>
+        <span id="liveText">LIVE</span>
+      </div>
+    </div>
+
+    <div class="period-banner">
+      <div class="period-label">Showing data for</div>
+      <div class="period-dates" id="periodDates">Loading...</div>
+    </div>
+
+    <div class="quick-row">
+      <button class="qbtn active" data-range="today" id="btnToday">Today</button>
+      <button class="qbtn" data-range="yesterday">Yesterday</button>
+      <button class="qbtn" data-range="week">Last 7 Days</button>
+      <button class="qbtn" data-range="month">Last 30 Days</button>
+    </div>
+
+    <div class="date-row">
+      <label>📅 Date</label>
+      <input type="date" class="date-input" id="datePicker">
+    </div>
+
+    <div class="error-toast" id="errorToast"></div>
+
+    <div class="counters">
+      <div class="counter-card chai">
+        <div class="counter-icon">🍵</div>
+        <div class="counter-info">
+          <div class="counter-name">Irani Chai</div>
+          <div class="counter-value" id="chaiCount">—</div>
+        </div>
+      </div>
+      <div class="counter-card coffee">
+        <div class="counter-icon">☕</div>
+        <div class="counter-info">
+          <div class="counter-name">Coffee</div>
+          <div class="counter-value" id="coffeeCount">—</div>
+        </div>
+      </div>
+      <div class="counter-card lemon">
+        <div class="counter-icon">🍋</div>
+        <div class="counter-info">
+          <div class="counter-name">Lemon Tea</div>
+          <div class="counter-value" id="lemonCount">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="total-row">
+      <div class="total-label">☕ Total Beverages</div>
+      <div class="total-value" id="totalCount">—</div>
+    </div>
+
+    <div class="footer">
+      Last updated: <span class="time" id="lastUpdated">—</span>
+      <br>Auto-refreshes every 30 seconds
+    </div>
+  </div>
+
+  <script>
+    // ── Constants ──
+    const API = '/api/sales-insights';
+    const BUSINESS_DAY_START_HOUR = 7; // 7 AM IST
+    const REFRESH_INTERVAL = 30000;    // 30 seconds
+    const BEVERAGE_KEYWORDS = ['chai', 'coffee', 'tea', 'lemon'];
+
+    // ── DOM Refs ──
+    const $ = id => document.getElementById(id);
+    let refreshTimer = null;
+    let isLive = true;
+
+    // ── Business Day Logic ──
+    // Business day runs 7 AM to 7 AM next day
+    // If it's 1 AM on Feb 13, business day = Feb 12 7AM → Live
+    // If it's 8 PM on Feb 13, business day = Feb 13 7AM → Live
+    function getBusinessDay(date) {
+      const d = new Date(date);
+      // If before 7 AM, business day is yesterday
+      if (d.getHours() < BUSINESS_DAY_START_HOUR) {
+        d.setDate(d.getDate() - 1);
+      }
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), BUSINESS_DAY_START_HOUR, 0, 0);
+    }
+
+    function getCurrentBusinessDayStart() {
+      return getBusinessDay(new Date());
+    }
+
+    // ── Date Formatting ──
+    function fmtDate(d) {
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    }
+    function fmtTime(d) {
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    function fmtDateTime(d) {
+      return fmtDate(d) + ', ' + fmtTime(d);
+    }
+    function toISOLocal(d) {
+      // Format as YYYY-MM-DDTHH:mm:ss for API (IST)
+      const pad = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+             'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+    function dateStr(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    }
+
+    // ── State ──
+    let currentFrom = null;
+    let currentTo = null;    // null = live (now)
+
+    // ── Init ──
+    function init() {
+      const today = getCurrentBusinessDayStart();
+      currentFrom = today;
+      currentTo = null; // live
+      $('datePicker').value = dateStr(today);
+      updatePeriodBanner();
+      fetchData();
+      startTimer();
+
+      // Event listeners
+      $('datePicker').addEventListener('change', onDatePick);
+      document.querySelectorAll('.qbtn').forEach(btn => {
+        btn.addEventListener('click', () => onQuickBtn(btn));
+      });
+    }
+
+    // ── Quick Buttons ──
+    function onQuickBtn(btn) {
+      document.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const range = btn.dataset.range;
+      const now = new Date();
+
+      if (range === 'today') {
+        currentFrom = getCurrentBusinessDayStart();
+        currentTo = null; // live
+        $('datePicker').value = dateStr(currentFrom);
+        setLive(true);
+      }
+      else if (range === 'yesterday') {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const from = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), BUSINESS_DAY_START_HOUR, 0, 0);
+        const to = new Date(from);
+        to.setDate(to.getDate() + 1); // 7 AM next day
+        currentFrom = from;
+        currentTo = to;
+        $('datePicker').value = dateStr(from);
+        setLive(false);
+      }
+      else if (range === 'week') {
+        const from = new Date();
+        from.setDate(from.getDate() - 7);
+        from.setHours(BUSINESS_DAY_START_HOUR, 0, 0, 0);
+        currentFrom = from;
+        currentTo = null; // live
+        $('datePicker').value = dateStr(from);
+        setLive(true);
+      }
+      else if (range === 'month') {
+        const from = new Date();
+        from.setDate(from.getDate() - 30);
+        from.setHours(BUSINESS_DAY_START_HOUR, 0, 0, 0);
+        currentFrom = from;
+        currentTo = null; // live
+        $('datePicker').value = dateStr(from);
+        setLive(true);
+      }
+
+      updatePeriodBanner();
+      fetchData();
+    }
+
+    // ── Date Picker ──
+    function onDatePick() {
+      document.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
+
+      const val = $('datePicker').value;
+      if (!val) return;
+
+      const parts = val.split('-');
+      const picked = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), BUSINESS_DAY_START_HOUR, 0, 0);
+
+      // Check if this is today's business day
+      const todayStart = getCurrentBusinessDayStart();
+      if (picked.getTime() === todayStart.getTime()) {
+        currentFrom = picked;
+        currentTo = null; // live
+        $('btnToday').classList.add('active');
+        setLive(true);
+      } else {
+        currentFrom = picked;
+        const to = new Date(picked);
+        to.setDate(to.getDate() + 1); // 7 AM next day
+        currentTo = to;
+        setLive(false);
+      }
+
+      updatePeriodBanner();
+      fetchData();
+    }
+
+    // ── Live Toggle ──
+    function setLive(on) {
+      isLive = on;
+      const label = $('liveLabel');
+      const text = $('liveText');
+      if (on) {
+        label.classList.remove('off');
+        text.textContent = 'LIVE';
+        startTimer();
+      } else {
+        label.classList.add('off');
+        text.textContent = 'HISTORY';
+        stopTimer();
+      }
+    }
+
+    // ── Period Banner ──
+    function updatePeriodBanner() {
+      const el = $('periodDates');
+      const fromStr = fmtDateTime(currentFrom);
+
+      if (isLive) {
+        el.innerHTML = fromStr + ' <span class="arrow">→</span> Now';
+      } else if (currentTo) {
+        el.innerHTML = fmtDateTime(currentFrom) + ' <span class="arrow">→</span> ' + fmtDateTime(currentTo);
+      }
+    }
+
+    // ── API Fetch ──
+    async function fetchData() {
+      const dot = $('liveDot');
+      dot.classList.add('loading');
+      $('errorToast').classList.remove('show');
+
+      try {
+        let url = API + '?from=' + toISOLocal(currentFrom);
+        if (!isLive && currentTo) {
+          url += '&to=' + toISOLocal(currentTo);
+        }
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Server error ' + res.status);
+
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'API error');
+
+        updateUI(json.data);
+        dot.classList.remove('loading');
+        $('loadingOverlay').classList.add('hidden');
+
+      } catch (e) {
+        dot.classList.add('error');
+        dot.classList.remove('loading');
+        $('errorToast').textContent = '⚠ ' + e.message;
+        $('errorToast').classList.add('show');
+        $('loadingOverlay').classList.add('hidden');
+      }
+    }
+
+    // ── Update UI ──
+    function updateUI(data) {
+      let chaiQty = 0, coffeeQty = 0, lemonQty = 0;
+
+      // Match by Odoo product ID (reliable) with name fallback
+      // 1028 = [NCH-IC] Irani Chai
+      // 1102 = [NCH-NSC] Nawabi Special Coffee
+      // 1103 = [NCH-LT] Lemon Tea
+      if (data.products && data.products.length) {
+        data.products.forEach(p => {
+          if (p.id === 1028) chaiQty += p.qty;
+          else if (p.id === 1102) coffeeQty += p.qty;
+          else if (p.id === 1103) lemonQty += p.qty;
+          else {
+            // Fallback: name-based for any new beverage products
+            const name = (p.name || '').toLowerCase();
+            if (name.includes('irani chai')) chaiQty += p.qty;
+            else if (name.includes('coffee')) coffeeQty += p.qty;
+            else if (name.includes('lemon tea')) lemonQty += p.qty;
+          }
+        });
+      }
+
+      const total = chaiQty + coffeeQty + lemonQty;
+
+      // Animate count changes
+      animateCount('chaiCount', chaiQty);
+      animateCount('coffeeCount', coffeeQty);
+      animateCount('lemonCount', lemonQty);
+      animateCount('totalCount', total);
+
+      // Last updated
+      const now = new Date();
+      $('lastUpdated').textContent = fmtTime(now);
+    }
+
+    // ── Animate Counter ──
+    function animateCount(id, newVal) {
+      const el = $(id);
+      const current = parseInt(el.textContent) || 0;
+      if (current === newVal) {
+        el.textContent = newVal;
+        return;
+      }
+
+      // Quick animation for small differences
+      const diff = Math.abs(newVal - current);
+      if (diff <= 3) {
+        el.textContent = newVal;
+        el.style.transform = 'scale(1.08)';
+        setTimeout(() => el.style.transform = 'scale(1)', 200);
+        return;
+      }
+
+      // For larger jumps, just set directly
+      el.textContent = newVal;
+      el.style.transform = 'scale(1.05)';
+      setTimeout(() => el.style.transform = 'scale(1)', 200);
+    }
+
+    // ── Timer ──
+    function startTimer() {
+      stopTimer();
+      if (isLive) {
+        refreshTimer = setInterval(() => {
+          fetchData();
+          updatePeriodBanner();
+        }, REFRESH_INTERVAL);
+      }
+    }
+    function stopTimer() {
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    }
+
+    // ── Boot ──
+    init();
+  </script>
+</body>
+</html>
