@@ -183,7 +183,7 @@
       {id:68,name:'NCH Runner 05',barcode:'RUN005'}
     ];
     const COLLECTORS=['Naveen','Nihaf'];
-    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null;
+    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0;
 
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
@@ -475,6 +475,7 @@
         const res=await fetch('/api/settlement?action=counter-balance');
         const data=await res.json();if(!data.success)throw new Error(data.error);
         const bal=data.balance;const lastCol=data.lastCollection;
+        currentCounterTotal=bal.total;
 
         if(isCollector){
           $('counterBalanceReadonly').classList.remove('show');
@@ -542,37 +543,45 @@
             collectBtn='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
 
-          // Breakdown cards
+          // New cash = settlements - expenses (what's come in since collection, excluding petty)
+          const newCash=bal.totalSettled-bal.totalExpenses;
+
+          // Breakdown cards — show new cash flow, petty separate
           let bdHtml='<div class="collection-breakdown">';
-          if(bal.pettyCash>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="cb-label">Petty Cash</div></div>';
           bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">Runner Settlements</div></div>';
-          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash</div></div>';
+          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Settlements</div></div>';
           if(bal.totalExpenses>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="cb-label">Expenses</div></div>';
           bdHtml+='</div>';
 
+          // Petty cash baseline note
+          let pettyNote='';
+          if(bal.pettyCash>0){pettyNote='<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash at counter (from last collection)</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>';}
+
           $('collectionPanel').innerHTML=
             '<h3>💰 Cash Collection</h3><div class="subtitle">'+sinceText+'</div>'+
-            '<div class="collection-big-number"><div class="amount">'+fmt(bal.total)+'</div><div class="label">Total cash at counter</div></div>'+
-            bdHtml+slHtml+expHtml+missedExpenseHtml+collectBtn+histHtml;
+            '<div class="collection-big-number"><div class="amount">'+fmt(newCash)+'</div><div class="label">New cash since last collection</div></div>'+
+            bdHtml+pettyNote+slHtml+expHtml+missedExpenseHtml+collectBtn+histHtml;
 
         }else{
-          // Staff read-only view — SPLIT into runner vs counter
+          // Staff read-only view
           $('collectionPanel').classList.remove('show');
           $('counterBalanceReadonly').classList.add('show');
           let sinceText='';if(lastCol){sinceText='Since '+fmtDate(new Date(lastCol.collected_at));}
+          const staffNewCash=bal.totalSettled-bal.totalExpenses;
 
           let breakdownHtml='<div class="bal-breakdown">';
           breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="bb-label">Runner Cash</div></div>';
           breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="bb-label">Counter Cash</div></div>';
           if(bal.totalExpenses>0){breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="bb-label">Expenses</div></div>';}
-          else{breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="bb-label">Petty Cash</div></div>';}
           breakdownHtml+='</div>';
 
           $('counterBalanceReadonly').innerHTML=
             '<h3>💰 Cash at Counter</h3>'+
-            '<div class="bal-amount">'+fmt(bal.total)+'</div>'+
+            '<div class="bal-amount">'+fmt(staffNewCash)+'</div>'+
+            '<div class="bal-detail">New cash since last collection</div>'+
             breakdownHtml+
-            (sinceText?'<div class="bal-detail" style="margin-top:10px">'+sinceText+'</div>':'')+
+            (bal.pettyCash>0?'<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash baseline</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>':'')+
+            (sinceText?'<div class="bal-detail" style="margin-top:8px">'+sinceText+'</div>':'')+
             '<div class="bal-detail">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
         }
       }catch(e){console.error('Counter balance error:',e);}
@@ -585,9 +594,8 @@
       const btn=document.getElementById('collectBtn');
       if(!summaryEl||!btn)return;
 
-      const expectedEl=document.querySelector('.collection-big-number .amount');
-      const expectedText=expectedEl?expectedEl.textContent.replace(/[₹,]/g,''):'0';
-      const expected=parseFloat(expectedText)||0;
+      // Total physical cash at counter (petty + settlements - expenses)
+      const expected=currentCounterTotal;
 
       const accounted=collectAmt+pettyCash;
       const disc=expected-accounted;
