@@ -342,30 +342,18 @@
   <script>
     // ── Constants ──
     const API = '/api/sales-insights';
-    const BUSINESS_DAY_START_HOUR = 7; // 7 AM IST
     const REFRESH_INTERVAL = 30000;    // 30 seconds
-    const BEVERAGE_KEYWORDS = ['chai', 'coffee', 'tea', 'lemon'];
 
     // ── DOM Refs ──
     const $ = id => document.getElementById(id);
     let refreshTimer = null;
     let isLive = true;
 
-    // ── Business Day Logic ──
-    // Business day runs 7 AM to 7 AM next day
-    // If it's 1 AM on Feb 13, business day = Feb 12 7AM → Live
-    // If it's 8 PM on Feb 13, business day = Feb 13 7AM → Live
-    function getBusinessDay(date) {
-      const d = new Date(date);
-      // If before 7 AM, business day is yesterday
-      if (d.getHours() < BUSINESS_DAY_START_HOUR) {
-        d.setDate(d.getDate() - 1);
-      }
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), BUSINESS_DAY_START_HOUR, 0, 0);
-    }
-
-    function getCurrentBusinessDayStart() {
-      return getBusinessDay(new Date());
+    // ── Day Logic ──
+    // Day resets at midnight (consistent with Sales Dashboard)
+    function getTodayStart() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     }
 
     // ── Date Formatting ──
@@ -395,7 +383,7 @@
 
     // ── Init ──
     function init() {
-      const today = getCurrentBusinessDayStart();
+      const today = getTodayStart();
       currentFrom = today;
       currentTo = null; // live
       $('datePicker').value = dateStr(today);
@@ -419,7 +407,7 @@
       const now = new Date();
 
       if (range === 'today') {
-        currentFrom = getCurrentBusinessDayStart();
+        currentFrom = getTodayStart();
         currentTo = null; // live
         $('datePicker').value = dateStr(currentFrom);
         setLive(true);
@@ -427,9 +415,9 @@
       else if (range === 'yesterday') {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const from = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), BUSINESS_DAY_START_HOUR, 0, 0);
+        const from = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0);
         const to = new Date(from);
-        to.setDate(to.getDate() + 1); // 7 AM next day
+        to.setDate(to.getDate() + 1); // midnight next day
         currentFrom = from;
         currentTo = to;
         $('datePicker').value = dateStr(from);
@@ -438,7 +426,7 @@
       else if (range === 'week') {
         const from = new Date();
         from.setDate(from.getDate() - 7);
-        from.setHours(BUSINESS_DAY_START_HOUR, 0, 0, 0);
+        from.setHours(0, 0, 0, 0);
         currentFrom = from;
         currentTo = null; // live
         $('datePicker').value = dateStr(from);
@@ -447,7 +435,7 @@
       else if (range === 'month') {
         const from = new Date();
         from.setDate(from.getDate() - 30);
-        from.setHours(BUSINESS_DAY_START_HOUR, 0, 0, 0);
+        from.setHours(0, 0, 0, 0);
         currentFrom = from;
         currentTo = null; // live
         $('datePicker').value = dateStr(from);
@@ -466,10 +454,10 @@
       if (!val) return;
 
       const parts = val.split('-');
-      const picked = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), BUSINESS_DAY_START_HOUR, 0, 0);
+      const picked = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 0, 0, 0);
 
-      // Check if this is today's business day
-      const todayStart = getCurrentBusinessDayStart();
+      // Check if this is today
+      const todayStart = getTodayStart();
       if (picked.getTime() === todayStart.getTime()) {
         currentFrom = picked;
         currentTo = null; // live
@@ -478,7 +466,7 @@
       } else {
         currentFrom = picked;
         const to = new Date(picked);
-        to.setDate(to.getDate() + 1); // 7 AM next day
+        to.setDate(to.getDate() + 1); // midnight next day
         currentTo = to;
         setLive(false);
       }
