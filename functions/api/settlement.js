@@ -23,7 +23,8 @@ export async function onRequest(context) {
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
       if (PINS[pin]) {
-        return new Response(JSON.stringify({success: true, user: PINS[pin]}), {headers: corsHeaders});
+        const isCollector = COLLECTORS.includes(PINS[pin]);
+        return new Response(JSON.stringify({success: true, user: PINS[pin], isCollector}), {headers: corsHeaders});
       }
       return new Response(JSON.stringify({success: false, error: 'Invalid PIN'}), {headers: corsHeaders});
     }
@@ -31,11 +32,11 @@ export async function onRequest(context) {
     if (action === 'get-last-settlement') {
       const runnerId = url.searchParams.get('runner_id');
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
-      
+
       const result = await DB.prepare(`
         SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1
       `).bind(runnerId).first();
-      
+
       const baseline = '2026-02-04T17:00:00+05:30';
       return new Response(JSON.stringify({
         success: true,
@@ -50,12 +51,10 @@ export async function onRequest(context) {
       const body = await context.request.json();
       const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes} = body;
 
-      // Validate runner_id (can be 'counter' or numeric runner ID)
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
 
-      // Duplicate prevention: reject if SAME PERSON settled SAME RUNNER in last 5 minutes
-      // A different person settling the same runner is ALLOWED (shift handover scenario)
+      // Duplicate prevention: same person + same runner within 5 minutes
       const recentDup = await DB.prepare(
         `SELECT id, settled_at, settled_by FROM settlements WHERE runner_id = ? AND settled_by = ? AND settled_at > datetime('now', '-5 minutes') ORDER BY settled_at DESC LIMIT 1`
       ).bind(String(runner_id), settled_by).first();
@@ -81,10 +80,10 @@ export async function onRequest(context) {
 
     if (action === 'history') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
-      
+
       const runnerId = url.searchParams.get('runner_id');
       const limit = url.searchParams.get('limit') || 50;
-      
+
       let query = 'SELECT * FROM settlements';
       let params = [];
       if (runnerId) {
@@ -93,9 +92,49 @@ export async function onRequest(context) {
       }
       query += ' ORDER BY settled_at DESC LIMIT ?';
       params.push(limit);
-      
+
       const results = await DB.prepare(query).bind(...params).all();
       return new Response(JSON.stringify({success: true, settlements: results.results}), {headers: corsHeaders});
+    }
+
+    // === EXPENSE RECORDING (by cashier, at the time of expense) ===
+
+    if (action === 'record-expense' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const body = await context.request.json();
+      const {recorded_by, amount, reason, attributed_to, notes} = body;
+
+      if (!recorded_by || !amount || amount <= 0) {
+        return new Response(JSON.stringify({success: false, error: 'Amount and reason required'}), {headers: corsHeaders});
+      }
+      if (!reason || reason.trim().length === 0) {
+        return new Response(JSON.stringify({success: false, error: 'Please enter a reason for the expense'}), {headers: corsHeaders});
+      }
+
+      // If collector is recording on behalf of a cashier, validate the cashier name
+      const isCollectorRecording = COLLECTORS.includes(recorded_by) && attributed_to;
+      if (isCollectorRecording) {
+        const validCashiers = Object.values(PINS);
+        if (!validCashiers.includes(attributed_to)) {
+          return new Response(JSON.stringify({success: false, error: 'Invalid cashier name'}), {headers: corsHeaders});
+        }
+      }
+
+      // Duplicate prevention: same person within 2 minutes
+      const recentDup = await DB.prepare(
+        "SELECT id FROM counter_expenses WHERE recorded_by = ? AND recorded_at > datetime('now', '-2 minutes') ORDER BY recorded_at DESC LIMIT 1"
+      ).bind(recorded_by).first();
+      if (recentDup) {
+        return new Response(JSON.stringify({success: false, error: 'You just recorded an expense. Wait 2 minutes.'}), {headers: corsHeaders});
+      }
+
+      await DB.prepare(
+        'INSERT INTO counter_expenses (recorded_by, recorded_at, amount, reason, attributed_to, notes) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(recorded_by, new Date().toISOString(), amount, reason.trim(), attributed_to || '', notes || '').run();
+
+      const attrMsg = attributed_to ? ' (attributed to ' + attributed_to + ')' : '';
+      return new Response(JSON.stringify({success: true, message: 'Expense recorded: ₹' + amount + ' for ' + reason + attrMsg}), {headers: corsHeaders});
     }
 
     // === CASH COLLECTION TIER (Naveen collects from counter) ===
@@ -127,28 +166,42 @@ export async function onRequest(context) {
           runnerCash += s.cash_settled;
         }
         settlementList.push({
-          id: s.id,
-          runner_id: s.runner_id,
-          runner_name: s.runner_name,
-          cash_settled: s.cash_settled,
-          settled_by: s.settled_by,
-          settled_at: s.settled_at
+          id: s.id, runner_id: s.runner_id, runner_name: s.runner_name,
+          cash_settled: s.cash_settled, settled_by: s.settled_by, settled_at: s.settled_at
         });
       }
 
-      const totalCash = runnerCash + counterCash;
-      // Petty cash left at counter from last collection is still physically there
+      // Get all expenses since last collection
+      const expensesResult = await DB.prepare(
+        'SELECT * FROM counter_expenses WHERE recorded_at > ? ORDER BY recorded_at ASC'
+      ).bind(sinceTime).all();
+
+      let totalExpenses = 0;
+      const expenseList = [];
+      for (const e of expensesResult.results) {
+        totalExpenses += e.amount;
+        expenseList.push({
+          id: e.id, amount: e.amount, reason: e.reason,
+          recorded_by: e.recorded_by, recorded_at: e.recorded_at,
+          attributed_to: e.attributed_to || ''
+        });
+      }
+
+      const totalSettled = runnerCash + counterCash;
       const pettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
-      const totalAtCounter = totalCash + pettyCash;
+      // Total at counter = petty cash + settlements - expenses
+      const totalAtCounter = pettyCash + totalSettled - totalExpenses;
 
       return new Response(JSON.stringify({
         success: true,
         balance: {
           total: totalAtCounter,
-          totalSettled: totalCash,
+          totalSettled,
           pettyCash,
           runnerCash,
           counterCash,
+          totalExpenses,
+          expenses: expenseList,
           settlementCount: settlementList.length,
           since: sinceTime,
           settlements: settlementList
@@ -161,9 +214,8 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {collected_by, amount, petty_cash, expenses, notes} = body;
+      const {collected_by, amount, petty_cash, notes} = body;
 
-      // Only authorized collectors can collect
       if (!COLLECTORS.includes(collected_by)) {
         return new Response(JSON.stringify({success: false, error: 'Not authorized to collect cash'}), {headers: corsHeaders});
       }
@@ -177,7 +229,7 @@ export async function onRequest(context) {
       const prevPettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
       const periodEnd = new Date().toISOString();
 
-      // Get all settlements in this period for the record
+      // Get all settlements in this period
       const settlements = await DB.prepare(
         'SELECT id, runner_id, cash_settled FROM settlements WHERE settled_at > ? ORDER BY settled_at ASC'
       ).bind(periodStart).all();
@@ -191,14 +243,21 @@ export async function onRequest(context) {
         ids.push(s.id);
       }
 
-      // Expected = previous petty cash + all settlements since last collection
-      const expected = prevPettyCash + runnerCash + counterCash;
-      // Accounted = what Naveen says he's taking + expenses + petty cash left
-      const accounted = amount + (expenses || 0) + (petty_cash || 0);
-      // Discrepancy = expected - accounted (positive = cash missing, negative = extra cash)
+      // Get all expenses in this period (already recorded by cashiers)
+      const expensesResult = await DB.prepare(
+        'SELECT amount FROM counter_expenses WHERE recorded_at > ? ORDER BY recorded_at ASC'
+      ).bind(periodStart).all();
+      let totalExpenses = 0;
+      for (const e of expensesResult.results) totalExpenses += e.amount;
+
+      // Expected = prev petty + settlements - expenses already recorded
+      const expected = prevPettyCash + runnerCash + counterCash - totalExpenses;
+      // Accounted = what Naveen takes + what he leaves as petty
+      const accounted = amount + (petty_cash || 0);
+      // Discrepancy = expected - accounted (positive = cash missing)
       const discrepancy = expected - accounted;
 
-      // Duplicate prevention: no collection within 5 minutes by same person
+      // Duplicate prevention
       const recentDup = await DB.prepare(
         "SELECT id FROM cash_collections WHERE collected_by = ? AND collected_at > datetime('now', '-5 minutes') LIMIT 1"
       ).bind(collected_by).first();
@@ -209,14 +268,14 @@ export async function onRequest(context) {
       await DB.prepare(
         'INSERT INTO cash_collections (collected_by, collected_at, amount, petty_cash, expenses, expected, discrepancy, period_start, period_end, runner_cash, counter_cash, prev_petty_cash, settlement_ids, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
-        collected_by, periodEnd, amount, petty_cash || 0, expenses || 0,
+        collected_by, periodEnd, amount, petty_cash || 0, totalExpenses,
         expected, discrepancy, periodStart, periodEnd, runnerCash, counterCash,
         prevPettyCash, ids.join(','), notes || ''
       ).run();
 
       return new Response(JSON.stringify({
         success: true, message: 'Cash collection recorded',
-        collected: amount, petty_cash: petty_cash || 0, expenses: expenses || 0,
+        collected: amount, petty_cash: petty_cash || 0, expenses: totalExpenses,
         expected, discrepancy, settlements_covered: ids.length
       }), {headers: corsHeaders});
     }

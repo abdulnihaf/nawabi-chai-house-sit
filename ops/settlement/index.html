@@ -40,6 +40,9 @@
     .runner-card.counter{border-color:var(--orange)}
     .runner-card.counter:hover{border-color:var(--orange);background:rgba(249,115,22,0.1)}
     .runner-card.counter.selected{border-color:var(--orange);background:rgba(249,115,22,0.2)}
+    .runner-card.expense{border-color:var(--red)}
+    .runner-card.expense:hover{border-color:var(--red);background:rgba(239,68,68,0.1)}
+    .runner-card.expense.selected{border-color:var(--red);background:rgba(239,68,68,0.2)}
     .runner-card .name{font-weight:600;margin-bottom:4px}
     .runner-card .code{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
     .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;display:none}
@@ -63,11 +66,9 @@
     .settle-btn.loading{background:var(--yellow);cursor:wait}
     .settle-btn.counter-btn{background:var(--orange)}
     .settle-btn.counter-btn:hover{background:#ea580c}
-
-    /* Cash Collection (Naveen) styles */
     .collection-panel{background:var(--card);border:2px solid var(--yellow);border-radius:16px;padding:24px;margin-top:32px;display:none}
     .collection-panel.show{display:block}
-    .collection-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .collection-panel h3{font-size:18px;margin-bottom:4px}
     .collection-panel .subtitle{font-size:13px;color:var(--text2);margin-bottom:20px}
     .collection-big-number{text-align:center;padding:24px 0}
     .collection-big-number .amount{font-size:48px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
@@ -84,11 +85,10 @@
     .collect-btn{width:100%;background:var(--yellow);color:#000;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;transition:all 0.2s}
     .collect-btn:hover{background:#ca8a04;transform:translateY(-1px)}
     .collect-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
-    .petty-cash-input{margin-top:16px;display:none}
-    .petty-cash-input.show{display:block}
-    .petty-cash-input label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
-    .petty-cash-input input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;padding:12px;font-family:'JetBrains Mono',monospace}
-    .petty-cash-input input:focus{outline:none;border-color:var(--yellow)}
+    .field-group{margin-top:12px}
+    .field-group label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
+    .field-group input,.field-group select{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;padding:12px;font-family:'JetBrains Mono',monospace}
+    .field-group input:focus,.field-group select:focus{outline:none;border-color:var(--yellow)}
     .collection-history{margin-top:24px;border-top:1px solid var(--border);padding-top:16px}
     .collection-history h4{font-size:14px;color:var(--text2);margin-bottom:12px}
     .ch-item{background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:8px}
@@ -96,13 +96,19 @@
     .ch-item .ch-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
     .ch-item .ch-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
     .ch-item .ch-detail{font-size:12px;color:var(--text2);margin-top:6px}
-
-    /* Read-only counter balance for non-collectors */
     .counter-balance-readonly{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-top:32px;display:none}
     .counter-balance-readonly.show{display:block}
     .counter-balance-readonly h3{font-size:16px;margin-bottom:12px;color:var(--text2)}
     .counter-balance-readonly .bal-amount{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
     .counter-balance-readonly .bal-detail{font-size:12px;color:var(--text2);margin-top:6px}
+    .bal-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+    .bal-breakdown .bb{background:var(--bg2);border-radius:8px;padding:10px;text-align:center}
+    .bal-breakdown .bb-val{font-size:16px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .bal-breakdown .bb-label{font-size:10px;color:var(--text2);margin-top:2px}
+    .expense-input{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;padding:10px;font-family:'JetBrains Mono',monospace;width:100%}
+    .expense-input:focus{outline:none;border-color:var(--red)}
+    .expense-reason{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px;width:100%;font-family:'Plus Jakarta Sans',sans-serif}
+    .expense-reason:focus{outline:none;border-color:var(--red)}
   </style>
 </head>
 <body>
@@ -130,7 +136,7 @@
       </div>
     </div>
     <div class="content">
-      <div class="section-title">Select Runner or Counter</div>
+      <div class="section-title">Select Runner, Counter, or Record Expense</div>
       <div class="runner-grid" id="runnerGrid"></div>
       <div class="panel" id="panel">
         <div class="panel-header">
@@ -139,8 +145,6 @@
         </div>
         <div id="panelContent"></div>
       </div>
-
-      <!-- Cash at Counter: read-only for staff, actionable for collectors -->
       <div class="counter-balance-readonly" id="counterBalanceReadonly"></div>
       <div class="collection-panel" id="collectionPanel"></div>
     </div>
@@ -150,16 +154,16 @@
     const fmt=n=>'₹'+n.toLocaleString('en-IN');
     const RUNNERS=[
       {id:'counter',name:'💰 Cash Counter',barcode:'POS-27',isCounter:true},
+      {id:'expense',name:'📝 Record Expense',barcode:'Cash Out',isExpense:true},
       {id:64,name:'FAROOQ',barcode:'RUN001'},
       {id:65,name:'AMIN',barcode:'RUN002'},
       {id:66,name:'NCH Runner 03',barcode:'RUN003'},
       {id:67,name:'NCH Runner 04',barcode:'RUN004'},
       {id:68,name:'NCH Runner 05',barcode:'RUN005'}
     ];
-    // Users who see the full collection panel with collect button
-    const COLLECTORS = ['Naveen', 'Nihaf'];
-
+    const COLLECTORS=['Naveen','Nihaf'];
     let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null;
+
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
       input.addEventListener('input',e=>{
@@ -169,6 +173,7 @@
       });
       input.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!e.target.value&&i>0){pins[i-1].focus();pins[i-1].value='';pins[i-1].classList.remove('filled');}});
     });
+
     async function checkPin(){
       const pin=pins.map(p=>p.value).join('');
       if(pin.length!==4)return;
@@ -193,6 +198,7 @@
         }
       }catch(e){console.error(e);}
     }
+
     function logout(){
       currentUser=null;selectedRunner=null;
       $('dashboard').classList.remove('show');
@@ -200,91 +206,127 @@
       $('pinSuccess').classList.remove('show');
       $('collectionPanel').classList.remove('show');
       $('counterBalanceReadonly').classList.remove('show');
+      $('panel').classList.remove('show');
       pins.forEach(p=>{p.value='';p.classList.remove('filled');});
       pins[0].focus();
     }
-    function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card'+(r.isCounter?' counter':'')+'" onclick="selectRunner('+(typeof r.id==='string'?"'"+r.id+"'":r.id)+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
 
-    function toLocalISO(d){
-      const y=d.getFullYear();
-      const m=String(d.getMonth()+1).padStart(2,'0');
-      const day=String(d.getDate()).padStart(2,'0');
-      const h=String(d.getHours()).padStart(2,'0');
-      const min=String(d.getMinutes()).padStart(2,'0');
-      const sec=String(d.getSeconds()).padStart(2,'0');
-      return y+'-'+m+'-'+day+'T'+h+':'+min+':'+sec;
+    function renderRunners(){
+      $('runnerGrid').innerHTML=RUNNERS.map(r=>{
+        const cls=r.isCounter?' counter':(r.isExpense?' expense':'');
+        const idStr=typeof r.id==='string'?"'"+r.id+"'":r.id;
+        return '<div class="runner-card'+cls+'" onclick="selectRunner('+idStr+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>';
+      }).join('');
     }
 
-    const fmtD=(d)=>{
-      const day=d.getDate().toString().padStart(2,'0');
-      const mon=d.toLocaleString('en-IN',{month:'short'});
-      const hr=d.getHours().toString().padStart(2,'0');
-      const mn=d.getMinutes().toString().padStart(2,'0');
-      return day+' '+mon+' '+hr+':'+mn;
-    };
-
-    const fmtDate=(d)=>{
-      const day=d.getDate().toString().padStart(2,'0');
-      const mon=d.toLocaleString('en-IN',{month:'short'});
-      const yr=d.getFullYear();
-      const hr=d.getHours().toString().padStart(2,'0');
-      const mn=d.getMinutes().toString().padStart(2,'0');
-      return day+' '+mon+' '+yr+', '+hr+':'+mn;
-    };
+    function toLocalISO(d){
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+    }
+    const fmtD=(d)=>{const day=d.getDate().toString().padStart(2,'0');const mon=d.toLocaleString('en-IN',{month:'short'});const hr=d.getHours().toString().padStart(2,'0');const mn=d.getMinutes().toString().padStart(2,'0');return day+' '+mon+' '+hr+':'+mn;};
+    const fmtDate=(d)=>{const day=d.getDate().toString().padStart(2,'0');const mon=d.toLocaleString('en-IN',{month:'short'});const yr=d.getFullYear();const hr=d.getHours().toString().padStart(2,'0');const mn=d.getMinutes().toString().padStart(2,'0');return day+' '+mon+' '+yr+', '+hr+':'+mn;};
 
     async function selectRunner(id,el){
       document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
       el.classList.add('selected');
       selectedRunner=RUNNERS.find(r=>r.id===id);
       $('panel').classList.add('show');
-      $('runnerName').textContent=selectedRunner.name;
-      $('period').textContent='Loading...';
-      $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
 
-      if(id==='counter'){
+      if(id==='expense'){
+        $('runnerName').textContent='📝 Record Expense';
+        $('period').textContent='';
+        loadExpensePanel();
+      }else if(id==='counter'){
+        $('runnerName').textContent=selectedRunner.name;
+        $('period').textContent='Loading...';
+        $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
         await loadCounterSettlement();
       }else{
+        $('runnerName').textContent=selectedRunner.name;
+        $('period').textContent='Loading...';
+        $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
         await loadRunnerSettlement(id);
       }
     }
 
+    // === EXPENSE PANEL ===
+    function loadExpensePanel(){
+      $('panelContent').innerHTML=
+        '<div style="margin-bottom:16px;color:var(--text2);font-size:14px">Record cash given out from the counter for supplies, milk, etc.</div>'+
+        '<div class="field-group"><label>Amount (₹)</label><input type="number" id="expenseAmount" class="expense-input" placeholder="e.g. 200" min="1" step="10" inputmode="numeric"></div>'+
+        '<div class="field-group" style="margin-top:12px"><label>Reason</label><input type="text" id="expenseReason" class="expense-reason" placeholder="e.g. Milk, Sugar, Supplies"></div>'+
+        '<button class="settle-btn" style="background:var(--red)" onclick="recordExpense()">Record Expense</button>';
+    }
+
+    async function recordExpense(){
+      const amount=parseFloat(document.getElementById('expenseAmount')?.value||'0');
+      const reason=(document.getElementById('expenseReason')?.value||'').trim();
+      const btn=document.querySelector('.settle-btn');
+
+      if(amount<=0){btn.textContent='Enter amount';btn.style.background='var(--red)';setTimeout(()=>{btn.textContent='Record Expense';},1500);return;}
+      if(!reason){btn.textContent='Enter reason';btn.style.background='var(--red)';setTimeout(()=>{btn.textContent='Record Expense';},1500);return;}
+
+      btn.disabled=true;btn.textContent='Recording...';
+
+      try{
+        const res=await fetch('/api/settlement?action=record-expense',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({recorded_by:currentUser,amount,reason})
+        });
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Expense Recorded!';btn.style.background='var(--green)';
+          setTimeout(()=>{loadExpensePanel();loadCashAtCounter();},1500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+    }
+
+    // === MISSED EXPENSE (Naveen records on behalf of cashier) ===
+    async function recordMissedExpense(){
+      const amount=parseFloat(document.getElementById('missedExpAmount')?.value||'0');
+      const reason=(document.getElementById('missedExpReason')?.value||'').trim();
+      const cashier=document.getElementById('missedExpCashier')?.value||'';
+      const btn=document.getElementById('missedExpBtn');
+
+      if(amount<=0){btn.textContent='Enter amount';setTimeout(()=>{btn.textContent='Record Missed Expense';},1500);return;}
+      if(!reason){btn.textContent='Enter reason';setTimeout(()=>{btn.textContent='Record Missed Expense';},1500);return;}
+      if(!cashier){btn.textContent='Select cashier';setTimeout(()=>{btn.textContent='Record Missed Expense';},1500);return;}
+
+      btn.disabled=true;btn.textContent='Recording...';
+
+      try{
+        const res=await fetch('/api/settlement?action=record-expense',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({recorded_by:currentUser,amount,reason,attributed_to:cashier,notes:'Missed expense recorded by '+currentUser})
+        });
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Expense Recorded!';btn.style.background='var(--green)';
+          setTimeout(()=>loadCashAtCounter(),1500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;}
+    }
+
+    // === COUNTER SETTLEMENT ===
     async function loadCounterSettlement(){
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
         const lastData=await lastRes.json();
-
         const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
+        let fromDate=lastData.lastSettlement?new Date(lastData.lastSettlement.settled_at):baseline;
         currentPeriodStart=fromDate;
-
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo...</div>';
-
         const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
-
-        const mc=data.data.mainCounter;
-        currentCounterData=mc;
-
-        const counterRevenue=mc.cash+mc.upi+mc.card;
-        const cashToSettle=mc.cash;
-
+        const mc=data.data.mainCounter;currentCounterData=mc;
+        const counterRevenue=mc.cash+mc.upi+mc.card;const cashToSettle=mc.cash;
         const hasLast=lastData.lastSettlement;
         let statusBox='';
-        if(hasLast){
-          const who=hasLast.settled_by===currentUser ? 'You' : hasLast.settled_by;
-          statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';
-        }else{
-          statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';
-        }
-
-        let settleBtn='';
-        if(counterRevenue>0){
-          settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';
-        }
-
-        if(counterRevenue>0 || hasLast){
+        if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
+        else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
+        let settleBtn='';if(counterRevenue>0){settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';}
+        if(counterRevenue>0||hasLast){
           $('panelContent').innerHTML=
             '<div class="row"><span class="label">Counter Revenue</span><span class="value">'+fmt(counterRevenue)+'</span></div>'+
             '<div class="row sub"><span class="label">↳ Cash</span><span class="value">'+fmt(mc.cash)+'</span></div>'+
@@ -292,373 +334,229 @@
             '<div class="row sub"><span class="label">↳ Card (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.card)+'</span></div>'+
             '<div class="row" style="opacity:0.5"><span class="label">Token Issue (→ Runners)</span><span class="value">'+fmt(mc.tokenIssue)+'</span></div>'+
             '<div class="row" style="opacity:0.5"><span class="label">Complimentary</span><span class="value">'+fmt(mc.complimentary)+'</span></div>'+
-            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+
-            statusBox+settleBtn;
+            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+statusBox+settleBtn;
         }else{
-          if(hasLast){
-            const who=hasLast.settled_by===currentUser ? 'you' : hasLast.settled_by;
-            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';
-          }else{
-            $('panelContent').innerHTML='<div class="loading-text">No counter activity</div>';
-          }
+          if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
+          else{$('panelContent').innerHTML='<div class="loading-text">No counter activity</div>';}
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
 
+    // === RUNNER SETTLEMENT ===
     async function loadRunnerSettlement(id){
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
-
         const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
+        let fromDate=lastData.lastSettlement?new Date(lastData.lastSettlement.settled_at):baseline;
         currentPeriodStart=fromDate;
-
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
-
         const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
-        const data=await res.json();
-        if(!data.success)throw new Error(data.error);
-
-        const runner=data.data.runners.find(r=>r.id===id);
-        currentRunnerData=runner;
-
-        const hasLast=lastData.lastSettlement;
-        const hasActivity=runner && (runner.tokens>0 || runner.sales>0 || runner.upi>0);
-
+        const data=await res.json();if(!data.success)throw new Error(data.error);
+        const runner=data.data.runners.find(r=>r.id===id);currentRunnerData=runner;
+        const hasLast=lastData.lastSettlement;const hasActivity=runner&&(runner.tokens>0||runner.sales>0||runner.upi>0);
         let statusBox='';
-        if(hasLast){
-          const who=hasLast.settled_by===currentUser ? 'You' : hasLast.settled_by;
-          statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';
-        }else{
-          statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';
-        }
-
+        if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
+        else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
         if(hasActivity){
-          const cash=runner.cashToCollect;
-          currentRunnerData=runner;
-
+          const cash=runner.cashToCollect;currentRunnerData=runner;
           let settleBtn='';
-          if(cash>0){
-            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';
-          }else if(cash<0){
-            settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';
-          }else{
-            settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';
-          }
-
+          if(cash>0){settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';}
+          else if(cash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
+          else{settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
           $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+statusBox+settleBtn;
         }else{
-          if(hasLast){
-            const who=hasLast.settled_by===currentUser ? 'you' : hasLast.settled_by;
-            $('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';
-          }else{
-            $('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';
-          }
+          if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
+          else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
 
     async function settleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
-      const btn=document.querySelector('.settle-btn');
-      btn.disabled=true;
-      btn.classList.add('loading');
-      btn.textContent='Recording settlement...';
-
+      const btn=document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
       try{
         const now=new Date();
-        const res=await fetch('/api/settlement?action=settle',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            runner_id:selectedRunner.id,
-            runner_name:selectedRunner.name,
-            settled_by:currentUser,
-            period_start:toLocalISO(currentPeriodStart),
-            period_end:toLocalISO(now),
-            tokens_amount:currentRunnerData.tokens,
-            sales_amount:currentRunnerData.sales,
-            upi_amount:currentRunnerData.upi,
-            cash_settled:currentRunnerData.cashToCollect,
-            notes:'Settled via dashboard'
-          })
-        });
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:currentRunnerData.cashToCollect,notes:'Settled via dashboard'})});
         const data=await res.json();
-        if(data.success){
-          btn.textContent='✓ Settlement Recorded!';
-          btn.style.background='var(--green)';
-          setTimeout(()=>{
-            const card=document.querySelector('.runner-card.selected');
-            if(card)selectRunner(selectedRunner.id,card);
-            loadCashAtCounter(); // refresh counter balance
-          },1500);
-        }else{
-          throw new Error(data.error);
-        }
-      }catch(e){
-        btn.disabled=false;
-        btn.classList.remove('loading');
-        btn.textContent='Error: '+e.message;
-        btn.style.background='var(--red)';
-      }
+        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();},1500);}
+        else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
 
     async function settleCounter(){
       if(!currentCounterData)return;
-      const btn=document.querySelector('.settle-btn');
-      btn.disabled=true;
-      btn.classList.add('loading');
-      btn.textContent='Recording settlement...';
-
+      const btn=document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
       try{
-        const now=new Date();
-        const cashToSettle=currentCounterData.cash;
-        const res=await fetch('/api/settlement?action=settle',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            runner_id:'counter',
-            runner_name:'Cash Counter',
-            settled_by:currentUser,
-            period_start:toLocalISO(currentPeriodStart),
-            period_end:toLocalISO(now),
-            tokens_amount:0,
-            sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,
-            upi_amount:currentCounterData.upi+currentCounterData.card,
-            cash_settled:cashToSettle,
-            notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card
-          })
-        });
+        const now=new Date();const cashToSettle=currentCounterData.cash;
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:'counter',runner_name:'Cash Counter',settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:0,sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,upi_amount:currentCounterData.upi+currentCounterData.card,cash_settled:cashToSettle,notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card})});
         const data=await res.json();
-        if(data.success){
-          btn.textContent='✓ Settlement Recorded!';
-          btn.style.background='var(--green)';
-          setTimeout(()=>{
-            const card=document.querySelector('.runner-card.selected');
-            if(card)selectRunner('counter',card);
-            loadCashAtCounter(); // refresh counter balance
-          },1500);
-        }else{
-          throw new Error(data.error);
-        }
-      }catch(e){
-        btn.disabled=false;
-        btn.classList.remove('loading');
-        btn.textContent='Error: '+e.message;
-        btn.style.background='var(--red)';
-      }
+        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();},1500);}
+        else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
 
     // ========== CASH AT COUNTER / COLLECTION ==========
-
     async function loadCashAtCounter(){
-      const isCollector = COLLECTORS.includes(currentUser);
-
-      try {
-        const res = await fetch('/api/settlement?action=counter-balance');
-        const data = await res.json();
-        if(!data.success) throw new Error(data.error);
-
-        const bal = data.balance;
-        const lastCol = data.lastCollection;
+      const isCollector=COLLECTORS.includes(currentUser);
+      try{
+        const res=await fetch('/api/settlement?action=counter-balance');
+        const data=await res.json();if(!data.success)throw new Error(data.error);
+        const bal=data.balance;const lastCol=data.lastCollection;
 
         if(isCollector){
-          // Full collection panel for Naveen/Nihaf
           $('counterBalanceReadonly').classList.remove('show');
           $('collectionPanel').classList.add('show');
+          let sinceText='Since baseline (Feb 4)';
+          if(lastCol){sinceText='Since last collection by '+lastCol.collected_by+' on '+fmtDate(new Date(lastCol.collected_at));}
 
-          let sinceText = 'Since baseline (Feb 4)';
-          if(lastCol){
-            sinceText = 'Since last collection by '+lastCol.collected_by+' on '+fmtDate(new Date(lastCol.collected_at));
+          // Settlement list
+          let slHtml='';
+          if(bal.settlements.length>0){
+            slHtml='<div class="settlement-list">';
+            for(const s of bal.settlements){const t=new Date(s.settled_at);const source=s.runner_id==='counter'?'Counter':s.runner_name;slHtml+='<div class="sl-item"><span class="sl-who">'+source+' — '+s.settled_by+' '+fmtD(t)+'</span><span class="sl-amount">'+fmt(s.cash_settled)+'</span></div>';}
+            slHtml+='</div>';
+          }
+          // Expense list
+          let expHtml='';
+          if(bal.expenses&&bal.expenses.length>0){
+            expHtml='<div class="settlement-list" style="margin-top:8px">';
+            for(const e of bal.expenses){const t=new Date(e.recorded_at);const attr=e.attributed_to?' (by '+e.attributed_to+')':'';expHtml+='<div class="sl-item"><span class="sl-who" style="color:var(--red)">Expense: '+e.reason+attr+' — '+e.recorded_by+' '+fmtD(t)+'</span><span class="sl-amount" style="color:var(--red)">-'+fmt(e.amount)+'</span></div>';}
+            expHtml+='</div>';
           }
 
-          // Build settlement list
-          let slHtml = '';
-          if(bal.settlements.length > 0){
-            slHtml = '<div class="settlement-list">';
-            for(const s of bal.settlements){
-              const t = new Date(s.settled_at);
-              const source = s.runner_id === 'counter' ? 'Counter' : s.runner_name;
-              slHtml += '<div class="sl-item"><span class="sl-who">'+source+' — settled by '+s.settled_by+' at '+fmtD(t)+'</span><span class="sl-amount">'+fmt(s.cash_settled)+'</span></div>';
-            }
-            slHtml += '</div>';
-          }
-
-          // Build collection history
-          let histHtml = '';
-          const histRes = await fetch('/api/settlement?action=collection-history&limit=5');
-          const histData = await histRes.json();
-          if(histData.success && histData.collections.length > 0){
-            histHtml = '<div class="collection-history"><h4>Recent Collections</h4>';
+          // Collection history
+          let histHtml='';
+          const histRes=await fetch('/api/settlement?action=collection-history&limit=5');
+          const histData=await histRes.json();
+          if(histData.success&&histData.collections.length>0){
+            histHtml='<div class="collection-history"><h4>Recent Collections</h4>';
             for(const c of histData.collections){
-              const cd = new Date(c.collected_at);
-              let detailLine = 'By '+c.collected_by+' — Collected: '+fmt(c.amount);
-              if(c.expenses > 0) detailLine += ' | Expenses: '+fmt(c.expenses);
-              if(c.petty_cash > 0) detailLine += ' | Petty left: '+fmt(c.petty_cash);
-              if(c.discrepancy && c.discrepancy !== 0){
-                const dColor = c.discrepancy > 0 ? 'var(--red)' : 'var(--green)';
-                const dLabel = c.discrepancy > 0 ? 'Short' : 'Extra';
-                detailLine += ' | <span style="color:'+dColor+'">'+dLabel+': '+fmt(Math.abs(c.discrepancy))+'</span>';
-              }
-              histHtml += '<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">'+detailLine+'</div></div>';
+              const cd=new Date(c.collected_at);
+              let dl='By '+c.collected_by+' — Collected: '+fmt(c.amount);
+              if(c.expenses>0)dl+=' | Expenses: '+fmt(c.expenses);
+              if(c.petty_cash>0)dl+=' | Petty: '+fmt(c.petty_cash);
+              if(c.discrepancy&&c.discrepancy!==0){const dc=c.discrepancy>0?'var(--red)':'var(--green)';const dl2=c.discrepancy>0?'Short':'Extra';dl+=' | <span style="color:'+dc+'">'+dl2+': '+fmt(Math.abs(c.discrepancy))+'</span>';}
+              histHtml+='<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">'+dl+'</div></div>';
             }
-            histHtml += '</div>';
+            histHtml+='</div>';
           }
 
-          let collectBtn = '';
-          if(bal.total > 0){
-            collectBtn = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">Record Collection</div>'+
-              '<div class="petty-cash-input show"><label>Cash you are collecting</label><input type="number" id="collectAmountInput" placeholder="Count and enter actual cash" min="0" step="50" oninput="updateCollectSummary()"></div>'+
-              '<div class="petty-cash-input show"><label>Expenses from counter cash (milk, supplies, etc.)</label><input type="number" id="expensesInput" value="0" min="0" step="10" oninput="updateCollectSummary()"></div>'+
-              '<div class="petty-cash-input show"><label>Petty cash to leave at counter</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100" oninput="updateCollectSummary()"></div>'+
+          // Missed expense section (Naveen can add expenses cashiers forgot to record)
+          let missedExpenseHtml='<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">'+
+            '<div style="font-size:14px;font-weight:600;margin-bottom:4px;color:var(--red)">📝 Record Missed Expense</div>'+
+            '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">If a cashier forgot to record an expense, add it here before collecting</div>'+
+            '<div class="field-group"><label>Amount (₹)</label><input type="number" id="missedExpAmount" class="expense-input" placeholder="e.g. 200" min="1" step="10" inputmode="numeric"></div>'+
+            '<div class="field-group" style="margin-top:8px"><label>Reason</label><input type="text" id="missedExpReason" class="expense-reason" placeholder="e.g. Milk, Sugar, Supplies"></div>'+
+            '<div class="field-group" style="margin-top:8px"><label>Which cashier gave this cash?</label><select id="missedExpCashier" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px">'+
+            '<option value="">— Select Cashier —</option>'+
+            '<option value="Tanveer">Tanveer</option>'+
+            '<option value="Md Kesmat">Md Kesmat</option>'+
+            '<option value="Jafar">Jafar</option>'+
+            '<option value="Yashwant">Yashwant</option>'+
+            '<option value="Zoya">Zoya</option>'+
+            '</select></div>'+
+            '<button class="settle-btn" style="background:var(--red);margin-top:12px" id="missedExpBtn" onclick="recordMissedExpense()">Record Missed Expense</button></div>';
+
+          // Collect section
+          let collectBtn='';
+          if(bal.total>0){
+            collectBtn='<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">Collect Cash</div>'+
+              '<div class="field-group"><label>Cash you are collecting</label><input type="number" id="collectAmountInput" placeholder="Count and enter" min="0" step="50" oninput="updateCollectSummary()"></div>'+
+              '<div class="field-group"><label>Petty cash to leave at counter</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100" oninput="updateCollectSummary()"></div>'+
               '<div id="collectSummary" style="margin-top:12px"></div>'+
               '<button class="collect-btn" id="collectBtn" onclick="collectCash()" disabled>Enter amounts above</button></div>';
-          } else {
-            collectBtn = '<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
+          }else{
+            collectBtn='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
 
-          // Breakdown cards: petty cash + runner + counter
-          let breakdownHtml = '<div class="collection-breakdown">';
-          if(bal.pettyCash > 0){
-            breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="cb-label">Petty Cash (carried)</div></div>';
-          }
-          breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">From Runner Settlements</div></div>';
-          breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash Revenue</div></div>';
-          breakdownHtml += '</div>';
+          // Breakdown cards
+          let bdHtml='<div class="collection-breakdown">';
+          if(bal.pettyCash>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="cb-label">Petty Cash</div></div>';
+          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">Runner Settlements</div></div>';
+          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash</div></div>';
+          if(bal.totalExpenses>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="cb-label">Expenses</div></div>';
+          bdHtml+='</div>';
 
-          $('collectionPanel').innerHTML =
-            '<h3>💰 Cash Collection</h3>'+
-            '<div class="subtitle">'+sinceText+'</div>'+
+          $('collectionPanel').innerHTML=
+            '<h3>💰 Cash Collection</h3><div class="subtitle">'+sinceText+'</div>'+
             '<div class="collection-big-number"><div class="amount">'+fmt(bal.total)+'</div><div class="label">Total cash at counter</div></div>'+
-            breakdownHtml+slHtml+collectBtn+histHtml;
+            bdHtml+slHtml+expHtml+missedExpenseHtml+collectBtn+histHtml;
 
-        } else {
-          // Read-only for staff
+        }else{
+          // Staff read-only view — SPLIT into runner vs counter
           $('collectionPanel').classList.remove('show');
           $('counterBalanceReadonly').classList.add('show');
+          let sinceText='';if(lastCol){sinceText='Since '+fmtDate(new Date(lastCol.collected_at));}
 
-          let sinceText = '';
-          if(lastCol){
-            sinceText = 'Since '+fmtDate(new Date(lastCol.collected_at));
-          }
+          let breakdownHtml='<div class="bal-breakdown">';
+          breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="bb-label">Runner Cash</div></div>';
+          breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="bb-label">Counter Cash</div></div>';
+          if(bal.totalExpenses>0){breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="bb-label">Expenses</div></div>';}
+          else{breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="bb-label">Petty Cash</div></div>';}
+          breakdownHtml+='</div>';
 
-          let detailParts = [];
-          if(bal.pettyCash > 0) detailParts.push('Petty cash: '+fmt(bal.pettyCash));
-          if(bal.runnerCash > 0) detailParts.push('Runner settlements: '+fmt(bal.runnerCash));
-          if(bal.counterCash > 0) detailParts.push('Counter cash: '+fmt(bal.counterCash));
-
-          $('counterBalanceReadonly').innerHTML =
+          $('counterBalanceReadonly').innerHTML=
             '<h3>💰 Cash at Counter</h3>'+
             '<div class="bal-amount">'+fmt(bal.total)+'</div>'+
-            (detailParts.length > 0 ? '<div class="bal-detail">'+detailParts.join(' + ')+'</div>' : '')+
-            (sinceText ? '<div class="bal-detail">'+sinceText+'</div>' : '')+
-            '<div class="bal-detail" style="margin-top:8px;color:var(--text2)">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
+            breakdownHtml+
+            (sinceText?'<div class="bal-detail" style="margin-top:10px">'+sinceText+'</div>':'')+
+            '<div class="bal-detail">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
         }
-      } catch(e) {
-        console.error('Counter balance error:', e);
-      }
+      }catch(e){console.error('Counter balance error:',e);}
     }
 
-    // Live summary as Naveen fills in amounts
     function updateCollectSummary(){
-      const collectAmt = parseFloat(document.getElementById('collectAmountInput')?.value || '0');
-      const expenses = parseFloat(document.getElementById('expensesInput')?.value || '0');
-      const pettyCash = parseFloat(document.getElementById('pettyCashInput')?.value || '0');
-      const summaryEl = document.getElementById('collectSummary');
-      const btn = document.getElementById('collectBtn');
-      if(!summaryEl || !btn) return;
+      const collectAmt=parseFloat(document.getElementById('collectAmountInput')?.value||'0');
+      const pettyCash=parseFloat(document.getElementById('pettyCashInput')?.value||'0');
+      const summaryEl=document.getElementById('collectSummary');
+      const btn=document.getElementById('collectBtn');
+      if(!summaryEl||!btn)return;
 
-      // Get expected from the big number shown above
-      const expectedEl = document.querySelector('.collection-big-number .amount');
-      const expectedText = expectedEl ? expectedEl.textContent.replace(/[₹,]/g,'') : '0';
-      const expected = parseFloat(expectedText) || 0;
+      const expectedEl=document.querySelector('.collection-big-number .amount');
+      const expectedText=expectedEl?expectedEl.textContent.replace(/[₹,]/g,''):'0';
+      const expected=parseFloat(expectedText)||0;
 
-      const accounted = collectAmt + expenses + pettyCash;
-      const disc = expected - accounted;
+      const accounted=collectAmt+pettyCash;
+      const disc=expected-accounted;
 
-      if(collectAmt <= 0){
-        summaryEl.innerHTML = '';
-        btn.disabled = true;
-        btn.textContent = 'Enter amounts above';
-        return;
-      }
+      if(collectAmt<=0){summaryEl.innerHTML='';btn.disabled=true;btn.textContent='Enter amounts above';return;}
 
-      let discHtml = '';
-      if(Math.abs(disc) < 1){
-        discHtml = '<div style="color:var(--green);font-weight:600;margin-top:8px">✓ Perfectly balanced</div>';
-      } else if(disc > 0){
-        discHtml = '<div style="color:var(--red);font-weight:600;margin-top:8px">⚠ ₹'+disc.toLocaleString('en-IN')+' short (unaccounted cash)</div>';
-      } else {
-        discHtml = '<div style="color:var(--blue);font-weight:600;margin-top:8px">ℹ ₹'+Math.abs(disc).toLocaleString('en-IN')+' extra cash at counter</div>';
-      }
+      let discHtml='';
+      if(Math.abs(disc)<1){discHtml='<div style="color:var(--green);font-weight:600;margin-top:8px">✓ Perfectly balanced</div>';}
+      else if(disc>0){discHtml='<div style="color:var(--red);font-weight:600;margin-top:8px">⚠ ₹'+disc.toLocaleString('en-IN')+' short (unaccounted)</div>';}
+      else{discHtml='<div style="color:var(--blue);font-weight:600;margin-top:8px">ℹ ₹'+Math.abs(disc).toLocaleString('en-IN')+' extra cash</div>';}
 
-      summaryEl.innerHTML =
+      summaryEl.innerHTML=
         '<div style="background:var(--bg2);border-radius:10px;padding:14px;font-size:13px">'+
         '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">System expected</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expected)+'</span></div>'+
         '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">You are collecting</span><span style="font-family:JetBrains Mono,monospace">'+fmt(collectAmt)+'</span></div>'+
-        (expenses > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">Expenses</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expenses)+'</span></div>' : '')+
         '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">Petty cash left</span><span style="font-family:JetBrains Mono,monospace">'+fmt(pettyCash)+'</span></div>'+
         '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><span style="color:var(--text2)">Accounted for</span><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(accounted)+'</span></div>'+
         discHtml+'</div>';
 
-      btn.disabled = false;
-      btn.textContent = 'Confirm Collection — Taking '+fmt(collectAmt);
+      btn.disabled=false;
+      btn.textContent='Confirm Collection — Taking '+fmt(collectAmt);
     }
 
     async function collectCash(){
-      const btn = document.getElementById('collectBtn');
-      if(!btn) return;
-      btn.disabled = true;
-      btn.textContent = 'Recording collection...';
+      const btn=document.getElementById('collectBtn');if(!btn)return;
+      btn.disabled=true;btn.textContent='Recording collection...';
+      try{
+        const collectAmt=parseFloat(document.getElementById('collectAmountInput')?.value||'0');
+        const pettyCash=parseFloat(document.getElementById('pettyCashInput')?.value||'0');
+        if(collectAmt<=0){btn.disabled=false;btn.textContent='Enter the cash amount';btn.style.background='var(--red)';setTimeout(()=>{btn.style.background='';updateCollectSummary();},2000);return;}
 
-      try {
-        const collectAmt = parseFloat(document.getElementById('collectAmountInput')?.value || '0');
-        const expenses = parseFloat(document.getElementById('expensesInput')?.value || '0');
-        const pettyCash = parseFloat(document.getElementById('pettyCashInput')?.value || '0');
-
-        if(collectAmt <= 0){
-          btn.disabled = false;
-          btn.textContent = 'Enter the cash amount you are collecting';
-          btn.style.background = 'var(--red)';
-          setTimeout(()=>{btn.style.background='';updateCollectSummary();},2000);
-          return;
-        }
-
-        let notesArr = [];
-        if(expenses > 0) notesArr.push('Expenses: '+expenses);
-        notesArr.push('Collected via dashboard');
-
-        const res = await fetch('/api/settlement?action=collect', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            collected_by: currentUser,
-            amount: collectAmt,
-            petty_cash: pettyCash,
-            expenses: expenses,
-            notes: notesArr.join('. ')
-          })
-        });
-        const data = await res.json();
+        const res=await fetch('/api/settlement?action=collect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collected_by:currentUser,amount:collectAmt,petty_cash:pettyCash,notes:'Collected via dashboard'})});
+        const data=await res.json();
         if(data.success){
-          let msg = '✓ Collected '+fmt(collectAmt);
-          if(data.discrepancy && Math.abs(data.discrepancy) >= 1){
-            msg += data.discrepancy > 0 ? ' (₹'+data.discrepancy+' short)' : ' (₹'+Math.abs(data.discrepancy)+' extra)';
-          }
-          btn.textContent = msg;
-          btn.style.background = 'var(--green)';
-          btn.style.color = '#fff';
-          setTimeout(()=> loadCashAtCounter(), 2500);
-        } else {
-          throw new Error(data.error);
-        }
-      } catch(e) {
-        btn.disabled = false;
-        btn.textContent = 'Error: '+e.message;
-        btn.style.background = 'var(--red)';
-      }
+          let msg='✓ Collected '+fmt(collectAmt);
+          if(data.discrepancy&&Math.abs(data.discrepancy)>=1){msg+=data.discrepancy>0?' (₹'+data.discrepancy+' short)':' (₹'+Math.abs(data.discrepancy)+' extra)';}
+          btn.textContent=msg;btn.style.background='var(--green)';btn.style.color='#fff';
+          setTimeout(()=>loadCashAtCounter(),2500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
 
     pins[0].focus();

@@ -41,3 +41,19 @@ CREATE TABLE cash_collections (
 );
 
 CREATE INDEX idx_collected_at ON cash_collections(collected_at);
+
+-- Counter Expenses: recorded by cashier at the time cash is given out
+-- Automatically deducted from cash-at-counter balance
+DROP TABLE IF EXISTS counter_expenses;
+
+CREATE TABLE counter_expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  recorded_by TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  amount REAL NOT NULL,
+  reason TEXT NOT NULL,
+  attributed_to TEXT DEFAULT '',
+  notes TEXT DEFAULT ''
+);
+
+CREATE INDEX idx_expense_recorded_at ON counter_expenses(recorded_at);
