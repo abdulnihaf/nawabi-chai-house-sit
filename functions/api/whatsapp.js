@@ -125,12 +125,17 @@ async function processWebhook(context, body) {
     session = { wa_id: waId, state: 'idle', cart: '[]', cart_total: 0, updated_at: now };
   }
 
-  // Check session expiry
+  // Check session expiry — notify user if they had an active cart
   const lastUpdate = new Date(session.updated_at).getTime();
   if (Date.now() - lastUpdate > SESSION_TIMEOUT_MS && session.state !== 'idle') {
+    const hadCart = session.cart && session.cart !== '[]';
+    const wasOrdering = ['awaiting_menu', 'awaiting_payment', 'awaiting_location'].includes(session.state);
     session.state = 'idle';
     session.cart = '[]';
     session.cart_total = 0;
+    if (hadCart && wasOrdering) {
+      await sendWhatsApp(phoneId, token, buildText(waId, `⏰ Your previous session expired due to inactivity and your cart was cleared.\n\nNo worries — let's start fresh!`));
+    }
   }
 
   // Load or create user
@@ -218,10 +223,12 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     if (lastOrder) {
       const items = JSON.parse(lastOrder.items);
       const itemSummary = items.map(i => `${i.qty}x ${i.name}`).join(', ');
-      const body = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}! *Nawabi Chai House* here.\n\nYour last order:\n${itemSummary} — *₹${lastOrder.total}*`;
+      const locationNote = user.location_address ? `\n📍 Delivering to: ${user.location_address}` : '';
+      const body = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}! *Nawabi Chai House* here.\n\nYour last order:\n${itemSummary} — *₹${lastOrder.total}*${locationNote}`;
       const buttons = [
         { type: 'reply', reply: { id: 'reorder', title: `Reorder ₹${lastOrder.total}` } },
-        { type: 'reply', reply: { id: 'new_order', title: 'New Order' } }
+        { type: 'reply', reply: { id: 'new_order', title: 'New Order' } },
+        { type: 'reply', reply: { id: 'change_location', title: '📍 Change Location' } }
       ];
       await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
       await updateSession(db, waId, 'awaiting_menu', session.cart, session.cart_total);
@@ -234,6 +241,15 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     const greeting = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu, add items to cart, and send your order 👇`;
     await sendWhatsApp(phoneId, token, buildMPM(waId, greeting));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
+    return;
+  }
+
+  // ── KNOWN USER but no saved location (was out of range before, or location cleared) ──
+  if (user.business_type && user.name && !user.location_lat) {
+    const firstName = user.name.split(' ')[0];
+    const body = `Welcome back ${firstName}! 📍 Please share your current location so we can check if we can deliver to you.`;
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, body));
+    await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
@@ -353,8 +369,20 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
       const cartTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
       if (user.location_lat && user.location_lng) {
+        // Re-verify distance (location may be stale)
+        const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
+        if (dist > MAX_DELIVERY_RADIUS_M) {
+          // Location is now out of range — clear it and ask again
+          await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+          user.location_lat = null;
+          const distStr = dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)}m`;
+          await sendWhatsApp(phoneId, token, buildText(waId, `📍 Your saved location is *${distStr}* away — outside our delivery area.\n\nPlease share your current location so we can check again.`));
+          await updateSession(db, waId, 'awaiting_location', JSON.stringify(updatedItems), cartTotal);
+          await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your delivery location:'));
+          return;
+        }
         await updateSession(db, waId, 'awaiting_payment', JSON.stringify(updatedItems), cartTotal);
-        const body = `📍 Delivering to your saved location.\n\nHow would you like to pay?`;
+        const body = `📍 Delivering to: ${user.location_address || 'your saved location'}\n\nHow would you like to pay?`;
         const buttons = [
           { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
           { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
@@ -373,6 +401,18 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
   if (msg.type === 'button_reply' && msg.id === 'new_order') {
     await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu, pick what you like, and send your order 👇'));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
+    return;
+  }
+
+  // ── Change Location button ──
+  if (msg.type === 'button_reply' && msg.id === 'change_location') {
+    // Clear saved location so it gets re-verified
+    await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+    user.location_lat = null;
+    user.location_lng = null;
+    user.location_address = null;
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
@@ -420,6 +460,18 @@ async function handleOrderMessage(context, session, user, msg, waId, phoneId, to
     // Need location first
     await updateSession(db, waId, 'awaiting_location', JSON.stringify(cart), cartTotal);
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Great choices! Share your delivery location so we can get your order to you.'));
+    return;
+  }
+
+  // Re-verify distance (saved location may be stale)
+  const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
+  if (dist > MAX_DELIVERY_RADIUS_M) {
+    await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+    user.location_lat = null;
+    const distStr = dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)}m`;
+    await sendWhatsApp(phoneId, token, buildText(waId, `📍 Your saved location is *${distStr}* away — outside our delivery area.\n\nPlease share your current location so we can check again.`));
+    await updateSession(db, waId, 'awaiting_location', JSON.stringify(cart), cartTotal);
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your delivery location:'));
     return;
   }
 
@@ -526,15 +578,16 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
       return;
     }
 
-    // Update user stats
-    await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
+    // NOTE: User stats (total_orders, first_order_redeemed) are NOT updated here.
+    // They are deferred to payment confirmation (Razorpay webhook/callback or COD switch)
+    // to prevent inflated stats and lost free-chai promo on abandoned UPI orders.
 
     // Send native order_details payment card — Razorpay handles payment inside WhatsApp
     const orderDetailsMsg = buildOrderDetailsPayment(waId, orderCode, cart, total, discount);
     const payResponse = await sendWhatsApp(phoneId, token, orderDetailsMsg);
 
-    if (payResponse && !payResponse.ok) {
-      // Fallback: create Razorpay Payment Link and send as text
+    if (!payResponse || !payResponse.ok) {
+      // Fallback: create Razorpay Payment Link and send as text (covers API error + sendWhatsApp crash)
       console.error('order_details failed, falling back to payment link');
       const paymentLink = await createRazorpayPaymentLink(context, {
         amount: total, orderCode, orderId,
@@ -554,6 +607,8 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
       } else {
         // Both failed — fall back to COD
         await db.prepare('UPDATE wa_orders SET payment_method = ?, payment_status = ?, status = ? WHERE id = ?').bind('cod', 'pending', 'confirmed', orderId).run();
+        // Update user stats NOW (COD fallback = order is confirmed)
+        await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
         const odooResult = await createOdooOrder(context, orderCode, cart, total, discount, 'cod', waId, user.name, user.phone, deliveryAddress, deliveryLat, deliveryLng, deliveryDistance, assignedRunner, user.business_type);
         const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
         let confirmMsg = `✅ *Order ${orderCode} confirmed!*\n\n${itemLines}`;
@@ -621,6 +676,10 @@ async function handleAwaitingUpiPayment(context, session, user, msg, waId, phone
     if (msg.type === 'text' && msg.bodyLower === 'cod') {
       const now = new Date().toISOString();
       await db.prepare("UPDATE wa_orders SET payment_method = 'cod', payment_status = 'pending', status = 'confirmed', updated_at = ? WHERE id = ?").bind(now, pendingOrder.id).run();
+
+      // Update user stats NOW (deferred from UPI order creation)
+      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?')
+        .bind(pendingOrder.discount, pendingOrder.id, pendingOrder.total, waId).run();
 
       const cart = JSON.parse(pendingOrder.items);
       const odooResult = await createOdooOrder(
@@ -786,6 +845,10 @@ async function handleRazorpayWebhook(context, corsHeaders) {
       const user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(order.wa_id).first();
       const cart = JSON.parse(order.items);
 
+      // Update user stats NOW (deferred from order creation to avoid inflating on abandoned UPI)
+      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?')
+        .bind(order.discount, order.id, order.total, order.wa_id).run();
+
       // Create Odoo POS order
       const odooResult = await createOdooOrder(
         context, order.order_code, cart, order.total, order.discount, 'upi',
@@ -843,6 +906,10 @@ async function handleRazorpayCallback(context, url, corsHeaders) {
 
       const user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(order.wa_id).first();
       const cart = JSON.parse(order.items);
+
+      // Update user stats NOW (deferred from order creation to avoid inflating on abandoned UPI)
+      await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?')
+        .bind(order.discount, order.id, order.total, order.wa_id).run();
 
       // Create Odoo POS order
       const odooResult = await createOdooOrder(
