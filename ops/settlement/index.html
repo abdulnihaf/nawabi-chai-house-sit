@@ -472,10 +472,29 @@
     async function loadCashAtCounter(){
       const isCollector=COLLECTORS.includes(currentUser);
       try{
-        const res=await fetch('/api/settlement?action=counter-balance');
-        const data=await res.json();if(!data.success)throw new Error(data.error);
+        const baseline=new Date(2026,1,4,17,0,0);
+        // Fetch D1 balance, counter period, and collection history in parallel
+        const [balRes,counterPeriodRes,histRes]=await Promise.all([
+          fetch('/api/settlement?action=counter-balance'),
+          fetch('/api/settlement?action=get-last-settlement&runner_id=counter'),
+          fetch('/api/settlement?action=collection-history&limit=5')
+        ]);
+        const data=await balRes.json();if(!data.success)throw new Error(data.error);
         const bal=data.balance;const lastCol=data.lastCollection;
-        currentCounterTotal=bal.total;
+        const counterPeriod=await counterPeriodRes.json();
+
+        // Counter's own period: unsettled counter cash starts from here
+        const counterFrom=counterPeriod.periodStart?new Date(counterPeriod.periodStart):baseline;
+
+        // Fetch live Odoo counter cash from counter's period (unsettled cash only)
+        const odooRes=await fetch('/api/nch-data?from='+toLocalISO(counterFrom));
+        const odooData=await odooRes.json();
+        let liveCounterCash=0;
+        if(odooData.success){liveCounterCash=odooData.data.mainCounter.cash||0;}
+
+        // Total cash at counter = petty + runner settlements + settled counter cash + UNSETTLED counter cash - expenses
+        const totalCash=bal.pettyCash+bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
+        currentCounterTotal=totalCash;
 
         if(isCollector){
           $('counterBalanceReadonly').classList.remove('show');
@@ -483,7 +502,7 @@
           let sinceText='Since baseline (Feb 4)';
           if(lastCol){sinceText='Since last collection by '+lastCol.collected_by+' on '+fmtDate(new Date(lastCol.collected_at));}
 
-          // Settlement list
+          // Settlement list (runner settlements from D1)
           let slHtml='';
           if(bal.settlements.length>0){
             slHtml='<div class="settlement-list">';
@@ -500,7 +519,6 @@
 
           // Collection history
           let histHtml='';
-          const histRes=await fetch('/api/settlement?action=collection-history&limit=5');
           const histData=await histRes.json();
           if(histData.success&&histData.collections.length>0){
             histHtml='<div class="collection-history"><h4>Recent Collections</h4>';
@@ -531,9 +549,9 @@
             '</select></div>'+
             '<button class="settle-btn" style="background:var(--red);margin-top:12px" id="missedExpBtn" onclick="recordMissedExpense()">Record Missed Expense</button></div>';
 
-          // Collect section
+          // Collect section — show if there's any cash at the counter
           let collectBtn='';
-          if(bal.total>0){
+          if(totalCash>0){
             collectBtn='<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">Collect Cash</div>'+
               '<div class="field-group"><label>Cash you are collecting</label><input type="number" id="collectAmountInput" placeholder="Count and enter" min="0" step="50" oninput="updateCollectSummary()"></div>'+
               '<div class="field-group"><label>Petty cash to leave at counter</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100" oninput="updateCollectSummary()"></div>'+
@@ -543,13 +561,14 @@
             collectBtn='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
 
-          // New cash = settlements - expenses (what's come in since collection, excluding petty)
-          const newCash=bal.totalSettled-bal.totalExpenses;
+          // New cash = runner settlements + settled counter + unsettled counter cash - expenses
+          const newCash=bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
 
-          // Breakdown cards — show new cash flow, petty separate
+          // Breakdown cards
           let bdHtml='<div class="collection-breakdown">';
           bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">Runner Settlements</div></div>';
-          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Settlements</div></div>';
+          const totalCounterCash=bal.counterCash+liveCounterCash;
+          bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(totalCounterCash)+'</div><div class="cb-label">Counter Cash</div></div>';
           if(bal.totalExpenses>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="cb-label">Expenses</div></div>';
           bdHtml+='</div>';
 
@@ -567,11 +586,12 @@
           $('collectionPanel').classList.remove('show');
           $('counterBalanceReadonly').classList.add('show');
           let sinceText='';if(lastCol){sinceText='Since '+fmtDate(new Date(lastCol.collected_at));}
-          const staffNewCash=bal.totalSettled-bal.totalExpenses;
+          const staffNewCash=bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
+          const staffTotalCounter=bal.counterCash+liveCounterCash;
 
           let breakdownHtml='<div class="bal-breakdown">';
           breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="bb-label">Runner Cash</div></div>';
-          breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="bb-label">Counter Cash</div></div>';
+          breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--orange)">'+fmt(staffTotalCounter)+'</div><div class="bb-label">Counter Cash</div></div>';
           if(bal.totalExpenses>0){breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="bb-label">Expenses</div></div>';}
           breakdownHtml+='</div>';
 
