@@ -8,6 +8,8 @@ export async function onRequest(context) {
 
   // PIN verification — matches Odoo POS employee PINs
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen'};
+  // Users who can collect cash from counter (owner/manager level)
+  const COLLECTORS = ['Naveen', 'Nihaf'];
   const RUNNERS = {
     'counter': {id: 'counter', name: 'Cash Counter', barcode: 'POS-27'},
     64: {id: 64, name: 'FAROOQ', barcode: 'RUN001'},
@@ -94,6 +96,123 @@ export async function onRequest(context) {
       
       const results = await DB.prepare(query).bind(...params).all();
       return new Response(JSON.stringify({success: true, settlements: results.results}), {headers: corsHeaders});
+    }
+
+    // === CASH COLLECTION TIER (Naveen collects from counter) ===
+
+    if (action === 'counter-balance') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      // Get last collection timestamp — everything after this is "uncollected cash"
+      const lastCollection = await DB.prepare(
+        'SELECT * FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
+      ).first();
+
+      const baseline = '2026-02-04T17:00:00';
+      const sinceTime = lastCollection ? lastCollection.collected_at : baseline;
+
+      // Get all settlements since last collection
+      const settlements = await DB.prepare(
+        'SELECT * FROM settlements WHERE settled_at > ? ORDER BY settled_at ASC'
+      ).bind(sinceTime).all();
+
+      let runnerCash = 0;
+      let counterCash = 0;
+      const settlementList = [];
+
+      for (const s of settlements.results) {
+        if (s.runner_id === 'counter') {
+          counterCash += s.cash_settled;
+        } else {
+          runnerCash += s.cash_settled;
+        }
+        settlementList.push({
+          id: s.id,
+          runner_id: s.runner_id,
+          runner_name: s.runner_name,
+          cash_settled: s.cash_settled,
+          settled_by: s.settled_by,
+          settled_at: s.settled_at
+        });
+      }
+
+      const totalCash = runnerCash + counterCash;
+
+      return new Response(JSON.stringify({
+        success: true,
+        balance: {
+          total: totalCash,
+          runnerCash,
+          counterCash,
+          settlementCount: settlementList.length,
+          since: sinceTime,
+          settlements: settlementList
+        },
+        lastCollection: lastCollection || null
+      }), {headers: corsHeaders});
+    }
+
+    if (action === 'collect' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const body = await context.request.json();
+      const {collected_by, amount, petty_cash, notes} = body;
+
+      // Only authorized collectors can collect
+      if (!COLLECTORS.includes(collected_by)) {
+        return new Response(JSON.stringify({success: false, error: 'Not authorized to collect cash'}), {headers: corsHeaders});
+      }
+
+      // Get last collection for period_start
+      const lastCollection = await DB.prepare(
+        'SELECT collected_at FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
+      ).first();
+      const baseline = '2026-02-04T17:00:00';
+      const periodStart = lastCollection ? lastCollection.collected_at : baseline;
+      const periodEnd = new Date().toISOString();
+
+      // Get all settlements in this period for the record
+      const settlements = await DB.prepare(
+        'SELECT id, runner_id, cash_settled FROM settlements WHERE settled_at > ? ORDER BY settled_at ASC'
+      ).bind(periodStart).all();
+
+      let runnerCash = 0;
+      let counterCash = 0;
+      const ids = [];
+      for (const s of settlements.results) {
+        if (s.runner_id === 'counter') counterCash += s.cash_settled;
+        else runnerCash += s.cash_settled;
+        ids.push(s.id);
+      }
+
+      // Duplicate prevention: no collection within 5 minutes by same person
+      const recentDup = await DB.prepare(
+        "SELECT id FROM cash_collections WHERE collected_by = ? AND collected_at > datetime('now', '-5 minutes') LIMIT 1"
+      ).bind(collected_by).first();
+      if (recentDup) {
+        return new Response(JSON.stringify({success: false, error: 'You already collected cash recently. Wait a few minutes.'}), {headers: corsHeaders});
+      }
+
+      await DB.prepare(
+        'INSERT INTO cash_collections (collected_by, collected_at, amount, petty_cash, period_start, period_end, runner_cash, counter_cash, settlement_ids, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        collected_by, periodEnd, amount, petty_cash || 0,
+        periodStart, periodEnd, runnerCash, counterCash,
+        ids.join(','), notes || ''
+      ).run();
+
+      return new Response(JSON.stringify({success: true, message: 'Cash collection recorded', collected: amount, petty_cash: petty_cash || 0, settlements_covered: ids.length}), {headers: corsHeaders});
+    }
+
+    if (action === 'collection-history') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const limit = url.searchParams.get('limit') || 20;
+      const results = await DB.prepare(
+        'SELECT * FROM cash_collections ORDER BY collected_at DESC LIMIT ?'
+      ).bind(limit).all();
+
+      return new Response(JSON.stringify({success: true, collections: results.results}), {headers: corsHeaders});
     }
 
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});

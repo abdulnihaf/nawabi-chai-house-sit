@@ -63,6 +63,46 @@
     .settle-btn.loading{background:var(--yellow);cursor:wait}
     .settle-btn.counter-btn{background:var(--orange)}
     .settle-btn.counter-btn:hover{background:#ea580c}
+
+    /* Cash Collection (Naveen) styles */
+    .collection-panel{background:var(--card);border:2px solid var(--yellow);border-radius:16px;padding:24px;margin-top:32px;display:none}
+    .collection-panel.show{display:block}
+    .collection-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .collection-panel .subtitle{font-size:13px;color:var(--text2);margin-bottom:20px}
+    .collection-big-number{text-align:center;padding:24px 0}
+    .collection-big-number .amount{font-size:48px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .collection-big-number .label{font-size:14px;color:var(--text2);margin-top:4px}
+    .collection-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+    .collection-breakdown .cb-card{background:var(--bg2);border-radius:10px;padding:14px;text-align:center}
+    .collection-breakdown .cb-card .cb-val{font-size:20px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .collection-breakdown .cb-card .cb-label{font-size:11px;color:var(--text2);margin-top:4px}
+    .settlement-list{margin:16px 0;max-height:200px;overflow-y:auto}
+    .settlement-list .sl-item{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px}
+    .settlement-list .sl-item:last-child{border-bottom:none}
+    .settlement-list .sl-who{color:var(--text2)}
+    .settlement-list .sl-amount{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .collect-btn{width:100%;background:var(--yellow);color:#000;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;transition:all 0.2s}
+    .collect-btn:hover{background:#ca8a04;transform:translateY(-1px)}
+    .collect-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+    .petty-cash-input{margin-top:16px;display:none}
+    .petty-cash-input.show{display:block}
+    .petty-cash-input label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
+    .petty-cash-input input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;padding:12px;font-family:'JetBrains Mono',monospace}
+    .petty-cash-input input:focus{outline:none;border-color:var(--yellow)}
+    .collection-history{margin-top:24px;border-top:1px solid var(--border);padding-top:16px}
+    .collection-history h4{font-size:14px;color:var(--text2);margin-bottom:12px}
+    .ch-item{background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:8px}
+    .ch-item .ch-top{display:flex;justify-content:space-between;align-items:center}
+    .ch-item .ch-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .ch-item .ch-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .ch-item .ch-detail{font-size:12px;color:var(--text2);margin-top:6px}
+
+    /* Read-only counter balance for non-collectors */
+    .counter-balance-readonly{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-top:32px;display:none}
+    .counter-balance-readonly.show{display:block}
+    .counter-balance-readonly h3{font-size:16px;margin-bottom:12px;color:var(--text2)}
+    .counter-balance-readonly .bal-amount{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .counter-balance-readonly .bal-detail{font-size:12px;color:var(--text2);margin-top:6px}
   </style>
 </head>
 <body>
@@ -99,6 +139,10 @@
         </div>
         <div id="panelContent"></div>
       </div>
+
+      <!-- Cash at Counter: read-only for staff, actionable for collectors -->
+      <div class="counter-balance-readonly" id="counterBalanceReadonly"></div>
+      <div class="collection-panel" id="collectionPanel"></div>
     </div>
   </div>
   <script>
@@ -112,6 +156,9 @@
       {id:67,name:'NCH Runner 04',barcode:'RUN004'},
       {id:68,name:'NCH Runner 05',barcode:'RUN005'}
     ];
+    // Users who see the full collection panel with collect button
+    const COLLECTORS = ['Naveen', 'Nihaf'];
+
     let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null;
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
@@ -133,7 +180,12 @@
           $('pinSuccess').textContent='✓ Welcome, '+data.user;
           $('pinSuccess').classList.add('show');
           $('userName').textContent=data.user;
-          setTimeout(()=>{$('pinScreen').classList.add('hidden');$('dashboard').classList.add('show');renderRunners();},800);
+          setTimeout(()=>{
+            $('pinScreen').classList.add('hidden');
+            $('dashboard').classList.add('show');
+            renderRunners();
+            loadCashAtCounter();
+          },800);
         }else{
           pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
           setTimeout(()=>pins.forEach(p=>p.style.borderColor=''),500);
@@ -141,9 +193,18 @@
         }
       }catch(e){console.error(e);}
     }
-    function logout(){currentUser=null;selectedRunner=null;$('dashboard').classList.remove('show');$('pinScreen').classList.remove('hidden');$('pinSuccess').classList.remove('show');pins.forEach(p=>{p.value='';p.classList.remove('filled');});pins[0].focus();}
+    function logout(){
+      currentUser=null;selectedRunner=null;
+      $('dashboard').classList.remove('show');
+      $('pinScreen').classList.remove('hidden');
+      $('pinSuccess').classList.remove('show');
+      $('collectionPanel').classList.remove('show');
+      $('counterBalanceReadonly').classList.remove('show');
+      pins.forEach(p=>{p.value='';p.classList.remove('filled');});
+      pins[0].focus();
+    }
     function renderRunners(){$('runnerGrid').innerHTML=RUNNERS.map(r=>'<div class="runner-card'+(r.isCounter?' counter':'')+'" onclick="selectRunner('+(typeof r.id==='string'?"'"+r.id+"'":r.id)+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');}
-    
+
     function toLocalISO(d){
       const y=d.getFullYear();
       const m=String(d.getMonth()+1).padStart(2,'0');
@@ -153,7 +214,7 @@
       const sec=String(d.getSeconds()).padStart(2,'0');
       return y+'-'+m+'-'+day+'T'+h+':'+min+':'+sec;
     }
-    
+
     const fmtD=(d)=>{
       const day=d.getDate().toString().padStart(2,'0');
       const mon=d.toLocaleString('en-IN',{month:'short'});
@@ -161,7 +222,16 @@
       const mn=d.getMinutes().toString().padStart(2,'0');
       return day+' '+mon+' '+hr+':'+mn;
     };
-    
+
+    const fmtDate=(d)=>{
+      const day=d.getDate().toString().padStart(2,'0');
+      const mon=d.toLocaleString('en-IN',{month:'short'});
+      const yr=d.getFullYear();
+      const hr=d.getHours().toString().padStart(2,'0');
+      const mn=d.getMinutes().toString().padStart(2,'0');
+      return day+' '+mon+' '+yr+', '+hr+':'+mn;
+    };
+
     async function selectRunner(id,el){
       document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
       el.classList.add('selected');
@@ -170,38 +240,36 @@
       $('runnerName').textContent=selectedRunner.name;
       $('period').textContent='Loading...';
       $('panelContent').innerHTML='<div class="loading-text">Checking last settlement...</div>';
-      
+
       if(id==='counter'){
         await loadCounterSettlement();
       }else{
         await loadRunnerSettlement(id);
       }
     }
-    
+
     async function loadCounterSettlement(){
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
         const lastData=await lastRes.json();
-        
+
         const baseline=new Date(2026,1,4,17,0,0);
         let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
         currentPeriodStart=fromDate;
-        
+
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo...</div>';
-        
+
         const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
-        
+
         const mc=data.data.mainCounter;
         currentCounterData=mc;
-        
-        // Counter Revenue = Cash + UPI + Card (NOT token issue, NOT complimentary)
+
         const counterRevenue=mc.cash+mc.upi+mc.card;
-        // Cash to Settle = Cash (UPI & Card go directly to bank)
         const cashToSettle=mc.cash;
-        
+
         const hasLast=lastData.lastSettlement;
         let statusBox='';
         if(hasLast){
@@ -236,30 +304,29 @@
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
-    
+
     async function loadRunnerSettlement(id){
       try{
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
-        
+
         const baseline=new Date(2026,1,4,17,0,0);
         let fromDate=lastData.lastSettlement ? new Date(lastData.lastSettlement.settled_at) : baseline;
         currentPeriodStart=fromDate;
-        
+
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
-        
+
         const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
-        
+
         const runner=data.data.runners.find(r=>r.id===id);
         currentRunnerData=runner;
-        
+
         const hasLast=lastData.lastSettlement;
         const hasActivity=runner && (runner.tokens>0 || runner.sales>0 || runner.upi>0);
 
-        // Build last settlement info
         let statusBox='';
         if(hasLast){
           const who=hasLast.settled_by===currentUser ? 'You' : hasLast.settled_by;
@@ -292,14 +359,14 @@
         }
       }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
     }
-    
+
     async function settleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
       const btn=document.querySelector('.settle-btn');
       btn.disabled=true;
       btn.classList.add('loading');
       btn.textContent='Recording settlement...';
-      
+
       try{
         const now=new Date();
         const res=await fetch('/api/settlement?action=settle',{
@@ -325,6 +392,7 @@
           setTimeout(()=>{
             const card=document.querySelector('.runner-card.selected');
             if(card)selectRunner(selectedRunner.id,card);
+            loadCashAtCounter(); // refresh counter balance
           },1500);
         }else{
           throw new Error(data.error);
@@ -336,14 +404,14 @@
         btn.style.background='var(--red)';
       }
     }
-    
+
     async function settleCounter(){
       if(!currentCounterData)return;
       const btn=document.querySelector('.settle-btn');
       btn.disabled=true;
       btn.classList.add('loading');
       btn.textContent='Recording settlement...';
-      
+
       try{
         const now=new Date();
         const cashToSettle=currentCounterData.cash;
@@ -370,6 +438,7 @@
           setTimeout(()=>{
             const card=document.querySelector('.runner-card.selected');
             if(card)selectRunner('counter',card);
+            loadCashAtCounter(); // refresh counter balance
           },1500);
         }else{
           throw new Error(data.error);
@@ -381,7 +450,142 @@
         btn.style.background='var(--red)';
       }
     }
-    
+
+    // ========== CASH AT COUNTER / COLLECTION ==========
+
+    async function loadCashAtCounter(){
+      const isCollector = COLLECTORS.includes(currentUser);
+
+      try {
+        const res = await fetch('/api/settlement?action=counter-balance');
+        const data = await res.json();
+        if(!data.success) throw new Error(data.error);
+
+        const bal = data.balance;
+        const lastCol = data.lastCollection;
+
+        if(isCollector){
+          // Full collection panel for Naveen/Nihaf
+          $('counterBalanceReadonly').classList.remove('show');
+          $('collectionPanel').classList.add('show');
+
+          let sinceText = 'Since baseline (Feb 4)';
+          if(lastCol){
+            sinceText = 'Since last collection by '+lastCol.collected_by+' on '+fmtDate(new Date(lastCol.collected_at));
+          }
+
+          // Build settlement list
+          let slHtml = '';
+          if(bal.settlements.length > 0){
+            slHtml = '<div class="settlement-list">';
+            for(const s of bal.settlements){
+              const t = new Date(s.settled_at);
+              const source = s.runner_id === 'counter' ? 'Counter' : s.runner_name;
+              slHtml += '<div class="sl-item"><span class="sl-who">'+source+' — settled by '+s.settled_by+' at '+fmtD(t)+'</span><span class="sl-amount">'+fmt(s.cash_settled)+'</span></div>';
+            }
+            slHtml += '</div>';
+          }
+
+          // Build collection history
+          let histHtml = '';
+          const histRes = await fetch('/api/settlement?action=collection-history&limit=5');
+          const histData = await histRes.json();
+          if(histData.success && histData.collections.length > 0){
+            histHtml = '<div class="collection-history"><h4>Recent Collections</h4>';
+            for(const c of histData.collections){
+              const cd = new Date(c.collected_at);
+              histHtml += '<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">By '+c.collected_by+' — Runner: '+fmt(c.runner_cash)+' + Counter: '+fmt(c.counter_cash)+(c.petty_cash>0?' — Petty cash left: '+fmt(c.petty_cash):'')+'</div></div>';
+            }
+            histHtml += '</div>';
+          }
+
+          let collectBtn = '';
+          if(bal.total > 0){
+            collectBtn = '<div class="petty-cash-input show"><label>Petty cash left at counter (default ₹1,000)</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100"></div><button class="collect-btn" onclick="collectCash()">Collect '+fmt(bal.total)+' Cash</button>';
+          } else {
+            collectBtn = '<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
+          }
+
+          $('collectionPanel').innerHTML =
+            '<h3>💰 Cash Collection</h3>'+
+            '<div class="subtitle">'+sinceText+'</div>'+
+            '<div class="collection-big-number"><div class="amount">'+fmt(bal.total)+'</div><div class="label">Total cash at counter</div></div>'+
+            '<div class="collection-breakdown"><div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">From Runner Settlements</div></div><div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash Revenue</div></div></div>'+
+            slHtml+collectBtn+histHtml;
+
+        } else {
+          // Read-only for staff
+          $('collectionPanel').classList.remove('show');
+          $('counterBalanceReadonly').classList.add('show');
+
+          let sinceText = '';
+          if(lastCol){
+            sinceText = 'Since '+fmtDate(new Date(lastCol.collected_at));
+          }
+
+          $('counterBalanceReadonly').innerHTML =
+            '<h3>💰 Cash at Counter</h3>'+
+            '<div class="bal-amount">'+fmt(bal.total)+'</div>'+
+            '<div class="bal-detail">Runner settlements: '+fmt(bal.runnerCash)+' + Counter cash: '+fmt(bal.counterCash)+'</div>'+
+            (sinceText ? '<div class="bal-detail">'+sinceText+'</div>' : '')+
+            '<div class="bal-detail" style="margin-top:8px;color:var(--text2)">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
+        }
+      } catch(e) {
+        console.error('Counter balance error:', e);
+      }
+    }
+
+    async function collectCash(){
+      const btn = document.querySelector('.collect-btn');
+      if(!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Recording collection...';
+
+      try {
+        const pettyCash = parseFloat(document.getElementById('pettyCashInput')?.value || '0');
+
+        // Get current balance to know the amount
+        const balRes = await fetch('/api/settlement?action=counter-balance');
+        const balData = await balRes.json();
+        if(!balData.success) throw new Error(balData.error);
+
+        const totalAtCounter = balData.balance.total;
+        const amountCollected = totalAtCounter - pettyCash;
+
+        if(amountCollected <= 0){
+          btn.disabled = false;
+          btn.textContent = 'Petty cash cannot exceed total';
+          btn.style.background = 'var(--red)';
+          setTimeout(()=>{btn.style.background='';btn.textContent='Collect '+fmt(totalAtCounter)+' Cash';},2000);
+          return;
+        }
+
+        const res = await fetch('/api/settlement?action=collect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            collected_by: currentUser,
+            amount: amountCollected,
+            petty_cash: pettyCash,
+            notes: 'Collected via dashboard. Total at counter: '+totalAtCounter+', Petty cash left: '+pettyCash
+          })
+        });
+        const data = await res.json();
+        if(data.success){
+          btn.textContent = '✓ Collection Recorded! ('+fmt(amountCollected)+')';
+          btn.style.background = 'var(--green)';
+          btn.style.color = '#fff';
+          setTimeout(()=> loadCashAtCounter(), 2000);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = 'Error: '+e.message;
+        btn.style.background = 'var(--red)';
+      }
+    }
+
     pins[0].focus();
   </script>
 </body>

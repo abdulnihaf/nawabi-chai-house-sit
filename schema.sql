@@ -17,3 +17,23 @@ CREATE TABLE settlements (
 
 CREATE INDEX idx_runner_id ON settlements(runner_id);
 CREATE INDEX idx_settled_at ON settlements(settled_at);
+
+-- Cash Collections: tracks when Naveen (or owner) physically collects cash from the counter
+-- This is the THIRD tier: Runners → Cash Counter → Naveen
+DROP TABLE IF EXISTS cash_collections;
+
+CREATE TABLE cash_collections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  collected_by TEXT NOT NULL,
+  collected_at TEXT NOT NULL,
+  amount REAL NOT NULL,
+  petty_cash REAL DEFAULT 0,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  runner_cash REAL DEFAULT 0,
+  counter_cash REAL DEFAULT 0,
+  settlement_ids TEXT DEFAULT '',
+  notes TEXT DEFAULT ''
+);
+
+CREATE INDEX idx_collected_at ON cash_collections(collected_at);
