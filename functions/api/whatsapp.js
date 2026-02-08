@@ -1005,6 +1005,7 @@ function buildOrderDetailsPayment(to, orderCode, cart, total, discount) {
           reference_id: orderCode,
           type: 'digital-goods',
           payment_configuration: PAYMENT_CONFIGURATION,
+          payment_type: 'upi',
           currency: 'INR',
           total_amount: { value: Math.round(total * 100), offset: 100 },
           order: orderObj,
