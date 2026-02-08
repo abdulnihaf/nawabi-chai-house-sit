@@ -503,6 +503,9 @@
           let sinceText='Since baseline (Feb 4)';
           if(lastCol){sinceText='Since last collection by '+lastCol.collected_by+' on '+fmtDate(new Date(lastCol.collected_at));}
 
+          // New cash = runner settlements + settled counter + unsettled counter cash - expenses
+          const newCash=bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
+
           // Settlement list (runner settlements from D1)
           let slHtml='';
           if(bal.settlements.length>0){
@@ -527,7 +530,7 @@
               const cd=new Date(c.collected_at);
               let dl='By '+c.collected_by+' — Collected: '+fmt(c.amount);
               if(c.expenses>0)dl+=' | Expenses: '+fmt(c.expenses);
-              if(c.petty_cash>0)dl+=' | Petty: '+fmt(c.petty_cash);
+              if(c.petty_cash>0)dl+=' | Left behind: '+fmt(c.petty_cash);
               if(c.discrepancy&&c.discrepancy!==0){const dc=c.discrepancy>0?'var(--red)':'var(--green)';const dl2=c.discrepancy>0?'Short':'Extra';dl+=' | <span style="color:'+dc+'">'+dl2+': '+fmt(Math.abs(c.discrepancy))+'</span>';}
               histHtml+='<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">'+dl+'</div></div>';
             }
@@ -554,33 +557,38 @@
           let collectBtn='';
           if(totalCash>0){
             collectBtn='<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">Collect Cash</div>'+
-              '<div class="field-group"><label>Cash you are collecting</label><input type="number" id="collectAmountInput" placeholder="Count and enter" min="0" step="50" oninput="updateCollectSummary()"></div>'+
-              '<div class="field-group"><label>Petty cash to leave at counter</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100" oninput="updateCollectSummary()"></div>'+
+              '<div class="field-group"><label>How much cash are you taking?</label><input type="number" id="collectAmountInput" placeholder="Count and enter" min="0" step="50" oninput="updateCollectSummary()"></div>'+
               '<div id="collectSummary" style="margin-top:12px"></div>'+
-              '<button class="collect-btn" id="collectBtn" onclick="collectCash()" disabled>Enter amounts above</button></div>';
+              '<button class="collect-btn" id="collectBtn" onclick="collectCash()" disabled>Enter amount above</button></div>';
           }else{
             collectBtn='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
 
-          // New cash = runner settlements + settled counter + unsettled counter cash - expenses
-          const newCash=bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
-
-          // Breakdown cards
+          // Breakdown cards for new cash
+          const totalCounterCash=bal.counterCash+liveCounterCash;
           let bdHtml='<div class="collection-breakdown">';
           bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">Runner Settlements</div></div>';
-          const totalCounterCash=bal.counterCash+liveCounterCash;
           bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(totalCounterCash)+'</div><div class="cb-label">Counter Cash</div></div>';
           if(bal.totalExpenses>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="cb-label">Expenses</div></div>';
           bdHtml+='</div>';
 
-          // Petty cash baseline note
-          let pettyNote='';
-          if(bal.pettyCash>0){pettyNote='<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash at counter (from last collection)</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>';}
+          // TWO BIG CARDS: Total Cash at Counter, then New Cash Since Last Collection
+          let cardsHtml=
+            '<div style="display:grid;gap:14px;margin-bottom:16px">'+
+              '<div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(234,179,8,0.05));border:1.5px solid var(--yellow);border-radius:14px;padding:20px;text-align:center">'+
+                '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">Total Cash at Counter</div>'+
+                '<div style="font-size:44px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(totalCash)+'</div>'+
+                '<div style="font-size:12px;color:var(--text2);margin-top:4px">Petty ₹'+bal.pettyCash.toLocaleString('en-IN')+' + New ₹'+newCash.toLocaleString('en-IN')+'</div>'+
+              '</div>'+
+              '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">'+
+                '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">New Cash Since Last Collection</div>'+
+                '<div style="font-size:28px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(newCash)+'</div>'+
+              '</div>'+
+            '</div>';
 
           $('collectionPanel').innerHTML=
             '<h3>💰 Cash Collection</h3><div class="subtitle">'+sinceText+'</div>'+
-            '<div class="collection-big-number"><div class="amount">'+fmt(newCash)+'</div><div class="label">New cash since last collection</div></div>'+
-            bdHtml+pettyNote+slHtml+expHtml+missedExpenseHtml+collectBtn+histHtml;
+            cardsHtml+bdHtml+slHtml+expHtml+missedExpenseHtml+collectBtn+histHtml;
 
         }else{
           // Staff read-only view
@@ -598,10 +606,18 @@
 
           $('counterBalanceReadonly').innerHTML=
             '<h3>💰 Cash at Counter</h3>'+
-            '<div class="bal-amount">'+fmt(staffNewCash)+'</div>'+
-            '<div class="bal-detail">New cash since last collection</div>'+
+            '<div style="display:grid;gap:12px;margin-bottom:12px">'+
+              '<div style="text-align:center">'+
+                '<div class="bal-amount">'+fmt(totalCash)+'</div>'+
+                '<div class="bal-detail">Total cash at counter</div>'+
+              '</div>'+
+              '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'+
+                '<div style="font-size:20px;font-weight:600;font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(staffNewCash)+'</div>'+
+                '<div style="font-size:11px;color:var(--text2);margin-top:2px">New cash since last collection</div>'+
+              '</div>'+
+            '</div>'+
+            (bal.pettyCash>0?'<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash (from last collection)</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>':'')+
             breakdownHtml+
-            (bal.pettyCash>0?'<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash baseline</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>':'')+
             (sinceText?'<div class="bal-detail" style="margin-top:8px">'+sinceText+'</div>':'')+
             '<div class="bal-detail">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
         }
@@ -610,31 +626,38 @@
 
     function updateCollectSummary(){
       const collectAmt=parseFloat(document.getElementById('collectAmountInput')?.value||'0');
-      const pettyCash=parseFloat(document.getElementById('pettyCashInput')?.value||'0');
       const summaryEl=document.getElementById('collectSummary');
       const btn=document.getElementById('collectBtn');
       if(!summaryEl||!btn)return;
 
-      // Total physical cash at counter (petty + settlements - expenses)
+      // Total physical cash at counter
       const expected=currentCounterTotal;
 
-      const accounted=collectAmt+pettyCash;
-      const disc=expected-accounted;
+      if(collectAmt<=0){summaryEl.innerHTML='';btn.disabled=true;btn.textContent='Enter amount above';return;}
 
-      if(collectAmt<=0){summaryEl.innerHTML='';btn.disabled=true;btn.textContent='Enter amounts above';return;}
+      if(collectAmt>expected){
+        // Taking more than expected — flag it
+        const over=collectAmt-expected;
+        summaryEl.innerHTML=
+          '<div style="background:var(--bg2);border-radius:10px;padding:14px;font-size:13px">'+
+          '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">Total cash at counter</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expected)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">You are taking</span><span style="font-family:JetBrains Mono,monospace">'+fmt(collectAmt)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><span style="color:var(--text2)">Left at counter (petty)</span><span style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--red)">₹0</span></div>'+
+          '<div style="color:var(--red);font-weight:600;margin-top:8px">⚠ Taking ₹'+over.toLocaleString('en-IN')+' more than system expected</div></div>';
+        btn.disabled=false;
+        btn.textContent='Confirm Collection — Taking '+fmt(collectAmt);
+        return;
+      }
 
-      let discHtml='';
-      if(Math.abs(disc)<1){discHtml='<div style="color:var(--green);font-weight:600;margin-top:8px">✓ Perfectly balanced</div>';}
-      else if(disc>0){discHtml='<div style="color:var(--red);font-weight:600;margin-top:8px">⚠ ₹'+disc.toLocaleString('en-IN')+' short (unaccounted)</div>';}
-      else{discHtml='<div style="color:var(--blue);font-weight:600;margin-top:8px">ℹ ₹'+Math.abs(disc).toLocaleString('en-IN')+' extra cash</div>';}
+      // Remainder automatically becomes petty cash
+      const remainder=expected-collectAmt;
 
       summaryEl.innerHTML=
         '<div style="background:var(--bg2);border-radius:10px;padding:14px;font-size:13px">'+
-        '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">System expected</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expected)+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">You are collecting</span><span style="font-family:JetBrains Mono,monospace">'+fmt(collectAmt)+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">Petty cash left</span><span style="font-family:JetBrains Mono,monospace">'+fmt(pettyCash)+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><span style="color:var(--text2)">Accounted for</span><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(accounted)+'</span></div>'+
-        discHtml+'</div>';
+        '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">Total cash at counter</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expected)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">You are taking</span><span style="font-family:JetBrains Mono,monospace">-'+fmt(collectAmt)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><span style="color:var(--yellow)">Left at counter (becomes petty cash)</span><span style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--yellow)">'+fmt(remainder)+'</span></div>'+
+        '</div>';
 
       btn.disabled=false;
       btn.textContent='Confirm Collection — Taking '+fmt(collectAmt);
@@ -645,14 +668,15 @@
       btn.disabled=true;btn.textContent='Recording collection...';
       try{
         const collectAmt=parseFloat(document.getElementById('collectAmountInput')?.value||'0');
-        const pettyCash=parseFloat(document.getElementById('pettyCashInput')?.value||'0');
         if(collectAmt<=0){btn.disabled=false;btn.textContent='Enter the cash amount';btn.style.background='var(--red)';setTimeout(()=>{btn.style.background='';updateCollectSummary();},2000);return;}
+
+        // Auto-calculate petty cash: whatever is left at the counter after collection
+        const pettyCash=Math.max(0,currentCounterTotal-collectAmt);
 
         const res=await fetch('/api/settlement?action=collect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collected_by:currentUser,amount:collectAmt,petty_cash:pettyCash,live_counter_cash:currentLiveCounterCash,notes:'Collected via dashboard'})});
         const data=await res.json();
         if(data.success){
-          let msg='✓ Collected '+fmt(collectAmt);
-          if(data.discrepancy&&Math.abs(data.discrepancy)>=1){msg+=data.discrepancy>0?' (₹'+data.discrepancy+' short)':' (₹'+Math.abs(data.discrepancy)+' extra)';}
+          let msg='✓ Collected '+fmt(collectAmt)+' — ₹'+pettyCash.toLocaleString('en-IN')+' left as petty';
           btn.textContent=msg;btn.style.background='var(--green)';btn.style.color='#fff';
           setTimeout(()=>loadCashAtCounter(),2500);
         }else{throw new Error(data.error);}
