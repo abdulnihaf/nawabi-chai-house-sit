@@ -137,11 +137,16 @@ export async function onRequest(context) {
       }
 
       const totalCash = runnerCash + counterCash;
+      // Petty cash left at counter from last collection is still physically there
+      const pettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
+      const totalAtCounter = totalCash + pettyCash;
 
       return new Response(JSON.stringify({
         success: true,
         balance: {
-          total: totalCash,
+          total: totalAtCounter,
+          totalSettled: totalCash,
+          pettyCash,
           runnerCash,
           counterCash,
           settlementCount: settlementList.length,

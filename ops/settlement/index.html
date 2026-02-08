@@ -506,12 +506,20 @@
             collectBtn = '<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
 
+          // Breakdown cards: petty cash + runner + counter
+          let breakdownHtml = '<div class="collection-breakdown">';
+          if(bal.pettyCash > 0){
+            breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</div><div class="cb-label">Petty Cash (carried)</div></div>';
+          }
+          breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">From Runner Settlements</div></div>';
+          breakdownHtml += '<div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash Revenue</div></div>';
+          breakdownHtml += '</div>';
+
           $('collectionPanel').innerHTML =
             '<h3>💰 Cash Collection</h3>'+
             '<div class="subtitle">'+sinceText+'</div>'+
             '<div class="collection-big-number"><div class="amount">'+fmt(bal.total)+'</div><div class="label">Total cash at counter</div></div>'+
-            '<div class="collection-breakdown"><div class="cb-card"><div class="cb-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</div><div class="cb-label">From Runner Settlements</div></div><div class="cb-card"><div class="cb-val" style="color:var(--orange)">'+fmt(bal.counterCash)+'</div><div class="cb-label">Counter Cash Revenue</div></div></div>'+
-            slHtml+collectBtn+histHtml;
+            breakdownHtml+slHtml+collectBtn+histHtml;
 
         } else {
           // Read-only for staff
@@ -523,10 +531,15 @@
             sinceText = 'Since '+fmtDate(new Date(lastCol.collected_at));
           }
 
+          let detailParts = [];
+          if(bal.pettyCash > 0) detailParts.push('Petty cash: '+fmt(bal.pettyCash));
+          if(bal.runnerCash > 0) detailParts.push('Runner settlements: '+fmt(bal.runnerCash));
+          if(bal.counterCash > 0) detailParts.push('Counter cash: '+fmt(bal.counterCash));
+
           $('counterBalanceReadonly').innerHTML =
             '<h3>💰 Cash at Counter</h3>'+
             '<div class="bal-amount">'+fmt(bal.total)+'</div>'+
-            '<div class="bal-detail">Runner settlements: '+fmt(bal.runnerCash)+' + Counter cash: '+fmt(bal.counterCash)+'</div>'+
+            (detailParts.length > 0 ? '<div class="bal-detail">'+detailParts.join(' + ')+'</div>' : '')+
             (sinceText ? '<div class="bal-detail">'+sinceText+'</div>' : '')+
             '<div class="bal-detail" style="margin-top:8px;color:var(--text2)">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
         }
