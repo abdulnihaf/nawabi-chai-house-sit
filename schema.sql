@@ -28,10 +28,14 @@ CREATE TABLE cash_collections (
   collected_at TEXT NOT NULL,
   amount REAL NOT NULL,
   petty_cash REAL DEFAULT 0,
+  expenses REAL DEFAULT 0,
+  expected REAL DEFAULT 0,
+  discrepancy REAL DEFAULT 0,
   period_start TEXT NOT NULL,
   period_end TEXT NOT NULL,
   runner_cash REAL DEFAULT 0,
   counter_cash REAL DEFAULT 0,
+  prev_petty_cash REAL DEFAULT 0,
   settlement_ids TEXT DEFAULT '',
   notes TEXT DEFAULT ''
 );

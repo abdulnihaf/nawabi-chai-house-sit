@@ -494,14 +494,27 @@
             histHtml = '<div class="collection-history"><h4>Recent Collections</h4>';
             for(const c of histData.collections){
               const cd = new Date(c.collected_at);
-              histHtml += '<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">By '+c.collected_by+' — Runner: '+fmt(c.runner_cash)+' + Counter: '+fmt(c.counter_cash)+(c.petty_cash>0?' — Petty cash left: '+fmt(c.petty_cash):'')+'</div></div>';
+              let detailLine = 'By '+c.collected_by+' — Collected: '+fmt(c.amount);
+              if(c.expenses > 0) detailLine += ' | Expenses: '+fmt(c.expenses);
+              if(c.petty_cash > 0) detailLine += ' | Petty left: '+fmt(c.petty_cash);
+              if(c.discrepancy && c.discrepancy !== 0){
+                const dColor = c.discrepancy > 0 ? 'var(--red)' : 'var(--green)';
+                const dLabel = c.discrepancy > 0 ? 'Short' : 'Extra';
+                detailLine += ' | <span style="color:'+dColor+'">'+dLabel+': '+fmt(Math.abs(c.discrepancy))+'</span>';
+              }
+              histHtml += '<div class="ch-item"><div class="ch-top"><span class="ch-amount">'+fmt(c.amount)+'</span><span class="ch-date">'+fmtDate(cd)+'</span></div><div class="ch-detail">'+detailLine+'</div></div>';
             }
             histHtml += '</div>';
           }
 
           let collectBtn = '';
           if(bal.total > 0){
-            collectBtn = '<div class="petty-cash-input show"><label>Petty cash left at counter (default ₹1,000)</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100"></div><button class="collect-btn" onclick="collectCash()">Collect '+fmt(bal.total)+' Cash</button>';
+            collectBtn = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">Record Collection</div>'+
+              '<div class="petty-cash-input show"><label>Cash you are collecting</label><input type="number" id="collectAmountInput" placeholder="Count and enter actual cash" min="0" step="50" oninput="updateCollectSummary()"></div>'+
+              '<div class="petty-cash-input show"><label>Expenses from counter cash (milk, supplies, etc.)</label><input type="number" id="expensesInput" value="0" min="0" step="10" oninput="updateCollectSummary()"></div>'+
+              '<div class="petty-cash-input show"><label>Petty cash to leave at counter</label><input type="number" id="pettyCashInput" value="1000" min="0" step="100" oninput="updateCollectSummary()"></div>'+
+              '<div id="collectSummary" style="margin-top:12px"></div>'+
+              '<button class="collect-btn" id="collectBtn" onclick="collectCash()" disabled>Enter amounts above</button></div>';
           } else {
             collectBtn = '<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ No cash pending collection</div>';
           }
@@ -548,47 +561,96 @@
       }
     }
 
+    // Live summary as Naveen fills in amounts
+    function updateCollectSummary(){
+      const collectAmt = parseFloat(document.getElementById('collectAmountInput')?.value || '0');
+      const expenses = parseFloat(document.getElementById('expensesInput')?.value || '0');
+      const pettyCash = parseFloat(document.getElementById('pettyCashInput')?.value || '0');
+      const summaryEl = document.getElementById('collectSummary');
+      const btn = document.getElementById('collectBtn');
+      if(!summaryEl || !btn) return;
+
+      // Get expected from the big number shown above
+      const expectedEl = document.querySelector('.collection-big-number .amount');
+      const expectedText = expectedEl ? expectedEl.textContent.replace(/[₹,]/g,'') : '0';
+      const expected = parseFloat(expectedText) || 0;
+
+      const accounted = collectAmt + expenses + pettyCash;
+      const disc = expected - accounted;
+
+      if(collectAmt <= 0){
+        summaryEl.innerHTML = '';
+        btn.disabled = true;
+        btn.textContent = 'Enter amounts above';
+        return;
+      }
+
+      let discHtml = '';
+      if(Math.abs(disc) < 1){
+        discHtml = '<div style="color:var(--green);font-weight:600;margin-top:8px">✓ Perfectly balanced</div>';
+      } else if(disc > 0){
+        discHtml = '<div style="color:var(--red);font-weight:600;margin-top:8px">⚠ ₹'+disc.toLocaleString('en-IN')+' short (unaccounted cash)</div>';
+      } else {
+        discHtml = '<div style="color:var(--blue);font-weight:600;margin-top:8px">ℹ ₹'+Math.abs(disc).toLocaleString('en-IN')+' extra cash at counter</div>';
+      }
+
+      summaryEl.innerHTML =
+        '<div style="background:var(--bg2);border-radius:10px;padding:14px;font-size:13px">'+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text2)">System expected</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expected)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">You are collecting</span><span style="font-family:JetBrains Mono,monospace">'+fmt(collectAmt)+'</span></div>'+
+        (expenses > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">Expenses</span><span style="font-family:JetBrains Mono,monospace">'+fmt(expenses)+'</span></div>' : '')+
+        '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--text2)">Petty cash left</span><span style="font-family:JetBrains Mono,monospace">'+fmt(pettyCash)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;margin-top:6px"><span style="color:var(--text2)">Accounted for</span><span style="font-family:JetBrains Mono,monospace;font-weight:600">'+fmt(accounted)+'</span></div>'+
+        discHtml+'</div>';
+
+      btn.disabled = false;
+      btn.textContent = 'Confirm Collection — Taking '+fmt(collectAmt);
+    }
+
     async function collectCash(){
-      const btn = document.querySelector('.collect-btn');
+      const btn = document.getElementById('collectBtn');
       if(!btn) return;
       btn.disabled = true;
       btn.textContent = 'Recording collection...';
 
       try {
+        const collectAmt = parseFloat(document.getElementById('collectAmountInput')?.value || '0');
+        const expenses = parseFloat(document.getElementById('expensesInput')?.value || '0');
         const pettyCash = parseFloat(document.getElementById('pettyCashInput')?.value || '0');
 
-        // Get current balance to know the amount
-        const balRes = await fetch('/api/settlement?action=counter-balance');
-        const balData = await balRes.json();
-        if(!balData.success) throw new Error(balData.error);
-
-        const totalAtCounter = balData.balance.total;
-        const amountCollected = totalAtCounter - pettyCash;
-
-        if(amountCollected <= 0){
+        if(collectAmt <= 0){
           btn.disabled = false;
-          btn.textContent = 'Petty cash cannot exceed total';
+          btn.textContent = 'Enter the cash amount you are collecting';
           btn.style.background = 'var(--red)';
-          setTimeout(()=>{btn.style.background='';btn.textContent='Collect '+fmt(totalAtCounter)+' Cash';},2000);
+          setTimeout(()=>{btn.style.background='';updateCollectSummary();},2000);
           return;
         }
+
+        let notesArr = [];
+        if(expenses > 0) notesArr.push('Expenses: '+expenses);
+        notesArr.push('Collected via dashboard');
 
         const res = await fetch('/api/settlement?action=collect', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             collected_by: currentUser,
-            amount: amountCollected,
+            amount: collectAmt,
             petty_cash: pettyCash,
-            notes: 'Collected via dashboard. Total at counter: '+totalAtCounter+', Petty cash left: '+pettyCash
+            expenses: expenses,
+            notes: notesArr.join('. ')
           })
         });
         const data = await res.json();
         if(data.success){
-          btn.textContent = '✓ Collection Recorded! ('+fmt(amountCollected)+')';
+          let msg = '✓ Collected '+fmt(collectAmt);
+          if(data.discrepancy && Math.abs(data.discrepancy) >= 1){
+            msg += data.discrepancy > 0 ? ' (₹'+data.discrepancy+' short)' : ' (₹'+Math.abs(data.discrepancy)+' extra)';
+          }
+          btn.textContent = msg;
           btn.style.background = 'var(--green)';
           btn.style.color = '#fff';
-          setTimeout(()=> loadCashAtCounter(), 2000);
+          setTimeout(()=> loadCashAtCounter(), 2500);
         } else {
           throw new Error(data.error);
         }

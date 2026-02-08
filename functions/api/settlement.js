@@ -161,19 +161,20 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {collected_by, amount, petty_cash, notes} = body;
+      const {collected_by, amount, petty_cash, expenses, notes} = body;
 
       // Only authorized collectors can collect
       if (!COLLECTORS.includes(collected_by)) {
         return new Response(JSON.stringify({success: false, error: 'Not authorized to collect cash'}), {headers: corsHeaders});
       }
 
-      // Get last collection for period_start
+      // Get last collection for period_start and previous petty cash
       const lastCollection = await DB.prepare(
-        'SELECT collected_at FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
+        'SELECT collected_at, petty_cash FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
       ).first();
       const baseline = '2026-02-04T17:00:00';
       const periodStart = lastCollection ? lastCollection.collected_at : baseline;
+      const prevPettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
       const periodEnd = new Date().toISOString();
 
       // Get all settlements in this period for the record
@@ -190,6 +191,13 @@ export async function onRequest(context) {
         ids.push(s.id);
       }
 
+      // Expected = previous petty cash + all settlements since last collection
+      const expected = prevPettyCash + runnerCash + counterCash;
+      // Accounted = what Naveen says he's taking + expenses + petty cash left
+      const accounted = amount + (expenses || 0) + (petty_cash || 0);
+      // Discrepancy = expected - accounted (positive = cash missing, negative = extra cash)
+      const discrepancy = expected - accounted;
+
       // Duplicate prevention: no collection within 5 minutes by same person
       const recentDup = await DB.prepare(
         "SELECT id FROM cash_collections WHERE collected_by = ? AND collected_at > datetime('now', '-5 minutes') LIMIT 1"
@@ -199,14 +207,18 @@ export async function onRequest(context) {
       }
 
       await DB.prepare(
-        'INSERT INTO cash_collections (collected_by, collected_at, amount, petty_cash, period_start, period_end, runner_cash, counter_cash, settlement_ids, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO cash_collections (collected_by, collected_at, amount, petty_cash, expenses, expected, discrepancy, period_start, period_end, runner_cash, counter_cash, prev_petty_cash, settlement_ids, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
-        collected_by, periodEnd, amount, petty_cash || 0,
-        periodStart, periodEnd, runnerCash, counterCash,
-        ids.join(','), notes || ''
+        collected_by, periodEnd, amount, petty_cash || 0, expenses || 0,
+        expected, discrepancy, periodStart, periodEnd, runnerCash, counterCash,
+        prevPettyCash, ids.join(','), notes || ''
       ).run();
 
-      return new Response(JSON.stringify({success: true, message: 'Cash collection recorded', collected: amount, petty_cash: petty_cash || 0, settlements_covered: ids.length}), {headers: corsHeaders});
+      return new Response(JSON.stringify({
+        success: true, message: 'Cash collection recorded',
+        collected: amount, petty_cash: petty_cash || 0, expenses: expenses || 0,
+        expected, discrepancy, settlements_covered: ids.length
+      }), {headers: corsHeaders});
     }
 
     if (action === 'collection-history') {
