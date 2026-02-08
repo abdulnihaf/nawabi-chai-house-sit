@@ -333,7 +333,7 @@
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
         const lastData=await lastRes.json();
         const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement?new Date(lastData.lastSettlement.settled_at):baseline;
+        let fromDate=lastData.periodStart?new Date(lastData.periodStart):baseline;
         currentPeriodStart=fromDate;
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo...</div>';
@@ -346,8 +346,10 @@
         const counterDisc=(data.data.discrepancies||[]).filter(d=>d.type==='token_issue_no_runner'||d.type==='runner_ledger_no_runner');
         const counterRevenue=mc.cash+mc.upi+mc.card;const cashToSettle=mc.cash;
         const hasLast=lastData.lastSettlement;
+        const periodReason=lastData.periodReason;
         let statusBox='';
-        if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
+        if(periodReason==='last_collection'&&lastData.lastCollection){statusBox='<div class="info-box" style="background:rgba(234,179,8,0.1);border-color:var(--yellow);color:var(--yellow)">📦 Period reset by cash collection at '+fmtD(new Date(lastData.lastCollection.collected_at))+'</div>';}
+        else if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
         else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
 
         // Build UPI verification box
@@ -402,7 +404,7 @@
         const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
         const lastData=await lastRes.json();
         const baseline=new Date(2026,1,4,17,0,0);
-        let fromDate=lastData.lastSettlement?new Date(lastData.lastSettlement.settled_at):baseline;
+        let fromDate=lastData.periodStart?new Date(lastData.periodStart):baseline;
         currentPeriodStart=fromDate;
         $('period').textContent=fmtD(fromDate)+' → Now';
         $('panelContent').innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
@@ -410,6 +412,7 @@
         const data=await res.json();if(!data.success)throw new Error(data.error);
         const runner=data.data.runners.find(r=>r.id===id);currentRunnerData=runner;
         const hasLast=lastData.lastSettlement;const hasActivity=runner&&(runner.tokens>0||runner.sales>0||runner.upi>0);
+        const periodReason=lastData.periodReason;
         // Check for discrepancies affecting this runner
         const disc=data.data.discrepancies||[];
         const runnerDisc=disc.filter(d=>d.runner===selectedRunner.name||d.type==='runner_ledger_no_runner');
@@ -424,7 +427,8 @@
           discHtml+='</div>';
         }
         let statusBox='';
-        if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
+        if(periodReason==='last_collection'&&lastData.lastCollection){statusBox='<div class="info-box" style="background:rgba(234,179,8,0.1);border-color:var(--yellow);color:var(--yellow)">📦 Period reset by cash collection at '+fmtD(new Date(lastData.lastCollection.collected_at))+'</div>';}
+        else if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
         else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
         if(hasActivity){
           const cash=runner.cashToCollect;currentRunnerData=runner;
