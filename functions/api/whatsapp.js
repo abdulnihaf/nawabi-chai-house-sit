@@ -555,22 +555,14 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     // Update user stats
     await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?').bind(discount, orderId, total, waId).run();
 
-    // Send native order_details payment card (Review & Pay inside WhatsApp)
-    // Falls back to text link if order_details message type is not supported
-    const orderDetailsMsg = buildOrderDetailsPayment(waId, orderCode, cart, total, discount, paymentLink.short_url);
-    const payResponse = await sendWhatsApp(phoneId, token, orderDetailsMsg);
+    // Send payment link message
+    const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+    let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
+    if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
+    payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
+    payMsg += `\n\n_Link expires in 20 minutes_\n_Reply *"cod"* to switch to Cash on Delivery_`;
 
-    if (payResponse && !payResponse.ok) {
-      // Fallback: send payment link as plain text if order_details fails
-      console.log('order_details message failed, falling back to text link');
-      const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
-      let payMsg = `*Order ${orderCode}*\n\n${itemLines}`;
-      if (discount > 0) payMsg += `\n🎁 ${Math.round(discount / 15)}x FREE Irani Chai — -₹${discount}`;
-      payMsg += `\n\n💰 *Pay ₹${total} via UPI*\n\n👇 Tap to pay — opens your UPI app directly\n${paymentLink.short_url}`;
-      payMsg += `\n\n_Link expires in 20 minutes_`;
-      await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
-    }
-
+    await sendWhatsApp(phoneId, token, buildText(waId, payMsg));
     await updateSession(db, waId, 'awaiting_upi_payment', '[]', 0);
     return;
   }
