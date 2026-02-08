@@ -476,9 +476,15 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
   const total = Math.max(0, subtotal - discount);
   const now = new Date().toISOString();
 
-  const countResult = await db.prepare("SELECT COUNT(*) as cnt FROM wa_orders WHERE created_at >= date('now', 'start of day')").first();
+  // IST date for order code (India timezone)
+  const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  const istDateStr = istNow.toISOString().slice(0, 10); // YYYY-MM-DD
+  const dd = istDateStr.slice(8, 10);
+  const mm = istDateStr.slice(5, 7);
+  const datePrefix = `${dd}${mm}`; // e.g. "0802" for Feb 8
+  const countResult = await db.prepare("SELECT COUNT(*) as cnt FROM wa_orders WHERE order_code LIKE ?").bind(`WA-${datePrefix}-%`).first();
   const todayCount = (countResult?.cnt || 0) + 1;
-  const orderCode = `WA-${String(todayCount).padStart(4, '0')}`;
+  const orderCode = `WA-${datePrefix}-${String(todayCount).padStart(4, '0')}`;
 
   // Assign runner (round-robin)
   const runnerCounts = await db.prepare("SELECT runner_name, COUNT(*) as cnt FROM wa_orders WHERE created_at >= date('now', 'start of day') AND runner_name IS NOT NULL GROUP BY runner_name").all();
