@@ -52,13 +52,18 @@ export async function onRequest(context) {
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
 
-      // Duplicate prevention: reject if same runner was settled in last 2 minutes
+      // Duplicate prevention: reject if SAME PERSON settled SAME RUNNER in last 5 minutes
+      // A different person settling the same runner is ALLOWED (shift handover scenario)
       const recentDup = await DB.prepare(
-        `SELECT id, settled_at FROM settlements WHERE runner_id = ? AND settled_at > datetime('now', '-2 minutes') ORDER BY settled_at DESC LIMIT 1`
-      ).bind(String(runner_id)).first();
+        `SELECT id, settled_at, settled_by FROM settlements WHERE runner_id = ? AND settled_by = ? AND settled_at > datetime('now', '-5 minutes') ORDER BY settled_at DESC LIMIT 1`
+      ).bind(String(runner_id), settled_by).first();
 
       if (recentDup) {
-        return new Response(JSON.stringify({success: false, error: 'Duplicate prevention: settlement for this runner was recorded less than 2 minutes ago (ID: ' + recentDup.id + ')'}), {headers: corsHeaders});
+        const timeStr = recentDup.settled_at.slice(11, 16);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'You already settled this ' + (runner_id === 'counter' ? 'counter' : 'runner') + ' at ' + timeStr + '. Wait a few minutes if you need to re-settle.'
+        }), {headers: corsHeaders});
       }
 
       await DB.prepare(`
