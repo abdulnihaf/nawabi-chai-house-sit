@@ -44,7 +44,16 @@ export async function onRequest(context) {
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
     const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
     const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.runnerPayments.length + razorpayData.counterPayments.length + razorpayData.runnerCounterPayments.length}, data: dashboard}), { headers: corsHeaders });
+    // Collect debug info from Razorpay fetches
+    const razorpayDebug = {
+      fromUnix, toUnix,
+      keyPresent: !!RAZORPAY_KEY, secretPresent: !!RAZORPAY_SECRET,
+      keyLength: (RAZORPAY_KEY || '').length, secretLength: (RAZORPAY_SECRET || '').length,
+      counterDebug: razorpayData.counterPayments._debug || [],
+      runnerCounterDebug: razorpayData.runnerCounterPayments._debug || [],
+      runnersDebug: razorpayData.runnerPayments._debug || []
+    };
+    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString(), fromUnix, toUnix}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.runnerPayments.length + razorpayData.counterPayments.length + razorpayData.runnerCounterPayments.length}, razorpayDebug, data: dashboard}), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
   }
@@ -72,15 +81,23 @@ async function fetchQrPaymentsPaginated(auth, qrId, label, since, until) {
   let skip = 0;
   const PAGE_SIZE = 100;
   const MAX_PAGES = 10;
+  const debugInfo = [];
 
   for (let page = 0; page < MAX_PAGES; page++) {
     try {
-      const response = await fetch(
-        `https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments?count=${PAGE_SIZE}&skip=${skip}&from=${since}&to=${until}`,
-        {headers: {'Authorization': 'Basic ' + auth}}
-      );
-      const data = await response.json();
-      if (data.error || !data.items || data.items.length === 0) break;
+      const fetchUrl = `https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments?count=${PAGE_SIZE}&skip=${skip}&from=${since}&to=${until}`;
+      const response = await fetch(fetchUrl, {headers: {'Authorization': 'Basic ' + auth}});
+      const rawText = await response.text();
+      let data;
+      try { data = JSON.parse(rawText); } catch(pe) {
+        debugInfo.push({page, error: 'JSON parse fail', status: response.status, body: rawText.substring(0, 200)});
+        break;
+      }
+      if (data.error) {
+        debugInfo.push({page, error: data.error, status: response.status});
+        break;
+      }
+      if (!data.items || data.items.length === 0) break;
 
       const captured = data.items
         .filter(p => p.status === 'captured')
@@ -90,9 +107,11 @@ async function fetchQrPaymentsPaginated(auth, qrId, label, since, until) {
       if (data.items.length < PAGE_SIZE) break;
       skip += PAGE_SIZE;
     } catch (e) {
+      debugInfo.push({page, error: e.message, stack: e.stack});
       break;
     }
   }
+  allItems._debug = debugInfo;
   return allItems;
 }
 
