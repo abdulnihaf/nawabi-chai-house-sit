@@ -1,4 +1,4 @@
-// NCH Operations Dashboard - Cloudflare Function (v9 - Paginated Razorpay fetch, fixes UPI undercounting)
+// NCH Operations Dashboard - Cloudflare Function (v10 - Full UPI cross-verification, Runner Counter UPI tracking)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*','Access-Control-Allow-Methods': 'GET, OPTIONS','Access-Control-Allow-Headers': 'Content-Type','Content-Type': 'application/json'};
@@ -35,15 +35,16 @@ export async function onRequest(context) {
   const toUnix = Math.floor(toUTC.getTime() / 1000);
 
   try {
+    // Fetch Odoo data + ALL Razorpay QR payments (runners + counter + runner counter)
     const [ordersData, paymentsData, razorpayData] = await Promise.all([
       fetchOdooOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
       fetchOdooPayments(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-      fetchAllRunnerPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
+      fetchAllRazorpayPayments(RAZORPAY_KEY, RAZORPAY_SECRET, fromUnix, toUnix)
     ]);
     const dashboard = processDashboardData(ordersData, paymentsData, razorpayData);
     const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
     const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.length}, data: dashboard}), { headers: corsHeaders });
+    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {fromIST: fromIST.toISOString(), toIST: toIST.toISOString()}, counts: {orders: ordersData.length, payments: paymentsData.length, razorpay: razorpayData.runnerPayments.length + razorpayData.counterPayments.length + razorpayData.runnerCounterPayments.length}, data: dashboard}), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), { status: 500, headers: corsHeaders });
   }
@@ -65,12 +66,12 @@ async function fetchOdooPayments(url, db, uid, apiKey, since, until) {
   return data.result || [];
 }
 
-// Fetch ALL payments from a runner's QR code with pagination (Razorpay max 100 per page)
-async function fetchQrPaymentsPaginated(auth, qrId, barcode, runnerName, since, until) {
+// Fetch ALL payments from a QR code with pagination (Razorpay max 100 per page)
+async function fetchQrPaymentsPaginated(auth, qrId, label, since, until) {
   const allItems = [];
   let skip = 0;
   const PAGE_SIZE = 100;
-  const MAX_PAGES = 10; // Safety limit: 1000 payments max per runner per period
+  const MAX_PAGES = 10;
 
   for (let page = 0; page < MAX_PAGES; page++) {
     try {
@@ -83,14 +84,9 @@ async function fetchQrPaymentsPaginated(auth, qrId, barcode, runnerName, since, 
 
       const captured = data.items
         .filter(p => p.status === 'captured')
-        .map(p => ({
-          ...p,
-          runner_barcode: barcode,
-          runner_name: runnerName
-        }));
+        .map(p => ({...p, qr_label: label}));
       allItems.push(...captured);
 
-      // If we got fewer items than PAGE_SIZE, we've reached the end
       if (data.items.length < PAGE_SIZE) break;
       skip += PAGE_SIZE;
     } catch (e) {
@@ -100,37 +96,48 @@ async function fetchQrPaymentsPaginated(auth, qrId, barcode, runnerName, since, 
   return allItems;
 }
 
-// Fetch payments from all runner QR codes with full pagination
-async function fetchAllRunnerPayments(key, secret, since, until) {
+// Fetch payments from ALL Razorpay QR codes — runners + counter + runner counter
+async function fetchAllRazorpayPayments(key, secret, since, until) {
   const auth = btoa(key + ':' + secret);
 
-  // QR codes for each runner
+  // All QR codes in the system
   const RUNNER_QRS = [
-    {qr_id: 'qr_SBdtZG1AMDwSmJ', barcode: 'RUN001', name: 'FAROOQ'},
-    {qr_id: 'qr_SBdte3aRvGpRMY', barcode: 'RUN002', name: 'AMIN'},
-    {qr_id: 'qr_SBgTo2a39kYmET', barcode: 'RUN003', name: 'NCH Runner 03'},
-    {qr_id: 'qr_SBgTtFrfddY4AW', barcode: 'RUN004', name: 'NCH Runner 04'},
-    {qr_id: 'qr_SBgTyFKUsdwLe1', barcode: 'RUN005', name: 'NCH Runner 05'}
+    {qr_id: 'qr_SBdtZG1AMDwSmJ', label: 'RUN001', name: 'FAROOQ'},
+    {qr_id: 'qr_SBdte3aRvGpRMY', label: 'RUN002', name: 'AMIN'},
+    {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', name: 'NCH Runner 03'},
+    {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', name: 'NCH Runner 04'},
+    {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', name: 'NCH Runner 05'}
   ];
+  const COUNTER_QR = {qr_id: 'qr_SBdtUCLSHVfRtT', label: 'COUNTER'};
+  const RUNNER_COUNTER_QR = {qr_id: 'qr_SBuDBQDKrC8Bch', label: 'RUNNER_COUNTER'};
 
-  // Fetch ALL payments from each QR code in parallel (with pagination)
-  const results = await Promise.all(
-    RUNNER_QRS.map(runner =>
-      fetchQrPaymentsPaginated(auth, runner.qr_id, runner.barcode, runner.name, since, until)
-    )
-  );
+  // Fetch all in parallel
+  const [counterResults, runnerCounterResults, ...runnerResults] = await Promise.all([
+    fetchQrPaymentsPaginated(auth, COUNTER_QR.qr_id, COUNTER_QR.label, since, until),
+    fetchQrPaymentsPaginated(auth, RUNNER_COUNTER_QR.qr_id, RUNNER_COUNTER_QR.label, since, until),
+    ...RUNNER_QRS.map(r => fetchQrPaymentsPaginated(auth, r.qr_id, r.label, since, until))
+  ]);
 
-  // Combine and dedupe by payment ID (safety net against any overlap)
-  const combined = results.flat();
-  const seen = new Set();
-  return combined.filter(p => {
-    if (seen.has(p.id)) return false;
-    seen.add(p.id);
-    return true;
+  // Dedupe each category
+  const dedupe = (items) => {
+    const seen = new Set();
+    return items.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+  };
+
+  // Tag runner payments with barcode/name for backward compatibility
+  const runnerPayments = dedupe(runnerResults.flat()).map(p => {
+    const qr = RUNNER_QRS.find(r => r.label === p.qr_label);
+    return {...p, runner_barcode: p.qr_label, runner_name: qr ? qr.name : p.qr_label};
   });
+
+  return {
+    runnerPayments,
+    counterPayments: dedupe(counterResults),
+    runnerCounterPayments: dedupe(runnerCounterResults)
+  };
 }
 
-function processDashboardData(orders, payments, razorpayPayments) {
+function processDashboardData(orders, payments, razorpayData) {
   const runners = {
     64: {id: 64, name: 'FAROOQ', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0},
     65: {id: 65, name: 'AMIN', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0},
@@ -149,17 +156,21 @@ function processDashboardData(orders, payments, razorpayPayments) {
   });
 
   const mainCounter = {total: 0, cash: 0, upi: 0, card: 0, complimentary: 0, tokenIssue: 0, orderCount: 0};
-  const runnerCounter = {total: 0, upi: 0, orderCount: 0};
+  // Runner counter now tracks UPI separately (direct walk-in UPI sales, nothing to do with runners)
+  const runnerCounter = {total: 0, upi: 0, runnerLedger: 0, orderCount: 0};
 
   orders.forEach(order => {
     const configId = order.config_id ? order.config_id[0] : null;
     const partnerId = order.partner_id ? order.partner_id[0] : null;
     const orderPayments = paymentsByOrder[order.id] || [];
+
     if (configId === POS.CASH_COUNTER) {
       if (partnerId && runners[partnerId]) {
+        // Token Issue: chai issued to runner — no cash at counter, runner has the money
         runners[partnerId].tokens += order.amount_total;
         mainCounter.tokenIssue += order.amount_total;
       } else {
+        // Direct counter sale to customer
         mainCounter.orderCount++;
         mainCounter.total += order.amount_total;
         orderPayments.forEach(p => {
@@ -172,8 +183,34 @@ function processDashboardData(orders, payments, razorpayPayments) {
       }
     } else if (configId === POS.RUNNER_COUNTER) {
       if (partnerId && runners[partnerId]) {
-        runners[partnerId].sales += order.amount_total;
+        // Runner-attributed sale at Runner Counter
+        // Check payment method to distinguish Runner Ledger vs UPI
+        let isUpiSale = false;
+        orderPayments.forEach(p => {
+          const mid = p.payment_method_id ? p.payment_method_id[0] : null;
+          if (mid === PM.UPI) {
+            // This order was WRONGLY recorded as UPI instead of Runner Ledger
+            // OR the runner counter person took a direct UPI sale but attributed it to the runner
+            // Either way, this needs to be tracked
+            isUpiSale = true;
+          }
+        });
+
+        if (isUpiSale) {
+          // This sale is attributed to a runner BUT paid via UPI (PM 38)
+          // The runner should NOT be responsible for this cash
+          // Track it as runner counter UPI, not runner sales
+          runnerCounter.orderCount++;
+          runnerCounter.total += order.amount_total;
+          runnerCounter.upi += order.amount_total;
+        } else {
+          // Normal: Runner Ledger (PM 40) — runner collected the money
+          runners[partnerId].sales += order.amount_total;
+          runnerCounter.runnerLedger += order.amount_total;
+        }
       } else {
+        // Direct walk-in sale at runner counter (no runner attribution)
+        // This is the rush-hour UPI flow: customer pays at runner counter QR
         runnerCounter.orderCount++;
         runnerCounter.total += order.amount_total;
         orderPayments.forEach(p => {
@@ -184,41 +221,115 @@ function processDashboardData(orders, payments, razorpayPayments) {
     }
   });
 
-  const razorpayTotal = {amount: 0, count: 0, payments: []};
-  razorpayPayments.forEach(p => {
+  // === RAZORPAY DATA PROCESSING ===
+  const {runnerPayments, counterPayments, runnerCounterPayments} = razorpayData;
+
+  // Runner QR payments — reduce runner's cash obligation
+  const razorpayRunners = {amount: 0, count: 0, payments: []};
+  runnerPayments.forEach(p => {
     const barcode = p.runner_barcode;
     const partnerId = barcodeToPartner[barcode];
     const amt = p.amount / 100;
     if (partnerId && runners[partnerId]) runners[partnerId].upi += amt;
-    razorpayTotal.amount += amt;
-    razorpayTotal.count++;
-    razorpayTotal.payments.push({id: p.id, amount: amt, runner: p.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
+    razorpayRunners.amount += amt;
+    razorpayRunners.count++;
+    razorpayRunners.payments.push({id: p.id, amount: amt, runner: p.runner_name || barcode, barcode: barcode, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
   });
 
+  // Counter QR payments — for cross-verification with Odoo PM 38 at POS 27
+  const razorpayCounter = {amount: 0, count: 0, payments: []};
+  counterPayments.forEach(p => {
+    const amt = p.amount / 100;
+    razorpayCounter.amount += amt;
+    razorpayCounter.count++;
+    razorpayCounter.payments.push({id: p.id, amount: amt, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
+  });
+
+  // Runner Counter QR payments — for cross-verification with Odoo PM 38 at POS 28
+  const razorpayRunnerCounter = {amount: 0, count: 0, payments: []};
+  runnerCounterPayments.forEach(p => {
+    const amt = p.amount / 100;
+    razorpayRunnerCounter.amount += amt;
+    razorpayRunnerCounter.count++;
+    razorpayRunnerCounter.payments.push({id: p.id, amount: amt, time: new Date(p.created_at * 1000).toISOString(), vpa: p.vpa});
+  });
+
+  // === CROSS-VERIFICATION: Odoo UPI vs Razorpay ===
+  const verification = {
+    cashCounter: {
+      odooUPI: mainCounter.upi,
+      razorpayUPI: razorpayCounter.amount,
+      variance: Math.round((mainCounter.upi - razorpayCounter.amount) * 100) / 100,
+      odooCount: payments.filter(p => {
+        const mid = p.payment_method_id ? p.payment_method_id[0] : null;
+        const oid = p.pos_order_id ? p.pos_order_id[0] : null;
+        if (mid !== PM.UPI || !oid) return false;
+        const order = orders.find(o => o.id === oid);
+        if (!order) return false;
+        const configId = order.config_id ? order.config_id[0] : null;
+        const partnerId = order.partner_id ? order.partner_id[0] : null;
+        return configId === POS.CASH_COUNTER && !(partnerId && runners[partnerId]);
+      }).length,
+      razorpayCount: razorpayCounter.count,
+      status: 'ok'
+    },
+    runnerCounter: {
+      odooUPI: runnerCounter.upi,
+      razorpayUPI: razorpayRunnerCounter.amount,
+      variance: Math.round((runnerCounter.upi - razorpayRunnerCounter.amount) * 100) / 100,
+      odooCount: runnerCounter.orderCount,
+      razorpayCount: razorpayRunnerCounter.count,
+      status: 'ok'
+    },
+    runners: {
+      odooTokensAndSales: Object.values(runners).reduce((s, r) => s + r.tokens + r.sales, 0),
+      razorpayRunnerUPI: razorpayRunners.amount,
+      status: 'ok'
+    }
+  };
+
+  // Determine verification status
+  const TOLERANCE = 1; // ₹1 tolerance for rounding
+  if (Math.abs(verification.cashCounter.variance) > TOLERANCE) {
+    verification.cashCounter.status = verification.cashCounter.variance > 0 ? 'odoo_higher' : 'razorpay_higher';
+  }
+  if (Math.abs(verification.runnerCounter.variance) > TOLERANCE) {
+    verification.runnerCounter.status = verification.runnerCounter.variance > 0 ? 'odoo_higher' : 'razorpay_higher';
+  }
+
+  // Runner settlements
   const runnerSettlements = Object.values(runners).map(r => {
     const totalRevenue = r.tokens + r.sales;
     const cashToCollect = totalRevenue - r.upi;
     return {...r, totalRevenue, cashToCollect, status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')};
   }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
 
-  // Revenue calculation:
-  // - mainCounter.total = direct counter sales (customer pays at counter, no runner)
-  // - mainCounter.tokenIssue = Token Issue at Cash Counter (chai orders issued TO runners)
-  // - runners[].sales = Runner Counter sales (snacks only, attributed to specific runner)
-  // - runnerCounter.total = Runner Counter orders without specific runner partner
-  // Token Issue IS revenue: Cash Counter handles chai, Runner Counter handles snacks only.
-  // So Token Issue (chai) + Runner Sales (snacks) = distinct product categories, not double-counting.
+  // Grand totals
   const totalRunnerSales = Object.values(runners).reduce((sum, r) => sum + r.sales, 0);
   const grandTotal = {
     allSales: mainCounter.total + mainCounter.tokenIssue + totalRunnerSales + runnerCounter.total,
     tokenIssue: mainCounter.tokenIssue,
     cashToCollect: mainCounter.cash + runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0),
-    upiCollected: mainCounter.upi + runnerCounter.upi + razorpayTotal.amount,
+    upiCollected: mainCounter.upi + runnerCounter.upi + razorpayRunners.amount,
     cardCollected: mainCounter.card,
     complimentary: mainCounter.complimentary,
     avgOrderValue: 0
   };
   grandTotal.avgOrderValue = orders.length > 0 ? Math.round(grandTotal.allSales / orders.length) : 0;
 
-  return {mainCounter, runnerCounter, runners: runnerSettlements, razorpay: razorpayTotal, grandTotal, summary: {totalOrders: orders.length, activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length}};
+  // Backward compatible: razorpay field still has runner payments for live dashboard feed
+  return {
+    mainCounter,
+    runnerCounter,
+    runners: runnerSettlements,
+    razorpay: razorpayRunners,
+    razorpayCounter,
+    razorpayRunnerCounter,
+    verification,
+    grandTotal,
+    summary: {
+      totalOrders: orders.length,
+      activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length
+    }
+  };
 }

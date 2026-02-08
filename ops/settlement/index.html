@@ -109,6 +109,15 @@
     .expense-input:focus{outline:none;border-color:var(--red)}
     .expense-reason{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px;width:100%;font-family:'Plus Jakarta Sans',sans-serif}
     .expense-reason:focus{outline:none;border-color:var(--red)}
+    .verify-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .verify-badge.ok{background:rgba(34,197,94,0.15);color:var(--green)}
+    .verify-badge.warn{background:rgba(239,68,68,0.15);color:var(--red)}
+    .verify-box{background:var(--bg2);border-radius:10px;padding:14px;margin-top:16px;font-size:13px}
+    .verify-box .verify-title{font-size:12px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+    .verify-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+    .verify-row:last-child{border-bottom:none}
+    .verify-row .vr-label{color:var(--text2)}
+    .verify-row .vr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
   </style>
 </head>
 <body>
@@ -320,11 +329,39 @@
         const data=await res.json();
         if(!data.success)throw new Error(data.error);
         const mc=data.data.mainCounter;currentCounterData=mc;
+        const vf=data.data.verification;const rc=data.data.runnerCounter;
         const counterRevenue=mc.cash+mc.upi+mc.card;const cashToSettle=mc.cash;
         const hasLast=lastData.lastSettlement;
         let statusBox='';
         if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
         else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
+
+        // Build UPI verification box
+        let verifyHtml='';
+        if(vf){
+          const ccOk=vf.cashCounter.status==='ok';const rcOk=vf.runnerCounter.status==='ok';
+          const ccBadge=ccOk?'<span class="verify-badge ok">✓ Verified</span>':'<span class="verify-badge warn">⚠ ₹'+Math.abs(vf.cashCounter.variance)+' variance</span>';
+          const rcBadge=rcOk?'<span class="verify-badge ok">✓ Verified</span>':'<span class="verify-badge warn">⚠ ₹'+Math.abs(vf.runnerCounter.variance)+' variance</span>';
+          verifyHtml='<div class="verify-box"><div class="verify-title">🔍 UPI Cross-Verification (Odoo ↔ Razorpay)</div>'+
+            '<div class="verify-row"><span class="vr-label">Cash Counter UPI</span><span class="vr-val">Odoo: '+fmt(vf.cashCounter.odooUPI)+' | Razorpay: '+fmt(vf.cashCounter.razorpayUPI)+' '+ccBadge+'</span></div>'+
+            '<div class="verify-row"><span class="vr-label">Runner Counter UPI</span><span class="vr-val">Odoo: '+fmt(vf.runnerCounter.odooUPI)+' | Razorpay: '+fmt(vf.runnerCounter.razorpayUPI)+' '+rcBadge+'</span></div>';
+          if(!ccOk){
+            const dir=vf.cashCounter.variance>0?'Odoo shows more UPI than Razorpay received — possible cash recorded as UPI':'Razorpay received more than Odoo recorded — possible missed UPI entry';
+            verifyHtml+='<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:12px;color:var(--red)">Cash Counter: '+dir+'</div>';
+          }
+          if(!rcOk){
+            const dir=vf.runnerCounter.variance>0?'Odoo shows more UPI than Razorpay received — possible runner sale recorded as UPI':'Razorpay received more than Odoo recorded — possible missed order';
+            verifyHtml+='<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:12px;color:var(--red)">Runner Counter: '+dir+'</div>';
+          }
+          verifyHtml+='</div>';
+        }
+
+        // Runner Counter direct UPI info
+        let rcHtml='';
+        if(rc&&rc.upi>0){
+          rcHtml='<div class="row" style="opacity:0.5"><span class="label">Runner Counter UPI (direct)</span><span class="value" style="color:var(--blue)">'+fmt(rc.upi)+'</span></div>';
+        }
+
         let settleBtn='';if(counterRevenue>0){settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';}
         if(counterRevenue>0||hasLast){
           $('panelContent').innerHTML=
@@ -334,7 +371,9 @@
             '<div class="row sub"><span class="label">↳ Card (to bank)</span><span class="value" style="color:var(--blue)">'+fmt(mc.card)+'</span></div>'+
             '<div class="row" style="opacity:0.5"><span class="label">Token Issue (→ Runners)</span><span class="value">'+fmt(mc.tokenIssue)+'</span></div>'+
             '<div class="row" style="opacity:0.5"><span class="label">Complimentary</span><span class="value">'+fmt(mc.complimentary)+'</span></div>'+
-            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+statusBox+settleBtn;
+            rcHtml+
+            '<div class="row total"><span class="label">Cash to Settle</span><span class="value" style="color:var(--orange)">'+fmt(cashToSettle)+'</span></div>'+
+            verifyHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
           else{$('panelContent').innerHTML='<div class="loading-text">No counter activity</div>';}
