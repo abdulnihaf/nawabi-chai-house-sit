@@ -106,13 +106,25 @@ async function processWebhook(context, body) {
   const changes = entry?.changes?.[0];
   const value = changes?.value;
 
+  const phoneId = context.env.WA_PHONE_ID;
+  const token = context.env.WA_ACCESS_TOKEN;
+  const db = context.env.DB;
+
+  // ── Handle payment status webhooks (from order_details native payments) ──
+  // These arrive in value.statuses[] with type="payment", NOT in value.messages[]
+  if (value?.statuses?.length) {
+    for (const status of value.statuses) {
+      if (status.type === 'payment') {
+        await handlePaymentStatus(context, status, phoneId, token, db);
+      }
+    }
+  }
+
+  // ── Handle customer messages ──
   if (!value?.messages?.length) return;
 
   const message = value.messages[0];
   const waId = message.from;
-  const phoneId = context.env.WA_PHONE_ID;
-  const token = context.env.WA_ACCESS_TOKEN;
-  const db = context.env.DB;
 
   // Mark message as read
   await sendWhatsApp(phoneId, token, { messaging_product: 'whatsapp', status: 'read', message_id: message.id });
@@ -152,6 +164,127 @@ async function processWebhook(context, body) {
 
   const msgType = getMessageType(message);
   await routeState(context, session, user, message, msgType, waId, phoneId, token, db);
+}
+
+// ─── HANDLE WHATSAPP PAYMENT STATUS WEBHOOK ──────────────────────
+// Fired when customer pays (or fails) via native order_details payment card.
+// Arrives in value.statuses[] with type="payment" — NOT in value.messages[].
+// status.status: "captured" (success) | "pending" (retry possible) | "failed" (terminal)
+// status.payment.transaction.status: "success" | "failed" | "pending"
+async function handlePaymentStatus(context, status, phoneId, token, db) {
+  const paymentStatus = status.status; // "captured", "pending", "failed"
+  const referenceId = status.payment?.reference_id; // Our order code (e.g. WA-0802-0001)
+  const txnId = status.payment?.transaction?.id; // Razorpay order/transaction ID
+  const txnStatus = status.payment?.transaction?.status; // "success", "failed", "pending"
+  const customerId = status.recipient_id; // Customer's WhatsApp number
+  const errorInfo = status.payment?.transaction?.error; // { code, reason } on failure
+
+  console.log(`Payment webhook: status=${paymentStatus}, txn=${txnStatus}, ref=${referenceId}, customer=${customerId}`);
+
+  if (!referenceId) {
+    console.error('Payment status webhook missing reference_id');
+    return;
+  }
+
+  // Find the order by order_code (= reference_id)
+  const order = await db.prepare('SELECT * FROM wa_orders WHERE order_code = ?').bind(referenceId).first();
+  if (!order) {
+    console.error('Payment webhook: order not found for reference_id:', referenceId);
+    return;
+  }
+
+  // ── PAYMENT CAPTURED (Success) ──
+  if (paymentStatus === 'captured' && txnStatus === 'success') {
+    // Idempotency: skip if already paid
+    if (order.payment_status === 'paid') {
+      console.log('Order already paid:', referenceId);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE wa_orders SET payment_status = ?, razorpay_payment_id = ?, status = ?, updated_at = ? WHERE id = ?')
+      .bind('paid', txnId || null, 'confirmed', now, order.id).run();
+
+    // Update user stats (deferred from order creation)
+    await db.prepare('UPDATE wa_users SET first_order_redeemed = CASE WHEN ? > 0 THEN 1 ELSE first_order_redeemed END, last_order_id = ?, total_orders = total_orders + 1, total_spent = total_spent + ? WHERE wa_id = ?')
+      .bind(order.discount, order.id, order.total, order.wa_id).run();
+
+    // Load user for Odoo order creation
+    const user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(order.wa_id).first();
+    const cart = JSON.parse(order.items);
+
+    // Create Odoo POS order
+    const odooResult = await createOdooOrder(
+      context, order.order_code, cart, order.total, order.discount, 'upi',
+      order.wa_id, user?.name, user?.phone, order.delivery_address,
+      order.delivery_lat, order.delivery_lng, order.delivery_distance_m,
+      order.runner_name, user?.business_type
+    );
+
+    // Send confirmation to customer
+    const itemLines = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+    let confirmMsg = `✅ *Payment received! Order ${order.order_code} confirmed!*\n\n${itemLines}`;
+    if (order.discount > 0) {
+      const freeCount = Math.round(order.discount / 15);
+      confirmMsg += `\n🎁 ${freeCount}x FREE Irani Chai — -₹${order.discount}`;
+    }
+    confirmMsg += `\n\n💰 *Total: ₹${order.total}* (UPI ✓ Paid)`;
+    confirmMsg += `\n📍 ${order.delivery_address || 'Location saved'}`;
+    confirmMsg += `\n🏃 Runner: ${order.runner_name}`;
+    confirmMsg += `\n⏱️ *Arriving in ~5 minutes!*`;
+    if (odooResult) confirmMsg += `\n🧾 POS: ${odooResult.name}`;
+
+    await sendWhatsApp(phoneId, token, buildText(order.wa_id, confirmMsg));
+    await updateSession(db, order.wa_id, 'order_placed', '[]', 0);
+
+    console.log(`Payment confirmed for ${order.order_code}: ₹${order.total}`);
+    return;
+  }
+
+  // ── PAYMENT FAILED (transaction failed, but customer can retry) ──
+  if ((paymentStatus === 'pending' && txnStatus === 'failed') || paymentStatus === 'failed') {
+    const reason = errorInfo?.reason || 'unknown';
+    const friendlyReason = getPaymentErrorMessage(reason);
+
+    console.log(`Payment failed for ${referenceId}: ${reason}`);
+
+    // Don't spam — only send failure message if order is still payment_pending
+    if (order.payment_status !== 'pending') return;
+
+    let failMsg = `❌ *Payment failed* for order ${order.order_code}\n\n`;
+    failMsg += `Reason: ${friendlyReason}\n\n`;
+
+    if (paymentStatus === 'pending') {
+      // Customer can retry — the order_details card is still active in WhatsApp
+      failMsg += `You can tap *"Review and Pay"* again to retry.\n\n`;
+    }
+    failMsg += `_Or reply *"cod"* to switch to Cash on Delivery_\n_Reply *"cancel"* to cancel the order_`;
+
+    await sendWhatsApp(phoneId, token, buildText(order.wa_id, failMsg));
+    return;
+  }
+
+  // ── PAYMENT PENDING (in-progress, waiting for confirmation) ──
+  if (paymentStatus === 'pending' && txnStatus === 'pending') {
+    console.log(`Payment pending for ${referenceId} — waiting for final status`);
+    // No action needed — wait for captured or failed webhook
+    return;
+  }
+}
+
+// Map Razorpay error codes to customer-friendly messages
+function getPaymentErrorMessage(reason) {
+  const messages = {
+    'incorrect_pin': 'Incorrect UPI PIN entered',
+    'insufficient_balance': 'Insufficient balance in your account',
+    'transaction_timeout': 'Transaction timed out — please try again',
+    'upi_invalid_beneficiary': 'Payment could not be processed',
+    'bank_decline': 'Your bank declined the transaction',
+    'server_error': 'Payment server issue — please try again',
+    'user_cancelled': 'Payment was cancelled',
+    'expired': 'Payment session expired — please try again',
+  };
+  return messages[reason] || 'Transaction could not be completed';
 }
 
 function getMessageType(message) {
@@ -703,15 +836,20 @@ async function handleAwaitingUpiPayment(context, session, user, msg, waId, phone
     if (isExpired) {
       // Auto-expire the order
       await db.prepare("UPDATE wa_orders SET status = 'cancelled', payment_status = 'expired', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), pendingOrder.id).run();
-      await sendWhatsApp(phoneId, token, buildText(waId, `⏰ Your payment link for *${pendingOrder.order_code}* has expired.\n\nNo worries — send "hi" to start a new order!`));
+      await sendWhatsApp(phoneId, token, buildText(waId, `⏰ Your payment for *${pendingOrder.order_code}* has expired.\n\nNo worries — send "hi" to start a new order!`));
       await updateSession(db, waId, 'idle', '[]', 0);
       return;
     }
 
-    // Still waiting — nudge with payment link + options
+    // Still waiting — nudge with appropriate message
     const linkUrl = pendingOrder.razorpay_link_url;
     let nudgeMsg = `⏳ Your payment for *${pendingOrder.order_code}* (₹${pendingOrder.total}) is pending.`;
-    if (linkUrl) nudgeMsg += `\n\n👇 Tap to pay via UPI:\n${linkUrl}`;
+    if (linkUrl) {
+      nudgeMsg += `\n\n👇 Tap to pay via UPI:\n${linkUrl}`;
+    } else {
+      // Native order_details payment — card is still visible in chat
+      nudgeMsg += `\n\n👆 Scroll up and tap *"Review and Pay"* to complete payment.`;
+    }
     nudgeMsg += `\n\n_Reply *"cod"* to switch to Cash on Delivery_\n_Reply *"cancel"* to cancel this order_`;
     await sendWhatsApp(phoneId, token, buildText(waId, nudgeMsg));
     return;
