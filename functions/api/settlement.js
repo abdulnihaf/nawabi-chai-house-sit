@@ -241,7 +241,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {collected_by, amount, petty_cash, notes} = body;
+      const {collected_by, amount, petty_cash, live_counter_cash, notes} = body;
 
       if (!COLLECTORS.includes(collected_by)) {
         return new Response(JSON.stringify({success: false, error: 'Not authorized to collect cash'}), {headers: corsHeaders});
@@ -277,8 +277,10 @@ export async function onRequest(context) {
       let totalExpenses = 0;
       for (const e of expensesResult.results) totalExpenses += e.amount;
 
-      // Expected = prev petty + settlements - expenses already recorded
-      const expected = prevPettyCash + runnerCash + counterCash - totalExpenses;
+      // Expected = prev petty + settlements + unsettled live counter cash - expenses
+      // live_counter_cash is passed from UI (fetched from Odoo at collection time)
+      const liveCounter = live_counter_cash || 0;
+      const expected = prevPettyCash + runnerCash + counterCash + liveCounter - totalExpenses;
       // Accounted = what Naveen takes + what he leaves as petty
       const accounted = amount + (petty_cash || 0);
       // Discrepancy = expected - accounted (positive = cash missing)
@@ -296,14 +298,14 @@ export async function onRequest(context) {
         'INSERT INTO cash_collections (collected_by, collected_at, amount, petty_cash, expenses, expected, discrepancy, period_start, period_end, runner_cash, counter_cash, prev_petty_cash, settlement_ids, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(
         collected_by, periodEnd, amount, petty_cash || 0, totalExpenses,
-        expected, discrepancy, periodStart, periodEnd, runnerCash, counterCash,
+        expected, discrepancy, periodStart, periodEnd, runnerCash, counterCash + liveCounter,
         prevPettyCash, ids.join(','), notes || ''
       ).run();
 
       // Immediate WhatsApp alert if discrepancy > ₹50
       if (WA_TOKEN && Math.abs(discrepancy) > 50) {
         const direction = discrepancy > 0 ? 'short (cash missing)' : 'over (extra cash)';
-        const alertMsg = `🔍 *NCH Audit Alert*\n\n🚨 Cash Collection Discrepancy\nExpected at counter: ₹${expected}\nCollected: ₹${amount} + Petty: ₹${petty_cash || 0}\nDiscrepancy: ₹${Math.abs(discrepancy).toFixed(0)} ${direction}\nCollected by: ${collected_by}\nSettlements covered: ${ids.length}`;
+        const alertMsg = `🔍 *NCH Audit Alert*\n\n🚨 Cash Collection Discrepancy\nExpected at counter: ₹${expected}\n(Settlements: ₹${runnerCash + counterCash} | Counter cash: ₹${liveCounter} | Petty: ₹${prevPettyCash} | Expenses: -₹${totalExpenses})\nCollected: ₹${amount} + Petty left: ₹${petty_cash || 0}\nDiscrepancy: ₹${Math.abs(discrepancy).toFixed(0)} ${direction}\nCollected by: ${collected_by}\nSettlements covered: ${ids.length}`;
         context.waitUntil(Promise.all(ALERT_RECIPIENTS.map(to =>
           sendWhatsAppAlert(WA_PHONE_ID, WA_TOKEN, to, alertMsg)
         )).catch(e => console.error('Collection alert error:', e.message)));

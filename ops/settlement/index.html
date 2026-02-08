@@ -183,7 +183,7 @@
       {id:68,name:'NCH Runner 05',barcode:'RUN005'}
     ];
     const COLLECTORS=['Naveen','Nihaf'];
-    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0;
+    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0,currentLiveCounterCash=0;
 
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
@@ -491,6 +491,7 @@
         const odooData=await odooRes.json();
         let liveCounterCash=0;
         if(odooData.success){liveCounterCash=odooData.data.mainCounter.cash||0;}
+        currentLiveCounterCash=liveCounterCash;
 
         // Total cash at counter = petty + runner settlements + settled counter cash + UNSETTLED counter cash - expenses
         const totalCash=bal.pettyCash+bal.runnerCash+bal.counterCash+liveCounterCash-bal.totalExpenses;
@@ -647,7 +648,7 @@
         const pettyCash=parseFloat(document.getElementById('pettyCashInput')?.value||'0');
         if(collectAmt<=0){btn.disabled=false;btn.textContent='Enter the cash amount';btn.style.background='var(--red)';setTimeout(()=>{btn.style.background='';updateCollectSummary();},2000);return;}
 
-        const res=await fetch('/api/settlement?action=collect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collected_by:currentUser,amount:collectAmt,petty_cash:pettyCash,notes:'Collected via dashboard'})});
+        const res=await fetch('/api/settlement?action=collect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({collected_by:currentUser,amount:collectAmt,petty_cash:pettyCash,live_counter_cash:currentLiveCounterCash,notes:'Collected via dashboard'})});
         const data=await res.json();
         if(data.success){
           let msg='✓ Collected '+fmt(collectAmt);
