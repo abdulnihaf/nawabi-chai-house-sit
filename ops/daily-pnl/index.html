@@ -243,7 +243,7 @@
             <!-- Raw Buffalo Milk -->
             <div class="field">
               <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, in litres)</span></div>
-              <input type="number" class="input" id="raw_buffalo_milk" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="raw_buffalo_milk" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Boiled Milk — Kitchen vessels -->
             <div class="vessel-group">
@@ -260,17 +260,17 @@
             <!-- Raw condensed milk -->
             <div class="field" style="margin-top:12px">
               <div class="field-label">Condensed Milk (Milkmaid) <span class="hint">(kg — unopened cans/tins)</span></div>
-              <input type="number" class="input" id="raw_milkmaid" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="raw_milkmaid" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Raw SMP -->
             <div class="field">
               <div class="field-label">Skimmed Milk Powder <span class="hint">(kg — unopened packets)</span></div>
-              <input type="number" class="input" id="raw_smp" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="raw_smp" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Malai (byproduct) -->
             <div class="field">
               <div class="field-label">Malai <span class="hint">(kg — byproduct, tracked only)</span></div>
-              <input type="number" class="input" id="malai" step="0.01" placeholder="0" inputmode="decimal">
+              <input type="number" class="input" id="malai" step="0.01" min="0" placeholder="0" inputmode="decimal">
             </div>
           </div>
 
@@ -285,32 +285,32 @@
             <!-- Tea-Sugar Boxes -->
             <div class="field" style="margin-top:12px">
               <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed: 400g tea + 800g sugar each)</span></div>
-              <input type="number" class="input" id="tea_sugar_boxes" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <input type="number" class="input" id="tea_sugar_boxes" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
             </div>
             <!-- Raw Tea Powder -->
             <div class="field">
               <div class="field-label">Raw Tea Powder <span class="hint">(kg — unmixed packets)</span></div>
-              <input type="number" class="input" id="raw_tea_powder" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Raw Sugar -->
             <div class="field">
               <div class="field-label">Sugar <span class="hint">(kg — loose/bags, unmixed)</span></div>
-              <input type="number" class="input" id="raw_sugar" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Coffee Powder -->
             <div class="field">
               <div class="field-label">Coffee Powder (Nescafe) <span class="hint">(kg)</span></div>
-              <input type="number" class="input" id="coffee_powder" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="coffee_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Honey -->
             <div class="field">
               <div class="field-label">Honey <span class="hint">(kg)</span></div>
-              <input type="number" class="input" id="honey" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="honey" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
             <!-- Lemons -->
             <div class="field">
               <div class="field-label">Lemons <span class="hint">(count — whole lemons)</span></div>
-              <input type="number" class="input" id="lemons" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <input type="number" class="input" id="lemons" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
             </div>
           </div>
 
@@ -319,17 +319,17 @@
             <!-- Plain Buns -->
             <div class="field">
               <div class="field-label">Plain Buns <span class="hint">(uncut/unprepared — count)</span></div>
-              <input type="number" class="input" id="plain_buns" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <input type="number" class="input" id="plain_buns" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
             </div>
             <!-- Prepared Bun Maska -->
             <div class="field">
               <div class="field-label">Prepared Bun Maska <span class="hint">(cut + buttered — count)</span></div>
-              <input type="number" class="input" id="prepared_bun_maska" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <input type="number" class="input" id="prepared_bun_maska" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
             </div>
             <!-- Butter -->
             <div class="field">
               <div class="field-label">Butter <span class="hint">(kg — unopened blocks/tubs)</span></div>
-              <input type="number" class="input" id="butter" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="butter" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
           </div>
 
@@ -338,37 +338,37 @@
             <div class="field-row">
               <div class="field">
                 <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_cutlets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="raw_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
               <div class="field">
                 <div class="field-label">Fried Cutlets <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_cutlets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="fried_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
                 <div class="field-label">Raw Samosa <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_samosa" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="raw_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
               <div class="field">
                 <div class="field-label">Fried Samosa <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_samosa" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="fried_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
                 <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
               <div class="field">
                 <div class="field-label">Fried Cheese Balls <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
             </div>
             <!-- Oil -->
             <div class="field" style="margin-top:12px">
               <div class="field-label">Oil <span class="hint">(litres — in frying vessel/bottles)</span></div>
-              <input type="number" class="input" id="oil" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <input type="number" class="input" id="oil" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
             </div>
           </div>
 
@@ -377,27 +377,27 @@
             <div class="field-row">
               <div class="field">
                 <div class="field-label">Osmania Packets <span class="hint">(sealed, 24 per pkt)</span></div>
-                <input type="number" class="input input-sm" id="osmania_packets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="osmania_packets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
               <div class="field">
                 <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span></div>
-                <input type="number" class="input input-sm" id="osmania_loose" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="osmania_loose" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
                 <div class="field-label">Niloufer Boxes — Storage <span class="hint">(500g boxes)</span></div>
-                <input type="number" class="input input-sm" id="niloufer_storage" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="niloufer_storage" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
               <div class="field">
                 <div class="field-label">Niloufer Boxes — Display</div>
-                <input type="number" class="input input-sm" id="niloufer_display" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <input type="number" class="input input-sm" id="niloufer_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
               </div>
             </div>
             <!-- Water Bottles -->
             <div class="field" style="margin-top:12px">
               <div class="field-label">Water Bottles <span class="hint">(total count — all locations)</span></div>
-              <input type="number" class="input" id="water_bottles" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <input type="number" class="input" id="water_bottles" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
             </div>
           </div>
 
@@ -407,25 +407,25 @@
             <div class="field-row">
               <div class="field">
                 <div class="field-label">FAROOQ</div>
-                <input type="number" class="input input-sm" id="tokens_64" step="1" placeholder="0" inputmode="numeric">
+                <input type="number" class="input input-sm" id="tokens_64" step="1" min="0" placeholder="0" inputmode="numeric">
               </div>
               <div class="field">
                 <div class="field-label">AMIN</div>
-                <input type="number" class="input input-sm" id="tokens_65" step="1" placeholder="0" inputmode="numeric">
+                <input type="number" class="input input-sm" id="tokens_65" step="1" min="0" placeholder="0" inputmode="numeric">
               </div>
             </div>
             <div class="field-row" style="margin-top:8px">
               <div class="field">
                 <div class="field-label">RUN 03</div>
-                <input type="number" class="input input-sm" id="tokens_66" step="1" placeholder="0" inputmode="numeric">
+                <input type="number" class="input input-sm" id="tokens_66" step="1" min="0" placeholder="0" inputmode="numeric">
               </div>
               <div class="field">
                 <div class="field-label">RUN 04</div>
-                <input type="number" class="input input-sm" id="tokens_67" step="1" placeholder="0" inputmode="numeric">
+                <input type="number" class="input input-sm" id="tokens_67" step="1" min="0" placeholder="0" inputmode="numeric">
               </div>
               <div class="field">
                 <div class="field-label">RUN 05</div>
-                <input type="number" class="input input-sm" id="tokens_68" step="1" placeholder="0" inputmode="numeric">
+                <input type="number" class="input input-sm" id="tokens_68" step="1" min="0" placeholder="0" inputmode="numeric">
               </div>
             </div>
           </div>
@@ -613,9 +613,20 @@ function logout() {
 // ── INIT ─────────────────────────────────────────────────
 
 function initDashboard() {
-  // Set default date to today IST
+  // Default date logic:
+  // Before 6 AM IST → default to yesterday (end-of-day settlement for previous business day)
+  // After 6 AM IST → default to today
   const now = new Date(Date.now() + 5.5 * 3600000);
-  $('settlementDate').value = now.toISOString().slice(0, 10);
+  const hour = now.getUTCHours();
+  let defaultDate;
+  if (hour < 6) {
+    // Before 6 AM — settle yesterday
+    const yesterday = new Date(now.getTime() - 86400000);
+    defaultDate = yesterday.toISOString().slice(0, 10);
+  } else {
+    defaultDate = now.toISOString().slice(0, 10);
+  }
+  $('settlementDate').value = defaultDate;
   loadConfig();
 }
 
@@ -975,14 +986,43 @@ function collectRunnerTokens() {
 async function submitSettlement() {
   const btn = $('submitBtn');
   if (btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = isBootstrap ? '🏁 Submitting bootstrap...' : '⏳ Calculating P&L...';
 
   const date = $('settlementDate').value;
   const rawInput = collectRawInput();
   const runnerTokens = collectRunnerTokens();
   const wastageItems = getWastageItems();
   const notes = $('settlementNotes')?.value || '';
+
+  // ── VALIDATION: Ensure at least some inventory data is entered ──
+  const hasVesselData = getVesselEntries('boiled_milk_kitchen').length > 0
+    || getVesselEntries('boiled_milk_counter').length > 0
+    || getVesselEntries('tea_decoction').length > 0;
+  const hasRawData = rawInput.raw_buffalo_milk > 0 || rawInput.raw_milkmaid > 0 || rawInput.raw_smp > 0
+    || rawInput.raw_sugar > 0 || rawInput.raw_tea_powder > 0 || rawInput.butter > 0
+    || rawInput.plain_buns > 0 || rawInput.prepared_bun_maska > 0
+    || rawInput.raw_cutlets > 0 || rawInput.fried_cutlets > 0
+    || rawInput.raw_samosa > 0 || rawInput.fried_samosa > 0
+    || rawInput.raw_cheese_balls > 0 || rawInput.fried_cheese_balls > 0
+    || rawInput.osmania_packets > 0 || rawInput.osmania_loose > 0
+    || rawInput.water_bottles > 0 || rawInput.oil > 0
+    || rawInput.coffee_powder > 0 || rawInput.honey > 0 || rawInput.lemons > 0;
+
+  if (!hasVesselData && !hasRawData) {
+    alert('⚠️ Empty form — please enter at least some inventory counts before submitting.');
+    return;
+  }
+
+  // ── CONFIRMATION DIALOG ──
+  const decomp = clientDecompose(rawInput);
+  const matCount = Object.keys(decomp).filter(k => decomp[k] > 0.0001).length;
+  const confirmMsg = isBootstrap
+    ? `🏁 BOOTSTRAP SETTLEMENT\n\nDate: ${date}\n${matCount} raw materials counted\n\nThis establishes your Day 0 baseline.\nProceed?`
+    : `✅ SUBMIT DAILY SETTLEMENT\n\nDate: ${date}\n${matCount} raw materials counted\n${wastageItems.length > 0 ? wastageItems.length + ' wastage items\n' : ''}\nThis action cannot be undone.\nProceed?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  btn.disabled = true;
+  btn.textContent = isBootstrap ? '🏁 Submitting bootstrap...' : '⏳ Calculating P&L...';
 
   try {
     const res = await fetch(`${API}?action=submit`, {
@@ -1031,13 +1071,31 @@ function renderPnlResult(data) {
   const p = data.pnl;
   const profitClass = p.adjustedNetProfit >= 0 ? 'profit-positive' : 'profit-negative';
 
-  let html = `
+  let html = '';
+
+  // Show warnings banner if any negative consumption detected
+  if (data.warnings && data.warnings.length > 0) {
+    html += `<div class="alert alert-warning" style="margin-bottom:16px">
+      <span class="alert-icon">🚨</span>
+      <div class="alert-text">
+        <strong>${data.warnings.length} Inventory Warning(s)</strong><br>
+        ${data.warnings.map(w => `<div style="margin-top:4px;font-size:12px">• <strong>${w.materialName}</strong>: ${w.message}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  html += `
     <div class="pnl-card">
       <div class="pnl-header">
         <h2>☕ Daily P&L — ${data.settlementDate}</h2>
         <div class="date">Settled by ${data.settledBy}</div>
       </div>
       <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
+      ${p.revenueBreakdown && (p.revenueBreakdown.cashCounter > 0 || p.revenueBreakdown.runnerCounter > 0 || p.revenueBreakdown.whatsapp > 0) ? `
+      <div class="pnl-row sub"><span class="label">Counter</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.cashCounter)}</span></div>
+      <div class="pnl-row sub"><span class="label">Runner</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.runnerCounter)}</span></div>
+      ${p.revenueBreakdown.whatsapp > 0 ? `<div class="pnl-row sub"><span class="label">Delivery</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.whatsapp)}</span></div>` : ''}
+      ` : ''}
       <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
       <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(p.cogsExpected)}</span></div>
       <div class="pnl-row"><span class="label">📊 Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>

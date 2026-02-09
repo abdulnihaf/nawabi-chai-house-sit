@@ -334,20 +334,20 @@ export async function onRequest(context) {
       const prevRunnerTokens = JSON.parse(previous.runner_tokens || '{}');
 
       // ── Step 3: Fetch Odoo data for the period ──
-      const [salesData, purchaseData, expenseData] = await Promise.all([
-        fetchPOSSales(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
+      const [salesResult, purchaseData, expenseData] = await Promise.all([
+        fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at <= ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all(),
       ]);
 
       // ── Step 4: Calculate Revenue ──
-      const revenue = {total: 0, cashCounter: 0, runnerCounter: 0, whatsapp: 0, products: {}};
-      for (const item of salesData) {
-        revenue.total += item.amount;
-        revenue.products[item.productId] = {name: item.productName, qty: item.qtySold, amount: item.amount};
-        // Channel breakdown from config_id would need order-level data
-        // For now, total revenue is accurate
-      }
+      const revenue = {
+        total: salesResult.total,
+        cashCounter: salesResult.cashCounter,
+        runnerCounter: salesResult.runnerCounter,
+        whatsapp: salesResult.whatsapp,
+        products: salesResult.products,
+      };
 
       // ── Step 5: Adjust sales for runner tokens ──
       // Unsold tokens at end = POS recorded these sales but tea not made yet
@@ -372,8 +372,10 @@ export async function onRequest(context) {
 
       // ── Step 7: Calculate ACTUAL consumption ──
       // consumption = opening + purchases - closing
+      // IMPORTANT: Negative consumption is preserved — it signals counting errors or unrecorded purchases
       const closingStock = decomposed;
       const consumption = {};
+      const consumptionWarnings = [];
       const allMaterialIds = new Set([
         ...Object.keys(openingStock),
         ...Object.keys(purchases),
@@ -387,7 +389,16 @@ export async function onRequest(context) {
         const closing = closingStock[matId] || 0;
         const used = round(opening + purchased - closing, 4);
         if (used !== 0 || opening > 0 || purchased > 0) {
-          consumption[matId] = round(Math.max(0, used), 4);
+          consumption[matId] = round(used, 4);
+          // Flag negative consumption — means closing > opening + purchases
+          if (used < -0.001) {
+            consumptionWarnings.push({
+              materialId: matId,
+              materialName: RAW_MATERIALS[matId]?.name || matId,
+              opening, purchased, closing, used,
+              message: `Negative consumption: closing (${closing}) > opening (${opening}) + purchased (${purchased}). Possible unrecorded delivery or counting error.`
+            });
+          }
         }
       }
 
@@ -410,10 +421,21 @@ export async function onRequest(context) {
         }
       }
 
-      // ── Step 9: Calculate discrepancy per material ──
+      // ── Step 9: Batch-load all material costs (single DB query) ──
+      const materialCosts = await getAllMaterialCosts(DB, settlement_date);
+      const getCost = (matId) => materialCosts[String(matId)] || FALLBACK_COSTS[matId] || 0;
+
+      // ── Step 10: Calculate discrepancy per material ──
+      // IMPORTANT: Iterate over BOTH consumption and expectedConsumption keys
+      // to catch materials expected but not consumed (e.g., not in any stock category)
       const discrepancy = {};
       let discrepancyValue = 0;
-      for (const matId of Object.keys(consumption)) {
+      const allDiscMaterialIds = new Set([
+        ...Object.keys(consumption),
+        ...Object.keys(expectedConsumption),
+      ]);
+
+      for (const matId of allDiscMaterialIds) {
         const actual = consumption[matId] || 0;
         const expected = expectedConsumption[matId] || 0;
         // Subtract recorded wastage
@@ -422,37 +444,38 @@ export async function onRequest(context) {
           .reduce((s, w) => s + (w.qty || 0), 0);
         const disc = round(actual - expected - wastedQty, 4);
         if (Math.abs(disc) > 0.001) {
-          const materialCost = await getMaterialCost(DB, matId);
+          const materialCost = getCost(matId);
           const discValue = round(disc * materialCost, 2);
           discrepancy[matId] = {qty: disc, value: discValue, uom: RAW_MATERIALS[matId]?.uom || ''};
           discrepancyValue += discValue;
         }
       }
 
-      // ── Step 10: Calculate COGS ──
+      // ── Step 11: Calculate COGS ──
+      // For actual COGS, only count positive consumption (negative = counting error, not a cost)
       let cogsActual = 0;
       for (const [matId, qty] of Object.entries(consumption)) {
-        const cost = await getMaterialCost(DB, matId);
-        cogsActual += qty * cost;
+        const cost = getCost(matId);
+        cogsActual += Math.max(0, qty) * cost; // Only positive consumption is actual cost
       }
       cogsActual = round(cogsActual, 2);
 
       let cogsExpected = 0;
       for (const [matId, qty] of Object.entries(expectedConsumption)) {
-        const cost = await getMaterialCost(DB, matId);
+        const cost = getCost(matId);
         cogsExpected += qty * cost;
       }
       cogsExpected = round(cogsExpected, 2);
 
-      // ── Step 11: Wastage value ──
+      // ── Step 12: Wastage value ──
       let wastageValue = 0;
       for (const w of (wastage_items || [])) {
-        const cost = await getMaterialCost(DB, w.material_id);
+        const cost = getCost(w.material_id);
         wastageValue += (w.qty || 0) * cost;
       }
       wastageValue = round(wastageValue, 2);
 
-      // ── Step 12: Operating Expenses ──
+      // ── Step 13: Operating Expenses ──
       let counterExpenses = 0;
       for (const e of (expenseData.results || [])) counterExpenses += e.amount;
 
@@ -462,12 +485,12 @@ export async function onRequest(context) {
 
       const opexTotal = round(dailySalaries + counterExpenses, 2);
 
-      // ── Step 13: P&L ──
+      // ── Step 14: P&L ──
       const grossProfit = round(revenue.total - cogsActual, 2);
       const netProfit = round(grossProfit - opexTotal, 2);
       const adjustedNetProfit = round(netProfit - discrepancyValue - wastageValue, 2);
 
-      // ── Step 14: Save to DB ──
+      // ── Step 15: Save to DB ──
       await DB.prepare(`INSERT INTO daily_settlements
         (settlement_date, period_start, period_end, settled_by, settled_at, status,
          revenue_total, revenue_cash_counter, revenue_runner_counter, revenue_whatsapp, revenue_breakdown,
@@ -502,18 +525,26 @@ export async function onRequest(context) {
         adjustedNetProfit, notes || '', previous ? previous.id : null
       ).run();
 
-      // ── Step 15: WhatsApp summary ──
+      // ── Step 16: WhatsApp summary ──
       const WA_TOKEN = context.env.WA_ACCESS_TOKEN;
       const WA_PHONE_ID = context.env.WA_PHONE_ID || '970365416152029';
       if (WA_TOKEN) {
         const profitEmoji = adjustedNetProfit >= 0 ? '📈' : '📉';
+        const warningLines = consumptionWarnings.length > 0
+          ? `\n🚨 *${consumptionWarnings.length} Warning(s):*\n` + consumptionWarnings.map(w => `  • ${w.materialName}: negative consumption`).join('\n') + '\n'
+          : '';
+        const channelBreakdown = revenue.cashCounter > 0 || revenue.runnerCounter > 0 || revenue.whatsapp > 0
+          ? `  Counter: ₹${Math.round(revenue.cashCounter).toLocaleString('en-IN')} | Runner: ₹${Math.round(revenue.runnerCounter).toLocaleString('en-IN')} | Delivery: ₹${Math.round(revenue.whatsapp).toLocaleString('en-IN')}\n`
+          : '';
         const msg = `☕ *NCH Daily P&L — ${settlement_date}*\n\n`
           + `💰 Revenue: ₹${Math.round(revenue.total).toLocaleString('en-IN')}\n`
+          + channelBreakdown
           + `📦 COGS: ₹${Math.round(cogsActual).toLocaleString('en-IN')}\n`
           + `📊 Gross Profit: ₹${Math.round(grossProfit).toLocaleString('en-IN')}\n`
           + `💸 Expenses: ₹${Math.round(opexTotal).toLocaleString('en-IN')}\n`
           + (wastageValue > 0 ? `🗑️ Wastage: ₹${Math.round(wastageValue).toLocaleString('en-IN')}\n` : '')
           + (Math.abs(discrepancyValue) > 10 ? `⚠️ Discrepancy: ₹${Math.round(discrepancyValue).toLocaleString('en-IN')}\n` : '')
+          + warningLines
           + `\n${profitEmoji} *Net Profit: ₹${Math.round(adjustedNetProfit).toLocaleString('en-IN')}*\n`
           + `\nSettled by: ${settledBy}`;
 
@@ -530,10 +561,12 @@ export async function onRequest(context) {
         settledBy,
         pnl: {
           revenue: revenue.total,
+          revenueBreakdown: {cashCounter: revenue.cashCounter, runnerCounter: revenue.runnerCounter, whatsapp: revenue.whatsapp},
           cogs: cogsActual,
           cogsExpected,
           grossProfit,
           opex: opexTotal,
+          opexBreakdown: {salaries: dailySalaries, counterExpenses},
           netProfit,
           wastage: wastageValue,
           discrepancy: discrepancyValue,
@@ -547,6 +580,7 @@ export async function onRequest(context) {
           expected: expectedConsumption,
           discrepancy,
         },
+        warnings: consumptionWarnings,
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
       }, corsHeaders);
     }
@@ -748,34 +782,67 @@ async function getVessels(DB) {
 // ═══════════════════════════════════════════════════════════════
 // HELPER: Get material cost (latest from DB or from Odoo standard_price)
 // ═══════════════════════════════════════════════════════════════
-async function getMaterialCost(DB, materialId) {
-  // Hardcoded fallback costs from Odoo (last known purchase prices)
-  const FALLBACK_COSTS = {
-    1095: 80,    // Buffalo Milk ₹80/L
-    1096: 310,   // SMP ₹310/kg
-    1097: 44,    // Sugar ₹44/kg
-    1098: 500,   // Tea Powder ₹500/kg
-    1101: 1.5,   // Filter Water ₹1.5/L
-    1104: 8,     // Buns ₹8/unit
-    1105: 6.65,  // Osmania Loose ₹6.65/unit
-    1106: 15,    // Cutlet ₹15/unit
-    1107: 6.7,   // Water Bottle ₹6.7/unit
-    1110: 173,   // Osmania Box ₹173/unit
-    1112: 326,   // Condensed Milk ₹326/kg
-    1113: 8,     // Samosa ₹8/unit
-    1114: 120,   // Oil ₹120/L (estimated)
-    1116: 10,    // Cheese Balls ₹10/unit (estimated)
-    1119: 500,   // Butter ₹500/kg (estimated)
-    1120: 1200,  // Coffee Powder ₹1200/kg (estimated)
-    1121: 5,     // Lemon ₹5/unit (estimated)
-    1123: 400,   // Honey ₹400/kg (estimated)
-  };
+// Hardcoded fallback costs from Odoo (last known purchase prices)
+const FALLBACK_COSTS = {
+  1095: 80,    // Buffalo Milk ₹80/L
+  1096: 310,   // SMP ₹310/kg
+  1097: 44,    // Sugar ₹44/kg
+  1098: 500,   // Tea Powder ₹500/kg
+  1101: 1.5,   // Filter Water ₹1.5/L
+  1104: 8,     // Buns ₹8/unit
+  1105: 6.65,  // Osmania Loose ₹6.65/unit
+  1106: 15,    // Cutlet ₹15/unit
+  1107: 6.7,   // Water Bottle ₹6.7/unit
+  1110: 173,   // Osmania Box ₹173/unit
+  1112: 326,   // Condensed Milk ₹326/kg
+  1113: 8,     // Samosa ₹8/unit
+  1114: 120,   // Oil ₹120/L (estimated)
+  1116: 10,    // Cheese Balls ₹10/unit (estimated)
+  1119: 500,   // Butter ₹500/kg (estimated)
+  1120: 1200,  // Coffee Powder ₹1200/kg (estimated)
+  1121: 5,     // Lemon ₹5/unit (estimated)
+  1123: 400,   // Honey ₹400/kg (estimated)
+};
+
+// Batch-load all material costs up to a given date in one query
+// Returns a map: materialId → cost_per_unit
+async function getAllMaterialCosts(DB, asOfDate) {
+  const costs = {};
+  // Start with fallbacks
+  for (const [id, cost] of Object.entries(FALLBACK_COSTS)) {
+    costs[String(id)] = cost;
+  }
 
   if (DB) {
     try {
+      // Get the latest cost per material where effective_from <= settlement date
+      // Uses a subquery to get the max effective_from per material
+      const rows = await DB.prepare(`
+        SELECT mc.material_id, mc.cost_per_unit FROM material_costs mc
+        INNER JOIN (
+          SELECT material_id, MAX(effective_from) as max_date
+          FROM material_costs
+          WHERE effective_from <= ?
+          GROUP BY material_id
+        ) latest ON mc.material_id = latest.material_id AND mc.effective_from = latest.max_date
+      `).bind(asOfDate || '9999-12-31').all();
+
+      for (const row of (rows.results || [])) {
+        costs[String(row.material_id)] = row.cost_per_unit;
+      }
+    } catch (e) { /* table may not exist yet */ }
+  }
+
+  return costs;
+}
+
+// Single material cost lookup (used for individual queries)
+async function getMaterialCost(DB, materialId, asOfDate) {
+  if (DB) {
+    try {
       const row = await DB.prepare(
-        'SELECT cost_per_unit FROM material_costs WHERE material_id = ? ORDER BY effective_from DESC LIMIT 1'
-      ).bind(String(materialId)).first();
+        'SELECT cost_per_unit FROM material_costs WHERE material_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1'
+      ).bind(String(materialId), asOfDate || '9999-12-31').first();
       if (row) return row.cost_per_unit;
     } catch (e) { /* table may not exist */ }
   }
@@ -784,7 +851,7 @@ async function getMaterialCost(DB, materialId) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ODOO: Fetch POS sales for the period
+// ODOO: Fetch POS sales for the period (basic — for prepare endpoint)
 // ═══════════════════════════════════════════════════════════════
 async function fetchPOSSales(url, db, uid, apiKey, from, to) {
   const orderIds = await odooCall(url, db, uid, apiKey, 'pos.order', 'search',
@@ -807,6 +874,49 @@ async function fetchPOSSales(url, db, uid, apiKey, from, to) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// ODOO: Fetch POS sales WITH channel breakdown (for submit endpoint)
+// Returns: {total, cashCounter, runnerCounter, whatsapp, products: {pid: {name, qty, amount}}}
+// ═══════════════════════════════════════════════════════════════
+async function fetchPOSSalesWithChannels(url, db, uid, apiKey, from, to) {
+  // Fetch orders with config_id for channel breakdown
+  const orders = await odooCall(url, db, uid, apiKey, 'pos.order', 'search_read',
+    [[['config_id', 'in', [27, 28, 29]], ['date_order', '>=', from], ['date_order', '<=', to],
+      ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]],
+    {fields: ['id', 'config_id', 'amount_total']});
+
+  if (!orders || orders.length === 0) {
+    return {total: 0, cashCounter: 0, runnerCounter: 0, whatsapp: 0, products: {}};
+  }
+
+  // Channel breakdown from config_id
+  // 27 = Cash Counter, 28 = Runner Counter, 29 = Delivery (WhatsApp/Swiggy/Zomato)
+  let cashCounter = 0, runnerCounter = 0, whatsapp = 0;
+  for (const order of orders) {
+    const configId = order.config_id?.[0] || 0;
+    if (configId === 27) cashCounter += order.amount_total;
+    else if (configId === 28) runnerCounter += order.amount_total;
+    else if (configId === 29) whatsapp += order.amount_total;
+  }
+
+  const orderIds = orders.map(o => o.id);
+  const lines = await odooCall(url, db, uid, apiKey, 'pos.order.line', 'search_read',
+    [[['order_id', 'in', orderIds]]],
+    {fields: ['product_id', 'qty', 'price_subtotal_incl']});
+
+  const products = {};
+  let total = 0;
+  for (const line of lines) {
+    const pid = line.product_id[0];
+    if (!products[pid]) products[pid] = {name: line.product_id[1], qty: 0, amount: 0};
+    products[pid].qty += line.qty;
+    products[pid].amount += line.price_subtotal_incl;
+    total += line.price_subtotal_incl;
+  }
+
+  return {total, cashCounter, runnerCounter, whatsapp, products};
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ODOO: Fetch purchases received in the period
 // ═══════════════════════════════════════════════════════════════
 async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
@@ -825,14 +935,29 @@ async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
   const moves = await odooCall(url, db, uid, apiKey, 'stock.move', 'read',
     [allMoveIds], {fields: ['product_id', 'quantity']});
 
-  // Get PO lines for cost data
+  // Get PO lines for cost data — weighted average per product across all POs
   const poNames = [...new Set(pickings.map(p => p.origin).filter(Boolean))];
-  let poLineCosts = {};
+  // Map product_id → [{price_unit, product_qty}] for weighted average
+  let poLineCostData = {};
   if (poNames.length > 0) {
     const poLines = await odooCall(url, db, uid, apiKey, 'purchase.order.line', 'search_read',
       [[['order_id.name', 'in', poNames]]], {fields: ['product_id', 'price_unit', 'product_qty']});
     for (const pl of poLines) {
-      poLineCosts[pl.product_id[0]] = pl.price_unit;
+      const pid = pl.product_id[0];
+      if (!poLineCostData[pid]) poLineCostData[pid] = [];
+      poLineCostData[pid].push({price: pl.price_unit, qty: pl.product_qty});
+    }
+  }
+
+  // Calculate weighted average cost per product
+  const poLineCosts = {};
+  for (const [pid, entries] of Object.entries(poLineCostData)) {
+    const totalQty = entries.reduce((s, e) => s + e.qty, 0);
+    if (totalQty > 0) {
+      const totalCost = entries.reduce((s, e) => s + e.price * e.qty, 0);
+      poLineCosts[pid] = totalCost / totalQty; // Weighted average
+    } else if (entries.length > 0) {
+      poLineCosts[pid] = entries[0].price; // Fallback: first PO line price
     }
   }
 
