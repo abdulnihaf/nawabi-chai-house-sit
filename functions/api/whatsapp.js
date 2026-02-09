@@ -1409,6 +1409,7 @@ async function searchNearbyPlaces(lat, lng, apiKey) {
       'pharmacy', 'clothing_store', 'electronics_store', 'hardware_store',
       'jewelry_store', 'bakery', 'establishment'],
     maxResultCount: 20,
+    rankPreference: 'DISTANCE', // CRITICAL: rank by proximity to pin, NOT popularity
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
