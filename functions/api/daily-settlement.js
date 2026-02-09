@@ -193,11 +193,14 @@ export async function onRequest(context) {
       const now = istNow();
       const settlementDate = dateParam || now.toISOString().slice(0, 10);
 
-      // Period: midnight to midnight IST
+      // Period: midnight IST to next midnight IST (exclusive end)
+      // IST strings for display/DB storage
       const periodStartIST = `${settlementDate}T00:00:00+05:30`;
-      const periodEndIST = `${settlementDate}T23:59:59+05:30`;
-      const periodStartUTC = new Date(new Date(periodStartIST).getTime() - 5.5 * 3600000);
-      const periodEndUTC = new Date(new Date(periodEndIST).getTime() - 5.5 * 3600000);
+      const periodEndIST = `${settlementDate}T23:59:59+05:30`; // Display only
+      // Convert to UTC Date objects — new Date() correctly handles the +05:30 offset
+      const periodStartUTC = new Date(periodStartIST); // midnight IST in UTC
+      const periodEndUTC = new Date(periodStartUTC.getTime() + 86400000); // next midnight IST in UTC
+      // Odoo expects UTC datetime strings (without timezone)
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
@@ -212,7 +215,7 @@ export async function onRequest(context) {
         fetchPOSSales(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         getVessels(DB),
-        DB ? DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at <= ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all() : {results: []},
+        DB ? DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at < ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all() : {results: []},
       ]);
 
       // Calculate revenue
@@ -283,11 +286,11 @@ export async function onRequest(context) {
       const existing = await DB.prepare('SELECT id FROM daily_settlements WHERE settlement_date = ?').bind(settlement_date).first();
       if (existing) return json({success: false, error: `Settlement already exists for ${settlement_date}. Cannot overwrite.`}, corsHeaders);
 
-      // Period
+      // Period: midnight IST to next midnight IST (exclusive end)
       const periodStartIST = `${settlement_date}T00:00:00+05:30`;
-      const periodEndIST = `${settlement_date}T23:59:59+05:30`;
-      const periodStartUTC = new Date(new Date(periodStartIST).getTime() - 5.5 * 3600000);
-      const periodEndUTC = new Date(new Date(periodEndIST).getTime() - 5.5 * 3600000);
+      const periodEndIST = `${settlement_date}T23:59:59+05:30`; // Display only
+      const periodStartUTC = new Date(periodStartIST);
+      const periodEndUTC = new Date(periodStartUTC.getTime() + 86400000);
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
@@ -337,7 +340,7 @@ export async function onRequest(context) {
       const [salesResult, purchaseData, expenseData] = await Promise.all([
         fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-        DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at <= ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all(),
+        DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at < ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all(),
       ]);
 
       // ── Step 4: Calculate Revenue ──
@@ -855,7 +858,7 @@ async function getMaterialCost(DB, materialId, asOfDate) {
 // ═══════════════════════════════════════════════════════════════
 async function fetchPOSSales(url, db, uid, apiKey, from, to) {
   const orderIds = await odooCall(url, db, uid, apiKey, 'pos.order', 'search',
-    [[['config_id', 'in', [27, 28, 29]], ['date_order', '>=', from], ['date_order', '<=', to],
+    [[['config_id', 'in', [27, 28, 29]], ['date_order', '>=', from], ['date_order', '<', to],
       ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]]);
   if (!orderIds || orderIds.length === 0) return [];
 
@@ -880,7 +883,7 @@ async function fetchPOSSales(url, db, uid, apiKey, from, to) {
 async function fetchPOSSalesWithChannels(url, db, uid, apiKey, from, to) {
   // Fetch orders with config_id for channel breakdown
   const orders = await odooCall(url, db, uid, apiKey, 'pos.order', 'search_read',
-    [[['config_id', 'in', [27, 28, 29]], ['date_order', '>=', from], ['date_order', '<=', to],
+    [[['config_id', 'in', [27, 28, 29]], ['date_order', '>=', from], ['date_order', '<', to],
       ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]],
     {fields: ['id', 'config_id', 'amount_total']});
 
@@ -923,7 +926,7 @@ async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
   // Get completed incoming pickings for NCH
   const pickings = await odooCall(url, db, uid, apiKey, 'stock.picking', 'search_read',
     [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
-      ['date_done', '>=', from], ['date_done', '<=', to], ['company_id', '=', 10]]],
+      ['date_done', '>=', from], ['date_done', '<', to], ['company_id', '=', 10]]],
     {fields: ['id', 'origin', 'move_ids']});
 
   if (!pickings || pickings.length === 0) return [];
@@ -961,12 +964,12 @@ async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
     }
   }
 
-  // Build result
+  // Build result — if no PO cost found, use FALLBACK_COSTS as safety net
   const result = [];
   for (const move of moves) {
     const pid = move.product_id[0];
     const qty = move.quantity || 0;
-    const unitCost = poLineCosts[pid] || 0;
+    const unitCost = poLineCosts[pid] || FALLBACK_COSTS[pid] || 0;
     result.push({
       materialId: pid,
       materialName: move.product_id[1],
