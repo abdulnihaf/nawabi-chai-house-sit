@@ -372,10 +372,18 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     }
   }
 
-  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog ──
+  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog with Change Location ──
   if (user.business_type && user.name && user.location_lat) {
-    const greeting = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu, add items to cart, and send your order 👇`;
+    const firstName = user.name ? user.name.split(' ')[0] : '';
+    const locationNote = user.location_address ? `\n📍 Delivering to: ${user.location_address}` : '';
+    const greeting = `Welcome back${firstName ? ' ' + firstName : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*${locationNote}\n\nBrowse our menu, add items to cart, and send your order 👇`;
     await sendWhatsApp(phoneId, token, buildMPM(waId, greeting));
+    // Show Change Location button so user can update delivery address
+    const locButtons = [
+      { type: 'reply', reply: { id: 'change_location', title: '📍 Change Location' } },
+      { type: 'reply', reply: { id: 'continue_ordering', title: '✅ Location is correct' } }
+    ];
+    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, `📍 *Delivery location:* ${user.location_address || 'Saved pin'}\n\nIs this correct, or would you like to change it?`, locButtons));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
@@ -629,10 +637,12 @@ async function proceedAfterLocationConfirm(context, session, user, waId, phoneId
   // Check if cart already has items (reorder flow needing location)
   const cart = JSON.parse(session.cart || '[]');
   if (cart.length > 0) {
-    const body = `📍 Location saved! (${distance}m from NCH)\n\nHow would you like to pay?`;
+    const locationLabel = user.location_address || 'Saved pin';
+    const body = `📍 Location saved! (${distance}m from NCH)\n📍 *Deliver to:* ${locationLabel}\n\nHow would you like to pay?`;
     const buttons = [
       { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
-      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
+      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } },
+      { type: 'reply', reply: { id: 'pay_change_loc', title: '📍 Change Location' } }
     ];
     await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
     await updateSession(db, waId, 'awaiting_payment', session.cart, session.cart_total);
@@ -678,10 +688,11 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
           return;
         }
         await updateSession(db, waId, 'awaiting_payment', JSON.stringify(updatedItems), cartTotal);
-        const body = `📍 Delivering to: ${user.location_address || 'your saved location'}\n\nHow would you like to pay?`;
+        const body = `📍 *Deliver to:* ${user.location_address || 'your saved location'}\n\nHow would you like to pay?`;
         const buttons = [
           { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
-          { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
+          { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } },
+          { type: 'reply', reply: { id: 'pay_change_loc', title: '📍 Change Location' } }
         ];
         await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
         return;
@@ -703,6 +714,23 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
   // ── Change Location button ──
   if (msg.type === 'button_reply' && msg.id === 'change_location') {
     // Clear saved location so it gets re-verified
+    await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+    user.location_lat = null;
+    user.location_lng = null;
+    user.location_address = null;
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await updateSession(db, waId, 'awaiting_location', '[]', 0);
+    return;
+  }
+
+  // ── "Location is correct" button — just acknowledge and stay in menu ──
+  if (msg.type === 'button_reply' && msg.id === 'continue_ordering') {
+    await sendWhatsApp(phoneId, token, buildText(waId, `👍 Great! Browse the menu above and send your order when ready.`));
+    return;
+  }
+
+  // ── Text command: "change location" / "location" — same as button ──
+  if (msg.type === 'text' && /^(change\s*location|location|change\s*loc)$/i.test(msg.body || msg.bodyLower)) {
     await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
     user.location_lat = null;
     user.location_lng = null;
@@ -786,22 +814,38 @@ async function handleOrderMessage(context, session, user, msg, waId, phoneId, to
     }
   }
 
-  const body = `*Your order:*\n${cartSummary}${discountPreview}\n\n💰 *Total: ₹${cartTotal}*\n\nHow would you like to pay?`;
+  const locationLabel = user.location_address || 'Saved pin';
+  const body = `*Your order:*\n${cartSummary}${discountPreview}\n\n💰 *Total: ₹${cartTotal}*\n📍 *Deliver to:* ${locationLabel}\n\nHow would you like to pay?`;
   const buttons = [
     { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
-    { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
+    { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } },
+    { type: 'reply', reply: { id: 'pay_change_loc', title: '📍 Change Location' } }
   ];
   await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
 }
 
 // ─── STATE: AWAITING PAYMENT → COD or UPI ─────────────────────────
 async function handlePayment(context, session, user, msg, waId, phoneId, token, db) {
+  // ── Change Location from payment screen ──
+  if (msg.type === 'button_reply' && msg.id === 'pay_change_loc') {
+    await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+    user.location_lat = null;
+    user.location_lng = null;
+    user.location_address = null;
+    // Keep cart intact — move to awaiting_location so after new location, goes back to payment
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
+    return;
+  }
+
   if (msg.type !== 'button_reply' || !msg.id.startsWith('pay_')) {
+    const locationLabel = user.location_address || 'Saved pin';
     const buttons = [
       { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
-      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
+      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } },
+      { type: 'reply', reply: { id: 'pay_change_loc', title: '📍 Change Location' } }
     ];
-    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, 'Please select a payment method:', buttons));
+    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, `📍 Deliver to: ${locationLabel}\n\nPlease select a payment method:`, buttons));
     return;
   }
 
