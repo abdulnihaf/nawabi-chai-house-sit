@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Daily P&L Settlement</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316;--cyan:#06b6d4;--teal:#14b8a6}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ── PIN SCREEN ── */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:24px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
+    .pin-input input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(20,184,166,0.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,0.1)}
+    .pin-success{display:none;align-items:center;gap:8px;justify-content:center;color:var(--green);font-weight:600;margin-top:16px}
+    .pin-success.show{display:flex}
+    .pin-error{display:none;color:var(--red);font-size:13px;margin-top:8px}
+    .pin-error.show{display:block}
+
+    /* ── DASHBOARD ── */
+    .dashboard{display:none;min-height:100vh}
+    .dashboard.show{display:block}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+    .header h1{font-size:20px;display:flex;align-items:center;gap:8px}
+    .header h1::before{content:'';width:4px;height:24px;background:linear-gradient(180deg,var(--teal),var(--cyan));border-radius:2px}
+    .user-badge{display:flex;align-items:center;gap:12px}
+    .user-badge .dot{width:8px;height:8px;background:var(--green);border-radius:50%}
+    .user-badge .name{font-weight:600}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+    .logout-btn:hover{background:var(--border)}
+    .content{padding:20px;max-width:900px;margin:0 auto}
+
+    /* ── TABS ── */
+    .tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--bg2);border-radius:10px;padding:4px;overflow-x:auto}
+    .tab{padding:10px 20px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--text2);transition:all .2s}
+    .tab:hover{color:var(--text)}
+    .tab.active{background:var(--card);color:var(--text);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+    .tab-content{display:none}
+    .tab-content.show{display:block}
+
+    /* ── DATE PICKER ── */
+    .date-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+    .date-bar input[type="date"]{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;font-family:'JetBrains Mono',monospace}
+    .date-bar input:focus{outline:none;border-color:var(--teal)}
+    .date-bar input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .btn{padding:10px 20px;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit;transition:all .2s}
+    .btn-primary{background:linear-gradient(135deg,var(--teal),var(--cyan));color:#fff}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(20,184,166,0.3)}
+    .btn-secondary{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
+    .btn-secondary:hover{border-color:var(--text2)}
+    .btn-green{background:var(--green);color:#fff}
+    .btn-green:hover{background:#16a34a}
+    .btn-orange{background:var(--orange);color:#fff}
+    .btn-orange:hover{background:#ea580c}
+    .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+    .badge{display:inline-flex;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .badge-green{background:rgba(34,197,94,0.15);color:var(--green)}
+    .badge-yellow{background:rgba(234,179,8,0.15);color:var(--yellow)}
+    .badge-blue{background:rgba(59,130,246,0.15);color:var(--blue)}
+    .badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
+    .badge-orange{background:rgba(249,115,22,0.15);color:var(--orange)}
+
+    /* ── INFO / ALERTS ── */
+    .alert{border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;display:flex;gap:10px;align-items:flex-start}
+    .alert-info{background:rgba(59,130,246,0.1);border:1px solid var(--blue);color:var(--blue)}
+    .alert-warning{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);color:var(--yellow)}
+    .alert-success{background:rgba(34,197,94,0.1);border:1px solid var(--green);color:var(--green)}
+    .alert-error{background:rgba(239,68,68,0.1);border:1px solid var(--red);color:var(--red)}
+    .alert .alert-icon{font-size:18px;flex-shrink:0}
+    .alert .alert-text{flex:1;line-height:1.5}
+
+    /* ── SECTIONS / CARDS ── */
+    .section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:var(--text2)}
+    .section-title .sec-icon{font-size:18px}
+
+    /* ── INPUT FIELDS ── */
+    .field{margin-bottom:16px}
+    .field-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+    .field-label .hint{text-transform:none;letter-spacing:0;font-weight:400;color:var(--text2);opacity:0.7;font-size:11px}
+    .field-row{display:flex;gap:10px;align-items:flex-end}
+    .field-row .field{flex:1;margin-bottom:0}
+    .input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;padding:12px;font-family:'JetBrains Mono',monospace;transition:all .2s}
+    .input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(20,184,166,0.15)}
+    .input::placeholder{color:var(--muted)}
+    .input-sm{font-size:14px;padding:10px}
+    select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+    .computed-value{font-family:'JetBrains Mono',monospace;color:var(--cyan);font-size:13px;margin-top:4px}
+
+    /* ── VESSEL ROW ── */
+    .vessel-group{margin-bottom:12px}
+    .vessel-entries{display:flex;flex-direction:column;gap:8px}
+    .vessel-entry{display:flex;gap:8px;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 12px}
+    .vessel-entry select{flex:1;min-width:0}
+    .vessel-entry .weight-input{width:100px}
+    .vessel-entry .net-display{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);min-width:80px;text-align:right}
+    .vessel-entry .remove-vessel{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:4px}
+    .add-vessel-btn{background:none;border:1px dashed var(--border);border-radius:8px;padding:8px;color:var(--text2);font-size:13px;cursor:pointer;width:100%;text-align:center;margin-top:6px;transition:all .2s}
+    .add-vessel-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+    /* ── WASTAGE ── */
+    .wastage-entry{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .wastage-entry select{flex:1;min-width:0}
+    .wastage-entry .qty-input{width:80px}
+    .wastage-entry .reason-input{flex:1;min-width:100px}
+
+    /* ── P&L RESULT ── */
+    .pnl-card{background:linear-gradient(135deg,rgba(20,184,166,0.05),rgba(6,182,212,0.05));border:1px solid var(--teal);border-radius:16px;padding:24px;margin-bottom:16px}
+    .pnl-header{text-align:center;margin-bottom:20px}
+    .pnl-header h2{font-size:20px;margin-bottom:4px}
+    .pnl-header .date{font-family:'JetBrains Mono',monospace;color:var(--text2);font-size:13px}
+    .pnl-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .pnl-row:last-child{border-bottom:none}
+    .pnl-row .label{color:var(--text2)}
+    .pnl-row .value{font-weight:600;font-family:'JetBrains Mono',monospace}
+    .pnl-row.total{padding-top:16px;margin-top:8px;border-top:2px solid var(--border);border-bottom:none}
+    .pnl-row.total .label{font-weight:700;color:var(--text);font-size:16px}
+    .pnl-row.total .value{font-size:24px}
+    .pnl-row.sub{padding:4px 0 4px 16px;font-size:13px;opacity:0.7}
+    .profit-positive{color:var(--green)}
+    .profit-negative{color:var(--red)}
+
+    /* ── INVENTORY TABLE ── */
+    .inv-table{width:100%;border-collapse:collapse;font-size:13px}
+    .inv-table th{text-align:left;padding:8px 10px;font-size:11px;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border)}
+    .inv-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.03)}
+    .inv-table tr:last-child td{border-bottom:none}
+    .inv-table .num{font-family:'JetBrains Mono',monospace;text-align:right}
+    .inv-table .disc-pos{color:var(--red)}
+    .inv-table .disc-neg{color:var(--green)}
+
+    /* ── HISTORY LIST ── */
+    .history-item{background:var(--bg2);border-radius:10px;padding:16px;margin-bottom:10px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+    .history-item:hover{border-color:var(--border);transform:translateX(4px)}
+    .history-item .hi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .history-item .hi-date{font-weight:600;font-family:'JetBrains Mono',monospace}
+    .history-item .hi-status{font-size:11px}
+    .history-item .hi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .history-item .hi-stat{text-align:center}
+    .history-item .hi-stat .hs-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600}
+    .history-item .hi-stat .hs-label{font-size:10px;color:var(--muted);margin-top:2px}
+
+    /* ── DECOMPOSITION PREVIEW ── */
+    .decomp-preview{background:var(--bg2);border-radius:8px;padding:12px;margin-top:12px;font-size:12px}
+    .decomp-preview h4{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;letter-spacing:0.5px}
+    .decomp-preview .dp-row{display:flex;justify-content:space-between;padding:3px 0}
+    .decomp-preview .dp-row .dp-name{color:var(--text2)}
+    .decomp-preview .dp-row .dp-val{font-family:'JetBrains Mono',monospace;color:var(--cyan)}
+
+    /* ── LOADING ── */
+    .loading{text-align:center;padding:40px;color:var(--text2)}
+    .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:600px){
+      .content{padding:12px}
+      .header{padding:12px 16px}
+      .header h1{font-size:16px}
+      .tabs{gap:2px;padding:3px}
+      .tab{padding:8px 14px;font-size:13px}
+      .field-row{flex-direction:column}
+      .vessel-entry{flex-wrap:wrap}
+      .vessel-entry select{width:100%}
+      .vessel-entry .weight-input{width:100%;flex:none}
+      .history-item .hi-grid{grid-template-columns:repeat(2,1fr)}
+      .pnl-row.total .value{font-size:20px}
+    }
+  </style>
+</head>
+<body>
+  <!-- ═══ PIN SCREEN ═══ -->
+  <div class="pin-screen" id="pinScreen">
+    <div class="pin-box">
+      <div class="icon">📊</div>
+      <h2>Daily P&L Settlement</h2>
+      <p>Enter your 4-digit PIN to continue</p>
+      <div class="pin-input" id="pinInput">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="pin-success" id="pinSuccess">✓ Welcome back</div>
+      <div class="pin-error" id="pinError">Invalid PIN — try again</div>
+    </div>
+  </div>
+
+  <!-- ═══ DASHBOARD ═══ -->
+  <div class="dashboard" id="dashboard">
+    <div class="header">
+      <h1>Daily P&L Settlement</h1>
+      <div class="user-badge">
+        <span class="dot"></span>
+        <span class="name" id="userName"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" data-tab="settle" onclick="switchTab('settle')">📝 Settle</div>
+        <div class="tab" data-tab="history" onclick="switchTab('history')">📋 History</div>
+        <div class="tab" data-tab="config" onclick="switchTab('config')">⚙️ Config</div>
+      </div>
+
+      <!-- ═══ SETTLE TAB ═══ -->
+      <div class="tab-content show" id="tab-settle">
+        <div class="date-bar">
+          <input type="date" id="settlementDate">
+          <button class="btn btn-primary" onclick="prepareSettlement()">Load Day</button>
+          <span id="dateStatus" style="font-size:13px;color:var(--text2)"></span>
+        </div>
+
+        <div id="settleLoading" class="loading" style="display:none"><div class="spinner"></div><p style="margin-top:12px">Loading settlement data...</p></div>
+        <div id="settleAlreadyDone" style="display:none"></div>
+        <div id="settleForm" style="display:none">
+          <!-- Bootstrap banner -->
+          <div id="bootstrapBanner" class="alert alert-info" style="display:none">
+            <span class="alert-icon">🏁</span>
+            <div class="alert-text"><strong>Bootstrap Settlement</strong> — No previous settlement found. This will record your baseline inventory. Only physical counts are needed — no P&L will be calculated.<br><br>Count everything as accurately as possible. This becomes Day 0.</div>
+          </div>
+
+          <!-- Revenue auto-fetched -->
+          <div id="revenueSection" class="section">
+            <div class="section-title"><span class="sec-icon">💰</span> Revenue (Auto from POS)</div>
+            <div id="revenueContent"></div>
+          </div>
+
+          <!-- ═══ INVENTORY COUNT ═══ -->
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🥛</span> Milk & Dairy</div>
+            <!-- Raw Buffalo Milk -->
+            <div class="field">
+              <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, in litres)</span></div>
+              <input type="number" class="input" id="raw_buffalo_milk" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Boiled Milk — Kitchen vessels -->
+            <div class="vessel-group">
+              <div class="field-label">Boiled Milk — Kitchen <span class="hint">(place vessel on scale)</span></div>
+              <div class="vessel-entries" id="boiled_milk_kitchen"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_kitchen','boiled_milk','kitchen')">+ Add kitchen vessel</button>
+            </div>
+            <!-- Boiled Milk — Counter vessels -->
+            <div class="vessel-group" style="margin-top:12px">
+              <div class="field-label">Boiled Milk — Counter <span class="hint">(place vessel on scale)</span></div>
+              <div class="vessel-entries" id="boiled_milk_counter"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_counter','boiled_milk','counter')">+ Add counter vessel</button>
+            </div>
+            <!-- Raw condensed milk -->
+            <div class="field" style="margin-top:12px">
+              <div class="field-label">Condensed Milk (Milkmaid) <span class="hint">(kg — unopened cans/tins)</span></div>
+              <input type="number" class="input" id="raw_milkmaid" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Raw SMP -->
+            <div class="field">
+              <div class="field-label">Skimmed Milk Powder <span class="hint">(kg — unopened packets)</span></div>
+              <input type="number" class="input" id="raw_smp" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Malai (byproduct) -->
+            <div class="field">
+              <div class="field-label">Malai <span class="hint">(kg — byproduct, tracked only)</span></div>
+              <input type="number" class="input" id="malai" step="0.01" placeholder="0" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🍵</span> Tea & Coffee</div>
+            <!-- Tea Decoction -->
+            <div class="vessel-group">
+              <div class="field-label">Tea Decoction <span class="hint">(all locations — place vessel on scale)</span></div>
+              <div class="vessel-entries" id="tea_decoction"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('tea_decoction','decoction','')">+ Add decoction vessel</button>
+            </div>
+            <!-- Tea-Sugar Boxes -->
+            <div class="field" style="margin-top:12px">
+              <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed: 400g tea + 800g sugar each)</span></div>
+              <input type="number" class="input" id="tea_sugar_boxes" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+            </div>
+            <!-- Raw Tea Powder -->
+            <div class="field">
+              <div class="field-label">Raw Tea Powder <span class="hint">(kg — unmixed packets)</span></div>
+              <input type="number" class="input" id="raw_tea_powder" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Raw Sugar -->
+            <div class="field">
+              <div class="field-label">Sugar <span class="hint">(kg — loose/bags, unmixed)</span></div>
+              <input type="number" class="input" id="raw_sugar" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Coffee Powder -->
+            <div class="field">
+              <div class="field-label">Coffee Powder (Nescafe) <span class="hint">(kg)</span></div>
+              <input type="number" class="input" id="coffee_powder" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Honey -->
+            <div class="field">
+              <div class="field-label">Honey <span class="hint">(kg)</span></div>
+              <input type="number" class="input" id="honey" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+            <!-- Lemons -->
+            <div class="field">
+              <div class="field-label">Lemons <span class="hint">(count — whole lemons)</span></div>
+              <input type="number" class="input" id="lemons" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🧈</span> Buns & Butter</div>
+            <!-- Plain Buns -->
+            <div class="field">
+              <div class="field-label">Plain Buns <span class="hint">(uncut/unprepared — count)</span></div>
+              <input type="number" class="input" id="plain_buns" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+            </div>
+            <!-- Prepared Bun Maska -->
+            <div class="field">
+              <div class="field-label">Prepared Bun Maska <span class="hint">(cut + buttered — count)</span></div>
+              <input type="number" class="input" id="prepared_bun_maska" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+            </div>
+            <!-- Butter -->
+            <div class="field">
+              <div class="field-label">Butter <span class="hint">(kg — unopened blocks/tubs)</span></div>
+              <input type="number" class="input" id="butter" step="0.01" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🍗</span> Fried Items</div>
+            <div class="field-row">
+              <div class="field">
+                <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span></div>
+                <input type="number" class="input input-sm" id="raw_cutlets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Cutlets <span class="hint">(ready)</span></div>
+                <input type="number" class="input input-sm" id="fried_cutlets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Raw Samosa <span class="hint">(frozen)</span></div>
+                <input type="number" class="input input-sm" id="raw_samosa" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Samosa <span class="hint">(ready)</span></div>
+                <input type="number" class="input input-sm" id="fried_samosa" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span></div>
+                <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Cheese Balls <span class="hint">(ready)</span></div>
+                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+            </div>
+            <!-- Oil -->
+            <div class="field" style="margin-top:12px">
+              <div class="field-label">Oil <span class="hint">(litres — in frying vessel/bottles)</span></div>
+              <input type="number" class="input" id="oil" step="0.1" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🍪</span> Biscuits & Water</div>
+            <div class="field-row">
+              <div class="field">
+                <div class="field-label">Osmania Packets <span class="hint">(sealed, 24 per pkt)</span></div>
+                <input type="number" class="input input-sm" id="osmania_packets" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span></div>
+                <input type="number" class="input input-sm" id="osmania_loose" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Niloufer Boxes — Storage <span class="hint">(500g boxes)</span></div>
+                <input type="number" class="input input-sm" id="niloufer_storage" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Niloufer Boxes — Display</div>
+                <input type="number" class="input input-sm" id="niloufer_display" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              </div>
+            </div>
+            <!-- Water Bottles -->
+            <div class="field" style="margin-top:12px">
+              <div class="field-label">Water Bottles <span class="hint">(total count — all locations)</span></div>
+              <input type="number" class="input" id="water_bottles" step="1" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+            </div>
+          </div>
+
+          <!-- Runner Tokens -->
+          <div class="section" id="runnerTokenSection">
+            <div class="section-title"><span class="sec-icon">🎟️</span> Runner Tokens <span class="hint" style="font-size:12px;text-transform:none;letter-spacing:0">(unsold tokens held by runners)</span></div>
+            <div class="field-row">
+              <div class="field">
+                <div class="field-label">FAROOQ</div>
+                <input type="number" class="input input-sm" id="tokens_64" step="1" placeholder="0" inputmode="numeric">
+              </div>
+              <div class="field">
+                <div class="field-label">AMIN</div>
+                <input type="number" class="input input-sm" id="tokens_65" step="1" placeholder="0" inputmode="numeric">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:8px">
+              <div class="field">
+                <div class="field-label">RUN 03</div>
+                <input type="number" class="input input-sm" id="tokens_66" step="1" placeholder="0" inputmode="numeric">
+              </div>
+              <div class="field">
+                <div class="field-label">RUN 04</div>
+                <input type="number" class="input input-sm" id="tokens_67" step="1" placeholder="0" inputmode="numeric">
+              </div>
+              <div class="field">
+                <div class="field-label">RUN 05</div>
+                <input type="number" class="input input-sm" id="tokens_68" step="1" placeholder="0" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+
+          <!-- Wastage -->
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🗑️</span> Wastage <span class="hint" style="font-size:12px;text-transform:none;letter-spacing:0">(record any known wastage)</span></div>
+            <div id="wastageEntries"></div>
+            <button class="add-vessel-btn" onclick="addWastageEntry()" style="margin-top:8px">+ Add wastage item</button>
+          </div>
+
+          <!-- Notes -->
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">📝</span> Notes</div>
+            <textarea class="input" id="settlementNotes" rows="3" placeholder="Any notes about today's settlement..." style="font-family:inherit;font-size:14px;resize:vertical"></textarea>
+          </div>
+
+          <!-- Decomposition Preview -->
+          <div class="decomp-preview" id="decompPreview" style="display:none">
+            <h4>🔬 Raw Material Decomposition Preview</h4>
+            <div id="decompContent"></div>
+          </div>
+
+          <!-- Submit -->
+          <button class="btn btn-green" id="submitBtn" onclick="submitSettlement()" style="width:100%;padding:16px;font-size:16px;margin-top:20px;border-radius:12px">
+            ✅ Submit Settlement
+          </button>
+        </div>
+
+        <!-- Settlement result -->
+        <div id="settleResult" style="display:none"></div>
+      </div>
+
+      <!-- ═══ HISTORY TAB ═══ -->
+      <div class="tab-content" id="tab-history">
+        <div id="historyLoading" class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading history...</p></div>
+        <div id="historyList"></div>
+        <div id="historyDetail" style="display:none"></div>
+      </div>
+
+      <!-- ═══ CONFIG TAB ═══ -->
+      <div class="tab-content" id="tab-config">
+        <!-- Vessels -->
+        <div class="section">
+          <div class="section-title"><span class="sec-icon">⚖️</span> Vessels (Tare Weights)</div>
+          <div id="vesselList"></div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+            <div class="section-title" style="margin-bottom:12px"><span class="sec-icon">➕</span> Add / Update Vessel</div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Code</div><input type="text" class="input input-sm" id="vesselCode" placeholder="e.g. CTR-MILK-2"></div>
+              <div class="field"><div class="field-label">Name</div><input type="text" class="input input-sm" id="vesselName" placeholder="e.g. Counter Milk Vessel 2"></div>
+            </div>
+            <div class="field-row" style="margin-top:8px">
+              <div class="field"><div class="field-label">Liquid Type</div>
+                <select class="input input-sm" id="vesselType"><option value="boiled_milk">Boiled Milk</option><option value="decoction">Tea Decoction</option><option value="oil">Oil</option><option value="raw_milk">Raw Milk</option></select>
+              </div>
+              <div class="field"><div class="field-label">Location</div>
+                <select class="input input-sm" id="vesselLocation"><option value="kitchen">Kitchen</option><option value="counter">Counter</option></select>
+              </div>
+              <div class="field"><div class="field-label">Empty Weight (kg)</div>
+                <input type="number" class="input input-sm" id="vesselWeight" step="0.01" placeholder="0.00">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="saveVessel()" style="margin-top:12px">Save Vessel</button>
+          </div>
+        </div>
+
+        <!-- Salaries -->
+        <div class="section">
+          <div class="section-title"><span class="sec-icon">👤</span> Staff Salaries</div>
+          <div id="salaryList"></div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+            <div class="section-title" style="margin-bottom:12px"><span class="sec-icon">➕</span> Add Staff</div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Name</div><input type="text" class="input input-sm" id="staffName" placeholder="e.g. Tanveer"></div>
+              <div class="field"><div class="field-label">Role</div><input type="text" class="input input-sm" id="staffRole" placeholder="e.g. Tea Master"></div>
+              <div class="field"><div class="field-label">Monthly Salary (₹)</div><input type="number" class="input input-sm" id="staffSalary" step="100" placeholder="15000"></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveSalary()" style="margin-top:12px">Save Staff</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// NCH Daily P&L Settlement — Frontend
+// ═══════════════════════════════════════════════════════════
+
+const API = '/api/daily-settlement';
+const $ = id => document.getElementById(id);
+const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const fmtDec = (n, d=2) => n.toFixed(d);
+
+let currentUser = null;
+let currentPin = null;
+let settleData = null;  // data from prepare endpoint
+let vessels = [];       // available vessels from config
+let isBootstrap = false;
+
+// Raw materials reference (mirrored from API)
+const RAW_MATERIALS = {
+  1095:{name:'Buffalo Milk',uom:'L'},1096:{name:'SMP',uom:'kg'},1097:{name:'Sugar',uom:'kg'},
+  1098:{name:'Tea Powder',uom:'kg'},1101:{name:'Filter Water',uom:'L'},1104:{name:'Buns',uom:'Units'},
+  1105:{name:'Osmania (Loose)',uom:'Units'},1106:{name:'Cutlet',uom:'Units'},1107:{name:'Water Bottle',uom:'Units'},
+  1110:{name:'Niloufer Box',uom:'Units'},1112:{name:'Condensed Milk',uom:'kg'},1113:{name:'Samosa',uom:'Units'},
+  1114:{name:'Oil',uom:'L'},1116:{name:'Cheese Balls',uom:'Units'},1119:{name:'Butter',uom:'kg'},
+  1120:{name:'Coffee Powder',uom:'kg'},1121:{name:'Lemon',uom:'Units'},1123:{name:'Honey',uom:'kg'},
+};
+
+// Decomposition ratios (mirrored from API)
+const BOILED_MILK_RATIO = {1095:0.957,1096:0.02392,1112:0.01914};
+const DECOCTION_RATIO = {1098:0.005618,1097:0.01124,1101:0.9831};
+const TEA_SUGAR_BOX_RATIO = {1098:0.4,1097:0.8};
+const FRIED_OIL = {1106:0.03,1113:0.02,1116:0.015};
+const BUN_MASKA_RATIO = {1104:1,1119:0.05,1097:0.004};
+const OSMANIA_PER_PACKET = 24;
+const DENSITY = {boiled_milk:1.035,tea_decoction:1.03,oil:0.92};
+
+// Default vessels (fallback if DB empty)
+const DEFAULT_VESSELS = [
+  {code:'KIT-PATILA-1',name:'Kitchen Large Patila',liquid_type:'boiled_milk',location:'kitchen',empty_weight_kg:13.28},
+  {code:'CTR-MILK-1',name:'Counter Milk Vessel',liquid_type:'boiled_milk',location:'counter',empty_weight_kg:10.0},
+  {code:'CTR-DEC-1',name:'Counter Decoction 1',liquid_type:'decoction',location:'counter',empty_weight_kg:13.0},
+  {code:'CTR-DEC-2',name:'Counter Decoction 2',liquid_type:'decoction',location:'counter',empty_weight_kg:11.0},
+  {code:'KIT-DEC-1',name:'Kitchen Decoction Vessel',liquid_type:'decoction',location:'kitchen',empty_weight_kg:11.0},
+];
+
+// ── PIN AUTHENTICATION ──────────────────────────────────
+
+const pins = Array.from($('pinInput').querySelectorAll('input'));
+pins.forEach((input, i) => {
+  input.addEventListener('input', e => {
+    if (e.target.value) { input.classList.add('filled'); if (i < 3) pins[i+1].focus(); else checkPin(); }
+    else input.classList.remove('filled');
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !e.target.value && i > 0) { pins[i-1].focus(); pins[i-1].value = ''; pins[i-1].classList.remove('filled'); }
+  });
+});
+
+async function checkPin() {
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${pin}`);
+    const data = await res.json();
+    if (data.success) {
+      currentUser = data.user;
+      currentPin = pin;
+      $('pinSuccess').textContent = `✓ Welcome, ${data.user}`;
+      $('pinSuccess').classList.add('show');
+      $('pinError').classList.remove('show');
+      setTimeout(() => {
+        $('pinScreen').classList.add('hidden');
+        $('dashboard').classList.add('show');
+        $('userName').textContent = data.user;
+        initDashboard();
+      }, 600);
+    } else {
+      $('pinError').classList.add('show');
+      pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+      pins[0].focus();
+    }
+  } catch (e) {
+    $('pinError').textContent = 'Network error — try again';
+    $('pinError').classList.add('show');
+    pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+    pins[0].focus();
+  }
+}
+
+function logout() {
+  currentUser = null;
+  currentPin = null;
+  $('pinScreen').classList.remove('hidden');
+  $('dashboard').classList.remove('show');
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  $('pinSuccess').classList.remove('show');
+  $('pinError').classList.remove('show');
+  pins[0].focus();
+}
+
+// ── INIT ─────────────────────────────────────────────────
+
+function initDashboard() {
+  // Set default date to today IST
+  const now = new Date(Date.now() + 5.5 * 3600000);
+  $('settlementDate').value = now.toISOString().slice(0, 10);
+  loadConfig();
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch(`${API}?action=get-config`);
+    const data = await res.json();
+    if (data.success) {
+      vessels = data.vessels && data.vessels.length > 0 ? data.vessels : DEFAULT_VESSELS;
+      renderVesselConfig();
+    }
+  } catch (e) {
+    vessels = DEFAULT_VESSELS;
+  }
+  loadSalaries();
+}
+
+// ── TABS ─────────────────────────────────────────────────
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('show', c.id === `tab-${tab}`));
+  if (tab === 'history') loadHistory();
+}
+
+// ── PREPARE SETTLEMENT ───────────────────────────────────
+
+async function prepareSettlement() {
+  const date = $('settlementDate').value;
+  if (!date) return;
+
+  $('settleLoading').style.display = 'block';
+  $('settleForm').style.display = 'none';
+  $('settleAlreadyDone').style.display = 'none';
+  $('settleResult').style.display = 'none';
+  $('dateStatus').textContent = '';
+
+  try {
+    const res = await fetch(`${API}?action=prepare&date=${date}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    settleData = data;
+    $('settleLoading').style.display = 'none';
+
+    // Already settled?
+    if (data.existing) {
+      $('settleAlreadyDone').style.display = 'block';
+      $('settleAlreadyDone').innerHTML = `
+        <div class="alert alert-success">
+          <span class="alert-icon">✅</span>
+          <div class="alert-text">
+            <strong>Settlement already completed for ${date}</strong><br>
+            Settled by ${data.existing.settled_by} at ${formatTime(data.existing.settled_at)}<br>
+            Status: <span class="badge badge-green">${data.existing.status}</span>
+            ${data.existing.status === 'completed' ? `<br>Net Profit: <strong>${fmt(data.existing.adjusted_net_profit)}</strong>` : ''}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Show form
+    isBootstrap = data.needsBootstrap;
+    $('settleForm').style.display = 'block';
+    $('bootstrapBanner').style.display = isBootstrap ? 'flex' : 'none';
+    $('revenueSection').style.display = isBootstrap ? 'none' : 'block';
+    $('runnerTokenSection').style.display = isBootstrap ? 'none' : 'block';
+    $('submitBtn').textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
+    $('dateStatus').textContent = isBootstrap ? '🏁 Bootstrap mode' : `📊 Day ${data.previousSettlement ? '#' + (data.previousSettlement.id + 1) : '1'}`;
+
+    // Render revenue
+    if (!isBootstrap && data.revenue) {
+      renderRevenue(data.revenue);
+    }
+
+    // Pre-populate default vessel entries
+    resetForm();
+
+  } catch (e) {
+    $('settleLoading').style.display = 'none';
+    $('settleAlreadyDone').style.display = 'block';
+    $('settleAlreadyDone').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+  }
+}
+
+function resetForm() {
+  // Clear all inputs
+  const inputs = document.querySelectorAll('#settleForm input[type="number"], #settleForm textarea');
+  inputs.forEach(i => i.value = '');
+
+  // Clear vessel entries
+  ['boiled_milk_kitchen','boiled_milk_counter','tea_decoction'].forEach(id => {
+    $(id).innerHTML = '';
+  });
+
+  // Add one default vessel entry per group
+  const kitchenMilkVessels = vessels.filter(v => v.liquid_type === 'boiled_milk' && v.location === 'kitchen');
+  const counterMilkVessels = vessels.filter(v => v.liquid_type === 'boiled_milk' && v.location === 'counter');
+  const decoctionVessels = vessels.filter(v => v.liquid_type === 'decoction');
+
+  if (kitchenMilkVessels.length > 0) addVesselEntry('boiled_milk_kitchen', 'boiled_milk', 'kitchen');
+  if (counterMilkVessels.length > 0) addVesselEntry('boiled_milk_counter', 'boiled_milk', 'counter');
+  if (decoctionVessels.length > 0) addVesselEntry('tea_decoction', 'decoction', '');
+
+  // Clear wastage
+  $('wastageEntries').innerHTML = '';
+  $('decompPreview').style.display = 'none';
+}
+
+function renderRevenue(revenue) {
+  if (!revenue || !revenue.products || revenue.products.length === 0) {
+    $('revenueContent').innerHTML = `<div style="color:var(--text2);font-size:13px">No POS sales recorded for this date</div>`;
+    return;
+  }
+  let html = `<div style="font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-bottom:16px">${fmt(revenue.total)}</div>`;
+  html += `<div style="display:grid;gap:6px">`;
+  for (const item of revenue.products) {
+    html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px">
+      <span style="color:var(--text2)">${item.productName} × ${item.qtySold}</span>
+      <span class="mono">${fmt(item.amount)}</span>
+    </div>`;
+  }
+  html += '</div>';
+  $('revenueContent').innerHTML = html;
+}
+
+// ── VESSEL ENTRIES ───────────────────────────────────────
+
+function addVesselEntry(containerId, liquidType, location) {
+  const container = $(containerId);
+  const filtered = vessels.filter(v => v.liquid_type === liquidType && (!location || v.location === location));
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="color:var(--yellow);font-size:12px;padding:8px">No vessels configured for this type. Add one in Config tab.</div>`;
+    return;
+  }
+
+  const entry = document.createElement('div');
+  entry.className = 'vessel-entry';
+  entry.innerHTML = `
+    <select class="input input-sm" onchange="updateVesselDisplay(this)" style="flex:1">
+      ${filtered.map(v => `<option value="${v.code}" data-tare="${v.empty_weight_kg}">${v.name} (${v.empty_weight_kg} kg)</option>`).join('')}
+    </select>
+    <input type="number" class="input input-sm weight-input" placeholder="kg on scale" step="0.01" inputmode="decimal" onchange="updateVesselDisplay(this);updateDecomp()">
+    <span class="net-display">—</span>
+    <button class="remove-vessel" onclick="this.closest('.vessel-entry').remove();updateDecomp()" title="Remove">✕</button>
+  `;
+  container.appendChild(entry);
+}
+
+function updateVesselDisplay(el) {
+  const entry = el.closest('.vessel-entry');
+  const select = entry.querySelector('select');
+  const weightInput = entry.querySelector('.weight-input');
+  const display = entry.querySelector('.net-display');
+  const tare = parseFloat(select.selectedOptions[0]?.dataset.tare || 0);
+  const gross = parseFloat(weightInput.value) || 0;
+
+  if (gross <= 0) { display.textContent = '—'; return; }
+
+  const net = Math.max(0, gross - tare);
+  const liquidType = getLiquidTypeForContainer(entry.closest('.vessel-entries')?.id);
+  const density = DENSITY[liquidType] || 1;
+  const litres = net / density;
+  display.textContent = `${litres.toFixed(2)} L`;
+  display.style.color = net > 0 ? 'var(--cyan)' : 'var(--red)';
+}
+
+function getLiquidTypeForContainer(containerId) {
+  if (containerId?.includes('milk')) return 'boiled_milk';
+  if (containerId?.includes('decoction')) return 'tea_decoction';
+  return 'boiled_milk';
+}
+
+function getVesselEntries(containerId) {
+  const entries = [];
+  const container = $(containerId);
+  if (!container) return entries;
+  container.querySelectorAll('.vessel-entry').forEach(row => {
+    const code = row.querySelector('select')?.value;
+    const weight = parseFloat(row.querySelector('.weight-input')?.value) || 0;
+    if (code && weight > 0) entries.push({vessel_code: code, weight_kg: weight});
+  });
+  return entries;
+}
+
+// ── WASTAGE ENTRIES ──────────────────────────────────────
+
+function addWastageEntry() {
+  const container = $('wastageEntries');
+  const entry = document.createElement('div');
+  entry.className = 'wastage-entry';
+  entry.innerHTML = `
+    <select class="input input-sm" style="flex:1">
+      ${Object.entries(RAW_MATERIALS).map(([id, m]) => `<option value="${id}">${m.name} (${m.uom})</option>`).join('')}
+    </select>
+    <input type="number" class="input input-sm qty-input" placeholder="Qty" step="0.1" inputmode="decimal">
+    <input type="text" class="input input-sm reason-input" placeholder="Reason">
+    <button class="remove-vessel" onclick="this.closest('.wastage-entry').remove()" title="Remove">✕</button>
+  `;
+  container.appendChild(entry);
+}
+
+function getWastageItems() {
+  const items = [];
+  $('wastageEntries').querySelectorAll('.wastage-entry').forEach(row => {
+    const materialId = parseInt(row.querySelector('select')?.value);
+    const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+    const reason = row.querySelector('.reason-input')?.value || '';
+    if (materialId && qty > 0) items.push({material_id: materialId, qty, reason});
+  });
+  return items;
+}
+
+// ── DECOMPOSITION PREVIEW ────────────────────────────────
+
+function updateDecomp() {
+  const input = collectRawInput();
+  const totals = clientDecompose(input);
+
+  const nonZero = Object.entries(totals).filter(([_, v]) => v > 0.0001);
+  if (nonZero.length === 0) { $('decompPreview').style.display = 'none'; return; }
+
+  $('decompPreview').style.display = 'block';
+  let html = '';
+  nonZero.sort((a, b) => {
+    const nameA = RAW_MATERIALS[a[0]]?.name || '';
+    const nameB = RAW_MATERIALS[b[0]]?.name || '';
+    return nameA.localeCompare(nameB);
+  });
+  for (const [matId, qty] of nonZero) {
+    const mat = RAW_MATERIALS[matId];
+    if (!mat) continue;
+    html += `<div class="dp-row"><span class="dp-name">${mat.name}</span><span class="dp-val">${fmtQty(qty, mat.uom)} ${mat.uom}</span></div>`;
+  }
+  $('decompContent').innerHTML = html;
+}
+
+function fmtQty(v, uom) {
+  if (uom === 'Units') return Math.round(v).toString();
+  if (v < 0.01) return v.toFixed(4);
+  if (v < 1) return v.toFixed(3);
+  return v.toFixed(2);
+}
+
+function clientDecompose(input) {
+  const totals = {};
+  const add = (id, qty) => { totals[id] = (totals[id] || 0) + qty; };
+
+  if (input.raw_buffalo_milk) add(1095, input.raw_buffalo_milk);
+  if (input.raw_milkmaid) add(1112, input.raw_milkmaid);
+  if (input.raw_smp) add(1096, input.raw_smp);
+  if (input.raw_sugar) add(1097, input.raw_sugar);
+  if (input.raw_tea_powder) add(1098, input.raw_tea_powder);
+  if (input.butter) add(1119, input.butter);
+  if (input.coffee_powder) add(1120, input.coffee_powder);
+  if (input.honey) add(1123, input.honey);
+  if (input.lemons) add(1121, input.lemons);
+  if (input.oil) add(1114, input.oil);
+  if (input.water_bottles) add(1107, input.water_bottles);
+
+  // Boiled milk
+  const milkLitres = calcVesselLitres('boiled_milk_kitchen', DENSITY.boiled_milk)
+    + calcVesselLitres('boiled_milk_counter', DENSITY.boiled_milk);
+  if (milkLitres > 0) for (const [id, r] of Object.entries(BOILED_MILK_RATIO)) add(id, milkLitres * r);
+
+  // Decoction
+  const decLitres = calcVesselLitres('tea_decoction', DENSITY.tea_decoction);
+  if (decLitres > 0) for (const [id, r] of Object.entries(DECOCTION_RATIO)) add(id, decLitres * r);
+
+  // Tea-Sugar boxes
+  if (input.tea_sugar_boxes) for (const [id, r] of Object.entries(TEA_SUGAR_BOX_RATIO)) add(id, input.tea_sugar_boxes * r);
+
+  // Buns
+  if (input.plain_buns) add(1104, input.plain_buns);
+  if (input.prepared_bun_maska) for (const [id, r] of Object.entries(BUN_MASKA_RATIO)) add(id, input.prepared_bun_maska * r);
+
+  // Fried items
+  if (input.raw_cutlets) add(1106, input.raw_cutlets);
+  if (input.fried_cutlets) { add(1106, input.fried_cutlets); add(1114, input.fried_cutlets * FRIED_OIL[1106]); }
+  if (input.raw_samosa) add(1113, input.raw_samosa);
+  if (input.fried_samosa) { add(1113, input.fried_samosa); add(1114, input.fried_samosa * FRIED_OIL[1113]); }
+  if (input.raw_cheese_balls) add(1116, input.raw_cheese_balls);
+  if (input.fried_cheese_balls) { add(1116, input.fried_cheese_balls); add(1114, input.fried_cheese_balls * FRIED_OIL[1116]); }
+
+  // Osmania
+  if (input.osmania_packets) add(1105, input.osmania_packets * OSMANIA_PER_PACKET);
+  if (input.osmania_loose) add(1105, input.osmania_loose);
+
+  // Niloufer
+  const niloufer = (input.niloufer_storage || 0) + (input.niloufer_display || 0);
+  if (niloufer) add(1110, niloufer);
+
+  return totals;
+}
+
+function calcVesselLitres(containerId, density) {
+  let total = 0;
+  const container = $(containerId);
+  if (!container) return 0;
+  container.querySelectorAll('.vessel-entry').forEach(row => {
+    const select = row.querySelector('select');
+    const weight = parseFloat(row.querySelector('.weight-input')?.value) || 0;
+    const tare = parseFloat(select?.selectedOptions[0]?.dataset.tare || 0);
+    if (weight > 0) total += Math.max(0, weight - tare) / density;
+  });
+  return total;
+}
+
+// ── COLLECT RAW INPUT ────────────────────────────────────
+
+function collectRawInput() {
+  return {
+    raw_buffalo_milk: parseFloat($('raw_buffalo_milk')?.value) || 0,
+    raw_milkmaid: parseFloat($('raw_milkmaid')?.value) || 0,
+    raw_smp: parseFloat($('raw_smp')?.value) || 0,
+    raw_sugar: parseFloat($('raw_sugar')?.value) || 0,
+    raw_tea_powder: parseFloat($('raw_tea_powder')?.value) || 0,
+    butter: parseFloat($('butter')?.value) || 0,
+    coffee_powder: parseFloat($('coffee_powder')?.value) || 0,
+    honey: parseFloat($('honey')?.value) || 0,
+    lemons: parseFloat($('lemons')?.value) || 0,
+    oil: parseFloat($('oil')?.value) || 0,
+    water_bottles: parseInt($('water_bottles')?.value) || 0,
+    boiled_milk_kitchen: getVesselEntries('boiled_milk_kitchen'),
+    boiled_milk_counter: getVesselEntries('boiled_milk_counter'),
+    tea_decoction: getVesselEntries('tea_decoction'),
+    tea_sugar_boxes: parseInt($('tea_sugar_boxes')?.value) || 0,
+    plain_buns: parseInt($('plain_buns')?.value) || 0,
+    prepared_bun_maska: parseInt($('prepared_bun_maska')?.value) || 0,
+    raw_cutlets: parseInt($('raw_cutlets')?.value) || 0,
+    fried_cutlets: parseInt($('fried_cutlets')?.value) || 0,
+    raw_samosa: parseInt($('raw_samosa')?.value) || 0,
+    fried_samosa: parseInt($('fried_samosa')?.value) || 0,
+    raw_cheese_balls: parseInt($('raw_cheese_balls')?.value) || 0,
+    fried_cheese_balls: parseInt($('fried_cheese_balls')?.value) || 0,
+    osmania_packets: parseInt($('osmania_packets')?.value) || 0,
+    osmania_loose: parseInt($('osmania_loose')?.value) || 0,
+    niloufer_storage: parseInt($('niloufer_storage')?.value) || 0,
+    niloufer_display: parseInt($('niloufer_display')?.value) || 0,
+    malai: parseFloat($('malai')?.value) || 0,
+  };
+}
+
+function collectRunnerTokens() {
+  return {
+    '64': parseInt($('tokens_64')?.value) || 0,
+    '65': parseInt($('tokens_65')?.value) || 0,
+    '66': parseInt($('tokens_66')?.value) || 0,
+    '67': parseInt($('tokens_67')?.value) || 0,
+    '68': parseInt($('tokens_68')?.value) || 0,
+  };
+}
+
+// ── SUBMIT SETTLEMENT ────────────────────────────────────
+
+async function submitSettlement() {
+  const btn = $('submitBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = isBootstrap ? '🏁 Submitting bootstrap...' : '⏳ Calculating P&L...';
+
+  const date = $('settlementDate').value;
+  const rawInput = collectRawInput();
+  const runnerTokens = collectRunnerTokens();
+  const wastageItems = getWastageItems();
+  const notes = $('settlementNotes')?.value || '';
+
+  try {
+    const res = await fetch(`${API}?action=submit`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        pin: currentPin,
+        settlement_date: date,
+        raw_input: rawInput,
+        wastage_items: wastageItems,
+        runner_tokens: runnerTokens,
+        notes,
+        is_bootstrap: isBootstrap,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    // Show result
+    $('settleForm').style.display = 'none';
+    $('settleResult').style.display = 'block';
+
+    if (isBootstrap) {
+      $('settleResult').innerHTML = `
+        <div class="alert alert-success" style="margin-bottom:16px">
+          <span class="alert-icon">🏁</span>
+          <div class="alert-text"><strong>Bootstrap Settlement Complete!</strong><br>Baseline inventory recorded for ${date}. You can now run daily settlements going forward.</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory (Decomposed to Raw Materials)</div>
+          ${renderInventoryTable(data.inventory)}
+        </div>
+      `;
+    } else {
+      renderPnlResult(data);
+    }
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
+    alert('Error: ' + e.message);
+  }
+}
+
+function renderPnlResult(data) {
+  const p = data.pnl;
+  const profitClass = p.adjustedNetProfit >= 0 ? 'profit-positive' : 'profit-negative';
+
+  let html = `
+    <div class="pnl-card">
+      <div class="pnl-header">
+        <h2>☕ Daily P&L — ${data.settlementDate}</h2>
+        <div class="date">Settled by ${data.settledBy}</div>
+      </div>
+      <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
+      <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
+      <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(p.cogsExpected)}</span></div>
+      <div class="pnl-row"><span class="label">📊 Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
+      <div class="pnl-row"><span class="label">💸 Operating Expenses</span><span class="value">${fmt(p.opex)}</span></div>
+      <div class="pnl-row"><span class="label">📈 Net Profit</span><span class="value">${fmt(p.netProfit)}</span></div>
+      ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">🗑️ Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
+      ${Math.abs(p.discrepancy) > 10 ? `<div class="pnl-row"><span class="label">⚠️ Discrepancy</span><span class="value" style="color:var(--orange)">${fmt(p.discrepancy)}</span></div>` : ''}
+      <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${profitClass}">${fmt(p.adjustedNetProfit)}</span></div>
+    </div>
+  `;
+
+  // Inventory breakdown
+  if (data.inventory) {
+    html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement</div>`;
+    html += renderInventoryMovement(data.inventory);
+    html += `</div>`;
+  }
+
+  // Discrepancy details
+  if (data.inventory?.discrepancy) {
+    const discItems = Object.entries(data.inventory.discrepancy).filter(([_, d]) => Math.abs(d.qty) > 0.001);
+    if (discItems.length > 0) {
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">⚠️</span> Discrepancy Details</div>`;
+      html += `<table class="inv-table"><tr><th>Material</th><th style="text-align:right">Variance</th><th style="text-align:right">Value</th></tr>`;
+      for (const [matId, d] of discItems) {
+        const mat = RAW_MATERIALS[matId];
+        const cls = d.qty > 0 ? 'disc-pos' : 'disc-neg';
+        html += `<tr><td>${mat?.name || matId}</td><td class="num ${cls}">${d.qty > 0 ? '+' : ''}${fmtQty(d.qty, d.uom)} ${d.uom}</td><td class="num ${cls}">${fmt(d.value)}</td></tr>`;
+      }
+      html += `</table></div>`;
+    }
+  }
+
+  $('settleResult').innerHTML = html;
+}
+
+function renderInventoryTable(inv) {
+  let html = `<table class="inv-table"><tr><th>Material</th><th style="text-align:right">Qty</th></tr>`;
+  for (const [matId, qty] of Object.entries(inv).sort((a, b) => (RAW_MATERIALS[a[0]]?.name || '').localeCompare(RAW_MATERIALS[b[0]]?.name || ''))) {
+    if (qty < 0.0001) continue;
+    const mat = RAW_MATERIALS[matId];
+    html += `<tr><td>${mat?.name || matId}</td><td class="num">${fmtQty(qty, mat?.uom || '')} ${mat?.uom || ''}</td></tr>`;
+  }
+  html += '</table>';
+  return html;
+}
+
+function renderInventoryMovement(inv) {
+  const allMats = new Set([
+    ...Object.keys(inv.opening || {}),
+    ...Object.keys(inv.closing || {}),
+    ...Object.keys(inv.consumption || {}),
+  ]);
+
+  let html = `<div style="overflow-x:auto"><table class="inv-table">
+    <tr><th>Material</th><th style="text-align:right">Opening</th><th style="text-align:right">Purchased</th><th style="text-align:right">Closing</th><th style="text-align:right">Consumed</th><th style="text-align:right">Expected</th></tr>`;
+
+  const sorted = [...allMats].sort((a, b) => (RAW_MATERIALS[a]?.name || '').localeCompare(RAW_MATERIALS[b]?.name || ''));
+  for (const matId of sorted) {
+    const mat = RAW_MATERIALS[matId];
+    if (!mat) continue;
+    const uom = mat.uom;
+    const opening = inv.opening?.[matId] || 0;
+    const purchased = inv.purchases?.[matId]?.qty || 0;
+    const closing = inv.closing?.[matId] || 0;
+    const consumed = inv.consumption?.[matId] || 0;
+    const expected = inv.expected?.[matId] || 0;
+    if (opening < 0.0001 && purchased < 0.0001 && closing < 0.0001) continue;
+
+    html += `<tr>
+      <td>${mat.name}</td>
+      <td class="num">${fmtQty(opening, uom)}</td>
+      <td class="num">${purchased > 0 ? fmtQty(purchased, uom) : '—'}</td>
+      <td class="num">${fmtQty(closing, uom)}</td>
+      <td class="num">${consumed > 0 ? fmtQty(consumed, uom) : '—'}</td>
+      <td class="num">${expected > 0 ? fmtQty(expected, uom) : '—'}</td>
+    </tr>`;
+  }
+  html += '</table></div>';
+  return html;
+}
+
+// ── HISTORY ──────────────────────────────────────────────
+
+async function loadHistory() {
+  $('historyLoading').style.display = 'block';
+  $('historyList').innerHTML = '';
+  $('historyDetail').style.display = 'none';
+
+  try {
+    const res = await fetch(`${API}?action=history`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    $('historyLoading').style.display = 'none';
+
+    if (!data.settlements || data.settlements.length === 0) {
+      $('historyList').innerHTML = `<div class="alert alert-info"><span class="alert-icon">📋</span><div class="alert-text">No settlements yet. Start with a bootstrap settlement.</div></div>`;
+      return;
+    }
+
+    let html = '';
+    for (const s of data.settlements) {
+      const statusBadge = s.status === 'bootstrap' ? '<span class="badge badge-blue">Bootstrap</span>' : '<span class="badge badge-green">Completed</span>';
+      html += `
+        <div class="history-item" onclick="loadSettlementDetail('${s.settlement_date}')">
+          <div class="hi-top">
+            <span class="hi-date">${s.settlement_date}</span>
+            ${statusBadge}
+          </div>
+          ${s.status === 'completed' ? `
+          <div class="hi-grid">
+            <div class="hi-stat"><div class="hs-val">${fmt(s.revenue_total)}</div><div class="hs-label">Revenue</div></div>
+            <div class="hi-stat"><div class="hs-val">${fmt(s.cogs_actual)}</div><div class="hs-label">COGS</div></div>
+            <div class="hi-stat"><div class="hs-val">${fmt(s.opex_total)}</div><div class="hs-label">OpEx</div></div>
+            <div class="hi-stat"><div class="hs-val ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</div><div class="hs-label">Net Profit</div></div>
+          </div>` : `
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">Baseline inventory recorded by ${s.settled_by}</div>`}
+        </div>
+      `;
+    }
+    $('historyList').innerHTML = html;
+
+  } catch (e) {
+    $('historyLoading').style.display = 'none';
+    $('historyList').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+  }
+}
+
+async function loadSettlementDetail(date) {
+  $('historyDetail').style.display = 'block';
+  $('historyDetail').innerHTML = `<div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading ${date}...</p></div>`;
+
+  try {
+    const res = await fetch(`${API}?action=get-settlement&date=${date}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    const s = data.settlement;
+    let html = `<div style="margin-bottom:16px"><button class="btn btn-secondary" onclick="$('historyDetail').style.display='none'">← Back to list</button></div>`;
+
+    if (s.status === 'bootstrap') {
+      html += `
+        <div class="alert alert-info" style="margin-bottom:16px"><span class="alert-icon">🏁</span><div class="alert-text"><strong>Bootstrap — ${s.settlement_date}</strong><br>Settled by ${s.settled_by} at ${formatTime(s.settled_at)}</div></div>
+        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory</div>
+          ${renderInventoryTable(JSON.parse(s.inventory_decomposed || '{}'))}
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="pnl-card">
+          <div class="pnl-header"><h2>☕ Daily P&L — ${s.settlement_date}</h2><div class="date">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}</div></div>
+          <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
+          <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
+          <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(s.cogs_expected)}</span></div>
+          <div class="pnl-row"><span class="label">📊 Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
+          <div class="pnl-row"><span class="label">💸 OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
+          <div class="pnl-row sub"><span class="label">Salaries</span><span class="value" style="color:var(--text2)">${fmt(s.opex_salaries)}</span></div>
+          <div class="pnl-row sub"><span class="label">Counter Expenses</span><span class="value" style="color:var(--text2)">${fmt(s.opex_counter_expenses)}</span></div>
+          <div class="pnl-row"><span class="label">📈 Net Profit</span><span class="value">${fmt(s.net_profit)}</span></div>
+          ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">🗑️ Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
+          ${Math.abs(s.discrepancy_value) > 10 ? `<div class="pnl-row"><span class="label">⚠️ Discrepancy</span><span class="value" style="color:var(--orange)">${fmt(s.discrepancy_value)}</span></div>` : ''}
+          <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
+        </div>
+
+        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement</div>
+          ${renderInventoryMovement({
+            opening: JSON.parse(s.inventory_opening || '{}'),
+            purchases: JSON.parse(s.inventory_purchases || '{}'),
+            closing: JSON.parse(s.inventory_closing || '{}'),
+            consumption: JSON.parse(s.inventory_consumption || '{}'),
+            expected: JSON.parse(s.inventory_expected || '{}'),
+          })}
+        </div>
+      `;
+
+      // Discrepancy
+      const disc = JSON.parse(s.inventory_discrepancy || '{}');
+      const discItems = Object.entries(disc).filter(([_, d]) => Math.abs(d.qty) > 0.001);
+      if (discItems.length > 0) {
+        html += `<div class="section"><div class="section-title"><span class="sec-icon">⚠️</span> Discrepancy Details</div>
+          <table class="inv-table"><tr><th>Material</th><th style="text-align:right">Variance</th><th style="text-align:right">Value</th></tr>`;
+        for (const [matId, d] of discItems) {
+          const mat = RAW_MATERIALS[matId];
+          const cls = d.qty > 0 ? 'disc-pos' : 'disc-neg';
+          html += `<tr><td>${mat?.name || matId}</td><td class="num ${cls}">${d.qty > 0 ? '+' : ''}${fmtQty(d.qty, d.uom)} ${d.uom}</td><td class="num ${cls}">${fmt(d.value)}</td></tr>`;
+        }
+        html += '</table></div>';
+      }
+
+      // Runner tokens
+      const tokens = JSON.parse(s.runner_tokens || '{}');
+      const tokenTotal = Object.values(tokens).reduce((a, b) => a + b, 0);
+      if (tokenTotal > 0) {
+        html += `<div class="section"><div class="section-title"><span class="sec-icon">🎟️</span> Runner Tokens (${tokenTotal} total)</div><div style="display:flex;gap:12px;flex-wrap:wrap">`;
+        const runnerNames = {64:'FAROOQ',65:'AMIN',66:'RUN03',67:'RUN04',68:'RUN05'};
+        for (const [rid, count] of Object.entries(tokens)) {
+          if (count > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px"><span style="color:var(--text2)">${runnerNames[rid] || rid}:</span> <span class="mono">${count}</span></div>`;
+        }
+        html += '</div></div>';
+      }
+
+      // Notes
+      if (s.notes) {
+        html += `<div class="section"><div class="section-title"><span class="sec-icon">📝</span> Notes</div><div style="font-size:14px;color:var(--text2);line-height:1.6">${s.notes}</div></div>`;
+      }
+    }
+
+    $('historyDetail').innerHTML = html;
+  } catch (e) {
+    $('historyDetail').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+  }
+}
+
+// ── CONFIG: VESSELS ──────────────────────────────────────
+
+function renderVesselConfig() {
+  const container = $('vesselList');
+  if (!vessels || vessels.length === 0) {
+    container.innerHTML = `<div style="color:var(--text2);font-size:13px">No vessels configured yet. Using defaults.</div>`;
+    return;
+  }
+  let html = `<table class="inv-table">
+    <tr><th>Code</th><th>Name</th><th>Type</th><th>Location</th><th style="text-align:right">Tare (kg)</th></tr>`;
+  for (const v of vessels) {
+    html += `<tr>
+      <td class="mono" style="font-size:12px">${v.code}</td>
+      <td>${v.name}</td>
+      <td style="font-size:12px">${v.liquid_type}</td>
+      <td style="font-size:12px">${v.location}</td>
+      <td class="num">${v.empty_weight_kg}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+async function saveVessel() {
+  const code = $('vesselCode').value.trim();
+  const name = $('vesselName').value.trim();
+  const liquid_type = $('vesselType').value;
+  const location = $('vesselLocation').value;
+  const empty_weight_kg = parseFloat($('vesselWeight').value);
+
+  if (!code || !name || isNaN(empty_weight_kg)) {
+    alert('Please fill in all vessel fields');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}?action=save-vessel`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, name, liquid_type, location, empty_weight_kg, notes: ''}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    // Clear form
+    $('vesselCode').value = '';
+    $('vesselName').value = '';
+    $('vesselWeight').value = '';
+
+    // Reload config
+    loadConfig();
+    alert('Vessel saved!');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── CONFIG: SALARIES ─────────────────────────────────────
+
+async function loadSalaries() {
+  try {
+    const res = await fetch(`${API}?action=get-salaries`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    const container = $('salaryList');
+    if (!data.salaries || data.salaries.length === 0) {
+      container.innerHTML = `<div style="color:var(--text2);font-size:13px">No staff salaries configured. Add below.</div>`;
+      return;
+    }
+
+    let html = `<table class="inv-table">
+      <tr><th>Name</th><th>Role</th><th style="text-align:right">Monthly</th><th style="text-align:right">Daily</th></tr>`;
+    for (const s of data.salaries) {
+      html += `<tr>
+        <td>${s.name}</td>
+        <td style="color:var(--text2)">${s.role || '—'}</td>
+        <td class="num">${fmt(s.monthly_salary)}</td>
+        <td class="num">${fmt(Math.round(s.monthly_salary / 30))}</td>
+      </tr>`;
+    }
+    html += '</table>';
+    container.innerHTML = html;
+  } catch (e) { /* silent */ }
+}
+
+async function saveSalary() {
+  const name = $('staffName').value.trim();
+  const role = $('staffRole').value.trim();
+  const monthly_salary = parseFloat($('staffSalary').value);
+
+  if (!name || isNaN(monthly_salary)) {
+    alert('Please fill in name and salary');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}?action=save-salary`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, role, monthly_salary}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    $('staffName').value = '';
+    $('staffRole').value = '';
+    $('staffSalary').value = '';
+    loadSalaries();
+    alert('Staff salary saved!');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── UTILITIES ────────────────────────────────────────────
+
+function formatTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const ist = new Date(d.getTime() + 5.5 * 3600000);
+  const dd = String(ist.getUTCDate()).padStart(2, '0');
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ist.getUTCMonth()];
+  const hh = String(ist.getUTCHours()).padStart(2, '0');
+  const mm = String(ist.getUTCMinutes()).padStart(2, '0');
+  return `${dd} ${mon} ${hh}:${mm}`;
+}
+
+// Focus first PIN input on load
+pins[0].focus();
+</script>
+</body>
+</html>
