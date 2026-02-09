@@ -162,6 +162,13 @@
     .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
 
+    /* ── TIMESTAMP BADGES ── */
+    .ts-badge{display:none;font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;letter-spacing:0.3px;font-weight:500}
+    .ts-fresh{background:rgba(34,197,94,0.15);color:var(--green)}
+    .ts-warn{background:rgba(234,179,8,0.15);color:var(--yellow)}
+    .ts-old{background:rgba(249,115,22,0.15);color:var(--orange)}
+    .field-label .ts-badge{font-size:10px}
+
     /* ── RESPONSIVE ── */
     @media(max-width:600px){
       .content{padding:12px}
@@ -242,35 +249,35 @@
             <div class="section-title"><span class="sec-icon">🥛</span> Milk & Dairy</div>
             <!-- Raw Buffalo Milk -->
             <div class="field">
-              <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, in litres)</span></div>
-              <input type="number" class="input" id="raw_buffalo_milk" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, in litres)</span><span class="ts-badge" data-ts-for="raw_buffalo_milk"></span></div>
+              <input type="number" class="input" id="raw_buffalo_milk" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_buffalo_milk');updateDecomp()">
             </div>
             <!-- Boiled Milk — Kitchen vessels -->
             <div class="vessel-group">
-              <div class="field-label">Boiled Milk — Kitchen <span class="hint">(place vessel on scale)</span></div>
+              <div class="field-label">Boiled Milk — Kitchen <span class="hint">(place vessel on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_kitchen"></span></div>
               <div class="vessel-entries" id="boiled_milk_kitchen"></div>
               <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_kitchen','boiled_milk','kitchen')">+ Add kitchen vessel</button>
             </div>
             <!-- Boiled Milk — Counter vessels -->
             <div class="vessel-group" style="margin-top:12px">
-              <div class="field-label">Boiled Milk — Counter <span class="hint">(place vessel on scale)</span></div>
+              <div class="field-label">Boiled Milk — Counter <span class="hint">(place vessel on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_counter"></span></div>
               <div class="vessel-entries" id="boiled_milk_counter"></div>
               <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_counter','boiled_milk','counter')">+ Add counter vessel</button>
             </div>
             <!-- Raw condensed milk -->
             <div class="field" style="margin-top:12px">
-              <div class="field-label">Condensed Milk (Milkmaid) <span class="hint">(kg — unopened cans/tins)</span></div>
-              <input type="number" class="input" id="raw_milkmaid" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Condensed Milk (Milkmaid) <span class="hint">(kg — unopened cans/tins)</span><span class="ts-badge" data-ts-for="raw_milkmaid"></span></div>
+              <input type="number" class="input" id="raw_milkmaid" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_milkmaid');updateDecomp()">
             </div>
             <!-- Raw SMP -->
             <div class="field">
-              <div class="field-label">Skimmed Milk Powder <span class="hint">(kg — unopened packets)</span></div>
-              <input type="number" class="input" id="raw_smp" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Skimmed Milk Powder <span class="hint">(kg — unopened packets)</span><span class="ts-badge" data-ts-for="raw_smp"></span></div>
+              <input type="number" class="input" id="raw_smp" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_smp');updateDecomp()">
             </div>
             <!-- Malai (byproduct) -->
             <div class="field">
-              <div class="field-label">Malai <span class="hint">(kg — byproduct, tracked only)</span></div>
-              <input type="number" class="input" id="malai" step="0.01" min="0" placeholder="0" inputmode="decimal">
+              <div class="field-label">Malai <span class="hint">(kg — byproduct, tracked only)</span><span class="ts-badge" data-ts-for="malai"></span></div>
+              <input type="number" class="input" id="malai" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('malai')">
             </div>
           </div>
 
@@ -278,39 +285,39 @@
             <div class="section-title"><span class="sec-icon">🍵</span> Tea & Coffee</div>
             <!-- Tea Decoction -->
             <div class="vessel-group">
-              <div class="field-label">Tea Decoction <span class="hint">(all locations — place vessel on scale)</span></div>
+              <div class="field-label">Tea Decoction <span class="hint">(all locations — place vessel on scale)</span><span class="ts-badge" data-ts-for="tea_decoction"></span></div>
               <div class="vessel-entries" id="tea_decoction"></div>
               <button class="add-vessel-btn" onclick="addVesselEntry('tea_decoction','decoction','')">+ Add decoction vessel</button>
             </div>
             <!-- Tea-Sugar Boxes -->
             <div class="field" style="margin-top:12px">
-              <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed: 400g tea + 800g sugar each)</span></div>
-              <input type="number" class="input" id="tea_sugar_boxes" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed: 400g tea + 800g sugar each)</span><span class="ts-badge" data-ts-for="tea_sugar_boxes"></span></div>
+              <input type="number" class="input" id="tea_sugar_boxes" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('tea_sugar_boxes');updateDecomp()">
             </div>
             <!-- Raw Tea Powder -->
             <div class="field">
-              <div class="field-label">Raw Tea Powder <span class="hint">(kg — unmixed packets)</span></div>
-              <input type="number" class="input" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Raw Tea Powder <span class="hint">(kg — unmixed packets)</span><span class="ts-badge" data-ts-for="raw_tea_powder"></span></div>
+              <input type="number" class="input" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
             </div>
             <!-- Raw Sugar -->
             <div class="field">
-              <div class="field-label">Sugar <span class="hint">(kg — loose/bags, unmixed)</span></div>
-              <input type="number" class="input" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Sugar <span class="hint">(kg — loose/bags, unmixed)</span><span class="ts-badge" data-ts-for="raw_sugar"></span></div>
+              <input type="number" class="input" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
             </div>
             <!-- Coffee Powder -->
             <div class="field">
-              <div class="field-label">Coffee Powder (Nescafe) <span class="hint">(kg)</span></div>
-              <input type="number" class="input" id="coffee_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Coffee Powder (Nescafe) <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="coffee_powder"></span></div>
+              <input type="number" class="input" id="coffee_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('coffee_powder');updateDecomp()">
             </div>
             <!-- Honey -->
             <div class="field">
-              <div class="field-label">Honey <span class="hint">(kg)</span></div>
-              <input type="number" class="input" id="honey" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Honey <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="honey"></span></div>
+              <input type="number" class="input" id="honey" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('honey');updateDecomp()">
             </div>
             <!-- Lemons -->
             <div class="field">
-              <div class="field-label">Lemons <span class="hint">(count — whole lemons)</span></div>
-              <input type="number" class="input" id="lemons" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <div class="field-label">Lemons <span class="hint">(count — whole lemons)</span><span class="ts-badge" data-ts-for="lemons"></span></div>
+              <input type="number" class="input" id="lemons" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('lemons');updateDecomp()">
             </div>
           </div>
 
@@ -318,18 +325,18 @@
             <div class="section-title"><span class="sec-icon">🧈</span> Buns & Butter</div>
             <!-- Plain Buns -->
             <div class="field">
-              <div class="field-label">Plain Buns <span class="hint">(uncut/unprepared — count)</span></div>
-              <input type="number" class="input" id="plain_buns" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <div class="field-label">Plain Buns <span class="hint">(uncut/unprepared — count)</span><span class="ts-badge" data-ts-for="plain_buns"></span></div>
+              <input type="number" class="input" id="plain_buns" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('plain_buns');updateDecomp()">
             </div>
             <!-- Prepared Bun Maska -->
             <div class="field">
-              <div class="field-label">Prepared Bun Maska <span class="hint">(cut + buttered — count)</span></div>
-              <input type="number" class="input" id="prepared_bun_maska" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <div class="field-label">Prepared Bun Maska <span class="hint">(cut + buttered — count)</span><span class="ts-badge" data-ts-for="prepared_bun_maska"></span></div>
+              <input type="number" class="input" id="prepared_bun_maska" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('prepared_bun_maska');updateDecomp()">
             </div>
             <!-- Butter -->
             <div class="field">
-              <div class="field-label">Butter <span class="hint">(kg — unopened blocks/tubs)</span></div>
-              <input type="number" class="input" id="butter" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Butter <span class="hint">(kg — unopened blocks/tubs)</span><span class="ts-badge" data-ts-for="butter"></span></div>
+              <input type="number" class="input" id="butter" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('butter');updateDecomp()">
             </div>
           </div>
 
@@ -337,38 +344,38 @@
             <div class="section-title"><span class="sec-icon">🍗</span> Fried Items</div>
             <div class="field-row">
               <div class="field">
-                <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cutlets"></span></div>
+                <input type="number" class="input input-sm" id="raw_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_cutlets');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Fried Cutlets <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
-              </div>
-            </div>
-            <div class="field-row" style="margin-top:12px">
-              <div class="field">
-                <div class="field-label">Raw Samosa <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
-              </div>
-              <div class="field">
-                <div class="field-label">Fried Samosa <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Fried Cutlets <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_cutlets"></span></div>
+                <input type="number" class="input input-sm" id="fried_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cutlets');updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
-                <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span></div>
-                <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Raw Samosa <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_samosa"></span></div>
+                <input type="number" class="input input-sm" id="raw_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_samosa');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Fried Cheese Balls <span class="hint">(ready)</span></div>
-                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Fried Samosa <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_samosa"></span></div>
+                <input type="number" class="input input-sm" id="fried_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_samosa');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cheese_balls"></span></div>
+                <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_cheese_balls');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Cheese Balls <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_cheese_balls"></span></div>
+                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cheese_balls');updateDecomp()">
               </div>
             </div>
             <!-- Oil -->
             <div class="field" style="margin-top:12px">
-              <div class="field-label">Oil <span class="hint">(litres — in frying vessel/bottles)</span></div>
-              <input type="number" class="input" id="oil" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="updateDecomp()">
+              <div class="field-label">Oil <span class="hint">(litres — in frying vessel/bottles)</span><span class="ts-badge" data-ts-for="oil"></span></div>
+              <input type="number" class="input" id="oil" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('oil');updateDecomp()">
             </div>
           </div>
 
@@ -376,28 +383,28 @@
             <div class="section-title"><span class="sec-icon">🍪</span> Biscuits & Water</div>
             <div class="field-row">
               <div class="field">
-                <div class="field-label">Osmania Packets <span class="hint">(sealed, 24 per pkt)</span></div>
-                <input type="number" class="input input-sm" id="osmania_packets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Osmania Packets <span class="hint">(sealed, 24 per pkt)</span><span class="ts-badge" data-ts-for="osmania_packets"></span></div>
+                <input type="number" class="input input-sm" id="osmania_packets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_packets');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span></div>
-                <input type="number" class="input input-sm" id="osmania_loose" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span><span class="ts-badge" data-ts-for="osmania_loose"></span></div>
+                <input type="number" class="input input-sm" id="osmania_loose" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_loose');updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
-                <div class="field-label">Niloufer Boxes — Storage <span class="hint">(500g boxes)</span></div>
-                <input type="number" class="input input-sm" id="niloufer_storage" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Niloufer Boxes — Storage <span class="hint">(500g boxes)</span><span class="ts-badge" data-ts-for="niloufer_storage"></span></div>
+                <input type="number" class="input input-sm" id="niloufer_storage" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('niloufer_storage');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Niloufer Boxes — Display</div>
-                <input type="number" class="input input-sm" id="niloufer_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+                <div class="field-label">Niloufer Boxes — Display<span class="ts-badge" data-ts-for="niloufer_display"></span></div>
+                <input type="number" class="input input-sm" id="niloufer_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('niloufer_display');updateDecomp()">
               </div>
             </div>
             <!-- Water Bottles -->
             <div class="field" style="margin-top:12px">
-              <div class="field-label">Water Bottles <span class="hint">(total count — all locations)</span></div>
-              <input type="number" class="input" id="water_bottles" step="1" min="0" placeholder="0" inputmode="numeric" onchange="updateDecomp()">
+              <div class="field-label">Water Bottles <span class="hint">(total count — all locations)</span><span class="ts-badge" data-ts-for="water_bottles"></span></div>
+              <input type="number" class="input" id="water_bottles" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('water_bottles');updateDecomp()">
             </div>
           </div>
 
@@ -526,6 +533,38 @@ let currentPin = null;
 let settleData = null;  // data from prepare endpoint
 let vessels = [];       // available vessels from config
 let isBootstrap = false;
+
+// ── TIMESTAMP TRACKING ──────────────────────────────────
+// Records when each field was last edited — backend uses this to adjust
+// for items sold between counting and submission
+const fieldTimestamps = {};
+
+function recordTimestamp(fieldId) {
+  const now = new Date();
+  fieldTimestamps[fieldId] = now.toISOString();
+  // Update visual badge
+  const badge = document.querySelector(`[data-ts-for="${fieldId}"]`);
+  if (badge) {
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    badge.textContent = `✓ ${hh}:${mm}`;
+    badge.style.display = 'inline';
+    badge.className = 'ts-badge ts-fresh';
+  }
+}
+
+// Update badge colors based on age (called every 30s)
+function refreshTimestampBadges() {
+  const now = Date.now();
+  document.querySelectorAll('.ts-badge').forEach(badge => {
+    const fieldId = badge.dataset.tsFor;
+    const ts = fieldTimestamps[fieldId];
+    if (!ts) return;
+    const ageMin = (now - new Date(ts).getTime()) / 60000;
+    badge.className = 'ts-badge ' + (ageMin < 5 ? 'ts-fresh' : ageMin < 15 ? 'ts-warn' : 'ts-old');
+  });
+}
+setInterval(refreshTimestampBadges, 30000);
 
 // Raw materials reference (mirrored from API)
 const RAW_MATERIALS = {
@@ -718,6 +757,10 @@ function resetForm() {
   const inputs = document.querySelectorAll('#settleForm input[type="number"], #settleForm textarea');
   inputs.forEach(i => i.value = '');
 
+  // Clear timestamps
+  Object.keys(fieldTimestamps).forEach(k => delete fieldTimestamps[k]);
+  document.querySelectorAll('.ts-badge').forEach(b => { b.style.display = 'none'; b.textContent = ''; });
+
   // Clear vessel entries
   ['boiled_milk_kitchen','boiled_milk_counter','tea_decoction'].forEach(id => {
     $(id).innerHTML = '';
@@ -770,7 +813,7 @@ function addVesselEntry(containerId, liquidType, location) {
     <select class="input input-sm" onchange="updateVesselDisplay(this)" style="flex:1">
       ${filtered.map(v => `<option value="${v.code}" data-tare="${v.empty_weight_kg}">${v.name} (${v.empty_weight_kg} kg)</option>`).join('')}
     </select>
-    <input type="number" class="input input-sm weight-input" placeholder="kg on scale" step="0.01" inputmode="decimal" onchange="updateVesselDisplay(this);updateDecomp()">
+    <input type="number" class="input input-sm weight-input" placeholder="kg on scale" step="0.01" inputmode="decimal" onchange="recordTimestamp('${containerId}');updateVesselDisplay(this);updateDecomp()">
     <span class="net-display">—</span>
     <button class="remove-vessel" onclick="this.closest('.vessel-entry').remove();updateDecomp()" title="Remove">✕</button>
   `;
@@ -971,6 +1014,15 @@ function collectRawInput() {
   };
 }
 
+// Collect only non-empty timestamps for fields that have been edited
+function collectTimestamps() {
+  const ts = {};
+  for (const [fieldId, isoStr] of Object.entries(fieldTimestamps)) {
+    if (isoStr) ts[fieldId] = isoStr;
+  }
+  return ts;
+}
+
 function collectRunnerTokens() {
   return {
     '64': parseInt($('tokens_64')?.value) || 0,
@@ -1036,6 +1088,7 @@ async function submitSettlement() {
         runner_tokens: runnerTokens,
         notes,
         is_bootstrap: isBootstrap,
+        field_timestamps: collectTimestamps(),
       }),
     });
     const data = await res.json();

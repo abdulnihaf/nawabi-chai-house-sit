@@ -161,6 +161,40 @@ export async function onRequest(context) {
     raw_milk: 1.032,
   };
 
+  // ═══════════════════════════════════════════════════════════
+  // FIELD_TO_PRODUCTS: Maps input fields → POS products affected by counting gaps
+  // Used for timestamp-based gap adjustment: if a field was counted early,
+  // we query POS for products sold between count time and submission time
+  // ═══════════════════════════════════════════════════════════
+  const FIELD_TO_PRODUCTS = {
+    // Bun maska prepared → NCH-BM (1029) and NCH-MB (1118)
+    'prepared_bun_maska': [1029, 1118],
+    'plain_buns': [1029, 1118],
+    // Fried items → respective products
+    'fried_cutlets': [1031],
+    'raw_cutlets': [1031],
+    'fried_samosa': [1115],
+    'raw_samosa': [1115],
+    'fried_cheese_balls': [1117],
+    'raw_cheese_balls': [1117],
+    // Vessel groups → Irani Chai (1028), Coffee (1102), Lemon Tea (1103)
+    'boiled_milk_kitchen': [1028, 1102],
+    'boiled_milk_counter': [1028, 1102],
+    'tea_decoction': [1028, 1103],
+    // Osmania → NCH-OB (1030), NCH-OB3 (1033)
+    'osmania_packets': [1030, 1033],
+    'osmania_loose': [1030, 1033],
+    // Water → NCH-WTR (1094)
+    'water_bottles': [1094],
+    // Niloufer → NCH-OBBOX (1111)
+    'niloufer_storage': [1111],
+    'niloufer_display': [1111],
+  };
+
+  // Minimum gap in seconds before adjustment is applied (2 minutes)
+  // Gaps shorter than this are noise — not worth querying POS
+  const GAP_THRESHOLD_SECONDS = 120;
+
   // Default vessel weights (updated from DB if available)
   // These are starting approximations — real values entered after weighing
   const DEFAULT_VESSELS = {
@@ -276,7 +310,7 @@ export async function onRequest(context) {
       if (!DB) return json({success: false, error: 'Database not configured'}, corsHeaders);
 
       const body = await context.request.json();
-      const {pin, settlement_date, raw_input, wastage_items, runner_tokens, notes, is_bootstrap} = body;
+      const {pin, settlement_date, raw_input, wastage_items, runner_tokens, notes, is_bootstrap, field_timestamps} = body;
 
       // Validate PIN
       const settledBy = PINS[pin];
@@ -373,10 +407,100 @@ export async function onRequest(context) {
         purchases[p.materialId].cost += p.cost;
       }
 
+      // ── Step 6b: Timestamp gap adjustment ──
+      // If staff counted items at different times (e.g., buns at 22:00, vessels at 22:28),
+      // items sold between 22:00–22:28 are "phantom stock" in the bun count.
+      // We query POS for products sold in each gap and subtract from closing stock.
+      const timestampAdjustments = {};
+      const closingStock = {...decomposed}; // mutable copy
+
+      if (field_timestamps && typeof field_timestamps === 'object' && Object.keys(field_timestamps).length > 0) {
+        // Find the latest timestamp (effective submission time)
+        let latestTs = 0;
+        let latestField = '';
+        for (const [fieldId, isoStr] of Object.entries(field_timestamps)) {
+          const t = new Date(isoStr).getTime();
+          if (t > latestTs) { latestTs = t; latestField = fieldId; }
+        }
+
+        if (latestTs > 0) {
+          // Collect unique product IDs and their gap windows
+          // Group by gap window to minimize Odoo queries
+          const gapQueries = []; // [{fieldId, fromUTC, toUTC, productIds, gapSeconds}]
+
+          for (const [fieldId, isoStr] of Object.entries(field_timestamps)) {
+            if (!FIELD_TO_PRODUCTS[fieldId]) continue; // skip fields without product mapping (slow items)
+            const fieldTs = new Date(isoStr).getTime();
+            const gapSeconds = (latestTs - fieldTs) / 1000;
+
+            if (gapSeconds >= GAP_THRESHOLD_SECONDS) {
+              const fromUTC = new Date(fieldTs).toISOString().slice(0, 19).replace('T', ' ');
+              const toUTC = new Date(latestTs).toISOString().slice(0, 19).replace('T', ' ');
+              gapQueries.push({
+                fieldId,
+                fromUTC,
+                toUTC,
+                productIds: FIELD_TO_PRODUCTS[fieldId],
+                gapSeconds: Math.round(gapSeconds),
+              });
+            }
+          }
+
+          // Execute gap queries in parallel (batch by unique time windows to minimize API calls)
+          if (gapQueries.length > 0) {
+            const gapResults = await Promise.all(
+              gapQueries.map(gq =>
+                fetchGapSalesForProducts(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, gq.productIds, gq.fromUTC, gq.toUTC)
+                  .then(sales => ({...gq, sales}))
+                  .catch(e => ({...gq, sales: {}, error: e.message}))
+              )
+            );
+
+            // Decompose gap sales into raw materials and subtract from closing stock
+            for (const gq of gapResults) {
+              const fieldAdj = {
+                timestamp: field_timestamps[gq.fieldId],
+                gapSeconds: gq.gapSeconds,
+                productsSold: {},
+                rawMaterialsAdjusted: {},
+              };
+
+              for (const [pid, salesData] of Object.entries(gq.sales)) {
+                const productId = parseInt(pid);
+                const recipe = RECIPES[productId];
+                if (!recipe || salesData.qty <= 0) continue;
+
+                fieldAdj.productsSold[pid] = {name: salesData.name, qty: salesData.qty};
+
+                // Decompose sold products back to raw materials
+                for (const [matId, qtyPerUnit] of Object.entries(recipe.materials)) {
+                  const rawQtyUsed = round(salesData.qty * qtyPerUnit, 4);
+                  const key = String(matId);
+
+                  // Subtract from closing stock
+                  if (closingStock[key] !== undefined) {
+                    closingStock[key] = round(closingStock[key] - rawQtyUsed, 4);
+                    // Don't go below zero — if closing was already low, something else is off
+                    if (closingStock[key] < 0) closingStock[key] = 0;
+                  }
+
+                  if (!fieldAdj.rawMaterialsAdjusted[key]) fieldAdj.rawMaterialsAdjusted[key] = 0;
+                  fieldAdj.rawMaterialsAdjusted[key] = round(fieldAdj.rawMaterialsAdjusted[key] + rawQtyUsed, 4);
+                }
+              }
+
+              // Only record adjustment if products were actually sold in the gap
+              if (Object.keys(fieldAdj.productsSold).length > 0) {
+                timestampAdjustments[gq.fieldId] = fieldAdj;
+              }
+            }
+          }
+        }
+      }
+
       // ── Step 7: Calculate ACTUAL consumption ──
-      // consumption = opening + purchases - closing
+      // consumption = opening + purchases - closing (where closing may be adjusted for timestamp gaps)
       // IMPORTANT: Negative consumption is preserved — it signals counting errors or unrecorded purchases
-      const closingStock = decomposed;
       const consumption = {};
       const consumptionWarnings = [];
       const allMaterialIds = new Set([
@@ -504,7 +628,7 @@ export async function onRequest(context) {
          inventory_consumption, inventory_expected, inventory_discrepancy, discrepancy_value,
          wastage_items, wastage_total_value,
          runner_tokens, runner_tokens_total,
-         adjusted_net_profit, notes, previous_settlement_id)
+         adjusted_net_profit, notes, previous_settlement_id, timestamp_adjustments)
         VALUES (?, ?, ?, ?, ?, 'completed',
                 ?, ?, ?, ?, ?,
                 ?, ?, ?,
@@ -514,7 +638,7 @@ export async function onRequest(context) {
                 ?, ?, ?, ?,
                 ?, ?,
                 ?, ?,
-                ?, ?, ?)`
+                ?, ?, ?, ?)`
       ).bind(
         settlement_date, periodStartIST, periodEndIST, settledBy, new Date().toISOString(),
         revenue.total, revenue.cashCounter, revenue.runnerCounter, revenue.whatsapp, JSON.stringify(revenue.products),
@@ -525,7 +649,8 @@ export async function onRequest(context) {
         JSON.stringify(consumption), JSON.stringify(expectedConsumption), JSON.stringify(discrepancy), discrepancyValue,
         JSON.stringify(wastage_items || []), wastageValue,
         JSON.stringify(currentTokens), currentTokenTotal,
-        adjustedNetProfit, notes || '', previous ? previous.id : null
+        adjustedNetProfit, notes || '', previous ? previous.id : null,
+        JSON.stringify(timestampAdjustments)
       ).run();
 
       // ── Step 16: WhatsApp summary ──
@@ -535,6 +660,10 @@ export async function onRequest(context) {
         const profitEmoji = adjustedNetProfit >= 0 ? '📈' : '📉';
         const warningLines = consumptionWarnings.length > 0
           ? `\n🚨 *${consumptionWarnings.length} Warning(s):*\n` + consumptionWarnings.map(w => `  • ${w.materialName}: negative consumption`).join('\n') + '\n'
+          : '';
+        const adjCount = Object.keys(timestampAdjustments).length;
+        const adjLines = adjCount > 0
+          ? `\n⏱️ *${adjCount} Gap Adjustment(s):*\n` + Object.entries(timestampAdjustments).map(([f, a]) => `  • ${f}: ${Math.round(a.gapSeconds/60)}min gap, ${Object.keys(a.productsSold).length} products adjusted`).join('\n') + '\n'
           : '';
         const channelBreakdown = revenue.cashCounter > 0 || revenue.runnerCounter > 0 || revenue.whatsapp > 0
           ? `  Counter: ₹${Math.round(revenue.cashCounter).toLocaleString('en-IN')} | Runner: ₹${Math.round(revenue.runnerCounter).toLocaleString('en-IN')} | Delivery: ₹${Math.round(revenue.whatsapp).toLocaleString('en-IN')}\n`
@@ -548,6 +677,7 @@ export async function onRequest(context) {
           + (wastageValue > 0 ? `🗑️ Wastage: ₹${Math.round(wastageValue).toLocaleString('en-IN')}\n` : '')
           + (Math.abs(discrepancyValue) > 10 ? `⚠️ Discrepancy: ₹${Math.round(discrepancyValue).toLocaleString('en-IN')}\n` : '')
           + warningLines
+          + adjLines
           + `\n${profitEmoji} *Net Profit: ₹${Math.round(adjustedNetProfit).toLocaleString('en-IN')}*\n`
           + `\nSettled by: ${settledBy}`;
 
@@ -585,6 +715,7 @@ export async function onRequest(context) {
         },
         warnings: consumptionWarnings,
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
+        timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
       }, corsHeaders);
     }
 
@@ -977,6 +1108,37 @@ async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
       unitCost,
       cost: qty * unitCost,
     });
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ODOO: Fetch POS sales for specific products in a time window (for gap adjustment)
+// Returns: {productId: {name, qty, amount}} for all products sold in [from, to)
+// ═══════════════════════════════════════════════════════════════
+async function fetchGapSalesForProducts(url, db, uid, apiKey, productIds, fromUTC, toUTC) {
+  if (!productIds || productIds.length === 0) return {};
+
+  // Find orders in the time window
+  const orderIds = await odooCall(url, db, uid, apiKey, 'pos.order', 'search',
+    [[['config_id', 'in', [27, 28, 29]],
+      ['date_order', '>=', fromUTC],
+      ['date_order', '<', toUTC],
+      ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]]);
+
+  if (!orderIds || orderIds.length === 0) return {};
+
+  // Get lines for those orders filtered by product
+  const lines = await odooCall(url, db, uid, apiKey, 'pos.order.line', 'search_read',
+    [[['order_id', 'in', orderIds], ['product_id', 'in', productIds]]],
+    {fields: ['product_id', 'qty', 'price_subtotal_incl']});
+
+  const result = {};
+  for (const line of lines) {
+    const pid = line.product_id[0];
+    if (!result[pid]) result[pid] = {name: line.product_id[1], qty: 0, amount: 0};
+    result[pid].qty += line.qty;
+    result[pid].amount += line.price_subtotal_incl;
   }
   return result;
 }
