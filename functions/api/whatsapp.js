@@ -141,7 +141,7 @@ async function processWebhook(context, body) {
   const lastUpdate = new Date(session.updated_at).getTime();
   if (Date.now() - lastUpdate > SESSION_TIMEOUT_MS && session.state !== 'idle') {
     const hadCart = session.cart && session.cart !== '[]';
-    const wasOrdering = ['awaiting_menu', 'awaiting_payment', 'awaiting_location'].includes(session.state);
+    const wasOrdering = ['awaiting_menu', 'awaiting_payment', 'awaiting_location', 'awaiting_location_confirm'].includes(session.state);
     session.state = 'idle';
     session.cart = '[]';
     session.cart_total = 0;
@@ -314,7 +314,7 @@ function getMessageType(message) {
 }
 
 // ─── STATE MACHINE ROUTER ─────────────────────────────────────────
-// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
+// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_location_confirm → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
 async function routeState(context, session, user, message, msg, waId, phoneId, token, db) {
   const state = session.state;
 
@@ -334,6 +334,9 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
   }
   if (state === 'awaiting_location') {
     return handleLocation(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_location_confirm') {
+    return handleLocationConfirm(context, session, user, msg, waId, phoneId, token, db);
   }
   if (state === 'awaiting_menu') {
     return handleMenuState(context, session, user, msg, waId, phoneId, token, db);
@@ -456,17 +459,177 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
     return;
   }
 
-  const locationText = name || address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-  await db.prepare('UPDATE wa_users SET location_lat = ?, location_lng = ?, location_address = ? WHERE wa_id = ?').bind(lat, lng, locationText, waId).run();
+  // Save raw location temporarily (will be updated after confirmation)
+  const rawLocationText = name || address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  await db.prepare('UPDATE wa_users SET location_lat = ?, location_lng = ?, location_address = ? WHERE wa_id = ?').bind(lat, lng, rawLocationText, waId).run();
   user.location_lat = lat;
   user.location_lng = lng;
-  user.location_address = locationText;
+  user.location_address = rawLocationText;
   user.delivery_distance_m = Math.round(distance);
 
+  // Search for nearby businesses using Google Places API
+  const placesApiKey = context.env.GOOGLE_PLACES_KEY;
+  if (placesApiKey) {
+    try {
+      const places = await searchNearbyPlaces(lat, lng, placesApiKey);
+      if (places && places.length > 0) {
+        // Store places + page offset in session metadata (use cart field since it's JSON)
+        const locationMeta = {
+          lat, lng, distance: Math.round(distance), rawLocationText,
+          allPlaces: places, // Store all results (up to 20)
+          pageOffset: 0,     // Current page (0 = first 5, 1 = next 5, etc.)
+          originalCart: session.cart, originalCartTotal: session.cart_total
+        };
+        await updateSession(db, waId, 'awaiting_location_confirm', JSON.stringify(locationMeta), session.cart_total);
+
+        // Show first 5 places
+        const firstPage = places.slice(0, 5);
+        const hasMore = places.length > 5;
+        const listMsg = buildLocationConfirmList(waId, firstPage, hasMore, Math.round(distance));
+        await sendWhatsApp(phoneId, token, listMsg);
+        return;
+      }
+    } catch (e) {
+      console.error('Google Places search failed, skipping confirmation:', e.message);
+    }
+  }
+
+  // Fallback: no Places API key or no results — proceed directly (old behavior)
+  await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, Math.round(distance));
+}
+
+// ─── STATE: AWAITING LOCATION CONFIRM (Google Places selection) ──
+async function handleLocationConfirm(context, session, user, msg, waId, phoneId, token, db) {
+  // Parse stored location metadata
+  let locationMeta;
+  try {
+    locationMeta = JSON.parse(session.cart || '{}');
+  } catch {
+    // Corrupted state — restart location flow
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Something went wrong. Please share your location again:'));
+    await updateSession(db, waId, 'awaiting_location', '[]', 0);
+    return;
+  }
+
+  const { lat, lng, distance, rawLocationText, allPlaces, pageOffset, originalCart, originalCartTotal } = locationMeta;
+
+  // ── Customer selected a place from the list ──
+  if (msg.type === 'list_reply') {
+    const selectedId = msg.id;
+
+    // "Show More" option
+    if (selectedId === 'loc_show_more') {
+      const newOffset = (pageOffset || 0) + 5;
+      const nextPage = (allPlaces || []).slice(newOffset, newOffset + 5);
+
+      if (nextPage.length === 0) {
+        // No more results — offer manual entry
+        const buttons = [
+          { type: 'reply', reply: { id: 'loc_manual', title: 'Type my business' } },
+          { type: 'reply', reply: { id: 'loc_pin_ok', title: '📍 Pin is correct' } }
+        ];
+        await sendWhatsApp(phoneId, token, buildReplyButtons(waId,
+          `We've shown all nearby listings.\n\nYou can:\n• *Type your business name* so our runner knows exactly where to come\n• *Confirm your pin* is accurate and we'll use that`,
+          buttons));
+        return;
+      }
+
+      // Show next page
+      locationMeta.pageOffset = newOffset;
+      await updateSession(db, waId, 'awaiting_location_confirm', JSON.stringify(locationMeta), originalCartTotal || 0);
+      const hasMore = (allPlaces || []).length > newOffset + 5;
+      const listMsg = buildLocationConfirmList(waId, nextPage, hasMore, distance);
+      await sendWhatsApp(phoneId, token, listMsg);
+      return;
+    }
+
+    // "Not here / Enter manually" option
+    if (selectedId === 'loc_not_here') {
+      const buttons = [
+        { type: 'reply', reply: { id: 'loc_manual', title: 'Type my business' } },
+        { type: 'reply', reply: { id: 'loc_pin_ok', title: '📍 Pin is correct' } }
+      ];
+      await sendWhatsApp(phoneId, token, buildReplyButtons(waId,
+        `No worries! You can:\n\n• *Type your business name* so our runner finds you easily\n• *Confirm your pin location* is accurate and we'll deliver there`,
+        buttons));
+      return;
+    }
+
+    // Customer selected a specific place
+    if (selectedId.startsWith('loc_place_')) {
+      const placeIndex = parseInt(selectedId.replace('loc_place_', ''));
+      const selectedPlace = (allPlaces || [])[placeIndex];
+      if (selectedPlace) {
+        // Update location with the confirmed business name + address
+        const confirmedAddress = selectedPlace.name + (selectedPlace.address ? ` — ${selectedPlace.address}` : '');
+        await db.prepare('UPDATE wa_users SET location_address = ? WHERE wa_id = ?').bind(confirmedAddress, waId).run();
+        user.location_address = confirmedAddress;
+
+        await sendWhatsApp(phoneId, token, buildText(waId, `✅ *${selectedPlace.name}* — got it! Our runner will find you there.`));
+
+        // Restore original cart and proceed
+        const restoredCart = originalCart || '[]';
+        const restoredTotal = originalCartTotal || 0;
+        session.cart = restoredCart;
+        session.cart_total = restoredTotal;
+        await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance);
+        return;
+      }
+    }
+  }
+
+  // ── "Pin is correct" button ──
+  if (msg.type === 'button_reply' && msg.id === 'loc_pin_ok') {
+    await sendWhatsApp(phoneId, token, buildText(waId, `✅ Pin location confirmed! (${distance}m from NCH)`));
+    session.cart = originalCart || '[]';
+    session.cart_total = originalCartTotal || 0;
+    await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance);
+    return;
+  }
+
+  // ── "Type my business" button → ask them to type it ──
+  if (msg.type === 'button_reply' && msg.id === 'loc_manual') {
+    // Update session to signal we're waiting for manual business name
+    locationMeta.awaitingManualName = true;
+    await updateSession(db, waId, 'awaiting_location_confirm', JSON.stringify(locationMeta), originalCartTotal || 0);
+    await sendWhatsApp(phoneId, token, buildText(waId, `📝 Type your business/shop name and we'll save it for delivery:`));
+    return;
+  }
+
+  // ── Manual business name text input ──
+  if (msg.type === 'text' && locationMeta.awaitingManualName) {
+    const businessName = msg.body.slice(0, 100); // Cap at 100 chars
+    const confirmedAddress = businessName;
+    await db.prepare('UPDATE wa_users SET location_address = ? WHERE wa_id = ?').bind(confirmedAddress, waId).run();
+    user.location_address = confirmedAddress;
+
+    await sendWhatsApp(phoneId, token, buildText(waId, `✅ *${businessName}* — saved! Our runner will deliver to you there.`));
+
+    session.cart = originalCart || '[]';
+    session.cart_total = originalCartTotal || 0;
+    await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance);
+    return;
+  }
+
+  // ── Any other message → resend the list ──
+  if (allPlaces && allPlaces.length > 0) {
+    const currentPage = (allPlaces || []).slice(pageOffset || 0, (pageOffset || 0) + 5);
+    const hasMore = (allPlaces || []).length > (pageOffset || 0) + 5;
+    const listMsg = buildLocationConfirmList(waId, currentPage, hasMore, distance);
+    await sendWhatsApp(phoneId, token, listMsg);
+  } else {
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Please share your delivery location:'));
+    await updateSession(db, waId, 'awaiting_location', '[]', 0);
+  }
+}
+
+// ─── PROCEED AFTER LOCATION IS CONFIRMED ─────────────────────────
+// Common logic used after location is verified (by place selection, pin confirmation, or manual entry)
+async function proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance) {
   // Check if cart already has items (reorder flow needing location)
   const cart = JSON.parse(session.cart || '[]');
   if (cart.length > 0) {
-    const body = `📍 Location saved! (${Math.round(distance)}m from NCH)\n\nHow would you like to pay?`;
+    const body = `📍 Location saved! (${distance}m from NCH)\n\nHow would you like to pay?`;
     const buttons = [
       { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
       { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } }
@@ -479,9 +642,9 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
   // Show MPM catalog
   const isNew = !user.first_order_redeemed && user.total_orders === 0;
   const firstName = user.name ? user.name.split(' ')[0] : '';
-  let menuIntro = `📍 Saved! You're ${Math.round(distance)}m from NCH — we'll be there in minutes!\n\nBrowse our menu 👇`;
+  let menuIntro = `📍 You're ${distance}m from NCH — we'll be there in minutes!\n\nBrowse our menu 👇`;
   if (isNew) {
-    menuIntro = `📍 Saved! You're ${Math.round(distance)}m from NCH.\n\n🎁 *${firstName ? firstName + ', your' : 'Your'} first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
+    menuIntro = `📍 You're ${distance}m from NCH.\n\n🎁 *${firstName ? firstName + ', your' : 'Your'} first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
   }
   await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
   await updateSession(db, waId, 'awaiting_menu', '[]', 0);
@@ -1233,6 +1396,107 @@ function buildLocationRequest(to, body) {
       type: 'location_request_message',
       body: { text: body },
       action: { name: 'send_location' }
+    }
+  };
+}
+
+// ─── GOOGLE PLACES NEARBY SEARCH ──────────────────────────────────
+// Searches for businesses near the customer's pin using Google Places API (New)
+// Returns up to 20 nearby places sorted by distance
+async function searchNearbyPlaces(lat, lng, apiKey) {
+  const requestBody = {
+    includedTypes: ['store', 'restaurant', 'cafe', 'food', 'shopping_mall', 'supermarket',
+      'pharmacy', 'clothing_store', 'electronics_store', 'hardware_store',
+      'jewelry_store', 'bakery', 'establishment'],
+    maxResultCount: 20,
+    locationRestriction: {
+      circle: {
+        center: { latitude: lat, longitude: lng },
+        radius: 200.0 // 200m radius — tight search around pin
+      }
+    }
+  };
+
+  const response = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.types'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('Google Places API error:', response.status, errText);
+    return [];
+  }
+
+  const data = await response.json();
+  const places = (data.places || []).map((p, i) => ({
+    index: i,
+    name: p.displayName?.text || 'Unknown',
+    address: p.shortFormattedAddress || p.formattedAddress || '',
+    lat: p.location?.latitude,
+    lng: p.location?.longitude,
+    types: p.types || []
+  }));
+
+  // Sort by distance from the customer's pin
+  places.sort((a, b) => {
+    const distA = haversineDistance(lat, lng, a.lat, a.lng);
+    const distB = haversineDistance(lat, lng, b.lat, b.lng);
+    return distA - distB;
+  });
+
+  // Re-index after sorting
+  return places.map((p, i) => ({ ...p, index: i }));
+}
+
+// ── WhatsApp Interactive List: Nearby Places for Location Confirmation ──
+// Shows up to 5 places + optional "Show More" + "Not listed here" option
+function buildLocationConfirmList(to, places, hasMore, distanceFromNCH) {
+  const rows = places.map(p => ({
+    id: `loc_place_${p.index}`,
+    title: p.name.slice(0, 24), // WhatsApp max 24 chars for title
+    description: p.address.slice(0, 72) // WhatsApp max 72 chars for description
+  }));
+
+  // Add "Show more listings" if there are more results
+  if (hasMore) {
+    rows.push({
+      id: 'loc_show_more',
+      title: '🔍 Show more',
+      description: 'See more nearby businesses'
+    });
+  }
+
+  // Always add "Not listed" option
+  rows.push({
+    id: 'loc_not_here',
+    title: '❌ Not listed here',
+    description: 'Enter your business name manually'
+  });
+
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: '📍 Confirm your location' },
+      body: {
+        text: `We found these businesses near your pin (${distanceFromNCH}m from NCH).\n\nSelect your shop/business so our runner delivers to the right place:`
+      },
+      footer: { text: 'Nawabi Chai House • HKP Road' },
+      action: {
+        button: 'Select your place',
+        sections: [{
+          title: 'Nearby Businesses',
+          rows
+        }]
+      }
     }
   };
 }
