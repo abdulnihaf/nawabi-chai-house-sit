@@ -1405,9 +1405,10 @@ function buildLocationRequest(to, body) {
 // Returns up to 20 nearby places sorted by distance
 async function searchNearbyPlaces(lat, lng, apiKey) {
   const requestBody = {
-    includedTypes: ['store', 'restaurant', 'cafe', 'food', 'shopping_mall', 'supermarket',
+    includedTypes: ['store', 'restaurant', 'cafe', 'shopping_mall', 'supermarket',
       'pharmacy', 'clothing_store', 'electronics_store', 'hardware_store',
-      'jewelry_store', 'bakery', 'establishment'],
+      'jewelry_store', 'bakery', 'food_store', 'auto_parts_store', 'book_store',
+      'cell_phone_store', 'convenience_store', 'grocery_store', 'market'],
     maxResultCount: 20,
     rankPreference: 'DISTANCE', // CRITICAL: rank by proximity to pin, NOT popularity
     locationRestriction: {
