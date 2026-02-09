@@ -29,6 +29,211 @@ const BIZ_CATEGORIES = [
   { id: 'biz_office', title: 'Office / Other' },
 ];
 
+// ── Language Support ──
+const SUPPORTED_LANGUAGES = [
+  { code: 'en', name: 'English', native: 'English', flag: '🇬🇧' },
+  { code: 'ur', name: 'Urdu', native: 'اردو', flag: '🇵🇰' },
+  { code: 'hi', name: 'Hindi', native: 'हिंदी', flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'ta', name: 'Tamil', native: 'தமிழ்', flag: '🇮🇳' },
+];
+
+// Translation strings for all user-facing text
+const T = {
+  // ── Greeting & Welcome ──
+  welcome_back: {
+    en: (name) => `Welcome back${name ? ' ' + name : ''}! *Nawabi Chai House* here.`,
+    ur: (name) => `خوش آمدید${name ? ' ' + name : ''}! *نوابی چائے ہاؤس*`,
+    hi: (name) => `वापस स्वागत है${name ? ' ' + name : ''}! *नवाबी चाय हाउस*`,
+    kn: (name) => `ಮರಳಿ ಸ್ವಾಗತ${name ? ' ' + name : ''}! *ನವಾಬಿ ಚಾಯ್ ಹೌಸ್*`,
+    ta: (name) => `மீண்டும் வரவேற்கிறோம்${name ? ' ' + name : ''}! *நவாபி சாய் ஹவுஸ்*`,
+  },
+  your_last_order: {
+    en: 'Your last order:', ur: 'آپ کا آخری آرڈر:', hi: 'आपका पिछला ऑर्डर:',
+    kn: 'ನಿಮ್ಮ ಕೊನೆಯ ಆರ್ಡರ್:', ta: 'உங்கள் கடைசி ஆர்டர்:',
+  },
+  delivering_to: {
+    en: '📍 Delivering to:', ur: '📍 ڈلیوری:', hi: '📍 डिलीवरी:', kn: '📍 ಡೆಲಿವರಿ:', ta: '📍 டெலிவரி:',
+  },
+  new_user_greeting: {
+    en: `*☕ Nawabi Chai House — HKP Road, Shivajinagar*\n\nFresh Irani Chai & snacks delivered to your doorstep in 5 minutes!\n\n🎁 *Exclusive for HKP Road businesses:*\nYour first *2 Irani Chai are FREE!*\n\nTo get started, what type of business are you with?`,
+    ur: `*☕ نوابی چائے ہاؤس — HKP روڈ، شیواجی نگر*\n\nتازہ ایرانی چائے اور ناشتہ 5 منٹ میں آپ کی دہلیز پر!\n\n🎁 *HKP روڈ کے کاروبار کے لیے خاص:*\nآپ کی پہلی *2 ایرانی چائے مفت!*\n\nشروع کرنے کے لیے، آپ کا کاروبار کیا ہے؟`,
+    hi: `*☕ नवाबी चाय हाउस — HKP रोड, शिवाजीनगर*\n\nताज़ी ईरानी चाय और नाश्ता 5 मिनट में आपके दरवाज़े पर!\n\n🎁 *HKP रोड व्यापारियों के लिए ख़ास:*\nपहली *2 ईरानी चाय मुफ़्त!*\n\nशुरू करने के लिए, आपका बिज़नेस क्या है?`,
+    kn: `*☕ ನವಾಬಿ ಚಾಯ್ ಹೌಸ್ — HKP ರೋಡ್, ಶಿವಾಜಿನಗರ*\n\nತಾಜಾ ಇರಾನಿ ಚಾಯ್ ಮತ್ತು ತಿಂಡಿ 5 ನಿಮಿಷದಲ್ಲಿ ನಿಮ್ಮ ಬಾಗಿಲಿಗೆ!\n\n🎁 *HKP ರೋಡ್ ವ್ಯಾಪಾರಿಗಳಿಗೆ ವಿಶೇಷ:*\nಮೊದಲ *2 ಇರಾನಿ ಚಾಯ್ ಉಚಿತ!*\n\nಪ್ರಾರಂಭಿಸಲು, ನಿಮ್ಮ ವ್ಯಾಪಾರ ಯಾವುದು?`,
+    ta: `*☕ நவாபி சாய் ஹவுஸ் — HKP ரோடு, சிவாஜிநகர்*\n\nபுதிய இரானி சாய் மற்றும் சிற்றுண்டி 5 நிமிடத்தில் உங்கள் வாசலில்!\n\n🎁 *HKP ரோடு வணிகர்களுக்கு சிறப்பு:*\nமுதல் *2 இரானி சாய் இலவசம்!*\n\nதொடங்க, உங்கள் வணிகம் என்ன?`,
+  },
+  // ── Language Selection ──
+  choose_language: {
+    en: '🌐 *Choose your language*\nSelect your preferred language for ordering:',
+    ur: '🌐 *اپنی زبان منتخب کریں*\nآرڈر کرنے کے لیے اپنی پسندیدہ زبان منتخب کریں:',
+    hi: '🌐 *अपनी भाषा चुनें*\nऑर्डर करने के लिए अपनी पसंदीदा भाषा चुनें:',
+    kn: '🌐 *ನಿಮ್ಮ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆ ಮಾಡಿ*\nಆರ್ಡರ್ ಮಾಡಲು ನಿಮ್ಮ ಆದ್ಯತೆಯ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆ ಮಾಡಿ:',
+    ta: '🌐 *உங்கள் மொழியை தேர்ந்தெடுக்கவும்*\nஆர்டர் செய்ய உங்கள் விருப்பமான மொழியைத் தேர்ந்தெடுக்கவும்:',
+  },
+  language_saved: {
+    en: (lang) => `✅ Language set to *${lang}*!`,
+    ur: (lang) => `✅ زبان *${lang}* پر سیٹ ہو گئی!`,
+    hi: (lang) => `✅ भाषा *${lang}* पर सेट हो गई!`,
+    kn: (lang) => `✅ ಭಾಷೆ *${lang}* ಗೆ ಹೊಂದಿಸಲಾಗಿದೆ!`,
+    ta: (lang) => `✅ மொழி *${lang}* என அமைக்கப்பட்டது!`,
+  },
+  // ── Business Type ──
+  select_biz_type: {
+    en: 'To get started, what type of business are you with?',
+    ur: 'شروع کرنے کے لیے، آپ کا کاروبار کیا ہے؟',
+    hi: 'शुरू करने के लिए, आपका बिज़नेस क्या है?',
+    kn: 'ಪ್ರಾರಂಭಿಸಲು, ನಿಮ್ಮ ವ್ಯಾಪಾರ ಯಾವುದು?',
+    ta: 'தொடங்க, உங்கள் வணிகம் என்ன?',
+  },
+  great_whats_your_name: {
+    en: "Great! What's your name?", ur: 'بہت اچھا! آپ کا نام کیا ہے؟',
+    hi: 'बढ़िया! आपका नाम क्या है?', kn: 'ಒಳ್ಳೆಯದು! ನಿಮ್ಮ ಹೆಸರು ಏನು?',
+    ta: 'நல்லது! உங்கள் பெயர் என்ன?',
+  },
+  type_name_to_continue: {
+    en: 'Please type your name to continue.', ur: 'جاری رکھنے کے لیے اپنا نام لکھیں۔',
+    hi: 'जारी रखने के लिए अपना नाम लिखें।', kn: 'ಮುಂದುವರಿಸಲು ನಿಮ್ಮ ಹೆಸರನ್ನು ಟೈಪ್ ಮಾಡಿ.',
+    ta: 'தொடர உங்கள் பெயரை தட்டச்சு செய்யுங்கள்.',
+  },
+  // ── Location ──
+  share_location: {
+    en: (name) => `Welcome ${name}! 📍 Please share your location so we can deliver to you.`,
+    ur: (name) => `خوش آمدید ${name}! 📍 براہ کرم اپنا مقام شیئر کریں تاکہ ہم آپ تک ڈلیوری کر سکیں۔`,
+    hi: (name) => `स्वागत है ${name}! 📍 कृपया अपना लोकेशन शेयर करें ताकि हम डिलीवर कर सकें।`,
+    kn: (name) => `ಸ್ವಾಗತ ${name}! 📍 ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ.`,
+    ta: (name) => `வரவேற்கிறோம் ${name}! 📍 டெலிவரி செய்ய உங்கள் இருப்பிடத்தை பகிரவும்.`,
+  },
+  share_location_generic: {
+    en: '📍 Please share your delivery location using the attach (📎) button → Location',
+    ur: '📍 براہ کرم اٹیچ (📎) بٹن → لوکیشن سے اپنا مقام شیئر کریں',
+    hi: '📍 कृपया अटैच (📎) बटन → लोकेशन से अपना लोकेशन शेयर करें',
+    kn: '📍 ದಯವಿಟ್ಟು ಅಟ್ಯಾಚ್ (📎) ಬಟನ್ → ಲೊಕೇಶನ್ ಬಳಸಿ ಹಂಚಿಕೊಳ್ಳಿ',
+    ta: '📍 இணைப்பு (📎) பொத்தான் → இருப்பிடம் மூலம் பகிரவும்',
+  },
+  share_new_location: {
+    en: '📍 Share your new delivery location:',
+    ur: '📍 اپنا نیا ڈلیوری مقام شیئر کریں:',
+    hi: '📍 अपना नया डिलीवरी लोकेशन शेयर करें:',
+    kn: '📍 ನಿಮ್ಮ ಹೊಸ ಡೆಲಿವರಿ ಸ್ಥಳವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ:',
+    ta: '📍 உங்கள் புதிய டெலிவரி இருப்பிடத்தை பகிரவும்:',
+  },
+  out_of_range: {
+    en: (dist) => `😔 Sorry, you're *${dist}* away. We currently deliver only along *HKP Road, Shivajinagar*.\n\nVisit us at the shop — we'd love to see you! ☕`,
+    ur: (dist) => `😔 معذرت، آپ *${dist}* دور ہیں۔ ہم فی الحال صرف *HKP روڈ، شیواجی نگر* پر ڈلیوری کرتے ہیں۔\n\nہماری دکان پر آئیں! ☕`,
+    hi: (dist) => `😔 सॉरी, आप *${dist}* दूर हैं। हम फ़िलहाल सिर्फ़ *HKP रोड, शिवाजीनगर* पर डिलीवर करते हैं।\n\nहमारी दुकान पर आइए! ☕`,
+    kn: (dist) => `😔 ಕ್ಷಮಿಸಿ, ನೀವು *${dist}* ದೂರದಲ್ಲಿದ್ದೀರಿ. ನಾವು ಪ್ರಸ್ತುತ *HKP ರೋಡ್, ಶಿವಾಜಿನಗರ* ಮಾತ್ರ ಡೆಲಿವರಿ ಮಾಡುತ್ತೇವೆ.\n\nನಮ್ಮ ಅಂಗಡಿಗೆ ಬನ್ನಿ! ☕`,
+    ta: (dist) => `😔 மன்னிக்கவும், நீங்கள் *${dist}* தொலைவில் உள்ளீர்கள். நாங்கள் தற்போது *HKP ரோடு, சிவாஜிநகர்* மட்டுமே டெலிவரி செய்கிறோம்.\n\nஎங்கள் கடைக்கு வாருங்கள்! ☕`,
+  },
+  location_is_correct: {
+    en: '✅ Location is correct', ur: '✅ مقام درست ہے', hi: '✅ लोकेशन सही है',
+    kn: '✅ ಸ್ಥಳ ಸರಿಯಾಗಿದೆ', ta: '✅ இருப்பிடம் சரி',
+  },
+  // ── Menu ──
+  browse_menu: {
+    en: 'Browse our menu, pick what you like, and send your order 👇',
+    ur: 'ہمارا مینو دیکھیں، پسند کریں، اور آرڈر بھیجیں 👇',
+    hi: 'हमारा मेनू देखें, पसंद करें, और ऑर्डर भेजें 👇',
+    kn: 'ನಮ್ಮ ಮೆನು ನೋಡಿ, ಆಯ್ಕೆ ಮಾಡಿ, ಮತ್ತು ಆರ್ಡರ್ ಕಳುಹಿಸಿ 👇',
+    ta: 'எங்கள் மெனுவைப் பாருங்கள், தேர்வு செய்து ஆர்டர் அனுப்புங்கள் 👇',
+  },
+  browse_menu_free_chai: {
+    en: (name) => `Thanks ${name}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`,
+    ur: (name) => `شکریہ ${name}!\n\n🎁 *آپ کی پہلی 2 ایرانی چائے مفت!*\n\nہمارا مینو دیکھیں 👇`,
+    hi: (name) => `धन्यवाद ${name}!\n\n🎁 *आपकी पहली 2 ईरानी चाय मुफ़्त!*\n\nहमारा मेनू देखें 👇`,
+    kn: (name) => `ಧನ್ಯವಾದ ${name}!\n\n🎁 *ನಿಮ್ಮ ಮೊದಲ 2 ಇರಾನಿ ಚಾಯ್ ಉಚಿತ!*\n\nನಮ್ಮ ಮೆನು ನೋಡಿ 👇`,
+    ta: (name) => `நன்றி ${name}!\n\n🎁 *உங்கள் முதல் 2 இரானி சாய் இலவசம்!*\n\nஎங்கள் மெனு பாருங்கள் 👇`,
+  },
+  browse_menu_returning_free: {
+    en: (name) => `Welcome back${name ? ' ' + name : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu, add items to cart, and send your order 👇`,
+    ur: (name) => `خوش آمدید${name ? ' ' + name : ''}!\n\n🎁 *آپ کی پہلی 2 ایرانی چائے مفت!*\n\nمینو دیکھیں، آئٹمز شامل کریں، اور آرڈر بھیجیں 👇`,
+    hi: (name) => `वापस स्वागत है${name ? ' ' + name : ''}!\n\n🎁 *आपकी पहली 2 ईरानी चाय मुफ़्त!*\n\nमेनू देखें, आइटम जोड़ें, और ऑर्डर भेजें 👇`,
+    kn: (name) => `ಮರಳಿ ಸ್ವಾಗತ${name ? ' ' + name : ''}!\n\n🎁 *ನಿಮ್ಮ ಮೊದಲ 2 ಇರಾನಿ ಚಾಯ್ ಉಚಿತ!*\n\nಮೆನು ನೋಡಿ, ಐಟಂಗಳನ್ನು ಸೇರಿಸಿ, ಮತ್ತು ಆರ್ಡರ್ ಕಳುಹಿಸಿ 👇`,
+    ta: (name) => `மீண்டும் வரவேற்கிறோம்${name ? ' ' + name : ''}!\n\n🎁 *உங்கள் முதல் 2 இரானி சாய் இலவசம்!*\n\nமெனு பாருங்கள், பொருட்களைச் சேர்க்கவும், ஆர்டர் அனுப்பவும் 👇`,
+  },
+  // ── Payment ──
+  how_to_pay: {
+    en: 'How would you like to pay?', ur: 'آپ کیسے ادائیگی کرنا چاہیں گے؟',
+    hi: 'आप कैसे भुगतान करना चाहेंगे?', kn: 'ನೀವು ಹೇಗೆ ಪಾವತಿ ಮಾಡಲು ಬಯಸುತ್ತೀರಿ?',
+    ta: 'எப்படி பணம் செலுத்த விரும்புகிறீர்கள்?',
+  },
+  your_order: {
+    en: '*Your order:*', ur: '*آپ کا آرڈر:*', hi: '*आपका ऑर्डर:*',
+    kn: '*ನಿಮ್ಮ ಆರ್ಡರ್:*', ta: '*உங்கள் ஆர்டர்:*',
+  },
+  total: {
+    en: 'Total', ur: 'کل', hi: 'कुल', kn: 'ಒಟ್ಟು', ta: 'மொத்தம்',
+  },
+  deliver_to: {
+    en: 'Deliver to', ur: 'ڈلیوری', hi: 'डिलीवरी', kn: 'ಡೆಲಿವರಿ', ta: 'டெலிவரி',
+  },
+  cash_on_delivery: {
+    en: 'Cash on Delivery', ur: 'کیش آن ڈلیوری', hi: 'कैश ऑन डिलीवरी',
+    kn: 'ಕ್ಯಾಶ್ ಆನ್ ಡೆಲಿವರಿ', ta: 'கேஷ் ஆன் டெலிவரி',
+  },
+  // ── Button Labels ──
+  btn_reorder: {
+    en: (total) => `Reorder ₹${total}`, ur: (total) => `دوبارہ آرڈر ₹${total}`,
+    hi: (total) => `फिर से ₹${total}`, kn: (total) => `ಮರು ₹${total}`,
+    ta: (total) => `மீண்டும் ₹${total}`,
+  },
+  btn_new_order: {
+    en: 'New Order', ur: 'نیا آرڈر', hi: 'नया ऑर्डर', kn: 'ಹೊಸ ಆರ್ಡರ್', ta: 'புதிய ஆர்டர்',
+  },
+  btn_change_location: {
+    en: '📍 Change Location', ur: '📍 مقام تبدیل', hi: '📍 लोकेशन बदलें',
+    kn: '📍 ಸ್ಥಳ ಬದಲಿಸಿ', ta: '📍 இடம் மாற்று',
+  },
+  btn_change_language: {
+    en: '🌐 Language', ur: '🌐 زبان', hi: '🌐 भाषा', kn: '🌐 ಭಾಷೆ', ta: '🌐 மொழி',
+  },
+  // ── Order Confirmation ──
+  order_confirmed: {
+    en: (code) => `✅ *Order ${code} confirmed!*`,
+    ur: (code) => `✅ *آرڈر ${code} تصدیق شدہ!*`,
+    hi: (code) => `✅ *ऑर्डर ${code} कन्फर्म!*`,
+    kn: (code) => `✅ *ಆರ್ಡರ್ ${code} ದೃಢೀಕರಿಸಲಾಗಿದೆ!*`,
+    ta: (code) => `✅ *ஆர்டர் ${code} உறுதிப்படுத்தப்பட்டது!*`,
+  },
+  free_chai_applied: {
+    en: (count, discount) => `🎁 ${count}x FREE Irani Chai — -₹${discount}`,
+    ur: (count, discount) => `🎁 ${count}x مفت ایرانی چائے — -₹${discount}`,
+    hi: (count, discount) => `🎁 ${count}x मुफ़्त ईरानी चाय — -₹${discount}`,
+    kn: (count, discount) => `🎁 ${count}x ಉಚಿತ ಇರಾನಿ ಚಾಯ್ — -₹${discount}`,
+    ta: (count, discount) => `🎁 ${count}x இலவச இரானி சாய் — -₹${discount}`,
+  },
+  runner_on_way: {
+    en: (runner) => `🏃 Runner: ${runner}\n⏱️ *Arriving in ~5 minutes!*`,
+    ur: (runner) => `🏃 رنر: ${runner}\n⏱️ *~5 منٹ میں پہنچ جائے گا!*`,
+    hi: (runner) => `🏃 रनर: ${runner}\n⏱️ *~5 मिनट में पहुँचेगा!*`,
+    kn: (runner) => `🏃 ರನ್ನರ್: ${runner}\n⏱️ *~5 ನಿಮಿಷದಲ್ಲಿ ಬರುತ್ತಾರೆ!*`,
+    ta: (runner) => `🏃 ரன்னர்: ${runner}\n⏱️ *~5 நிமிடத்தில் வரும்!*`,
+  },
+  session_expired: {
+    en: `⏰ Your previous session expired due to inactivity and your cart was cleared.\n\nNo worries — let's start fresh!`,
+    ur: `⏰ آپ کا پچھلا سیشن غیر فعالیت کی وجہ سے ختم ہو گیا۔\n\nکوئی بات نہیں — نئے سرے سے شروع کرتے ہیں!`,
+    hi: `⏰ आपका पिछला सेशन निष्क्रियता के कारण समाप्त हो गया।\n\nकोई बात नहीं — नए सिरे से शुरू करते हैं!`,
+    kn: `⏰ ನಿಮ್ಮ ಹಿಂದಿನ ಸೆಷನ್ ನಿಷ್ಕ್ರಿಯತೆಯಿಂದ ಮುಕ್ತಾಯವಾಗಿದೆ.\n\nಚಿಂತಿಸಬೇಡಿ — ಹೊಸದಾಗಿ ಪ್ರಾರಂಭಿಸೋಣ!`,
+    ta: `⏰ உங்கள் முந்தைய அமர்வு செயலற்ற நிலையால் காலாவதியானது.\n\nகவலை வேண்டாம் — புதிதாக ஆரம்பிக்கலாம்!`,
+  },
+  // ── Settings ──
+  settings_header: {
+    en: '⚙️ *Settings*', ur: '⚙️ *سیٹنگز*', hi: '⚙️ *सेटिंग्स*',
+    kn: '⚙️ *ಸೆಟ್ಟಿಂಗ್ಸ್*', ta: '⚙️ *அமைப்புகள்*',
+  },
+};
+
+// Helper: get translated text, fallback to English
+function t(key, lang) {
+  const entry = T[key];
+  if (!entry) return key;
+  return entry[lang] || entry['en'] || key;
+}
+
+// Helper: get user language (fallback to 'en')
+function userLang(user) {
+  return user?.preferred_language || 'en';
+}
+
 // Odoo POS Integration
 const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
 const ODOO_DB = 'main';
@@ -146,7 +351,7 @@ async function processWebhook(context, body) {
     session.cart = '[]';
     session.cart_total = 0;
     if (hadCart && wasOrdering) {
-      await sendWhatsApp(phoneId, token, buildText(waId, `⏰ Your previous session expired due to inactivity and your cart was cleared.\n\nNo worries — let's start fresh!`));
+      await sendWhatsApp(phoneId, token, buildText(waId, t('session_expired', userLang(user))));
     }
   }
 
@@ -157,7 +362,7 @@ async function processWebhook(context, body) {
     const name = value.contacts?.[0]?.profile?.name || '';
     const phone = waId;
     await db.prepare('INSERT INTO wa_users (wa_id, name, phone, created_at, last_active_at) VALUES (?, ?, ?, ?, ?)').bind(waId, name, phone, now, now).run();
-    user = { wa_id: waId, name, phone, first_order_redeemed: 0, total_orders: 0, last_order_id: null, location_lat: null, location_lng: null, business_type: null };
+    user = { wa_id: waId, name, phone, first_order_redeemed: 0, total_orders: 0, last_order_id: null, location_lat: null, location_lng: null, business_type: null, preferred_language: null };
   } else {
     await db.prepare('UPDATE wa_users SET last_active_at = ? WHERE wa_id = ?').bind(new Date().toISOString(), waId).run();
   }
@@ -314,7 +519,7 @@ function getMessageType(message) {
 }
 
 // ─── STATE MACHINE ROUTER ─────────────────────────────────────────
-// States: idle → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_location_confirm → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
+// States: idle → awaiting_language → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_location_confirm → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
 async function routeState(context, session, user, message, msg, waId, phoneId, token, db) {
   const state = session.state;
 
@@ -325,6 +530,9 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
 
   if (state === 'order_placed' || state === 'idle') {
     return handleIdle(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_language') {
+    return handleLanguageSelect(context, session, user, msg, waId, phoneId, token, db);
   }
   if (state === 'awaiting_biz_type') {
     return handleBizType(context, session, user, msg, waId, phoneId, token, db);
@@ -353,37 +561,62 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
 
 // ─── STATE: IDLE → Greeting / Reorder / Biz Verification ─────────
 async function handleIdle(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
+
   // ── RETURNING USER: show reorder prompt ──
   if (user.total_orders > 0 && user.last_order_id) {
     const lastOrder = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(user.last_order_id).first();
     if (lastOrder) {
       const items = JSON.parse(lastOrder.items);
       const itemSummary = items.map(i => `${i.qty}x ${i.name}`).join(', ');
-      const locationNote = user.location_address ? `\n📍 Delivering to: ${user.location_address}` : '';
-      const body = `Welcome back${user.name ? ' ' + user.name.split(' ')[0] : ''}! *Nawabi Chai House* here.\n\nYour last order:\n${itemSummary} — *₹${lastOrder.total}*${locationNote}`;
-      const buttons = [
-        { type: 'reply', reply: { id: 'reorder', title: `Reorder ₹${lastOrder.total}` } },
-        { type: 'reply', reply: { id: 'new_order', title: 'New Order' } },
-        { type: 'reply', reply: { id: 'change_location', title: '📍 Change Location' } }
-      ];
-      await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
+      const firstName = user.name ? user.name.split(' ')[0] : '';
+      const welcomeText = t('welcome_back', lang);
+      const welcomeMsg = typeof welcomeText === 'function' ? welcomeText(firstName) : welcomeText;
+      const locationNote = user.location_address ? `\n${t('delivering_to', lang)} ${user.location_address}` : '';
+      const body = `${welcomeMsg}\n\n${t('your_last_order', lang)}\n${itemSummary} — *₹${lastOrder.total}*${locationNote}`;
+
+      // Use List Message to show all options including settings
+      const reorderTitle = t('btn_reorder', lang);
+      const listMsg = buildListMessage(waId,
+        `☕ ${welcomeMsg.replace(/\*/g, '')}`,
+        body,
+        t('btn_new_order', lang),
+        [
+          {
+            title: lang === 'en' ? 'Quick Actions' : '⚡',
+            rows: [
+              { id: 'reorder', title: (typeof reorderTitle === 'function' ? reorderTitle(lastOrder.total) : `Reorder ₹${lastOrder.total}`).slice(0, 24), description: itemSummary.slice(0, 72) },
+              { id: 'new_order', title: t('btn_new_order', lang).slice(0, 24), description: t('browse_menu', lang).slice(0, 72) },
+            ]
+          },
+          {
+            title: lang === 'en' ? 'Settings' : '⚙️',
+            rows: [
+              { id: 'change_location', title: t('btn_change_location', lang).slice(0, 24), description: (user.location_address || 'Update delivery location').slice(0, 72) },
+              { id: 'change_language', title: t('btn_change_language', lang).slice(0, 24), description: SUPPORTED_LANGUAGES.find(l => l.code === lang)?.native || 'English' },
+            ]
+          }
+        ]
+      );
+      await sendWhatsApp(phoneId, token, listMsg);
       await updateSession(db, waId, 'awaiting_menu', session.cart, session.cart_total);
       return;
     }
   }
 
-  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog with Change Location ──
+  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog with settings ──
   if (user.business_type && user.name && user.location_lat) {
     const firstName = user.name ? user.name.split(' ')[0] : '';
-    const locationNote = user.location_address ? `\n📍 Delivering to: ${user.location_address}` : '';
-    const greeting = `Welcome back${firstName ? ' ' + firstName : ''}!\n\n🎁 *Your first 2 Irani Chai are FREE!*${locationNote}\n\nBrowse our menu, add items to cart, and send your order 👇`;
-    await sendWhatsApp(phoneId, token, buildMPM(waId, greeting));
-    // Show Change Location button so user can update delivery address
+    const greeting = t('browse_menu_returning_free', lang);
+    const greetingText = typeof greeting === 'function' ? greeting(firstName) : greeting;
+    await sendWhatsApp(phoneId, token, buildMPM(waId, greetingText));
+    // Show Change Location + Change Language buttons
     const locButtons = [
-      { type: 'reply', reply: { id: 'change_location', title: '📍 Change Location' } },
-      { type: 'reply', reply: { id: 'continue_ordering', title: '✅ Location is correct' } }
+      { type: 'reply', reply: { id: 'change_location', title: t('btn_change_location', lang).slice(0, 20) } },
+      { type: 'reply', reply: { id: 'change_language', title: t('btn_change_language', lang).slice(0, 20) } },
+      { type: 'reply', reply: { id: 'continue_ordering', title: t('location_is_correct', lang).slice(0, 20) } }
     ];
-    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, `📍 *Delivery location:* ${user.location_address || 'Saved pin'}\n\nIs this correct, or would you like to change it?`, locButtons));
+    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, `📍 *${t('deliver_to', lang)}:* ${user.location_address || 'Saved pin'}`, locButtons));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
@@ -391,37 +624,108 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
   // ── KNOWN USER but no saved location (was out of range before, or location cleared) ──
   if (user.business_type && user.name && !user.location_lat) {
     const firstName = user.name.split(' ')[0];
-    const body = `Welcome back ${firstName}! 📍 Please share your current location so we can check if we can deliver to you.`;
+    const shareLocText = t('share_location', lang);
+    const body = typeof shareLocText === 'function' ? shareLocText(firstName) : shareLocText;
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, body));
     await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
-  // ── BRAND NEW USER: business verification flow ──
-  const greeting = `*☕ Nawabi Chai House — HKP Road, Shivajinagar*\n\nFresh Irani Chai & snacks delivered to your doorstep in 5 minutes!\n\n🎁 *Exclusive for HKP Road businesses:*\nYour first *2 Irani Chai are FREE!*\n\nTo get started, what type of business are you with?`;
-  const buttons = BIZ_CATEGORIES.map(c => ({ type: 'reply', reply: { id: c.id, title: c.title } }));
-  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, greeting, buttons));
-  await updateSession(db, waId, 'awaiting_biz_type', '[]', 0);
+  // ── BRAND NEW USER: ask language FIRST, then business verification ──
+  // Show language selection as the very first interaction
+  await sendLanguageSelection(waId, phoneId, token);
+  await updateSession(db, waId, 'awaiting_language', '[]', 0);
+}
+
+// ─── SEND LANGUAGE SELECTION ─────────────────────────────────────
+async function sendLanguageSelection(waId, phoneId, token) {
+  // Multi-lingual greeting so everyone can read it
+  const body = `🌐 *Choose your language / اپنی زبان منتخب کریں / अपनी भाषा चुनें*\n\nSelect your preferred language for ordering:`;
+  const buttons = [
+    { type: 'reply', reply: { id: 'lang_en', title: '🇬🇧 English' } },
+    { type: 'reply', reply: { id: 'lang_ur', title: '🇵🇰 اردو (Urdu)' } },
+    { type: 'reply', reply: { id: 'lang_more', title: '🌐 More / और' } },
+  ];
+  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
+}
+
+// ─── STATE: AWAITING LANGUAGE ─────────────────────────────────────
+async function handleLanguageSelect(context, session, user, msg, waId, phoneId, token, db) {
+  // Handle direct language selection
+  if (msg.type === 'button_reply' && msg.id.startsWith('lang_')) {
+    if (msg.id === 'lang_more') {
+      // Show remaining languages
+      const buttons = [
+        { type: 'reply', reply: { id: 'lang_hi', title: '🇮🇳 हिंदी (Hindi)' } },
+        { type: 'reply', reply: { id: 'lang_kn', title: '🇮🇳 ಕನ್ನಡ (Kannada)' } },
+        { type: 'reply', reply: { id: 'lang_ta', title: '🇮🇳 தமிழ் (Tamil)' } },
+      ];
+      await sendWhatsApp(phoneId, token, buildReplyButtons(waId, '🌐 Select your language:', buttons));
+      return;
+    }
+
+    const langCode = msg.id.replace('lang_', '');
+    const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === langCode);
+    if (langInfo) {
+      // Save language preference
+      await db.prepare('UPDATE wa_users SET preferred_language = ? WHERE wa_id = ?').bind(langCode, waId).run();
+      user.preferred_language = langCode;
+
+      const savedMsg = t('language_saved', langCode);
+      const savedText = typeof savedMsg === 'function' ? savedMsg(langInfo.native) : savedMsg;
+      await sendWhatsApp(phoneId, token, buildText(waId, savedText));
+
+      // Now proceed to business type selection (new user flow)
+      const greeting = t('new_user_greeting', langCode);
+      const buttons = BIZ_CATEGORIES.map(c => ({ type: 'reply', reply: { id: c.id, title: c.title } }));
+      await sendWhatsApp(phoneId, token, buildReplyButtons(waId, greeting, buttons));
+      await updateSession(db, waId, 'awaiting_biz_type', '[]', 0);
+      return;
+    }
+  }
+
+  // Handle list_reply for language change from settings
+  if (msg.type === 'list_reply' && msg.id.startsWith('lang_')) {
+    const langCode = msg.id.replace('lang_', '');
+    const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === langCode);
+    if (langInfo) {
+      await db.prepare('UPDATE wa_users SET preferred_language = ? WHERE wa_id = ?').bind(langCode, waId).run();
+      user.preferred_language = langCode;
+
+      const savedMsg = t('language_saved', langCode);
+      const savedText = typeof savedMsg === 'function' ? savedMsg(langInfo.native) : savedMsg;
+      await sendWhatsApp(phoneId, token, buildText(waId, savedText));
+
+      // Return to idle to restart normal flow with new language
+      await updateSession(db, waId, 'idle', '[]', 0);
+      return handleIdle(context, session, user, msg, waId, phoneId, token, db);
+    }
+  }
+
+  // Invalid response — resend language options
+  await sendLanguageSelection(waId, phoneId, token);
 }
 
 // ─── STATE: AWAITING BIZ TYPE ─────────────────────────────────────
 async function handleBizType(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
   if (msg.type === 'button_reply' && msg.id.startsWith('biz_')) {
     const categoryTitle = BIZ_CATEGORIES.find(c => c.id === msg.id)?.title || msg.title;
     await db.prepare('UPDATE wa_users SET business_type = ? WHERE wa_id = ?').bind(categoryTitle, waId).run();
     user.business_type = categoryTitle;
 
-    await sendWhatsApp(phoneId, token, buildText(waId, `Great! What's your name?`));
+    await sendWhatsApp(phoneId, token, buildText(waId, t('great_whats_your_name', lang)));
     await updateSession(db, waId, 'awaiting_name', '[]', 0);
     return;
   }
 
   const buttons = BIZ_CATEGORIES.map(c => ({ type: 'reply', reply: { id: c.id, title: c.title } }));
-  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, 'Please select your business type to continue:', buttons));
+  await sendWhatsApp(phoneId, token, buildReplyButtons(waId, t('select_biz_type', lang), buttons));
 }
 
 // ─── STATE: AWAITING NAME ─────────────────────────────────────────
 async function handleName(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
   if (msg.type === 'text' && msg.body.length > 0) {
     const name = msg.body.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ').slice(0, 50);
     await db.prepare('UPDATE wa_users SET name = ? WHERE wa_id = ?').bind(name, waId).run();
@@ -432,27 +736,35 @@ async function handleName(context, session, user, msg, waId, phoneId, token, db)
       const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
       if (dist <= MAX_DELIVERY_RADIUS_M) {
         const isNew = !user.first_order_redeemed && user.total_orders === 0;
-        let menuIntro = `Thanks ${name.split(' ')[0]}! Browse our menu, pick what you like, and send your order 👇`;
-        if (isNew) menuIntro = `Thanks ${name.split(' ')[0]}!\n\n🎁 *Your first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
+        const firstName = name.split(' ')[0];
+        let menuIntro;
+        if (isNew) {
+          const freeMsg = t('browse_menu_free_chai', lang);
+          menuIntro = typeof freeMsg === 'function' ? freeMsg(firstName) : freeMsg;
+        } else {
+          menuIntro = `${firstName}! ${t('browse_menu', lang)}`;
+        }
         await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
         await updateSession(db, waId, 'awaiting_menu', '[]', 0);
         return;
       }
     }
 
-    const body = `Welcome ${name.split(' ')[0]}! 📍 Please share your location so we can deliver to you.`;
+    const shareLocText = t('share_location', lang);
+    const body = typeof shareLocText === 'function' ? shareLocText(name.split(' ')[0]) : shareLocText;
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, body));
     await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
-  await sendWhatsApp(phoneId, token, buildText(waId, 'Please type your name to continue.'));
+  await sendWhatsApp(phoneId, token, buildText(waId, t('type_name_to_continue', lang)));
 }
 
 // ─── STATE: AWAITING LOCATION ─────────────────────────────────────
 async function handleLocation(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
   if (msg.type !== 'location') {
-    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Please share your delivery location using the attach (📎) button → Location'));
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_location_generic', lang)));
     return;
   }
 
@@ -461,7 +773,8 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
 
   if (distance > MAX_DELIVERY_RADIUS_M) {
     const distStr = distance > 1000 ? `${(distance / 1000).toFixed(1)} km` : `${Math.round(distance)}m`;
-    const body = `😔 Sorry, you're *${distStr}* away. We currently deliver only along *HKP Road, Shivajinagar*.\n\nVisit us at the shop — we'd love to see you! ☕`;
+    const outOfRange = t('out_of_range', lang);
+    const body = typeof outOfRange === 'function' ? outOfRange(distStr) : outOfRange;
     await sendWhatsApp(phoneId, token, buildText(waId, body));
     await updateSession(db, waId, 'idle', '[]', 0);
     return;
@@ -662,8 +975,29 @@ async function proceedAfterLocationConfirm(context, session, user, waId, phoneId
 
 // ─── STATE: AWAITING MENU → Waiting for cart or reorder ───────────
 async function handleMenuState(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
+
+  // ── Change Language button/list_reply ──
+  if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'change_language') {
+    // Show full language selection list
+    const langRows = SUPPORTED_LANGUAGES.map(l => ({
+      id: `lang_${l.code}`,
+      title: `${l.flag} ${l.native}`,
+      description: l.name
+    }));
+    const langList = buildListMessage(waId,
+      '🌐',
+      t('choose_language', lang),
+      lang === 'en' ? 'Select language' : '🌐',
+      [{ title: 'Languages', rows: langRows }]
+    );
+    await sendWhatsApp(phoneId, token, langList);
+    await updateSession(db, waId, 'awaiting_language', session.cart, session.cart_total);
+    return;
+  }
+
   // ── Reorder button ──
-  if (msg.type === 'button_reply' && msg.id === 'reorder') {
+  if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'reorder') {
     const lastOrder = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(user.last_order_id).first();
     if (lastOrder) {
       const items = JSON.parse(lastOrder.items);
@@ -705,20 +1039,20 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
   }
 
   // ── New Order button ──
-  if (msg.type === 'button_reply' && msg.id === 'new_order') {
-    await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu, pick what you like, and send your order 👇'));
+  if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'new_order') {
+    await sendWhatsApp(phoneId, token, buildMPM(waId, t('browse_menu', lang)));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
 
   // ── Change Location button ──
-  if (msg.type === 'button_reply' && msg.id === 'change_location') {
+  if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'change_location') {
     // Clear saved location so it gets re-verified
     await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
     user.location_lat = null;
     user.location_lng = null;
     user.location_address = null;
-    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_new_location', lang)));
     await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
@@ -735,13 +1069,26 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
     user.location_lat = null;
     user.location_lng = null;
     user.location_address = null;
-    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_new_location', lang)));
     await updateSession(db, waId, 'awaiting_location', '[]', 0);
     return;
   }
 
+  // ── Text command: "change language" / "language" / "lang" ──
+  if (msg.type === 'text' && /^(change\s*lang(uage)?|lang(uage)?|bhasha|زبان|भाषा|ಭಾಷೆ|மொழி)$/i.test(msg.body || msg.bodyLower)) {
+    const langRows = SUPPORTED_LANGUAGES.map(l => ({
+      id: `lang_${l.code}`,
+      title: `${l.flag} ${l.native}`,
+      description: l.name
+    }));
+    const langList = buildListMessage(waId, '🌐', t('choose_language', lang), lang === 'en' ? 'Select language' : '🌐', [{ title: 'Languages', rows: langRows }]);
+    await sendWhatsApp(phoneId, token, langList);
+    await updateSession(db, waId, 'awaiting_language', session.cart, session.cart_total);
+    return;
+  }
+
   // ── Any text → resend catalog ──
-  await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu below, add items to cart, and tap Send to order! 👇'));
+  await sendWhatsApp(phoneId, token, buildMPM(waId, t('browse_menu', lang)));
 }
 
 // ─── HANDLE ORDER MESSAGE (from MPM native cart) ──────────────────
@@ -826,6 +1173,7 @@ async function handleOrderMessage(context, session, user, msg, waId, phoneId, to
 
 // ─── STATE: AWAITING PAYMENT → COD or UPI ─────────────────────────
 async function handlePayment(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
   // ── Change Location from payment screen ──
   if (msg.type === 'button_reply' && msg.id === 'pay_change_loc') {
     await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
@@ -833,7 +1181,7 @@ async function handlePayment(context, session, user, msg, waId, phoneId, token, 
     user.location_lng = null;
     user.location_address = null;
     // Keep cart intact — move to awaiting_location so after new location, goes back to payment
-    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your new delivery location:'));
+    await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_new_location', lang)));
     await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
     return;
   }
@@ -1433,6 +1781,32 @@ function buildOrderDetailsPayment(to, orderCode, cart, total, discount) {
   };
 }
 
+// ── List Message — up to 10 items in sections ──
+function buildListMessage(to, headerText, bodyText, buttonText, sections) {
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: headerText },
+      body: { text: bodyText },
+      footer: { text: 'Nawabi Chai House • HKP Road' },
+      action: {
+        button: buttonText.slice(0, 20),
+        sections: sections.map(s => ({
+          title: s.title,
+          rows: s.rows.map(r => ({
+            id: r.id,
+            title: (r.title || '').slice(0, 24),
+            description: (r.description || '').slice(0, 72),
+          }))
+        }))
+      }
+    }
+  };
+}
+
 function buildLocationRequest(to, body) {
   return {
     messaging_product: 'whatsapp', to, type: 'interactive',
@@ -1748,6 +2122,18 @@ async function handleDashboardAPI(context, action, url, corsHeaders) {
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+    }
+
+    // ── Reset user (for testing) ──
+    if (action === 'reset-user' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      const { phone } = body;
+      if (!phone) return new Response(JSON.stringify({ success: false, error: 'phone required' }), { status: 400, headers: corsHeaders });
+      // Normalize: add 91 prefix if not present
+      const waId = phone.startsWith('91') ? phone : '91' + phone;
+      await db.prepare('DELETE FROM wa_users WHERE wa_id = ?').bind(waId).run();
+      await db.prepare('DELETE FROM wa_sessions WHERE wa_id = ?').bind(waId).run();
+      return new Response(JSON.stringify({ success: true, message: `User ${waId} reset — will be treated as brand new user` }), { headers: corsHeaders });
     }
 
     return new Response(JSON.stringify({ success: false, error: 'Unknown action' }), { status: 400, headers: corsHeaders });
