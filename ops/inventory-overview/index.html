@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Inventory Overview</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316;--teal:#14b8a6}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px;max-width:1000px;margin:0 auto}
+    .mono{font-family:'JetBrains Mono',monospace}
+    h1{font-size:20px;font-weight:700;margin-bottom:4px}
+    .subtitle{color:var(--text2);font-size:13px;margin-bottom:20px}
+    .back{color:var(--text2);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;gap:4px;margin-bottom:16px}
+    .back:hover{color:var(--text)}
+
+    .date-row{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .date-row input{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-family:inherit;font-size:14px}
+    .btn{background:var(--teal);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+    .btn:hover{opacity:.9}
+
+    .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .summary-card .label{color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+    .summary-card .value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+
+    .section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+    .section-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+    th{text-align:left;color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.5px;padding:8px 6px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card)}
+    td{padding:7px 6px;border-bottom:1px solid rgba(45,58,79,.3)}
+    td.name{font-weight:600;white-space:normal;min-width:120px}
+    td.num{font-family:'JetBrains Mono',monospace;text-align:right}
+    td.pos{color:var(--green)}
+    td.neg{color:var(--red)}
+    td.warn{color:var(--yellow)}
+    tr:last-child td{border-bottom:none}
+
+    .empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+    .empty-state .icon{font-size:48px;margin-bottom:16px}
+    .empty-state h2{font-size:18px;color:var(--text);margin-bottom:8px}
+    .loading{text-align:center;padding:40px;color:var(--text2)}
+    .error-msg{color:var(--red);padding:16px;text-align:center}
+
+    .status-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600}
+    .status-bootstrap{background:rgba(59,130,246,.15);color:var(--blue)}
+    .status-completed{background:rgba(34,197,94,.15);color:var(--green)}
+
+    @media(max-width:600px){
+      .summary{grid-template-columns:1fr 1fr}
+      table{font-size:11px}
+      th,td{padding:5px 3px}
+    }
+  </style>
+</head>
+<body>
+  <a href="/ops/" class="back">← Operations Hub</a>
+  <h1>📦 Inventory Overview</h1>
+  <p class="subtitle">Stock levels, consumption analysis, and purchase tracking</p>
+
+  <div class="date-row">
+    <input type="date" id="dateInput">
+    <button class="btn" onclick="loadInventory()">Load</button>
+  </div>
+
+  <div id="summary" style="display:none"></div>
+  <div id="content"><div class="loading">Select a date and click Load</div></div>
+
+  <script>
+    const API = '/api/daily-settlement';
+    const $ = id => document.getElementById(id);
+    const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+    const fmtQty = (n, d = 2) => n === 0 ? '—' : Number(n).toFixed(d);
+
+    const now = new Date(Date.now() + 5.5 * 3600000);
+    $('dateInput').value = now.toISOString().slice(0, 10);
+
+    let rawMaterials = {};
+    let materialCosts = {};
+
+    async function loadConfig() {
+      const res = await fetch(`${API}?action=get-config`);
+      const data = await res.json();
+      if (data.success) {
+        rawMaterials = data.rawMaterials || {};
+      }
+    }
+
+    async function loadInventory() {
+      const date = $('dateInput').value;
+      if (!date) return;
+      $('content').innerHTML = '<div class="loading">Loading settlement data...</div>';
+
+      try {
+        // Load config first if not loaded
+        if (Object.keys(rawMaterials).length === 0) await loadConfig();
+
+        const res = await fetch(`${API}?action=get-settlement&date=${date}`);
+        const data = await res.json();
+
+        if (!data.success || !data.settlement) {
+          $('summary').style.display = 'none';
+          $('content').innerHTML = `<div class="empty-state">
+            <div class="icon">📋</div>
+            <h2>No Settlement for ${date}</h2>
+            <p>Settlement has not been completed for this date yet.<br>Staff must submit the daily settlement first.</p>
+          </div>`;
+          return;
+        }
+
+        const s = data.settlement;
+        const opening = JSON.parse(s.inventory_opening || '{}');
+        const purchases = JSON.parse(s.inventory_purchases || '{}');
+        const closing = JSON.parse(s.inventory_closing || '{}');
+        const consumption = JSON.parse(s.inventory_consumption || '{}');
+        const expected = JSON.parse(s.inventory_expected || '{}');
+        const discrepancy = JSON.parse(s.inventory_discrepancy || '{}');
+
+        // Summary cards
+        const isBootstrap = s.status === 'bootstrap';
+        $('summary').style.display = '';
+        $('summary').innerHTML = `
+          <div class="summary">
+            <div class="summary-card">
+              <div class="label">Status</div>
+              <div class="value"><span class="status-badge ${isBootstrap ? 'status-bootstrap' : 'status-completed'}">${s.status}</span></div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Revenue</div>
+              <div class="value" style="color:var(--green)">${fmt(s.revenue_total || 0)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">COGS (Actual)</div>
+              <div class="value" style="color:var(--orange)">${fmt(s.cogs_actual || 0)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Gross Profit</div>
+              <div class="value" style="color:${(s.gross_profit||0) >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(s.gross_profit || 0)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Discrepancy ₹</div>
+              <div class="value" style="color:${Math.abs(s.discrepancy_value||0) < 100 ? 'var(--green)' : 'var(--red)'}">${fmt(s.discrepancy_value || 0)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Settled By</div>
+              <div class="value" style="font-size:14px">${s.settled_by}</div>
+            </div>
+          </div>
+        `;
+
+        // Build material table
+        const allMaterialIds = new Set([
+          ...Object.keys(opening), ...Object.keys(purchases),
+          ...Object.keys(closing), ...Object.keys(consumption),
+          ...Object.keys(expected), ...Object.keys(discrepancy)
+        ]);
+
+        let tableRows = '';
+        let totalOpening = 0, totalPurchases = 0, totalClosing = 0, totalDiscrepancy = 0;
+
+        for (const matId of [...allMaterialIds].sort((a, b) => Number(a) - Number(b))) {
+          const mat = rawMaterials[matId] || {name: `Material ${matId}`, uom: '?'};
+          const op = opening[matId] || 0;
+          const pu = purchases[matId] || 0;
+          const cl = closing[matId] || 0;
+          const co = consumption[matId] || 0;
+          const ex = expected[matId] || 0;
+          const di = discrepancy[matId] || 0;
+
+          const diClass = Math.abs(di) < 0.5 ? '' : (di > 0 ? 'neg' : 'pos');
+          const decimals = mat.uom === 'Units' ? 0 : 3;
+
+          tableRows += `<tr>
+            <td class="name">${mat.name}</td>
+            <td>${mat.uom}</td>
+            <td class="num">${fmtQty(op, decimals)}</td>
+            <td class="num">${fmtQty(pu, decimals)}</td>
+            <td class="num">${fmtQty(ex, decimals)}</td>
+            <td class="num">${fmtQty(co, decimals)}</td>
+            <td class="num">${fmtQty(cl, decimals)}</td>
+            <td class="num ${diClass}">${fmtQty(di, decimals)}</td>
+          </tr>`;
+        }
+
+        let html = '';
+
+        if (isBootstrap) {
+          html += `<div class="section" style="border-color:var(--blue)">
+            <div class="section-title"><span>ℹ️</span> Bootstrap Settlement (Day 0)</div>
+            <p style="font-size:13px;color:var(--text2)">This is the opening inventory baseline. No consumption or discrepancy analysis — those begin with Day 1 settlement.</p>
+          </div>`;
+        }
+
+        html += `<div class="section">
+          <div class="section-title"><span>📊</span> Raw Material Breakdown</div>
+          <div class="table-wrap">
+            <table>
+              <tr>
+                <th>Material</th><th>UOM</th>
+                <th style="text-align:right">Opening</th>
+                <th style="text-align:right">Purchases</th>
+                <th style="text-align:right">Expected</th>
+                <th style="text-align:right">Actual</th>
+                <th style="text-align:right">Closing</th>
+                <th style="text-align:right">Discrepancy</th>
+              </tr>
+              ${tableRows || '<tr><td colspan="8" style="text-align:center;color:var(--text2)">No material data</td></tr>'}
+            </table>
+          </div>
+        </div>`;
+
+        // Purchase detail if available
+        if (Object.keys(purchases).length > 0) {
+          html += `<div class="section">
+            <div class="section-title"><span>🛒</span> Purchases Received</div>
+            <table>
+              <tr><th>Material</th><th>UOM</th><th style="text-align:right">Qty Received</th></tr>
+              ${Object.entries(purchases).filter(([, q]) => q > 0).map(([id, qty]) => {
+                const m = rawMaterials[id] || {name: `ID ${id}`, uom: '?'};
+                return `<tr><td>${m.name}</td><td>${m.uom}</td><td class="num">${fmtQty(qty, m.uom === 'Units' ? 0 : 3)}</td></tr>`;
+              }).join('')}
+            </table>
+          </div>`;
+        }
+
+        $('content').innerHTML = html;
+
+      } catch (e) {
+        $('summary').style.display = 'none';
+        $('content').innerHTML = `<div class="error-msg">${e.message}</div>`;
+      }
+    }
+
+    // Auto-load
+    loadInventory();
+  </script>
+</body>
+</html>

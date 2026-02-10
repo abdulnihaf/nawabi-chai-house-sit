@@ -10,7 +10,7 @@ export async function onRequest(context) {
   const ALERT_RECIPIENTS = ['917010426808', '918073476051']; // Nihaf, Naveen
 
   // PIN verification — matches Odoo POS employee PINs
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
   // Users who can collect cash from counter (owner/manager level)
   const COLLECTORS = ['Naveen', 'Nihaf'];
   const RUNNERS = {
@@ -40,7 +40,6 @@ export async function onRequest(context) {
         SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1
       `).bind(runnerId).first();
 
-      // Get last collection — when cash was collected, ALL runners reset to zero
       const lastCollection = await DB.prepare(
         'SELECT collected_at FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
       ).first();
@@ -49,17 +48,34 @@ export async function onRequest(context) {
       const lastSettledAt = result ? result.settled_at : baseline;
       const lastCollectedAt = lastCollection ? lastCollection.collected_at : baseline;
 
-      // Period starts from whichever is LATER: last settlement or last collection
-      // Because collection wipes the cash slate — any unsettled runner obligations
-      // before the collection were included in the collected cash
-      const periodStart = new Date(lastSettledAt) > new Date(lastCollectedAt) ? lastSettledAt : lastCollectedAt;
+      // Runner vs Counter — fundamentally different period logic:
+      //
+      // RUNNERS: Period ALWAYS starts from their last individual settlement.
+      //   Runner settlement = runner hands cash to counter. Cash collection from
+      //   counter is a separate event — it takes cash already settled TO the counter.
+      //   Unsettled runner cash is still with the runner, not at the counter.
+      //   So cash collection never clears a runner's slate.
+      //
+      // COUNTER: Period starts from MAX(lastCounterSettlement, lastCollection).
+      //   Cash collection empties the counter drawer, so the counter's next
+      //   settlement period starts fresh from that point.
+      const isRunner = runnerId !== 'counter';
+      let periodStart, periodReason;
+
+      if (isRunner) {
+        periodStart = lastSettledAt;
+        periodReason = 'last_settlement';
+      } else {
+        periodStart = new Date(lastSettledAt) > new Date(lastCollectedAt) ? lastSettledAt : lastCollectedAt;
+        periodReason = new Date(lastSettledAt) > new Date(lastCollectedAt) ? 'last_settlement' : 'last_collection';
+      }
 
       return new Response(JSON.stringify({
         success: true,
         lastSettlement: result || null,
         lastCollection: lastCollection || null,
         periodStart,
-        periodReason: new Date(lastSettledAt) > new Date(lastCollectedAt) ? 'last_settlement' : 'last_collection'
+        periodReason
       }), {headers: corsHeaders});
     }
 
@@ -146,14 +162,6 @@ export async function onRequest(context) {
         if (!validCashiers.includes(attributed_to)) {
           return new Response(JSON.stringify({success: false, error: 'Invalid cashier name'}), {headers: corsHeaders});
         }
-      }
-
-      // Duplicate prevention: same person within 2 minutes
-      const recentDup = await DB.prepare(
-        "SELECT id FROM counter_expenses WHERE recorded_by = ? AND recorded_at > datetime('now', '-2 minutes') ORDER BY recorded_at DESC LIMIT 1"
-      ).bind(recorded_by).first();
-      if (recentDup) {
-        return new Response(JSON.stringify({success: false, error: 'You just recorded an expense. Wait 2 minutes.'}), {headers: corsHeaders});
       }
 
       await DB.prepare(

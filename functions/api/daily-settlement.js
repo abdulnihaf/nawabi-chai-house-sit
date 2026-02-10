@@ -1,4 +1,4 @@
-// NCH Daily P&L Settlement API — Cloudflare Worker
+// NCH Daily Settlement API — Cloudflare Worker
 // The intelligence layer: staff enters physical counts → system calculates everything
 // Settlement at midnight: covers one calendar day's P&L
 
@@ -15,7 +15,7 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
 
   // ═══════════════════════════════════════════════════════════
   // POS Product → Raw Material RECIPES (qty per 1 unit sold)
@@ -167,41 +167,61 @@ export async function onRequest(context) {
   // we query POS for products sold between count time and submission time
   // ═══════════════════════════════════════════════════════════
   const FIELD_TO_PRODUCTS = {
-    // Bun maska prepared → NCH-BM (1029) and NCH-MB (1118)
     'prepared_bun_maska': [1029, 1118],
     'plain_buns': [1029, 1118],
-    // Fried items → respective products
-    'fried_cutlets': [1031],
+    // Fried items: split by location
+    'fried_cutlets_kitchen': [1031], 'fried_cutlets_display': [1031],
     'raw_cutlets': [1031],
-    'fried_samosa': [1115],
+    'fried_samosa_kitchen': [1115], 'fried_samosa_display': [1115],
     'raw_samosa': [1115],
-    'fried_cheese_balls': [1117],
+    'fried_cheese_balls_kitchen': [1117], 'fried_cheese_balls_display': [1117],
     'raw_cheese_balls': [1117],
-    // Vessel groups → Irani Chai (1028), Coffee (1102), Lemon Tea (1103)
+    // Vessels: split kitchen/counter
     'boiled_milk_kitchen': [1028, 1102],
     'boiled_milk_counter': [1028, 1102],
+    'tea_decoction_kitchen': [1028, 1103],
+    'tea_decoction_counter': [1028, 1103],
+    // Osmania: split by location
+    'osmania_packets_kitchen': [1030, 1033], 'osmania_packets_display': [1030, 1033],
+    'osmania_loose_display': [1030, 1033],
+    // Water: split by location
+    'water_bottles_kitchen': [1094], 'water_bottles_display': [1094],
+    // Niloufer: split by location
+    'niloufer_kitchen': [1111], 'niloufer_display': [1111],
+    // Backward compat: old field names
+    'fried_cutlets': [1031], 'fried_samosa': [1115], 'fried_cheese_balls': [1117],
+    'osmania_packets': [1030, 1033], 'osmania_loose': [1030, 1033],
+    'water_bottles': [1094], 'niloufer_storage': [1111],
     'tea_decoction': [1028, 1103],
-    // Osmania → NCH-OB (1030), NCH-OB3 (1033)
-    'osmania_packets': [1030, 1033],
-    'osmania_loose': [1030, 1033],
-    // Water → NCH-WTR (1094)
-    'water_bottles': [1094],
-    // Niloufer → NCH-OBBOX (1111)
-    'niloufer_storage': [1111],
-    'niloufer_display': [1111],
   };
 
-  // Minimum gap in seconds before adjustment is applied (2 minutes)
-  // Gaps shorter than this are noise — not worth querying POS
-  const GAP_THRESHOLD_SECONDS = 120;
+  // Zone-based gap thresholds (seconds) — replaces single GAP_THRESHOLD_SECONDS
+  // Freezer/Kitchen = 10 min (slow items), Display/Tea Counter = 5 min (fast items)
+  const ZONE_THRESHOLDS = { freezer: 600, kitchen: 600, display_counter: 300, tea_counter: 300 };
+  const FIELD_ZONES = {
+    'raw_buffalo_milk': 'freezer', 'raw_cutlets': 'freezer', 'raw_samosa': 'freezer',
+    'raw_cheese_balls': 'freezer', 'butter': 'freezer',
+    'raw_sugar': 'kitchen', 'raw_milkmaid': 'kitchen', 'raw_smp': 'kitchen',
+    'raw_tea_powder': 'kitchen', 'tea_sugar_boxes': 'kitchen', 'coffee_powder': 'kitchen',
+    'honey': 'kitchen', 'lemons': 'kitchen', 'oil': 'kitchen', 'plain_buns': 'kitchen',
+    'water_bottles_kitchen': 'kitchen', 'niloufer_kitchen': 'kitchen',
+    'osmania_packets_kitchen': 'kitchen', 'fried_cutlets_kitchen': 'kitchen',
+    'fried_samosa_kitchen': 'kitchen', 'fried_cheese_balls_kitchen': 'kitchen',
+    'malai': 'kitchen', 'boiled_milk_kitchen': 'kitchen', 'tea_decoction_kitchen': 'kitchen',
+    'water_bottles_display': 'display_counter', 'niloufer_display': 'display_counter',
+    'osmania_packets_display': 'display_counter', 'osmania_loose_display': 'display_counter',
+    'fried_cutlets_display': 'display_counter', 'fried_samosa_display': 'display_counter',
+    'fried_cheese_balls_display': 'display_counter', 'prepared_bun_maska': 'display_counter',
+    'boiled_milk_counter': 'tea_counter', 'tea_decoction_counter': 'tea_counter',
+  };
 
   // Default vessel weights (updated from DB if available)
   // These are starting approximations — real values entered after weighing
   const DEFAULT_VESSELS = {
     'KIT-PATILA-1': {name: 'Kitchen Large Patila', liquid_type: 'boiled_milk', location: 'kitchen', empty_weight_kg: 13.28},
-    'CTR-MILK-1': {name: 'Counter Milk Vessel (Copper Samawar)', liquid_type: 'boiled_milk', location: 'counter', empty_weight_kg: 10.0},
-    'CTR-DEC-1': {name: 'Counter Decoction Vessel 1 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 13.0},
-    'CTR-DEC-2': {name: 'Counter Decoction Vessel 2 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 11.0},
+    'CTR-MILK-1': {name: 'Counter Milk Vessel (Copper Samawar)', liquid_type: 'boiled_milk', location: 'counter', empty_weight_kg: 3.15},
+    'CTR-DEC-1': {name: 'Counter Decoction Vessel 1 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.0},
+    'CTR-DEC-2': {name: 'Counter Decoction Vessel 2 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.0},
     'KIT-DEC-1': {name: 'Kitchen Decoction Prep Vessel', liquid_type: 'decoction', location: 'kitchen', empty_weight_kg: 11.0},
   };
 
@@ -310,7 +330,7 @@ export async function onRequest(context) {
       if (!DB) return json({success: false, error: 'Database not configured'}, corsHeaders);
 
       const body = await context.request.json();
-      const {pin, settlement_date, raw_input, wastage_items, runner_tokens, notes, is_bootstrap, field_timestamps} = body;
+      const {pin, settlement_date, raw_input, wastage_items, runner_tokens, notes, is_bootstrap, field_timestamps, photo_verifications} = body;
 
       // Validate PIN
       const settledBy = PINS[pin];
@@ -433,7 +453,9 @@ export async function onRequest(context) {
             const fieldTs = new Date(isoStr).getTime();
             const gapSeconds = (latestTs - fieldTs) / 1000;
 
-            if (gapSeconds >= GAP_THRESHOLD_SECONDS) {
+            const zone = FIELD_ZONES[fieldId] || 'kitchen';
+            const threshold = ZONE_THRESHOLDS[zone] || 600;
+            if (gapSeconds >= threshold) {
               const fromUTC = new Date(fieldTs).toISOString().slice(0, 19).replace('T', ' ');
               const toUTC = new Date(latestTs).toISOString().slice(0, 19).replace('T', ' ');
               gapQueries.push({
@@ -668,7 +690,7 @@ export async function onRequest(context) {
         const channelBreakdown = revenue.cashCounter > 0 || revenue.runnerCounter > 0 || revenue.whatsapp > 0
           ? `  Counter: ₹${Math.round(revenue.cashCounter).toLocaleString('en-IN')} | Runner: ₹${Math.round(revenue.runnerCounter).toLocaleString('en-IN')} | Delivery: ₹${Math.round(revenue.whatsapp).toLocaleString('en-IN')}\n`
           : '';
-        const msg = `☕ *NCH Daily P&L — ${settlement_date}*\n\n`
+        const msg = `☕ *NCH Daily Settlement — ${settlement_date}*\n\n`
           + `💰 Revenue: ₹${Math.round(revenue.total).toLocaleString('en-IN')}\n`
           + channelBreakdown
           + `📦 COGS: ₹${Math.round(cogsActual).toLocaleString('en-IN')}\n`
@@ -687,9 +709,82 @@ export async function onRequest(context) {
         )).catch(e => console.error('P&L WA alert error:', e.message)));
       }
 
+      // ── Step 17: Photo verification discrepancy check ──
+      // Compare AI readings from photos against staff-entered values
+      // Send WhatsApp alert ONLY if discrepancy detected
+      if (photo_verifications && Object.keys(photo_verifications).length > 0 && WA_TOKEN) {
+        const discrepancies = [];
+        const THRESHOLDS = {scale: 0.5, count: 1}; // 0.5kg tolerance for scale, 1 unit for counts
+
+        for (const [fieldId, pv] of Object.entries(photo_verifications)) {
+          if (pv.confidence === 'low') continue; // skip low-confidence readings
+
+          let staffValue = null;
+          const threshold = THRESHOLDS[pv.type] || 1;
+
+          if (pv.type === 'scale') {
+            // Vessel fields — staff value is the gross weight from vessel entries
+            // The AI reads the scale display which shows gross weight
+            const vesselContainers = ['boiled_milk_kitchen', 'boiled_milk_counter', 'tea_decoction'];
+            for (const vc of vesselContainers) {
+              const entries = raw_input[vc];
+              if (Array.isArray(entries)) {
+                for (const entry of entries) {
+                  // Match by field_id pattern: photo_{container}_{timestamp}
+                  if (fieldId.startsWith(`photo_${vc}_`) || fieldId.includes(vc)) {
+                    staffValue = entry.weight_kg;
+                    break;
+                  }
+                }
+              }
+              if (staffValue !== null) break;
+            }
+          } else {
+            // Count fields — direct field name match
+            staffValue = raw_input[fieldId];
+            if (staffValue === undefined) staffValue = null;
+          }
+
+          if (staffValue !== null && pv.ai_reading !== undefined) {
+            const diff = Math.abs(staffValue - pv.ai_reading);
+            if (diff > threshold) {
+              discrepancies.push({
+                field: fieldId.replace(/_/g, ' '),
+                staffEntered: staffValue,
+                aiReading: pv.ai_reading,
+                difference: diff,
+                type: pv.type,
+                confidence: pv.confidence,
+              });
+            }
+          }
+        }
+
+        if (discrepancies.length > 0) {
+          const alertMsg = `🚨 *INVENTORY PHOTO VERIFICATION ALERT*\n`
+            + `📅 Settlement: ${settlement_date}\n`
+            + `👤 Settled by: ${settledBy}\n\n`
+            + `⚠️ *${discrepancies.length} discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} detected:*\n\n`
+            + discrepancies.map(d =>
+              `• *${d.field}*\n`
+              + `  Staff entered: ${d.staffEntered}${d.type === 'scale' ? ' kg' : ''}\n`
+              + `  AI reading: ${d.aiReading}${d.type === 'scale' ? ' kg' : ''}\n`
+              + `  Difference: ${d.difference}${d.type === 'scale' ? ' kg' : ' units'}\n`
+              + `  Confidence: ${d.confidence}`
+            ).join('\n\n')
+            + `\n\n_Review immediately — potential data entry error or manipulation._`;
+
+          const WA_PHONE_ID2 = context.env.WA_PHONE_ID || '970365416152029';
+          const alertRecipients = ['917010426808']; // Owner only
+          context.waitUntil(Promise.all(alertRecipients.map(to =>
+            sendWhatsApp(WA_PHONE_ID2, WA_TOKEN, to, alertMsg)
+          )).catch(e => console.error('Photo alert WA error:', e.message)));
+        }
+      }
+
       return json({
         success: true,
-        message: 'Daily P&L settlement completed',
+        message: 'Daily settlement completed',
         settlementDate: settlement_date,
         settledBy,
         pnl: {
@@ -717,6 +812,56 @@ export async function onRequest(context) {
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
         timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
       }, corsHeaders);
+    }
+
+    // ─── VERIFY PHOTO: AI-powered verification via Gemini ─────
+    if (action === 'verify-photo' && context.request.method === 'POST') {
+      const GEMINI_KEY = context.env.GEMINI_API_KEY;
+      if (!GEMINI_KEY) return json({success: false, error: 'AI verification not configured'}, corsHeaders);
+
+      const body = await context.request.json();
+      const {field_id, type, image_base64} = body;
+      if (!image_base64 || !type) return json({success: false, error: 'Missing image or type'}, corsHeaders);
+
+      try {
+        const prompt = type === 'scale'
+          ? 'You are verifying a weighing scale photo for inventory audit. Read the weight displayed on this digital weighing scale. The display shows a number in kg. Return ONLY the numeric weight value you see on the scale display. If you cannot read the display clearly, set confidence to "low". Do NOT guess — only report what is clearly visible.'
+          : `You are verifying an inventory count photo for audit. Count the exact number of ${field_id.replace(/_/g, ' ')} visible in this photo. Count every single item carefully. If items are stacked or partially hidden, estimate based on what is visible and set confidence to "medium". Return the count as an integer.`;
+
+        const schema = type === 'scale'
+          ? {type: 'OBJECT', properties: {weight_value: {type: 'NUMBER'}, unit: {type: 'STRING'}, confidence: {type: 'STRING', enum: ['high', 'medium', 'low']}}, required: ['weight_value', 'confidence']}
+          : {type: 'OBJECT', properties: {count: {type: 'INTEGER'}, confidence: {type: 'STRING', enum: ['high', 'medium', 'low']}, notes: {type: 'STRING'}}, required: ['count', 'confidence']};
+
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [
+                {inline_data: {mime_type: 'image/jpeg', data: image_base64}},
+                {text: prompt}
+              ]}],
+              generationConfig: {responseMimeType: 'application/json', responseSchema: schema},
+            }),
+          }
+        );
+
+        const geminiData = await geminiRes.json();
+        const aiResult = JSON.parse(geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
+
+        const ai_reading = type === 'scale' ? aiResult.weight_value : aiResult.count;
+        return json({
+          success: true,
+          ai_reading,
+          confidence: aiResult.confidence || 'low',
+          unit: aiResult.unit || (type === 'scale' ? 'kg' : 'units'),
+          notes: aiResult.notes || '',
+        }, corsHeaders);
+
+      } catch (e) {
+        return json({success: false, error: 'AI verification failed: ' + e.message}, corsHeaders);
+      }
     }
 
     // ─── HISTORY: past settlements ────────────────────────────
@@ -816,7 +961,10 @@ export async function onRequest(context) {
     if (input.honey) add(1123, input.honey);
     if (input.lemons) add(1121, input.lemons);
     if (input.oil) add(1114, input.oil);
-    if (input.water_bottles) add(1107, input.water_bottles);
+
+    // ── WATER BOTTLES (kitchen + display, backward compat: single field) ──
+    const waterTotal = (input.water_bottles_kitchen || 0) + (input.water_bottles_display || 0) + (input.water_bottles || 0);
+    if (waterTotal) add(1107, waterTotal);
 
     // ── BOILED MILK (vessel weight → litres → raw materials) ──
     const boiledMilkLitres = processVesselEntries(input.boiled_milk_kitchen, vesselMap, density.boiled_milk)
@@ -828,8 +976,10 @@ export async function onRequest(context) {
       }
     }
 
-    // ── TEA DECOCTION (vessel weight → litres → raw materials) ──
-    const decoctionLitres = processVesselEntries(input.tea_decoction, vesselMap, density.tea_decoction);
+    // ── TEA DECOCTION (kitchen + counter vessels, backward compat: single field) ──
+    const decoctionLitres = processVesselEntries(input.tea_decoction_kitchen, vesselMap, density.tea_decoction)
+      + processVesselEntries(input.tea_decoction_counter, vesselMap, density.tea_decoction)
+      + processVesselEntries(input.tea_decoction, vesselMap, density.tea_decoction);
 
     if (decoctionLitres > 0) {
       for (const [matId, ratioPerL] of Object.entries(decoctionRatio)) {
@@ -854,29 +1004,27 @@ export async function onRequest(context) {
       }
     }
 
-    // ── FRIED ITEMS (count → raw item + oil) ──
+    // ── FRIED ITEMS (kitchen + display, backward compat: single field) ──
     if (input.raw_cutlets) add(1106, input.raw_cutlets);
-    if (input.fried_cutlets) {
-      add(1106, input.fried_cutlets);
-      add(1114, input.fried_cutlets * friedOil[1106]);
-    }
+    const friedCutlets = (input.fried_cutlets_kitchen || 0) + (input.fried_cutlets_display || 0) + (input.fried_cutlets || 0);
+    if (friedCutlets) { add(1106, friedCutlets); add(1114, friedCutlets * friedOil[1106]); }
+
     if (input.raw_samosa) add(1113, input.raw_samosa);
-    if (input.fried_samosa) {
-      add(1113, input.fried_samosa);
-      add(1114, input.fried_samosa * friedOil[1113]);
-    }
+    const friedSamosa = (input.fried_samosa_kitchen || 0) + (input.fried_samosa_display || 0) + (input.fried_samosa || 0);
+    if (friedSamosa) { add(1113, friedSamosa); add(1114, friedSamosa * friedOil[1113]); }
+
     if (input.raw_cheese_balls) add(1116, input.raw_cheese_balls);
-    if (input.fried_cheese_balls) {
-      add(1116, input.fried_cheese_balls);
-      add(1114, input.fried_cheese_balls * friedOil[1116]);
-    }
+    const friedCheese = (input.fried_cheese_balls_kitchen || 0) + (input.fried_cheese_balls_display || 0) + (input.fried_cheese_balls || 0);
+    if (friedCheese) { add(1116, friedCheese); add(1114, friedCheese * friedOil[1116]); }
 
-    // ── OSMANIA BISCUITS ──
-    if (input.osmania_packets) add(1105, input.osmania_packets * osmaniaPP);
-    if (input.osmania_loose) add(1105, input.osmania_loose);
+    // ── OSMANIA BISCUITS (kitchen + display, backward compat: single field) ──
+    const osmaniaPackets = (input.osmania_packets_kitchen || 0) + (input.osmania_packets_display || 0) + (input.osmania_packets || 0);
+    if (osmaniaPackets) add(1105, osmaniaPackets * osmaniaPP);
+    const osmaniaLoose = (input.osmania_loose_display || 0) + (input.osmania_loose || 0);
+    if (osmaniaLoose) add(1105, osmaniaLoose);
 
-    // ── NILOUFER BOXES ──
-    const nilouferTotal = (input.niloufer_storage || 0) + (input.niloufer_display || 0);
+    // ── NILOUFER BOXES (kitchen + display, backward compat: old field names) ──
+    const nilouferTotal = (input.niloufer_kitchen || 0) + (input.niloufer_display || 0) + (input.niloufer_storage || 0);
     if (nilouferTotal) add(1110, nilouferTotal);
 
     // ── MALAI (byproduct — tracked but not decomposed to raw materials) ──

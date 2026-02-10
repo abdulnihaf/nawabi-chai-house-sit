@@ -31,11 +31,11 @@ const BIZ_CATEGORIES = [
 
 // ── Language Support ──
 const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', native: 'English', flag: '🇬🇧' },
-  { code: 'ur', name: 'Urdu', native: 'اردو', flag: '🇵🇰' },
-  { code: 'hi', name: 'Hindi', native: 'हिंदी', flag: '🇮🇳' },
-  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', flag: '🇮🇳' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'en', name: 'English', native: 'English' },
+  { code: 'ur', name: 'Urdu', native: 'اردو' },
+  { code: 'hi', name: 'Hindi', native: 'हिंदी' },
+  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' },
+  { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
 ];
 
 // Translation strings for all user-facing text
@@ -604,19 +604,13 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     }
   }
 
-  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog with settings ──
+  // ── PREVIOUSLY VERIFIED USER (no orders yet): show MPM catalog ──
   if (user.business_type && user.name && user.location_lat) {
     const firstName = user.name ? user.name.split(' ')[0] : '';
     const greeting = t('browse_menu_returning_free', lang);
     const greetingText = typeof greeting === 'function' ? greeting(firstName) : greeting;
-    await sendWhatsApp(phoneId, token, buildMPM(waId, greetingText));
-    // Show Change Location + Change Language buttons
-    const locButtons = [
-      { type: 'reply', reply: { id: 'change_location', title: t('btn_change_location', lang).slice(0, 20) } },
-      { type: 'reply', reply: { id: 'change_language', title: t('btn_change_language', lang).slice(0, 20) } },
-      { type: 'reply', reply: { id: 'continue_ordering', title: t('location_is_correct', lang).slice(0, 20) } }
-    ];
-    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, `📍 *${t('deliver_to', lang)}:* ${user.location_address || 'Saved pin'}`, locButtons));
+    const locationNote = `\n\n📍 ${t('deliver_to', lang)}: ${user.location_address || 'Saved pin'}\n_Type "change location" or "change language" anytime_`;
+    await sendWhatsApp(phoneId, token, buildMPM(waId, greetingText + locationNote));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
@@ -642,9 +636,9 @@ async function sendLanguageSelection(waId, phoneId, token) {
   // Multi-lingual greeting so everyone can read it
   const body = `🌐 *Choose your language / اپنی زبان منتخب کریں / अपनी भाषा चुनें*\n\nSelect your preferred language for ordering:`;
   const buttons = [
-    { type: 'reply', reply: { id: 'lang_en', title: '🇬🇧 English' } },
-    { type: 'reply', reply: { id: 'lang_ur', title: '🇵🇰 اردو (Urdu)' } },
-    { type: 'reply', reply: { id: 'lang_more', title: '🌐 More / और' } },
+    { type: 'reply', reply: { id: 'lang_en', title: 'English' } },
+    { type: 'reply', reply: { id: 'lang_ur', title: 'اردو (Urdu)' } },
+    { type: 'reply', reply: { id: 'lang_more', title: 'More / और' } },
   ];
   await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
 }
@@ -656,9 +650,9 @@ async function handleLanguageSelect(context, session, user, msg, waId, phoneId, 
     if (msg.id === 'lang_more') {
       // Show remaining languages
       const buttons = [
-        { type: 'reply', reply: { id: 'lang_hi', title: '🇮🇳 हिंदी (Hindi)' } },
-        { type: 'reply', reply: { id: 'lang_kn', title: '🇮🇳 ಕನ್ನಡ (Kannada)' } },
-        { type: 'reply', reply: { id: 'lang_ta', title: '🇮🇳 தமிழ் (Tamil)' } },
+        { type: 'reply', reply: { id: 'lang_hi', title: 'हिंदी (Hindi)' } },
+        { type: 'reply', reply: { id: 'lang_kn', title: 'ಕನ್ನಡ (Kannada)' } },
+        { type: 'reply', reply: { id: 'lang_ta', title: 'தமிழ் (Tamil)' } },
       ];
       await sendWhatsApp(phoneId, token, buildReplyButtons(waId, '🌐 Select your language:', buttons));
       return;
@@ -811,7 +805,7 @@ async function handleLocation(context, session, user, msg, waId, phoneId, token,
         return;
       }
     } catch (e) {
-      console.error('Google Places search failed, skipping confirmation:', e.message);
+      console.error('Google Places search failed:', e.message, e.stack);
     }
   }
 
@@ -919,12 +913,84 @@ async function handleLocationConfirm(context, session, user, msg, waId, phoneId,
 
   // ── Manual business name text input ──
   if (msg.type === 'text' && locationMeta.awaitingManualName) {
-    const businessName = msg.body.slice(0, 100); // Cap at 100 chars
+    const businessName = (msg.body || '').slice(0, 100); // Cap at 100 chars
+
+    // Tier 2: Try Google Text Search to find the typed name near the pin
+    const placesApiKey = context.env.GOOGLE_PLACES_KEY;
+    if (placesApiKey && businessName.length >= 3) {
+      try {
+        const textResults = await searchPlacesByName(businessName, lat, lng, placesApiKey);
+        if (textResults && textResults.length > 0) {
+          // Found matches — show them as a list so customer can confirm
+          locationMeta.awaitingManualName = false;
+          locationMeta.textSearchResults = textResults;
+          locationMeta.typedName = businessName;
+          await updateSession(db, waId, 'awaiting_location_confirm', JSON.stringify(locationMeta), originalCartTotal || 0);
+
+          const rows = textResults.map((p, i) => ({
+            id: `loc_text_${i}`,
+            title: p.name.slice(0, 24),
+            description: (p.primaryType ? p.primaryType + ' — ' : '') + (p.address || '').slice(0, 72 - (p.primaryType ? p.primaryType.length + 3 : 0))
+          }));
+          rows.push({
+            id: 'loc_use_typed',
+            title: '📝 Use typed name',
+            description: `Save "${businessName.slice(0, 50)}" as-is`
+          });
+
+          const listMsg = buildListMessage(waId,
+            '📍',
+            `We found these for "${businessName}" near your pin:\n\nSelect the correct one, or use your typed name:`,
+            'Select',
+            [{ title: 'Search Results', rows }]
+          );
+          await sendWhatsApp(phoneId, token, listMsg);
+          return;
+        }
+      } catch (e) {
+        console.error('Text search failed, using typed name:', e.message);
+      }
+    }
+
+    // No Text Search results or API unavailable — save typed name directly
     const confirmedAddress = businessName;
     await db.prepare('UPDATE wa_users SET location_address = ? WHERE wa_id = ?').bind(confirmedAddress, waId).run();
     user.location_address = confirmedAddress;
 
     await sendWhatsApp(phoneId, token, buildText(waId, `✅ *${businessName}* — saved! Our runner will deliver to you there.`));
+
+    session.cart = originalCart || '[]';
+    session.cart_total = originalCartTotal || 0;
+    await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance);
+    return;
+  }
+
+  // ── Text Search result selection ──
+  if (msg.type === 'list_reply' && msg.id.startsWith('loc_text_')) {
+    const idx = parseInt(msg.id.replace('loc_text_', ''));
+    const results = locationMeta.textSearchResults || [];
+    const selected = results[idx];
+    if (selected) {
+      const confirmedAddress = selected.name + (selected.address ? ` — ${selected.address}` : '');
+      await db.prepare('UPDATE wa_users SET location_address = ? WHERE wa_id = ?').bind(confirmedAddress, waId).run();
+      user.location_address = confirmedAddress;
+
+      await sendWhatsApp(phoneId, token, buildText(waId, `✅ *${selected.name}* — got it! Our runner will find you there.`));
+
+      session.cart = originalCart || '[]';
+      session.cart_total = originalCartTotal || 0;
+      await proceedAfterLocationConfirm(context, session, user, waId, phoneId, token, db, distance);
+      return;
+    }
+  }
+
+  // ── "Use typed name" from text search results ──
+  if (msg.type === 'list_reply' && msg.id === 'loc_use_typed') {
+    const typedName = locationMeta.typedName || 'My Business';
+    await db.prepare('UPDATE wa_users SET location_address = ? WHERE wa_id = ?').bind(typedName, waId).run();
+    user.location_address = typedName;
+
+    await sendWhatsApp(phoneId, token, buildText(waId, `✅ *${typedName}* — saved! Our runner will deliver to you there.`));
 
     session.cart = originalCart || '[]';
     session.cart_total = originalCartTotal || 0;
@@ -982,7 +1048,7 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
     // Show full language selection list
     const langRows = SUPPORTED_LANGUAGES.map(l => ({
       id: `lang_${l.code}`,
-      title: `${l.flag} ${l.native}`,
+      title: l.code === 'en' ? l.native : `${l.native} (${l.name})`,
       description: l.name
     }));
     const langList = buildListMessage(waId,
@@ -1078,7 +1144,7 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
   if (msg.type === 'text' && /^(change\s*lang(uage)?|lang(uage)?|bhasha|زبان|भाषा|ಭಾಷೆ|மொழி)$/i.test(msg.body || msg.bodyLower)) {
     const langRows = SUPPORTED_LANGUAGES.map(l => ({
       id: `lang_${l.code}`,
-      title: `${l.flag} ${l.native}`,
+      title: l.code === 'en' ? l.native : `${l.native} (${l.name})`,
       description: l.name
     }));
     const langList = buildListMessage(waId, '🌐', t('choose_language', lang), lang === 'en' ? 'Select language' : '🌐', [{ title: 'Languages', rows: langRows }]);
@@ -1819,20 +1885,31 @@ function buildLocationRequest(to, body) {
 }
 
 // ─── GOOGLE PLACES NEARBY SEARCH ──────────────────────────────────
-// Searches for businesses near the customer's pin using Google Places API (New)
-// Returns up to 20 nearby places sorted by distance
+// Searches for ALL businesses near the customer's pin using Google Places API (New)
+// Strategy: 20m tight radius with POPULARITY ranking
+// 20m = pinpoint accuracy — only shows businesses right at the pin
+// POPULARITY within that tiny radius puts well-known outlets first
+// TYPE STRATEGY: NO includedTypes + excludedPrimaryTypes (remove noise)
+// Returns up to 20 nearby places sorted by popularity within 20m of pin
 async function searchNearbyPlaces(lat, lng, apiKey) {
   const requestBody = {
-    includedTypes: ['store', 'restaurant', 'cafe', 'shopping_mall', 'supermarket',
-      'pharmacy', 'clothing_store', 'electronics_store', 'hardware_store',
-      'jewelry_store', 'bakery', 'food_store', 'auto_parts_store', 'book_store',
-      'cell_phone_store', 'convenience_store', 'grocery_store', 'market'],
+    excludedPrimaryTypes: [
+      'atm', 'parking', 'bus_stop', 'bus_station', 'train_station',
+      'subway_station', 'transit_station', 'transit_depot', 'taxi_stand',
+      'gas_station', 'electric_vehicle_charging_station',
+      'apartment_building', 'apartment_complex', 'condominium_complex', 'housing_complex',
+      'park', 'playground', 'dog_park', 'national_park', 'state_park',
+      'hiking_area', 'beach', 'campground', 'marina', 'ski_resort',
+      'church', 'hindu_temple', 'mosque', 'synagogue',
+      'fire_station', 'police', 'cemetery', 'city_hall', 'courthouse',
+      'school', 'primary_school', 'secondary_school', 'preschool',
+    ],
     maxResultCount: 20,
-    rankPreference: 'DISTANCE', // CRITICAL: rank by proximity to pin, NOT popularity
+    rankPreference: 'POPULARITY',
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
-        radius: 200.0 // 200m radius — tight search around pin
+        radius: 20.0 // 20m — pinpoint, only businesses right at the dropped pin
       }
     }
   };
@@ -1842,7 +1919,7 @@ async function searchNearbyPlaces(lat, lng, apiKey) {
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.types'
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryType,places.primaryTypeDisplayName,places.businessStatus,places.formattedAddress,places.shortFormattedAddress,places.location,places.types'
     },
     body: JSON.stringify(requestBody)
   });
@@ -1858,30 +1935,84 @@ async function searchNearbyPlaces(lat, lng, apiKey) {
     index: i,
     name: p.displayName?.text || 'Unknown',
     address: p.shortFormattedAddress || p.formattedAddress || '',
+    primaryType: p.primaryTypeDisplayName?.text || '',
     lat: p.location?.latitude,
     lng: p.location?.longitude,
-    types: p.types || []
+    types: p.types || [],
+    businessStatus: p.businessStatus || 'OPERATIONAL',
   }));
 
-  // Sort by distance from the customer's pin
-  places.sort((a, b) => {
-    const distA = haversineDistance(lat, lng, a.lat, a.lng);
-    const distB = haversineDistance(lat, lng, b.lat, b.lng);
-    return distA - distB;
+  // Filter out permanently closed businesses
+  return places.filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY')
+    .map((p, i) => ({ ...p, index: i }));
+}
+
+// ─── GOOGLE PLACES TEXT SEARCH (FALLBACK) ────────────────────────
+// When nearby search doesn't show the customer's business, they type the name.
+// We search by name + location bias to find it on Google Maps.
+// Returns up to 5 matching places near the pin.
+async function searchPlacesByName(query, lat, lng, apiKey) {
+  const requestBody = {
+    textQuery: query,
+    locationBias: {
+      circle: {
+        center: { latitude: lat, longitude: lng },
+        radius: 500.0 // Wider radius for name search — business might be listed at a slightly different coordinate
+      }
+    },
+    rankPreference: 'DISTANCE',
+    pageSize: 5,
+    languageCode: 'en',
+    regionCode: 'IN',
+  };
+
+  const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryTypeDisplayName,places.businessStatus,places.formattedAddress,places.shortFormattedAddress,places.location'
+    },
+    body: JSON.stringify(requestBody)
   });
 
-  // Re-index after sorting
-  return places.map((p, i) => ({ ...p, index: i }));
+  if (!response.ok) {
+    console.error('Google Text Search error:', response.status, await response.text());
+    return [];
+  }
+
+  const data = await response.json();
+  return (data.places || [])
+    .filter(p => (p.businessStatus || 'OPERATIONAL') !== 'CLOSED_PERMANENTLY')
+    .map((p, i) => ({
+      index: i,
+      name: p.displayName?.text || 'Unknown',
+      address: p.shortFormattedAddress || p.formattedAddress || '',
+      primaryType: p.primaryTypeDisplayName?.text || '',
+      lat: p.location?.latitude,
+      lng: p.location?.longitude,
+    }));
 }
 
 // ── WhatsApp Interactive List: Nearby Places for Location Confirmation ──
 // Shows up to 5 places + optional "Show More" + "Not listed here" option
 function buildLocationConfirmList(to, places, hasMore, distanceFromNCH) {
-  const rows = places.map(p => ({
-    id: `loc_place_${p.index}`,
-    title: p.name.slice(0, 24), // WhatsApp max 24 chars for title
-    description: p.address.slice(0, 72) // WhatsApp max 72 chars for description
-  }));
+  const rows = places.map(p => {
+    // Show type + address in description: "Clothing Store — 123 HKP Road"
+    const typeLabel = p.primaryType || '';
+    const addr = p.address || '';
+    let description;
+    if (typeLabel && addr) {
+      description = `${typeLabel} — ${addr}`.slice(0, 72);
+    } else {
+      description = (typeLabel || addr).slice(0, 72);
+    }
+    return {
+      id: `loc_place_${p.index}`,
+      title: p.name.slice(0, 24), // WhatsApp max 24 chars for title
+      description
+    };
+  });
 
   // Add "Show more listings" if there are more results
   if (hasMore) {

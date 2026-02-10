@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS material_costs (
 CREATE INDEX IF NOT EXISTS idx_matcost_material ON material_costs(material_id, effective_from);
 
 -- ═══════════════════════════════════════════════════════════════
--- STAFF SALARIES: daily prorated into P&L
+-- STAFF SALARIES: daily prorated into settlement OpEx
 -- ═══════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS staff_salaries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +99,10 @@ CREATE TABLE IF NOT EXISTS staff_salaries (
   monthly_salary REAL NOT NULL,
   effective_from TEXT NOT NULL,
   active INTEGER DEFAULT 1,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  odoo_employee_id INTEGER DEFAULT NULL,  -- Odoo hr.employee ID
+  category TEXT DEFAULT 'nch_direct',     -- 'nch_direct' or 'office'
+  start_date TEXT DEFAULT ''              -- employee joining date YYYY-MM-DD
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -170,6 +173,7 @@ CREATE TABLE IF NOT EXISTS daily_settlements (
 
   notes TEXT DEFAULT '',
   previous_settlement_id INTEGER DEFAULT NULL,
+  timestamp_adjustments TEXT DEFAULT '{}',
 
   UNIQUE(settlement_date)
 );

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NCH Daily P&L Settlement</title>
+  <title>NCH Daily Settlement</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316;--cyan:#06b6d4;--teal:#14b8a6}
@@ -162,6 +162,28 @@
     .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
 
+    /* ── PHOTO VERIFICATION ── */
+    .photo-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--text2);transition:all .2s;display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin-left:4px}
+    .photo-btn:hover{border-color:var(--teal);color:var(--teal)}
+    .photo-btn.has-photo{border-color:var(--green);color:var(--green);background:rgba(34,197,94,0.1)}
+    .photo-btn.verifying{border-color:var(--yellow);color:var(--yellow);background:rgba(234,179,8,0.1)}
+    .photo-btn .cam-icon{font-size:14px}
+    .ai-badge{display:inline-flex;font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;letter-spacing:0.3px;font-weight:500}
+    .ai-match{background:rgba(34,197,94,0.15);color:var(--green)}
+    .ai-mismatch{background:rgba(239,68,68,0.15);color:var(--red)}
+    .ai-pending{background:rgba(234,179,8,0.15);color:var(--yellow)}
+
+    /* ── IN-APP CAMERA OVERLAY ── */
+    .camera-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#000;flex-direction:column}
+    .camera-overlay.active{display:flex}
+    .camera-overlay video{flex:1;object-fit:cover;width:100%}
+    .camera-overlay canvas{display:none}
+    .camera-controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;padding:24px 20px 40px;background:linear-gradient(transparent,rgba(0,0,0,0.7))}
+    .camera-shutter{width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,0.2);cursor:pointer;transition:all .15s}
+    .camera-shutter:active{transform:scale(0.9);background:rgba(255,255,255,0.5)}
+    .camera-close{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .camera-label{position:absolute;top:16px;left:16px;color:#fff;font-size:13px;font-weight:600;background:rgba(0,0,0,0.5);padding:6px 12px;border-radius:8px}
+
     /* ── TIMESTAMP BADGES ── */
     .ts-badge{display:none;font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;letter-spacing:0.3px;font-weight:500}
     .ts-fresh{background:rgba(34,197,94,0.15);color:var(--green)}
@@ -190,7 +212,7 @@
   <div class="pin-screen" id="pinScreen">
     <div class="pin-box">
       <div class="icon">📊</div>
-      <h2>Daily P&L Settlement</h2>
+      <h2>Daily Settlement</h2>
       <p>Enter your 4-digit PIN to continue</p>
       <div class="pin-input" id="pinInput">
         <input type="password" maxlength="1" inputmode="numeric">
@@ -206,7 +228,7 @@
   <!-- ═══ DASHBOARD ═══ -->
   <div class="dashboard" id="dashboard">
     <div class="header">
-      <h1>Daily P&L Settlement</h1>
+      <h1>Daily Settlement</h1>
       <div class="user-badge">
         <span class="dot"></span>
         <span class="name" id="userName"></span>
@@ -244,167 +266,228 @@
             <div id="revenueContent"></div>
           </div>
 
-          <!-- ═══ INVENTORY COUNT ═══ -->
+          <!-- ═══ INVENTORY COUNT — 4 PHYSICAL ZONES ═══ -->
+
+          <!-- ── SECTION 1: FREEZER ── -->
           <div class="section">
-            <div class="section-title"><span class="sec-icon">🥛</span> Milk & Dairy</div>
-            <!-- Raw Buffalo Milk -->
+            <div class="section-title"><span class="sec-icon">❄️</span> Freezer</div>
             <div class="field">
-              <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, in litres)</span><span class="ts-badge" data-ts-for="raw_buffalo_milk"></span></div>
+              <div class="field-label">Raw Buffalo Milk <span class="hint">(unboiled, litres)</span><span class="ts-badge" data-ts-for="raw_buffalo_milk"></span></div>
               <input type="number" class="input" id="raw_buffalo_milk" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_buffalo_milk');updateDecomp()">
             </div>
-            <!-- Boiled Milk — Kitchen vessels -->
-            <div class="vessel-group">
-              <div class="field-label">Boiled Milk — Kitchen <span class="hint">(place vessel on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_kitchen"></span></div>
-              <div class="vessel-entries" id="boiled_milk_kitchen"></div>
-              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_kitchen','boiled_milk','kitchen')">+ Add kitchen vessel</button>
-            </div>
-            <!-- Boiled Milk — Counter vessels -->
-            <div class="vessel-group" style="margin-top:12px">
-              <div class="field-label">Boiled Milk — Counter <span class="hint">(place vessel on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_counter"></span></div>
-              <div class="vessel-entries" id="boiled_milk_counter"></div>
-              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_counter','boiled_milk','counter')">+ Add counter vessel</button>
-            </div>
-            <!-- Raw condensed milk -->
-            <div class="field" style="margin-top:12px">
-              <div class="field-label">Condensed Milk (Milkmaid) <span class="hint">(kg — unopened cans/tins)</span><span class="ts-badge" data-ts-for="raw_milkmaid"></span></div>
-              <input type="number" class="input" id="raw_milkmaid" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_milkmaid');updateDecomp()">
-            </div>
-            <!-- Raw SMP -->
-            <div class="field">
-              <div class="field-label">Skimmed Milk Powder <span class="hint">(kg — unopened packets)</span><span class="ts-badge" data-ts-for="raw_smp"></span></div>
-              <input type="number" class="input" id="raw_smp" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_smp');updateDecomp()">
-            </div>
-            <!-- Malai (byproduct) -->
-            <div class="field">
-              <div class="field-label">Malai <span class="hint">(kg — byproduct, tracked only)</span><span class="ts-badge" data-ts-for="malai"></span></div>
-              <input type="number" class="input" id="malai" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('malai')">
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title"><span class="sec-icon">🍵</span> Tea & Coffee</div>
-            <!-- Tea Decoction -->
-            <div class="vessel-group">
-              <div class="field-label">Tea Decoction <span class="hint">(all locations — place vessel on scale)</span><span class="ts-badge" data-ts-for="tea_decoction"></span></div>
-              <div class="vessel-entries" id="tea_decoction"></div>
-              <button class="add-vessel-btn" onclick="addVesselEntry('tea_decoction','decoction','')">+ Add decoction vessel</button>
-            </div>
-            <!-- Tea-Sugar Boxes -->
-            <div class="field" style="margin-top:12px">
-              <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed: 400g tea + 800g sugar each)</span><span class="ts-badge" data-ts-for="tea_sugar_boxes"></span></div>
-              <input type="number" class="input" id="tea_sugar_boxes" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('tea_sugar_boxes');updateDecomp()">
-            </div>
-            <!-- Raw Tea Powder -->
-            <div class="field">
-              <div class="field-label">Raw Tea Powder <span class="hint">(kg — unmixed packets)</span><span class="ts-badge" data-ts-for="raw_tea_powder"></span></div>
-              <input type="number" class="input" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
-            </div>
-            <!-- Raw Sugar -->
-            <div class="field">
-              <div class="field-label">Sugar <span class="hint">(kg — loose/bags, unmixed)</span><span class="ts-badge" data-ts-for="raw_sugar"></span></div>
-              <input type="number" class="input" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
-            </div>
-            <!-- Coffee Powder -->
-            <div class="field">
-              <div class="field-label">Coffee Powder (Nescafe) <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="coffee_powder"></span></div>
-              <input type="number" class="input" id="coffee_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('coffee_powder');updateDecomp()">
-            </div>
-            <!-- Honey -->
-            <div class="field">
-              <div class="field-label">Honey <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="honey"></span></div>
-              <input type="number" class="input" id="honey" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('honey');updateDecomp()">
-            </div>
-            <!-- Lemons -->
-            <div class="field">
-              <div class="field-label">Lemons <span class="hint">(count — whole lemons)</span><span class="ts-badge" data-ts-for="lemons"></span></div>
-              <input type="number" class="input" id="lemons" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('lemons');updateDecomp()">
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title"><span class="sec-icon">🧈</span> Buns & Butter</div>
-            <!-- Plain Buns -->
-            <div class="field">
-              <div class="field-label">Plain Buns <span class="hint">(uncut/unprepared — count)</span><span class="ts-badge" data-ts-for="plain_buns"></span></div>
-              <input type="number" class="input" id="plain_buns" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('plain_buns');updateDecomp()">
-            </div>
-            <!-- Prepared Bun Maska -->
-            <div class="field">
-              <div class="field-label">Prepared Bun Maska <span class="hint">(cut + buttered — count)</span><span class="ts-badge" data-ts-for="prepared_bun_maska"></span></div>
-              <input type="number" class="input" id="prepared_bun_maska" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('prepared_bun_maska');updateDecomp()">
-            </div>
-            <!-- Butter -->
-            <div class="field">
-              <div class="field-label">Butter <span class="hint">(kg — unopened blocks/tubs)</span><span class="ts-badge" data-ts-for="butter"></span></div>
-              <input type="number" class="input" id="butter" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('butter');updateDecomp()">
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title"><span class="sec-icon">🍗</span> Fried Items</div>
             <div class="field-row">
               <div class="field">
-                <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cutlets"></span></div>
+                <div class="field-label">Raw Cutlets <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cutlets"></span>
+                  <button class="photo-btn" data-photo-field="raw_cutlets" onclick="triggerPhoto('count','raw_cutlets')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_raw_cutlets"></span>
+                </div>
                 <input type="number" class="input input-sm" id="raw_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_cutlets');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Fried Cutlets <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_cutlets"></span></div>
-                <input type="number" class="input input-sm" id="fried_cutlets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cutlets');updateDecomp()">
-              </div>
-            </div>
-            <div class="field-row" style="margin-top:12px">
-              <div class="field">
-                <div class="field-label">Raw Samosa <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_samosa"></span></div>
+                <div class="field-label">Raw Samosa <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_samosa"></span>
+                  <button class="photo-btn" data-photo-field="raw_samosa" onclick="triggerPhoto('count','raw_samosa')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_raw_samosa"></span>
+                </div>
                 <input type="number" class="input input-sm" id="raw_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_samosa');updateDecomp()">
               </div>
-              <div class="field">
-                <div class="field-label">Fried Samosa <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_samosa"></span></div>
-                <input type="number" class="input input-sm" id="fried_samosa" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_samosa');updateDecomp()">
-              </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
-                <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cheese_balls"></span></div>
+                <div class="field-label">Raw Cheese Balls <span class="hint">(frozen)</span><span class="ts-badge" data-ts-for="raw_cheese_balls"></span>
+                  <button class="photo-btn" data-photo-field="raw_cheese_balls" onclick="triggerPhoto('count','raw_cheese_balls')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_raw_cheese_balls"></span>
+                </div>
                 <input type="number" class="input input-sm" id="raw_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('raw_cheese_balls');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Fried Cheese Balls <span class="hint">(ready)</span><span class="ts-badge" data-ts-for="fried_cheese_balls"></span></div>
-                <input type="number" class="input input-sm" id="fried_cheese_balls" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cheese_balls');updateDecomp()">
+                <div class="field-label">Butter <span class="hint">(kg — blocks/tubs)</span><span class="ts-badge" data-ts-for="butter"></span></div>
+                <input type="number" class="input input-sm" id="butter" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('butter');updateDecomp()">
               </div>
-            </div>
-            <!-- Oil -->
-            <div class="field" style="margin-top:12px">
-              <div class="field-label">Oil <span class="hint">(litres — in frying vessel/bottles)</span><span class="ts-badge" data-ts-for="oil"></span></div>
-              <input type="number" class="input" id="oil" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('oil');updateDecomp()">
             </div>
           </div>
 
+          <!-- ── SECTION 2: KITCHEN ── -->
           <div class="section">
-            <div class="section-title"><span class="sec-icon">🍪</span> Biscuits & Water</div>
+            <div class="section-title"><span class="sec-icon">🍳</span> Kitchen</div>
             <div class="field-row">
               <div class="field">
-                <div class="field-label">Osmania Packets <span class="hint">(sealed, 24 per pkt)</span><span class="ts-badge" data-ts-for="osmania_packets"></span></div>
-                <input type="number" class="input input-sm" id="osmania_packets" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_packets');updateDecomp()">
+                <div class="field-label">Sugar <span class="hint">(kg — bags)</span><span class="ts-badge" data-ts-for="raw_sugar"></span></div>
+                <input type="number" class="input input-sm" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span><span class="ts-badge" data-ts-for="osmania_loose"></span></div>
-                <input type="number" class="input input-sm" id="osmania_loose" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_loose');updateDecomp()">
+                <div class="field-label">Milkmaid <span class="hint">(kg — cans)</span><span class="ts-badge" data-ts-for="raw_milkmaid"></span></div>
+                <input type="number" class="input input-sm" id="raw_milkmaid" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_milkmaid');updateDecomp()">
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
               <div class="field">
-                <div class="field-label">Niloufer Boxes — Storage <span class="hint">(500g boxes)</span><span class="ts-badge" data-ts-for="niloufer_storage"></span></div>
-                <input type="number" class="input input-sm" id="niloufer_storage" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('niloufer_storage');updateDecomp()">
+                <div class="field-label">SMP <span class="hint">(kg — packets)</span><span class="ts-badge" data-ts-for="raw_smp"></span></div>
+                <input type="number" class="input input-sm" id="raw_smp" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_smp');updateDecomp()">
               </div>
               <div class="field">
-                <div class="field-label">Niloufer Boxes — Display<span class="ts-badge" data-ts-for="niloufer_display"></span></div>
+                <div class="field-label">Tea Powder <span class="hint">(kg — unmixed)</span><span class="ts-badge" data-ts-for="raw_tea_powder"></span></div>
+                <input type="number" class="input input-sm" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Tea-Sugar Boxes <span class="hint">(pre-mixed)</span><span class="ts-badge" data-ts-for="tea_sugar_boxes"></span></div>
+                <input type="number" class="input input-sm" id="tea_sugar_boxes" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('tea_sugar_boxes');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Coffee Powder <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="coffee_powder"></span></div>
+                <input type="number" class="input input-sm" id="coffee_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('coffee_powder');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Honey <span class="hint">(kg)</span><span class="ts-badge" data-ts-for="honey"></span></div>
+                <input type="number" class="input input-sm" id="honey" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('honey');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Lemons <span class="hint">(count)</span><span class="ts-badge" data-ts-for="lemons"></span></div>
+                <input type="number" class="input input-sm" id="lemons" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('lemons');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Oil <span class="hint">(litres)</span><span class="ts-badge" data-ts-for="oil"></span></div>
+                <input type="number" class="input input-sm" id="oil" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('oil');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Plain Buns <span class="hint">(uncut — count)</span><span class="ts-badge" data-ts-for="plain_buns"></span>
+                  <button class="photo-btn" data-photo-field="plain_buns" onclick="triggerPhoto('count','plain_buns')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_plain_buns"></span>
+                </div>
+                <input type="number" class="input input-sm" id="plain_buns" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('plain_buns');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Water Bottles <span class="hint">(kitchen storage)</span><span class="ts-badge" data-ts-for="water_bottles_kitchen"></span></div>
+                <input type="number" class="input input-sm" id="water_bottles_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('water_bottles_kitchen');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Niloufer Boxes <span class="hint">(kitchen storage)</span><span class="ts-badge" data-ts-for="niloufer_kitchen"></span></div>
+                <input type="number" class="input input-sm" id="niloufer_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('niloufer_kitchen');updateDecomp()">
+              </div>
+            </div>
+            <div class="field">
+              <div class="field-label" style="margin-top:12px">Osmania Packets <span class="hint">(kitchen — sealed, 24/pkt)</span><span class="ts-badge" data-ts-for="osmania_packets_kitchen"></span></div>
+              <input type="number" class="input" id="osmania_packets_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_packets_kitchen');updateDecomp()">
+            </div>
+            <!-- Kitchen fried items -->
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Fried Cutlets <span class="hint">(kitchen)</span><span class="ts-badge" data-ts-for="fried_cutlets_kitchen"></span>
+                  <button class="photo-btn" data-photo-field="fried_cutlets_kitchen" onclick="triggerPhoto('count','fried_cutlets_kitchen')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_cutlets_kitchen"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_cutlets_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cutlets_kitchen');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Samosa <span class="hint">(kitchen)</span><span class="ts-badge" data-ts-for="fried_samosa_kitchen"></span>
+                  <button class="photo-btn" data-photo-field="fried_samosa_kitchen" onclick="triggerPhoto('count','fried_samosa_kitchen')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_samosa_kitchen"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_samosa_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_samosa_kitchen');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Fried Cheese Balls <span class="hint">(kitchen)</span><span class="ts-badge" data-ts-for="fried_cheese_balls_kitchen"></span>
+                  <button class="photo-btn" data-photo-field="fried_cheese_balls_kitchen" onclick="triggerPhoto('count','fried_cheese_balls_kitchen')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_cheese_balls_kitchen"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_cheese_balls_kitchen" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cheese_balls_kitchen');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Malai <span class="hint">(kg — byproduct)</span><span class="ts-badge" data-ts-for="malai"></span></div>
+                <input type="number" class="input input-sm" id="malai" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('malai')">
+              </div>
+            </div>
+            <!-- Kitchen vessels -->
+            <div class="vessel-group" style="margin-top:16px">
+              <div class="field-label">Boiled Milk — Kitchen Patila <span class="hint">(place on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_kitchen"></span></div>
+              <div class="vessel-entries" id="boiled_milk_kitchen"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_kitchen','boiled_milk','kitchen')">+ Add kitchen milk vessel</button>
+            </div>
+            <div class="vessel-group" style="margin-top:12px">
+              <div class="field-label">Tea Decoction — Kitchen <span class="hint">(place on scale)</span><span class="ts-badge" data-ts-for="tea_decoction_kitchen"></span></div>
+              <div class="vessel-entries" id="tea_decoction_kitchen"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('tea_decoction_kitchen','decoction','kitchen')">+ Add kitchen decoction vessel</button>
+            </div>
+          </div>
+
+          <!-- ── SECTION 3: DISPLAY COUNTER ── -->
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">🏪</span> Display Counter</div>
+            <div class="field-row">
+              <div class="field">
+                <div class="field-label">Water Bottles <span class="hint">(display)</span><span class="ts-badge" data-ts-for="water_bottles_display"></span></div>
+                <input type="number" class="input input-sm" id="water_bottles_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('water_bottles_display');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Niloufer Boxes <span class="hint">(display)</span><span class="ts-badge" data-ts-for="niloufer_display"></span></div>
                 <input type="number" class="input input-sm" id="niloufer_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('niloufer_display');updateDecomp()">
               </div>
             </div>
-            <!-- Water Bottles -->
-            <div class="field" style="margin-top:12px">
-              <div class="field-label">Water Bottles <span class="hint">(total count — all locations)</span><span class="ts-badge" data-ts-for="water_bottles"></span></div>
-              <input type="number" class="input" id="water_bottles" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('water_bottles');updateDecomp()">
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Osmania Packets <span class="hint">(display, 24/pkt)</span><span class="ts-badge" data-ts-for="osmania_packets_display"></span></div>
+                <input type="number" class="input input-sm" id="osmania_packets_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_packets_display');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Osmania Loose <span class="hint">(individual pieces)</span><span class="ts-badge" data-ts-for="osmania_loose_display"></span></div>
+                <input type="number" class="input input-sm" id="osmania_loose_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('osmania_loose_display');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Fried Cutlets <span class="hint">(display)</span><span class="ts-badge" data-ts-for="fried_cutlets_display"></span>
+                  <button class="photo-btn" data-photo-field="fried_cutlets_display" onclick="triggerPhoto('count','fried_cutlets_display')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_cutlets_display"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_cutlets_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cutlets_display');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Fried Samosa <span class="hint">(display)</span><span class="ts-badge" data-ts-for="fried_samosa_display"></span>
+                  <button class="photo-btn" data-photo-field="fried_samosa_display" onclick="triggerPhoto('count','fried_samosa_display')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_samosa_display"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_samosa_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_samosa_display');updateDecomp()">
+              </div>
+            </div>
+            <div class="field-row" style="margin-top:12px">
+              <div class="field">
+                <div class="field-label">Fried Cheese Balls <span class="hint">(display)</span><span class="ts-badge" data-ts-for="fried_cheese_balls_display"></span>
+                  <button class="photo-btn" data-photo-field="fried_cheese_balls_display" onclick="triggerPhoto('count','fried_cheese_balls_display')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_fried_cheese_balls_display"></span>
+                </div>
+                <input type="number" class="input input-sm" id="fried_cheese_balls_display" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('fried_cheese_balls_display');updateDecomp()">
+              </div>
+              <div class="field">
+                <div class="field-label">Ready Bun Maska <span class="hint">(cut + buttered)</span><span class="ts-badge" data-ts-for="prepared_bun_maska"></span>
+                  <button class="photo-btn" data-photo-field="prepared_bun_maska" onclick="triggerPhoto('count','prepared_bun_maska')"><span class="cam-icon">📷</span></button>
+                  <span class="ai-badge" id="ai_prepared_bun_maska"></span>
+                </div>
+                <input type="number" class="input input-sm" id="prepared_bun_maska" step="1" min="0" placeholder="0" inputmode="numeric" onchange="recordTimestamp('prepared_bun_maska');updateDecomp()">
+              </div>
+            </div>
+          </div>
+
+          <!-- ── SECTION 4: TEA COUNTER ── -->
+          <div class="section">
+            <div class="section-title"><span class="sec-icon">☕</span> Tea Counter</div>
+            <div class="vessel-group">
+              <div class="field-label">Counter Milk Vessel <span class="hint">(place on scale)</span><span class="ts-badge" data-ts-for="boiled_milk_counter"></span></div>
+              <div class="vessel-entries" id="boiled_milk_counter"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('boiled_milk_counter','boiled_milk','counter')">+ Add counter milk vessel</button>
+            </div>
+            <div class="vessel-group" style="margin-top:12px">
+              <div class="field-label">Counter Decoction Vessels <span class="hint">(place each on scale)</span><span class="ts-badge" data-ts-for="tea_decoction_counter"></span></div>
+              <div class="vessel-entries" id="tea_decoction_counter"></div>
+              <button class="add-vessel-btn" onclick="addVesselEntry('tea_decoction_counter','decoction','counter')">+ Add counter decoction vessel</button>
             </div>
           </div>
 
@@ -450,16 +533,21 @@
             <textarea class="input" id="settlementNotes" rows="3" placeholder="Any notes about today's settlement..." style="font-family:inherit;font-size:14px;resize:vertical"></textarea>
           </div>
 
-          <!-- Decomposition Preview -->
+          <!-- Decomposition Preview (shown above submit so staff can review) -->
           <div class="decomp-preview" id="decompPreview" style="display:none">
             <h4>🔬 Raw Material Decomposition Preview</h4>
             <div id="decompContent"></div>
           </div>
 
           <!-- Submit -->
-          <button class="btn btn-green" id="submitBtn" onclick="submitSettlement()" style="width:100%;padding:16px;font-size:16px;margin-top:20px;border-radius:12px">
-            ✅ Submit Settlement
-          </button>
+          <div style="margin-top:20px">
+            <button class="btn btn-green" id="submitBtn" onclick="submitSettlement()" style="width:100%;padding:16px;font-size:16px;border-radius:12px">
+              ✅ Submit Settlement
+            </button>
+            <button class="btn btn-secondary" onclick="if(confirm('Clear all entered data?')){resetForm()}" style="width:100%;padding:12px;font-size:14px;margin-top:8px;border-radius:10px">
+              🔄 Reset Form
+            </button>
+          </div>
         </div>
 
         <!-- Settlement result -->
@@ -500,27 +588,30 @@
           </div>
         </div>
 
-        <!-- Salaries -->
+        <!-- Salaries — managed on staffing page -->
         <div class="section">
           <div class="section-title"><span class="sec-icon">👤</span> Staff Salaries</div>
-          <div id="salaryList"></div>
-          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-            <div class="section-title" style="margin-bottom:12px"><span class="sec-icon">➕</span> Add Staff</div>
-            <div class="field-row">
-              <div class="field"><div class="field-label">Name</div><input type="text" class="input input-sm" id="staffName" placeholder="e.g. Tanveer"></div>
-              <div class="field"><div class="field-label">Role</div><input type="text" class="input input-sm" id="staffRole" placeholder="e.g. Tea Master"></div>
-              <div class="field"><div class="field-label">Monthly Salary (₹)</div><input type="number" class="input input-sm" id="staffSalary" step="100" placeholder="15000"></div>
-            </div>
-            <button class="btn btn-primary" onclick="saveSalary()" style="margin-top:12px">Save Staff</button>
-          </div>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:12px">Staff costs are now managed on the dedicated Staffing page.</p>
+          <a href="/ops/staffing/" style="color:var(--teal);font-size:13px;font-weight:600;text-decoration:none">→ Open Staffing Cost Dashboard</a>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- ═══ IN-APP CAMERA ═══ -->
+  <div class="camera-overlay" id="cameraOverlay">
+    <video id="cameraVideo" autoplay playsinline></video>
+    <canvas id="cameraCanvas"></canvas>
+    <div class="camera-label" id="cameraLabel"></div>
+    <button class="camera-close" onclick="closeCamera()">✕</button>
+    <div class="camera-controls">
+      <button class="camera-shutter" onclick="capturePhoto()"></button>
+    </div>
+  </div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
-// NCH Daily P&L Settlement — Frontend
+// NCH Daily Settlement — Frontend
 // ═══════════════════════════════════════════════════════════
 
 const API = '/api/daily-settlement';
@@ -566,6 +657,120 @@ function refreshTimestampBadges() {
 }
 setInterval(refreshTimestampBadges, 30000);
 
+// ── PHOTO VERIFICATION (IN-APP CAMERA) ──────────────────
+// Uses getUserMedia for camera-only capture (no gallery on any device)
+// Sends to backend for AI verification via Gemini
+// Owner gets WhatsApp alert ONLY on discrepancy
+const fieldPhotos = {}; // {fieldId: {base64, type, aiReading, verified}}
+let cameraStream = null;
+let cameraFieldId = null;
+let cameraType = null;
+
+function triggerPhoto(type, fieldId) {
+  cameraFieldId = fieldId;
+  cameraType = type;
+  $('cameraLabel').textContent = type === 'scale' ? '📷 Scale Reading' : '📷 Count Items';
+  $('cameraOverlay').classList.add('active');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+    .then(stream => {
+      cameraStream = stream;
+      $('cameraVideo').srcObject = stream;
+    })
+    .catch(err => {
+      console.error('Camera error:', err);
+      alert('Camera not available. Please check permissions.');
+      closeCamera();
+    });
+}
+
+function closeCamera() {
+  $('cameraOverlay').classList.remove('active');
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  $('cameraVideo').srcObject = null;
+  cameraFieldId = null;
+  cameraType = null;
+}
+
+function capturePhoto() {
+  if (!cameraStream || !cameraFieldId) return;
+  const video = $('cameraVideo');
+  const canvas = $('cameraCanvas');
+  // Capture at video resolution, then compress
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  // Compress: scale down to max 1024px, JPEG 82%
+  const maxDim = 1024;
+  let w = canvas.width, h = canvas.height;
+  if (w > maxDim || h > maxDim) {
+    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+    else { w = Math.round(w * maxDim / h); h = maxDim; }
+  }
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = w; outCanvas.height = h;
+  outCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
+  const dataUrl = outCanvas.toDataURL('image/jpeg', 0.82);
+  const base64 = dataUrl.split(',')[1];
+
+  const fieldId = cameraFieldId;
+  const type = cameraType;
+  closeCamera();
+
+  // Update button state
+  const btn = document.querySelector(`[data-photo-field="${fieldId}"]`);
+  if (btn) { btn.classList.add('has-photo'); btn.innerHTML = '<span class="cam-icon">📷</span> ✓'; }
+
+  fieldPhotos[fieldId] = { base64, type, timestamp: new Date().toISOString() };
+  // Send to backend for AI verification (async, non-blocking)
+  verifyPhoto(fieldId, base64, type);
+}
+
+async function verifyPhoto(fieldId, base64, type) {
+  // Show "verifying" badge for vessel photos
+  const aiBadge = $(`ai_${fieldId}`);
+  if (aiBadge) { aiBadge.textContent = '⏳'; aiBadge.className = 'ai-badge ai-pending'; }
+
+  try {
+    const res = await fetch(`${API}?action=verify-photo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field_id: fieldId, type, image_base64: base64 }),
+    });
+    const data = await res.json();
+    if (data.success && data.ai_reading !== undefined) {
+      fieldPhotos[fieldId].aiReading = data.ai_reading;
+      fieldPhotos[fieldId].confidence = data.confidence;
+      fieldPhotos[fieldId].verified = true;
+      // Show AI reading badge (subtle — staff sees it but it looks informational)
+      if (aiBadge) {
+        aiBadge.textContent = type === 'scale' ? `AI: ${data.ai_reading} kg` : `AI: ${data.ai_reading}`;
+        aiBadge.className = 'ai-badge ai-match';
+      }
+    }
+  } catch (e) {
+    console.error('Photo verify error:', e);
+    if (aiBadge) { aiBadge.textContent = ''; aiBadge.className = ''; }
+  }
+}
+
+function collectPhotoVerifications() {
+  const verifications = {};
+  for (const [fieldId, data] of Object.entries(fieldPhotos)) {
+    if (data.verified) {
+      verifications[fieldId] = {
+        type: data.type,
+        ai_reading: data.aiReading,
+        confidence: data.confidence,
+        timestamp: data.timestamp,
+      };
+    }
+  }
+  return verifications;
+}
+
 // Raw materials reference (mirrored from API)
 const RAW_MATERIALS = {
   1095:{name:'Buffalo Milk',uom:'L'},1096:{name:'SMP',uom:'kg'},1097:{name:'Sugar',uom:'kg'},
@@ -588,9 +793,9 @@ const DENSITY = {boiled_milk:1.035,tea_decoction:1.03,oil:0.92};
 // Default vessels (fallback if DB empty)
 const DEFAULT_VESSELS = [
   {code:'KIT-PATILA-1',name:'Kitchen Large Patila',liquid_type:'boiled_milk',location:'kitchen',empty_weight_kg:13.28},
-  {code:'CTR-MILK-1',name:'Counter Milk Vessel',liquid_type:'boiled_milk',location:'counter',empty_weight_kg:10.0},
-  {code:'CTR-DEC-1',name:'Counter Decoction 1',liquid_type:'decoction',location:'counter',empty_weight_kg:13.0},
-  {code:'CTR-DEC-2',name:'Counter Decoction 2',liquid_type:'decoction',location:'counter',empty_weight_kg:11.0},
+  {code:'CTR-MILK-1',name:'Counter Milk Vessel',liquid_type:'boiled_milk',location:'counter',empty_weight_kg:3.15},
+  {code:'CTR-DEC-1',name:'Counter Decoction 1',liquid_type:'decoction',location:'counter',empty_weight_kg:5.0},
+  {code:'CTR-DEC-2',name:'Counter Decoction 2',liquid_type:'decoction',location:'counter',empty_weight_kg:5.0},
   {code:'KIT-DEC-1',name:'Kitchen Decoction Vessel',liquid_type:'decoction',location:'kitchen',empty_weight_kg:11.0},
 ];
 
@@ -748,7 +953,8 @@ async function prepareSettlement() {
   } catch (e) {
     $('settleLoading').style.display = 'none';
     $('settleAlreadyDone').style.display = 'block';
-    $('settleAlreadyDone').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+    console.error('Prepare settlement error:', e);
+    $('settleAlreadyDone').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">Could not load settlement data. Please check your internet connection and try again.</div></div>`;
   }
 }
 
@@ -762,18 +968,24 @@ function resetForm() {
   document.querySelectorAll('.ts-badge').forEach(b => { b.style.display = 'none'; b.textContent = ''; });
 
   // Clear vessel entries
-  ['boiled_milk_kitchen','boiled_milk_counter','tea_decoction'].forEach(id => {
-    $(id).innerHTML = '';
+  ['boiled_milk_kitchen','boiled_milk_counter','tea_decoction_kitchen','tea_decoction_counter'].forEach(id => {
+    if ($(id)) $(id).innerHTML = '';
   });
 
   // Add one default vessel entry per group
   const kitchenMilkVessels = vessels.filter(v => v.liquid_type === 'boiled_milk' && v.location === 'kitchen');
   const counterMilkVessels = vessels.filter(v => v.liquid_type === 'boiled_milk' && v.location === 'counter');
-  const decoctionVessels = vessels.filter(v => v.liquid_type === 'decoction');
+  const kitchenDecVessels = vessels.filter(v => v.liquid_type === 'decoction' && v.location === 'kitchen');
+  const counterDecVessels = vessels.filter(v => v.liquid_type === 'decoction' && v.location === 'counter');
 
   if (kitchenMilkVessels.length > 0) addVesselEntry('boiled_milk_kitchen', 'boiled_milk', 'kitchen');
   if (counterMilkVessels.length > 0) addVesselEntry('boiled_milk_counter', 'boiled_milk', 'counter');
-  if (decoctionVessels.length > 0) addVesselEntry('tea_decoction', 'decoction', '');
+  if (kitchenDecVessels.length > 0) addVesselEntry('tea_decoction_kitchen', 'decoction', 'kitchen');
+  // Pre-populate 2 counter decoction entries (NCH always has 2 decoction vessels at counter)
+  if (counterDecVessels.length > 0) {
+    addVesselEntry('tea_decoction_counter', 'decoction', 'counter', 'CTR-DEC-1');
+    if (counterDecVessels.length > 1) addVesselEntry('tea_decoction_counter', 'decoction', 'counter', 'CTR-DEC-2');
+  }
 
   // Clear wastage
   $('wastageEntries').innerHTML = '';
@@ -799,7 +1011,7 @@ function renderRevenue(revenue) {
 
 // ── VESSEL ENTRIES ───────────────────────────────────────
 
-function addVesselEntry(containerId, liquidType, location) {
+function addVesselEntry(containerId, liquidType, location, defaultCode) {
   const container = $(containerId);
   const filtered = vessels.filter(v => v.liquid_type === liquidType && (!location || v.location === location));
   if (filtered.length === 0) {
@@ -809,11 +1021,13 @@ function addVesselEntry(containerId, liquidType, location) {
 
   const entry = document.createElement('div');
   entry.className = 'vessel-entry';
+  const photoFieldId = `${containerId}_${Date.now()}`;
   entry.innerHTML = `
     <select class="input input-sm" onchange="updateVesselDisplay(this)" style="flex:1">
-      ${filtered.map(v => `<option value="${v.code}" data-tare="${v.empty_weight_kg}">${v.name} (${v.empty_weight_kg} kg)</option>`).join('')}
+      ${filtered.map(v => `<option value="${v.code}" data-tare="${v.empty_weight_kg}" ${defaultCode && v.code === defaultCode ? 'selected' : ''}>${v.name} (${v.empty_weight_kg} kg)</option>`).join('')}
     </select>
     <input type="number" class="input input-sm weight-input" placeholder="kg on scale" step="0.01" inputmode="decimal" onchange="recordTimestamp('${containerId}');updateVesselDisplay(this);updateDecomp()">
+    <button class="photo-btn" data-photo-field="${photoFieldId}" onclick="triggerPhoto('scale','${containerId}')" title="Photo of scale"><span class="cam-icon">📷</span></button>
     <span class="net-display">—</span>
     <button class="remove-vessel" onclick="this.closest('.vessel-entry').remove();updateDecomp()" title="Remove">✕</button>
   `;
@@ -919,6 +1133,7 @@ function clientDecompose(input) {
   const totals = {};
   const add = (id, qty) => { totals[id] = (totals[id] || 0) + qty; };
 
+  // Direct raw materials
   if (input.raw_buffalo_milk) add(1095, input.raw_buffalo_milk);
   if (input.raw_milkmaid) add(1112, input.raw_milkmaid);
   if (input.raw_smp) add(1096, input.raw_smp);
@@ -929,15 +1144,19 @@ function clientDecompose(input) {
   if (input.honey) add(1123, input.honey);
   if (input.lemons) add(1121, input.lemons);
   if (input.oil) add(1114, input.oil);
-  if (input.water_bottles) add(1107, input.water_bottles);
+
+  // Water bottles: kitchen + display
+  const waterTotal = (input.water_bottles_kitchen || 0) + (input.water_bottles_display || 0);
+  if (waterTotal) add(1107, waterTotal);
 
   // Boiled milk
   const milkLitres = calcVesselLitres('boiled_milk_kitchen', DENSITY.boiled_milk)
     + calcVesselLitres('boiled_milk_counter', DENSITY.boiled_milk);
   if (milkLitres > 0) for (const [id, r] of Object.entries(BOILED_MILK_RATIO)) add(id, milkLitres * r);
 
-  // Decoction
-  const decLitres = calcVesselLitres('tea_decoction', DENSITY.tea_decoction);
+  // Decoction: kitchen + counter
+  const decLitres = calcVesselLitres('tea_decoction_kitchen', DENSITY.tea_decoction)
+    + calcVesselLitres('tea_decoction_counter', DENSITY.tea_decoction);
   if (decLitres > 0) for (const [id, r] of Object.entries(DECOCTION_RATIO)) add(id, decLitres * r);
 
   // Tea-Sugar boxes
@@ -947,20 +1166,24 @@ function clientDecompose(input) {
   if (input.plain_buns) add(1104, input.plain_buns);
   if (input.prepared_bun_maska) for (const [id, r] of Object.entries(BUN_MASKA_RATIO)) add(id, input.prepared_bun_maska * r);
 
-  // Fried items
+  // Fried items: sum kitchen + display
   if (input.raw_cutlets) add(1106, input.raw_cutlets);
-  if (input.fried_cutlets) { add(1106, input.fried_cutlets); add(1114, input.fried_cutlets * FRIED_OIL[1106]); }
+  const friedCutlets = (input.fried_cutlets_kitchen || 0) + (input.fried_cutlets_display || 0);
+  if (friedCutlets) { add(1106, friedCutlets); add(1114, friedCutlets * FRIED_OIL[1106]); }
   if (input.raw_samosa) add(1113, input.raw_samosa);
-  if (input.fried_samosa) { add(1113, input.fried_samosa); add(1114, input.fried_samosa * FRIED_OIL[1113]); }
+  const friedSamosa = (input.fried_samosa_kitchen || 0) + (input.fried_samosa_display || 0);
+  if (friedSamosa) { add(1113, friedSamosa); add(1114, friedSamosa * FRIED_OIL[1113]); }
   if (input.raw_cheese_balls) add(1116, input.raw_cheese_balls);
-  if (input.fried_cheese_balls) { add(1116, input.fried_cheese_balls); add(1114, input.fried_cheese_balls * FRIED_OIL[1116]); }
+  const friedCheese = (input.fried_cheese_balls_kitchen || 0) + (input.fried_cheese_balls_display || 0);
+  if (friedCheese) { add(1116, friedCheese); add(1114, friedCheese * FRIED_OIL[1116]); }
 
-  // Osmania
-  if (input.osmania_packets) add(1105, input.osmania_packets * OSMANIA_PER_PACKET);
-  if (input.osmania_loose) add(1105, input.osmania_loose);
+  // Osmania: packets from kitchen + display, loose from display only
+  const osmaniaPackets = (input.osmania_packets_kitchen || 0) + (input.osmania_packets_display || 0);
+  if (osmaniaPackets) add(1105, osmaniaPackets * OSMANIA_PER_PACKET);
+  if (input.osmania_loose_display) add(1105, input.osmania_loose_display);
 
-  // Niloufer
-  const niloufer = (input.niloufer_storage || 0) + (input.niloufer_display || 0);
+  // Niloufer: kitchen + display
+  const niloufer = (input.niloufer_kitchen || 0) + (input.niloufer_display || 0);
   if (niloufer) add(1110, niloufer);
 
   return totals;
@@ -983,34 +1206,44 @@ function calcVesselLitres(containerId, density) {
 
 function collectRawInput() {
   return {
+    // Freezer
     raw_buffalo_milk: parseFloat($('raw_buffalo_milk')?.value) || 0,
+    raw_cutlets: parseInt($('raw_cutlets')?.value) || 0,
+    raw_samosa: parseInt($('raw_samosa')?.value) || 0,
+    raw_cheese_balls: parseInt($('raw_cheese_balls')?.value) || 0,
+    butter: parseFloat($('butter')?.value) || 0,
+    // Kitchen
+    raw_sugar: parseFloat($('raw_sugar')?.value) || 0,
     raw_milkmaid: parseFloat($('raw_milkmaid')?.value) || 0,
     raw_smp: parseFloat($('raw_smp')?.value) || 0,
-    raw_sugar: parseFloat($('raw_sugar')?.value) || 0,
     raw_tea_powder: parseFloat($('raw_tea_powder')?.value) || 0,
-    butter: parseFloat($('butter')?.value) || 0,
+    tea_sugar_boxes: parseInt($('tea_sugar_boxes')?.value) || 0,
     coffee_powder: parseFloat($('coffee_powder')?.value) || 0,
     honey: parseFloat($('honey')?.value) || 0,
-    lemons: parseFloat($('lemons')?.value) || 0,
+    lemons: parseInt($('lemons')?.value) || 0,
     oil: parseFloat($('oil')?.value) || 0,
-    water_bottles: parseInt($('water_bottles')?.value) || 0,
-    boiled_milk_kitchen: getVesselEntries('boiled_milk_kitchen'),
-    boiled_milk_counter: getVesselEntries('boiled_milk_counter'),
-    tea_decoction: getVesselEntries('tea_decoction'),
-    tea_sugar_boxes: parseInt($('tea_sugar_boxes')?.value) || 0,
     plain_buns: parseInt($('plain_buns')?.value) || 0,
-    prepared_bun_maska: parseInt($('prepared_bun_maska')?.value) || 0,
-    raw_cutlets: parseInt($('raw_cutlets')?.value) || 0,
-    fried_cutlets: parseInt($('fried_cutlets')?.value) || 0,
-    raw_samosa: parseInt($('raw_samosa')?.value) || 0,
-    fried_samosa: parseInt($('fried_samosa')?.value) || 0,
-    raw_cheese_balls: parseInt($('raw_cheese_balls')?.value) || 0,
-    fried_cheese_balls: parseInt($('fried_cheese_balls')?.value) || 0,
-    osmania_packets: parseInt($('osmania_packets')?.value) || 0,
-    osmania_loose: parseInt($('osmania_loose')?.value) || 0,
-    niloufer_storage: parseInt($('niloufer_storage')?.value) || 0,
-    niloufer_display: parseInt($('niloufer_display')?.value) || 0,
+    water_bottles_kitchen: parseInt($('water_bottles_kitchen')?.value) || 0,
+    niloufer_kitchen: parseInt($('niloufer_kitchen')?.value) || 0,
+    osmania_packets_kitchen: parseInt($('osmania_packets_kitchen')?.value) || 0,
+    fried_cutlets_kitchen: parseInt($('fried_cutlets_kitchen')?.value) || 0,
+    fried_samosa_kitchen: parseInt($('fried_samosa_kitchen')?.value) || 0,
+    fried_cheese_balls_kitchen: parseInt($('fried_cheese_balls_kitchen')?.value) || 0,
     malai: parseFloat($('malai')?.value) || 0,
+    boiled_milk_kitchen: getVesselEntries('boiled_milk_kitchen'),
+    tea_decoction_kitchen: getVesselEntries('tea_decoction_kitchen'),
+    // Display Counter
+    water_bottles_display: parseInt($('water_bottles_display')?.value) || 0,
+    niloufer_display: parseInt($('niloufer_display')?.value) || 0,
+    osmania_packets_display: parseInt($('osmania_packets_display')?.value) || 0,
+    osmania_loose_display: parseInt($('osmania_loose_display')?.value) || 0,
+    fried_cutlets_display: parseInt($('fried_cutlets_display')?.value) || 0,
+    fried_samosa_display: parseInt($('fried_samosa_display')?.value) || 0,
+    fried_cheese_balls_display: parseInt($('fried_cheese_balls_display')?.value) || 0,
+    prepared_bun_maska: parseInt($('prepared_bun_maska')?.value) || 0,
+    // Tea Counter
+    boiled_milk_counter: getVesselEntries('boiled_milk_counter'),
+    tea_decoction_counter: getVesselEntries('tea_decoction_counter'),
   };
 }
 
@@ -1048,15 +1281,16 @@ async function submitSettlement() {
   // ── VALIDATION: Ensure at least some inventory data is entered ──
   const hasVesselData = getVesselEntries('boiled_milk_kitchen').length > 0
     || getVesselEntries('boiled_milk_counter').length > 0
-    || getVesselEntries('tea_decoction').length > 0;
+    || getVesselEntries('tea_decoction_kitchen').length > 0
+    || getVesselEntries('tea_decoction_counter').length > 0;
   const hasRawData = rawInput.raw_buffalo_milk > 0 || rawInput.raw_milkmaid > 0 || rawInput.raw_smp > 0
     || rawInput.raw_sugar > 0 || rawInput.raw_tea_powder > 0 || rawInput.butter > 0
     || rawInput.plain_buns > 0 || rawInput.prepared_bun_maska > 0
-    || rawInput.raw_cutlets > 0 || rawInput.fried_cutlets > 0
-    || rawInput.raw_samosa > 0 || rawInput.fried_samosa > 0
-    || rawInput.raw_cheese_balls > 0 || rawInput.fried_cheese_balls > 0
-    || rawInput.osmania_packets > 0 || rawInput.osmania_loose > 0
-    || rawInput.water_bottles > 0 || rawInput.oil > 0
+    || rawInput.raw_cutlets > 0 || rawInput.fried_cutlets_kitchen > 0 || rawInput.fried_cutlets_display > 0
+    || rawInput.raw_samosa > 0 || rawInput.fried_samosa_kitchen > 0 || rawInput.fried_samosa_display > 0
+    || rawInput.raw_cheese_balls > 0 || rawInput.fried_cheese_balls_kitchen > 0 || rawInput.fried_cheese_balls_display > 0
+    || rawInput.osmania_packets_kitchen > 0 || rawInput.osmania_packets_display > 0 || rawInput.osmania_loose_display > 0
+    || rawInput.water_bottles_kitchen > 0 || rawInput.water_bottles_display > 0 || rawInput.oil > 0
     || rawInput.coffee_powder > 0 || rawInput.honey > 0 || rawInput.lemons > 0;
 
   if (!hasVesselData && !hasRawData) {
@@ -1074,7 +1308,9 @@ async function submitSettlement() {
   if (!confirm(confirmMsg)) return;
 
   btn.disabled = true;
-  btn.textContent = isBootstrap ? '🏁 Submitting bootstrap...' : '⏳ Calculating P&L...';
+  btn.innerHTML = isBootstrap
+    ? '<div class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div> Submitting bootstrap...'
+    : '<div class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div> Calculating settlement...';
 
   try {
     const res = await fetch(`${API}?action=submit`, {
@@ -1089,6 +1325,7 @@ async function submitSettlement() {
         notes,
         is_bootstrap: isBootstrap,
         field_timestamps: collectTimestamps(),
+        photo_verifications: collectPhotoVerifications(),
       }),
     });
     const data = await res.json();
@@ -1112,11 +1349,18 @@ async function submitSettlement() {
     } else {
       renderPnlResult(data);
     }
+    // Scroll to top so staff sees the result
+    window.scrollTo({top: 0, behavior: 'smooth'});
 
   } catch (e) {
     btn.disabled = false;
     btn.textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
-    alert('Error: ' + e.message);
+    console.error('Settlement submit error:', e);
+    // Show friendly message — don't expose API internals to staff
+    const friendlyMsg = e.message?.includes('already exists') ? 'Settlement already submitted for this date.'
+      : e.message?.includes('pin') || e.message?.includes('PIN') ? 'PIN verification failed. Please logout and try again.'
+      : 'Something went wrong. Please try again. If the problem persists, contact management.';
+    alert('⚠️ ' + friendlyMsg);
   }
 }
 
@@ -1274,7 +1518,8 @@ async function loadHistory() {
 
   } catch (e) {
     $('historyLoading').style.display = 'none';
-    $('historyList').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+    console.error('History load error:', e);
+    $('historyList').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">Could not load history. Please check your connection and try again.</div></div>`;
   }
 }
 
@@ -1359,7 +1604,8 @@ async function loadSettlementDetail(date) {
 
     $('historyDetail').innerHTML = html;
   } catch (e) {
-    $('historyDetail').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">${e.message}</div></div>`;
+    console.error('Settlement detail load error:', e);
+    $('historyDetail').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">Could not load settlement details. Please try again.</div></div>`;
   }
 }
 
@@ -1416,67 +1662,18 @@ async function saveVessel() {
     loadConfig();
     alert('Vessel saved!');
   } catch (e) {
-    alert('Error: ' + e.message);
+    console.error('Vessel save error:', e);
+    alert('⚠️ Could not save vessel. Please try again.');
   }
 }
 
 // ── CONFIG: SALARIES ─────────────────────────────────────
 
 async function loadSalaries() {
-  try {
-    const res = await fetch(`${API}?action=get-salaries`);
-    const data = await res.json();
-    if (!data.success) return;
-
-    const container = $('salaryList');
-    if (!data.salaries || data.salaries.length === 0) {
-      container.innerHTML = `<div style="color:var(--text2);font-size:13px">No staff salaries configured. Add below.</div>`;
-      return;
-    }
-
-    let html = `<table class="inv-table">
-      <tr><th>Name</th><th>Role</th><th style="text-align:right">Monthly</th><th style="text-align:right">Daily</th></tr>`;
-    for (const s of data.salaries) {
-      html += `<tr>
-        <td>${s.name}</td>
-        <td style="color:var(--text2)">${s.role || '—'}</td>
-        <td class="num">${fmt(s.monthly_salary)}</td>
-        <td class="num">${fmt(Math.round(s.monthly_salary / 30))}</td>
-      </tr>`;
-    }
-    html += '</table>';
-    container.innerHTML = html;
-  } catch (e) { /* silent */ }
+  // Salaries now managed on /ops/staffing/ page — nothing to load here
 }
 
-async function saveSalary() {
-  const name = $('staffName').value.trim();
-  const role = $('staffRole').value.trim();
-  const monthly_salary = parseFloat($('staffSalary').value);
-
-  if (!name || isNaN(monthly_salary)) {
-    alert('Please fill in name and salary');
-    return;
-  }
-
-  try {
-    const res = await fetch(`${API}?action=save-salary`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, role, monthly_salary}),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error);
-
-    $('staffName').value = '';
-    $('staffRole').value = '';
-    $('staffSalary').value = '';
-    loadSalaries();
-    alert('Staff salary saved!');
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
-}
+// saveSalary removed — salaries now managed on /ops/staffing/ page
 
 // ── UTILITIES ────────────────────────────────────────────
 
