@@ -1,6 +1,6 @@
 // NCH Daily Settlement API — Cloudflare Worker
 // The intelligence layer: staff enters physical counts → system calculates everything
-// Settlement at midnight: covers one calendar day's P&L
+// Settlement period: previous settled_at → now (timestamp-based, not day-fixed)
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json'};
@@ -243,26 +243,23 @@ export async function onRequest(context) {
 
     // ─── PREPARE: fetch all data needed for settlement ────────
     if (action === 'prepare') {
-      const dateParam = url.searchParams.get('date'); // YYYY-MM-DD
       const now = istNow();
-      const settlementDate = dateParam || now.toISOString().slice(0, 10);
 
-      // Period: midnight IST to next midnight IST (exclusive end)
-      // IST strings for display/DB storage
-      const periodStartIST = `${settlementDate}T00:00:00+05:30`;
-      const periodEndIST = `${settlementDate}T23:59:59+05:30`; // Display only
-      // Convert to UTC Date objects — new Date() correctly handles the +05:30 offset
-      const periodStartUTC = new Date(periodStartIST); // midnight IST in UTC
-      const periodEndUTC = new Date(periodStartUTC.getTime() + 86400000); // next midnight IST in UTC
-      // Odoo expects UTC datetime strings (without timezone)
+      // Get previous settlement (for opening stock and period start)
+      const previous = DB ? await DB.prepare(
+        'SELECT * FROM daily_settlements WHERE status IN (?, ?) ORDER BY settled_at DESC LIMIT 1'
+      ).bind('completed', 'bootstrap').first() : null;
+
+      // Period: previous settled_at → now (timestamp-based)
+      const periodStartIST = previous ? previous.settled_at : now.toISOString();
+      const periodEndIST = now.toISOString();
+      const settlementDate = now.toISOString().slice(0, 10); // business date for display
+
+      // Convert to UTC Date objects for Odoo queries
+      const periodStartUTC = new Date(periodStartIST);
+      const periodEndUTC = new Date(periodEndIST);
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
-
-      // Check if settlement already exists for this date
-      const existing = DB ? await DB.prepare('SELECT * FROM daily_settlements WHERE settlement_date = ?').bind(settlementDate).first() : null;
-
-      // Get previous settlement (for opening stock)
-      const previous = DB ? await DB.prepare('SELECT * FROM daily_settlements WHERE settlement_date < ? AND status IN (?, ?) ORDER BY settlement_date DESC LIMIT 1').bind(settlementDate, 'completed', 'bootstrap').first() : null;
 
       // Parallel: fetch sales, purchases, expenses, vessels
       const [salesData, purchaseData, vessels, expenseData] = await Promise.all([
@@ -291,34 +288,35 @@ export async function onRequest(context) {
         counterExpenses += e.amount;
       }
 
-      // Staff salaries
-      let dailySalaries = 0;
+      // Staff salaries — prorated by period length
+      const periodHours = (periodEndUTC - periodStartUTC) / 3600000;
+      let periodSalaries = 0;
       const salaryData = [];
       if (DB) {
         const salaries = await DB.prepare('SELECT * FROM staff_salaries WHERE active = 1').all();
         for (const s of (salaries.results || [])) {
-          const daily = round(s.monthly_salary / 30, 2);
-          dailySalaries += daily;
-          salaryData.push({name: s.name, role: s.role, monthly: s.monthly_salary, daily});
+          const prorated = round((s.monthly_salary / 30) * (periodHours / 24), 2);
+          periodSalaries += prorated;
+          salaryData.push({name: s.name, role: s.role, monthly: s.monthly_salary, daily: round(s.monthly_salary / 30, 2), prorated});
         }
       }
 
       return json({
         success: true,
         settlementDate,
-        period: {start: periodStartIST, end: periodEndIST},
-        existing: existing || null,
+        period: {start: periodStartIST, end: periodEndIST, hours: round(periodHours, 2)},
         needsBootstrap: !previous,
         previousSettlement: previous ? {
           id: previous.id,
           date: previous.settlement_date,
           status: previous.status,
+          settledAt: previous.settled_at,
         } : null,
         openingStock,
         revenue,
         purchases: purchaseData,
         counterExpenses,
-        salaries: {daily: dailySalaries, staff: salaryData},
+        salaries: {prorated: periodSalaries, daily: salaryData.reduce((s, x) => s + x.daily, 0), staff: salaryData, periodHours: round(periodHours, 2)},
         vessels,
         recipes: RECIPES,
         rawMaterials: RAW_MATERIALS,
@@ -330,23 +328,27 @@ export async function onRequest(context) {
       if (!DB) return json({success: false, error: 'Database not configured'}, corsHeaders);
 
       const body = await context.request.json();
-      const {pin, settlement_date, raw_input, wastage_items, runner_tokens, notes, is_bootstrap, field_timestamps, photo_verifications} = body;
+      const {pin, raw_input, wastage_items, runner_tokens, notes, is_bootstrap, field_timestamps, photo_verifications, edit_trail} = body;
 
       // Validate PIN
       const settledBy = PINS[pin];
       if (!settledBy) return json({success: false, error: 'Invalid PIN'}, corsHeaders);
 
-      // Check duplicate
-      const existing = await DB.prepare('SELECT id FROM daily_settlements WHERE settlement_date = ?').bind(settlement_date).first();
-      if (existing) return json({success: false, error: `Settlement already exists for ${settlement_date}. Cannot overwrite.`}, corsHeaders);
+      // Guard against rapid re-submission (within 2 minutes)
+      const lastSettlement = await DB.prepare(
+        'SELECT settled_at FROM daily_settlements ORDER BY settled_at DESC LIMIT 1'
+      ).first();
+      if (lastSettlement) {
+        const lastTime = new Date(lastSettlement.settled_at).getTime();
+        if (Date.now() - lastTime < 120000) {
+          return json({success: false, error: 'A settlement was just submitted. Please wait 2 minutes before submitting another.'}, corsHeaders);
+        }
+      }
 
-      // Period: midnight IST to next midnight IST (exclusive end)
-      const periodStartIST = `${settlement_date}T00:00:00+05:30`;
-      const periodEndIST = `${settlement_date}T23:59:59+05:30`; // Display only
-      const periodStartUTC = new Date(periodStartIST);
-      const periodEndUTC = new Date(periodStartUTC.getTime() + 86400000);
-      const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
-      const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
+      // Period: previous settled_at → now (timestamp-based)
+      const nowUTC = new Date();
+      const nowIST = istNow();
+      const settlement_date = nowIST.toISOString().slice(0, 10); // business date for display
 
       // ── Step 1: Decompose raw input into raw materials ──
       const vessels = await getVessels(DB);
@@ -357,17 +359,19 @@ export async function onRequest(context) {
 
       // If bootstrap: just store the count, no P&L
       if (is_bootstrap) {
+        const settledAtISO = nowUTC.toISOString();
         await DB.prepare(`INSERT INTO daily_settlements
           (settlement_date, period_start, period_end, settled_by, settled_at, status,
            inventory_raw_input, inventory_decomposed, inventory_closing,
-           runner_tokens, runner_tokens_total, notes)
-          VALUES (?, ?, ?, ?, ?, 'bootstrap', ?, ?, ?, ?, ?, ?)`
+           runner_tokens, runner_tokens_total, notes, edit_trail)
+          VALUES (?, ?, ?, ?, ?, 'bootstrap', ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
-          settlement_date, periodStartIST, periodEndIST, settledBy, new Date().toISOString(),
+          settlement_date, settledAtISO, settledAtISO, settledBy, settledAtISO,
           JSON.stringify(raw_input), JSON.stringify(decomposed), JSON.stringify(decomposed),
           JSON.stringify(runner_tokens || {}),
           Object.values(runner_tokens || {}).reduce((s, v) => s + v, 0),
-          notes || ''
+          notes || '',
+          JSON.stringify(edit_trail || {})
         ).run();
 
         return json({
@@ -377,15 +381,24 @@ export async function onRequest(context) {
           settledBy,
           status: 'bootstrap',
           inventory: decomposed,
+          rawInput: raw_input,
         }, corsHeaders);
       }
 
       // ── Step 2: Get previous settlement (opening stock) ──
       const previous = await DB.prepare(
-        'SELECT * FROM daily_settlements WHERE settlement_date < ? AND status IN (?, ?) ORDER BY settlement_date DESC LIMIT 1'
-      ).bind(settlement_date, 'completed', 'bootstrap').first();
+        'SELECT * FROM daily_settlements WHERE status IN (?, ?) ORDER BY settled_at DESC LIMIT 1'
+      ).bind('completed', 'bootstrap').first();
 
       if (!previous) return json({success: false, error: 'No previous settlement found. Please do a bootstrap settlement first.'}, corsHeaders);
+
+      // Period: previous settled_at → now
+      const periodStartIST = previous.settled_at;
+      const periodEndIST = nowUTC.toISOString();
+      const periodStartUTC = new Date(periodStartIST);
+      const periodEndUTC = nowUTC;
+      const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
+      const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
       const openingStock = JSON.parse(previous.inventory_decomposed || '{}');
       const prevRunnerTokens = JSON.parse(previous.runner_tokens || '{}');
@@ -628,9 +641,11 @@ export async function onRequest(context) {
       let counterExpenses = 0;
       for (const e of (expenseData.results || [])) counterExpenses += e.amount;
 
+      // Salary proration: (monthly/30) × (periodHours/24)
+      const periodHours = (periodEndUTC - periodStartUTC) / 3600000;
       let dailySalaries = 0;
       const salaries = await DB.prepare('SELECT * FROM staff_salaries WHERE active = 1').all();
-      for (const s of (salaries.results || [])) dailySalaries += round(s.monthly_salary / 30, 2);
+      for (const s of (salaries.results || [])) dailySalaries += round((s.monthly_salary / 30) * (periodHours / 24), 2);
 
       const opexTotal = round(dailySalaries + counterExpenses, 2);
 
@@ -640,6 +655,7 @@ export async function onRequest(context) {
       const adjustedNetProfit = round(netProfit - discrepancyValue - wastageValue, 2);
 
       // ── Step 15: Save to DB ──
+      const settledAtISO = nowUTC.toISOString();
       await DB.prepare(`INSERT INTO daily_settlements
         (settlement_date, period_start, period_end, settled_by, settled_at, status,
          revenue_total, revenue_cash_counter, revenue_runner_counter, revenue_whatsapp, revenue_breakdown,
@@ -650,7 +666,7 @@ export async function onRequest(context) {
          inventory_consumption, inventory_expected, inventory_discrepancy, discrepancy_value,
          wastage_items, wastage_total_value,
          runner_tokens, runner_tokens_total,
-         adjusted_net_profit, notes, previous_settlement_id, timestamp_adjustments)
+         adjusted_net_profit, notes, previous_settlement_id, timestamp_adjustments, edit_trail)
         VALUES (?, ?, ?, ?, ?, 'completed',
                 ?, ?, ?, ?, ?,
                 ?, ?, ?,
@@ -660,9 +676,9 @@ export async function onRequest(context) {
                 ?, ?, ?, ?,
                 ?, ?,
                 ?, ?,
-                ?, ?, ?, ?)`
+                ?, ?, ?, ?, ?)`
       ).bind(
-        settlement_date, periodStartIST, periodEndIST, settledBy, new Date().toISOString(),
+        settlement_date, periodStartIST, periodEndIST, settledBy, settledAtISO,
         revenue.total, revenue.cashCounter, revenue.runnerCounter, revenue.whatsapp, JSON.stringify(revenue.products),
         cogsActual, cogsExpected, grossProfit,
         dailySalaries, counterExpenses, opexTotal,
@@ -672,7 +688,7 @@ export async function onRequest(context) {
         JSON.stringify(wastage_items || []), wastageValue,
         JSON.stringify(currentTokens), currentTokenTotal,
         adjustedNetProfit, notes || '', previous ? previous.id : null,
-        JSON.stringify(timestampAdjustments)
+        JSON.stringify(timestampAdjustments), JSON.stringify(edit_trail || {})
       ).run();
 
       // ── Step 16: WhatsApp summary ──
@@ -690,7 +706,8 @@ export async function onRequest(context) {
         const channelBreakdown = revenue.cashCounter > 0 || revenue.runnerCounter > 0 || revenue.whatsapp > 0
           ? `  Counter: ₹${Math.round(revenue.cashCounter).toLocaleString('en-IN')} | Runner: ₹${Math.round(revenue.runnerCounter).toLocaleString('en-IN')} | Delivery: ₹${Math.round(revenue.whatsapp).toLocaleString('en-IN')}\n`
           : '';
-        const msg = `☕ *NCH Daily Settlement — ${settlement_date}*\n\n`
+        const pHrs = round((periodEndUTC - periodStartUTC) / 3600000, 1);
+        const msg = `☕ *NCH Settlement — ${settlement_date}* (${pHrs}h period)\n\n`
           + `💰 Revenue: ₹${Math.round(revenue.total).toLocaleString('en-IN')}\n`
           + channelBreakdown
           + `📦 COGS: ₹${Math.round(cogsActual).toLocaleString('en-IN')}\n`
@@ -800,6 +817,7 @@ export async function onRequest(context) {
           discrepancy: discrepancyValue,
           adjustedNetProfit,
         },
+        rawInput: raw_input,
         inventory: {
           opening: openingStock,
           purchases,
@@ -808,6 +826,7 @@ export async function onRequest(context) {
           expected: expectedConsumption,
           discrepancy,
         },
+        period: {start: periodStartIST, end: periodEndIST, hours: round((periodEndUTC - periodStartUTC) / 3600000, 2)},
         warnings: consumptionWarnings,
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
         timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
@@ -869,18 +888,23 @@ export async function onRequest(context) {
       if (!DB) return json({success: false, error: 'DB not configured'}, corsHeaders);
       const limit = parseInt(url.searchParams.get('limit') || '30');
       const results = await DB.prepare(
-        'SELECT id, settlement_date, status, settled_by, settled_at, revenue_total, cogs_actual, gross_profit, opex_total, net_profit, adjusted_net_profit, discrepancy_value, wastage_total_value, runner_tokens_total FROM daily_settlements ORDER BY settlement_date DESC LIMIT ?'
+        'SELECT id, settlement_date, period_start, period_end, status, settled_by, settled_at, revenue_total, cogs_actual, gross_profit, opex_total, net_profit, adjusted_net_profit, discrepancy_value, wastage_total_value, runner_tokens_total FROM daily_settlements ORDER BY settled_at DESC LIMIT ?'
       ).bind(limit).all();
       return json({success: true, settlements: results.results}, corsHeaders);
     }
 
-    // ─── GET SETTLEMENT: full detail for a specific date ──────
+    // ─── GET SETTLEMENT: full detail by id or date ──────────
     if (action === 'get-settlement') {
       if (!DB) return json({success: false, error: 'DB not configured'}, corsHeaders);
+      const id = url.searchParams.get('id');
       const date = url.searchParams.get('date');
-      if (!date) return json({success: false, error: 'date parameter required'}, corsHeaders);
-      const result = await DB.prepare('SELECT * FROM daily_settlements WHERE settlement_date = ?').bind(date).first();
-      if (!result) return json({success: false, error: 'No settlement found for ' + date}, corsHeaders);
+      let result;
+      if (id) {
+        result = await DB.prepare('SELECT * FROM daily_settlements WHERE id = ?').bind(parseInt(id)).first();
+      } else if (date) {
+        result = await DB.prepare('SELECT * FROM daily_settlements WHERE settlement_date = ? ORDER BY settled_at DESC LIMIT 1').bind(date).first();
+      }
+      if (!result) return json({success: false, error: 'Settlement not found'}, corsHeaders);
       return json({success: true, settlement: result}, corsHeaders);
     }
 

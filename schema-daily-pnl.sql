@@ -107,13 +107,14 @@ CREATE TABLE IF NOT EXISTS staff_salaries (
 
 -- ═══════════════════════════════════════════════════════════════
 -- DAILY SETTLEMENTS: the main settlement record
--- One row per calendar day — the full P&L snapshot
+-- One row per settlement period (previous settled_at → now)
+-- Multiple settlements per day allowed (shift changes)
 -- ═══════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS daily_settlements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  settlement_date TEXT NOT NULL,         -- '2026-02-10' (the business day)
-  period_start TEXT NOT NULL,            -- ISO: start of 24h window (midnight)
-  period_end TEXT NOT NULL,              -- ISO: end of 24h window (next midnight)
+  settlement_date TEXT NOT NULL,         -- '2026-02-10' (business date for display)
+  period_start TEXT NOT NULL,            -- ISO: previous settlement's settled_at
+  period_end TEXT NOT NULL,              -- ISO: this settlement's time
   settled_by TEXT NOT NULL,
   settled_at TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',  -- 'bootstrap', 'completed'
@@ -175,8 +176,10 @@ CREATE TABLE IF NOT EXISTS daily_settlements (
   previous_settlement_id INTEGER DEFAULT NULL,
   timestamp_adjustments TEXT DEFAULT '{}',
 
-  UNIQUE(settlement_date)
+  -- Edit trail: {fieldId: [{value, at}]} — tracks every field edit with timestamp
+  edit_trail TEXT DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_daily_date ON daily_settlements(settlement_date);
 CREATE INDEX IF NOT EXISTS idx_daily_status ON daily_settlements(status);
+CREATE INDEX IF NOT EXISTS idx_daily_settled_at ON daily_settlements(settled_at);

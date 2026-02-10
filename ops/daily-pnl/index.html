@@ -246,9 +246,12 @@
       <!-- ═══ SETTLE TAB ═══ -->
       <div class="tab-content show" id="tab-settle">
         <div class="date-bar">
-          <input type="date" id="settlementDate">
-          <button class="btn btn-primary" onclick="prepareSettlement()">Load Day</button>
+          <button class="btn btn-primary" onclick="prepareSettlement()" id="startSettleBtn">Start New Settlement</button>
           <span id="dateStatus" style="font-size:13px;color:var(--text2)"></span>
+        </div>
+        <div id="periodInfo" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px">
+          <span style="color:var(--text2)">Period:</span> <span id="periodText" class="mono" style="color:var(--cyan)"></span>
+          <span id="periodDuration" style="color:var(--text2);margin-left:8px"></span>
         </div>
 
         <div id="settleLoading" class="loading" style="display:none"><div class="spinner"></div><p style="margin-top:12px">Loading settlement data...</p></div>
@@ -625,14 +628,21 @@ let settleData = null;  // data from prepare endpoint
 let vessels = [];       // available vessels from config
 let isBootstrap = false;
 
-// ── TIMESTAMP TRACKING ──────────────────────────────────
+// ── TIMESTAMP & EDIT TRAIL TRACKING ─────────────────────
 // Records when each field was last edited — backend uses this to adjust
 // for items sold between counting and submission
 const fieldTimestamps = {};
+const editTrail = {}; // {fieldId: [{value, at}]}
 
 function recordTimestamp(fieldId) {
   const now = new Date();
   fieldTimestamps[fieldId] = now.toISOString();
+  // Capture value for edit trail
+  const el = $(fieldId);
+  if (el) {
+    if (!editTrail[fieldId]) editTrail[fieldId] = [];
+    editTrail[fieldId].push({value: el.value, at: now.toISOString()});
+  }
   // Update visual badge
   const badge = document.querySelector(`[data-ts-for="${fieldId}"]`);
   if (badge) {
@@ -642,6 +652,73 @@ function recordTimestamp(fieldId) {
     badge.style.display = 'inline';
     badge.className = 'ts-badge ts-fresh';
   }
+  // Auto-save draft
+  saveDraftToLocal();
+}
+
+// ── DRAFT AUTO-SAVE (localStorage) ──────────────────────
+function saveDraftToLocal() {
+  const date = settleData?.settlementDate || new Date(Date.now() + 5.5*3600000).toISOString().slice(0,10);
+  try {
+    const draft = {
+      rawInput: collectRawInput(),
+      timestamps: {...fieldTimestamps},
+      trail: JSON.parse(JSON.stringify(editTrail)),
+      runnerTokens: collectRunnerTokens(),
+      notes: $('settlementNotes')?.value || '',
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(`nch_draft_${date}`, JSON.stringify(draft));
+  } catch (e) { /* quota exceeded — ignore */ }
+}
+
+function loadDraftFromLocal(date) {
+  try {
+    const raw = localStorage.getItem(`nch_draft_${date}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function clearDraftFromLocal(date) {
+  localStorage.removeItem(`nch_draft_${date}`);
+}
+
+function restoreDraft(draft) {
+  if (!draft || !draft.rawInput) return;
+  const ri = draft.rawInput;
+  // Restore simple fields
+  const simpleFields = [
+    'raw_buffalo_milk','raw_cutlets','raw_samosa','raw_cheese_balls','butter',
+    'raw_sugar','raw_milkmaid','raw_smp','raw_tea_powder','tea_sugar_boxes',
+    'coffee_powder','honey','lemons','oil','plain_buns','prepared_bun_maska','malai',
+    'water_bottles_kitchen','water_bottles_display','niloufer_kitchen','niloufer_display',
+    'osmania_packets_kitchen','osmania_packets_display','osmania_loose_display',
+    'fried_cutlets_kitchen','fried_cutlets_display',
+    'fried_samosa_kitchen','fried_samosa_display',
+    'fried_cheese_balls_kitchen','fried_cheese_balls_display',
+  ];
+  for (const f of simpleFields) {
+    if ($(f) && ri[f]) $(f).value = ri[f];
+  }
+  // Restore runner tokens
+  if (draft.runnerTokens) {
+    for (const [rid, val] of Object.entries(draft.runnerTokens)) {
+      const el = $(`tokens_${rid}`);
+      if (el && val) el.value = val;
+    }
+  }
+  // Restore notes
+  if (draft.notes && $('settlementNotes')) $('settlementNotes').value = draft.notes;
+  // Restore timestamps and trail
+  if (draft.timestamps) Object.assign(fieldTimestamps, draft.timestamps);
+  if (draft.trail) Object.assign(editTrail, draft.trail);
+  // Update decomp preview
+  updateDecomp();
+}
+
+function collectEditTrail() {
+  return JSON.parse(JSON.stringify(editTrail));
 }
 
 // Update badge colors based on age (called every 30s)
@@ -857,20 +934,6 @@ function logout() {
 // ── INIT ─────────────────────────────────────────────────
 
 function initDashboard() {
-  // Default date logic:
-  // Before 6 AM IST → default to yesterday (end-of-day settlement for previous business day)
-  // After 6 AM IST → default to today
-  const now = new Date(Date.now() + 5.5 * 3600000);
-  const hour = now.getUTCHours();
-  let defaultDate;
-  if (hour < 6) {
-    // Before 6 AM — settle yesterday
-    const yesterday = new Date(now.getTime() - 86400000);
-    defaultDate = yesterday.toISOString().slice(0, 10);
-  } else {
-    defaultDate = now.toISOString().slice(0, 10);
-  }
-  $('settlementDate').value = defaultDate;
   loadConfig();
 }
 
@@ -899,38 +962,29 @@ function switchTab(tab) {
 // ── PREPARE SETTLEMENT ───────────────────────────────────
 
 async function prepareSettlement() {
-  const date = $('settlementDate').value;
-  if (!date) return;
-
   $('settleLoading').style.display = 'block';
   $('settleForm').style.display = 'none';
   $('settleAlreadyDone').style.display = 'none';
   $('settleResult').style.display = 'none';
+  $('periodInfo').style.display = 'none';
   $('dateStatus').textContent = '';
+  $('startSettleBtn').disabled = true;
 
   try {
-    const res = await fetch(`${API}?action=prepare&date=${date}`);
+    const res = await fetch(`${API}?action=prepare`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
 
     settleData = data;
     $('settleLoading').style.display = 'none';
+    $('startSettleBtn').disabled = false;
 
-    // Already settled?
-    if (data.existing) {
-      $('settleAlreadyDone').style.display = 'block';
-      $('settleAlreadyDone').innerHTML = `
-        <div class="alert alert-success">
-          <span class="alert-icon">✅</span>
-          <div class="alert-text">
-            <strong>Settlement already completed for ${date}</strong><br>
-            Settled by ${data.existing.settled_by} at ${formatTime(data.existing.settled_at)}<br>
-            Status: <span class="badge badge-green">${data.existing.status}</span>
-            ${data.existing.status === 'completed' ? `<br>Net Profit: <strong>${fmt(data.existing.adjusted_net_profit)}</strong>` : ''}
-          </div>
-        </div>
-      `;
-      return;
+    // Show period info
+    if (data.period) {
+      $('periodInfo').style.display = 'block';
+      $('periodText').textContent = `${formatTime(data.period.start)} → ${formatTime(data.period.end)}`;
+      const hrs = data.period.hours || 0;
+      $('periodDuration').textContent = hrs > 0 ? `(${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m)` : '';
     }
 
     // Show form
@@ -940,7 +994,7 @@ async function prepareSettlement() {
     $('revenueSection').style.display = isBootstrap ? 'none' : 'block';
     $('runnerTokenSection').style.display = isBootstrap ? 'none' : 'block';
     $('submitBtn').textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
-    $('dateStatus').textContent = isBootstrap ? '🏁 Bootstrap mode' : `📊 Day ${data.previousSettlement ? '#' + (data.previousSettlement.id + 1) : '1'}`;
+    $('dateStatus').textContent = isBootstrap ? '🏁 Bootstrap mode' : `📊 Settlement #${data.previousSettlement ? data.previousSettlement.id + 1 : '1'}`;
 
     // Render revenue
     if (!isBootstrap && data.revenue) {
@@ -950,9 +1004,20 @@ async function prepareSettlement() {
     // Pre-populate default vessel entries
     resetForm();
 
+    // Check for saved draft
+    const draftKey = data.settlementDate || new Date(Date.now() + 5.5*3600000).toISOString().slice(0,10);
+    const draft = loadDraftFromLocal(draftKey);
+    if (draft && draft.savedAt) {
+      const age = (Date.now() - new Date(draft.savedAt).getTime()) / 3600000;
+      if (age < 24 && confirm(`Draft from ${formatTime(draft.savedAt)} found. Restore?`)) {
+        restoreDraft(draft);
+      }
+    }
+
   } catch (e) {
     $('settleLoading').style.display = 'none';
     $('settleAlreadyDone').style.display = 'block';
+    $('startSettleBtn').disabled = false;
     console.error('Prepare settlement error:', e);
     $('settleAlreadyDone').innerHTML = `<div class="alert alert-error"><span class="alert-icon">❌</span><div class="alert-text">Could not load settlement data. Please check your internet connection and try again.</div></div>`;
   }
@@ -1272,7 +1337,6 @@ async function submitSettlement() {
   const btn = $('submitBtn');
   if (btn.disabled) return;
 
-  const date = $('settlementDate').value;
   const rawInput = collectRawInput();
   const runnerTokens = collectRunnerTokens();
   const wastageItems = getWastageItems();
@@ -1301,9 +1365,10 @@ async function submitSettlement() {
   // ── CONFIRMATION DIALOG ──
   const decomp = clientDecompose(rawInput);
   const matCount = Object.keys(decomp).filter(k => decomp[k] > 0.0001).length;
+  const periodStr = settleData?.period ? `${formatTime(settleData.period.start)} → ${formatTime(settleData.period.end)}` : '';
   const confirmMsg = isBootstrap
-    ? `🏁 BOOTSTRAP SETTLEMENT\n\nDate: ${date}\n${matCount} raw materials counted\n\nThis establishes your Day 0 baseline.\nProceed?`
-    : `✅ SUBMIT DAILY SETTLEMENT\n\nDate: ${date}\n${matCount} raw materials counted\n${wastageItems.length > 0 ? wastageItems.length + ' wastage items\n' : ''}\nThis action cannot be undone.\nProceed?`;
+    ? `🏁 BOOTSTRAP SETTLEMENT\n\n${matCount} raw materials counted\n\nThis establishes your Day 0 baseline.\nProceed?`
+    : `✅ SUBMIT SETTLEMENT\n\nPeriod: ${periodStr}\n${matCount} raw materials counted\n${wastageItems.length > 0 ? wastageItems.length + ' wastage items\n' : ''}\nThis action cannot be undone.\nProceed?`;
 
   if (!confirm(confirmMsg)) return;
 
@@ -1318,7 +1383,6 @@ async function submitSettlement() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         pin: currentPin,
-        settlement_date: date,
         raw_input: rawInput,
         wastage_items: wastageItems,
         runner_tokens: runnerTokens,
@@ -1326,10 +1390,15 @@ async function submitSettlement() {
         is_bootstrap: isBootstrap,
         field_timestamps: collectTimestamps(),
         photo_verifications: collectPhotoVerifications(),
+        edit_trail: collectEditTrail(),
       }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
+
+    // Clear draft on success
+    const draftKey = data.settlementDate || settleData?.settlementDate || new Date(Date.now() + 5.5*3600000).toISOString().slice(0,10);
+    clearDraftFromLocal(draftKey);
 
     // Show result
     $('settleForm').style.display = 'none';
@@ -1339,10 +1408,11 @@ async function submitSettlement() {
       $('settleResult').innerHTML = `
         <div class="alert alert-success" style="margin-bottom:16px">
           <span class="alert-icon">🏁</span>
-          <div class="alert-text"><strong>Bootstrap Settlement Complete!</strong><br>Baseline inventory recorded for ${date}. You can now run daily settlements going forward.</div>
+          <div class="alert-text"><strong>Bootstrap Settlement Complete!</strong><br>Baseline inventory recorded. You can now run daily settlements going forward.</div>
         </div>
+        ${data.rawInput ? `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>${renderRawInputTable(data.rawInput)}</div>` : ''}
         <div class="section">
-          <div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory (Decomposed to Raw Materials)</div>
+          <div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>
           ${renderInventoryTable(data.inventory)}
         </div>
       `;
@@ -1357,11 +1427,65 @@ async function submitSettlement() {
     btn.textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
     console.error('Settlement submit error:', e);
     // Show friendly message — don't expose API internals to staff
-    const friendlyMsg = e.message?.includes('already exists') ? 'Settlement already submitted for this date.'
+    const friendlyMsg = e.message?.includes('wait 2 minutes') ? e.message
       : e.message?.includes('pin') || e.message?.includes('PIN') ? 'PIN verification failed. Please logout and try again.'
       : 'Something went wrong. Please try again. If the problem persists, contact management.';
     alert('⚠️ ' + friendlyMsg);
   }
+}
+
+// ── RAW INPUT DISPLAY ────────────────────────────────────
+const FIELD_LABELS = {
+  raw_buffalo_milk: ['Buffalo Milk (raw)', 'L'], raw_cutlets: ['Cutlets (frozen)', 'pcs'],
+  raw_samosa: ['Samosa (frozen)', 'pcs'], raw_cheese_balls: ['Cheese Balls (frozen)', 'pcs'],
+  butter: ['Butter', 'kg'], raw_sugar: ['Sugar', 'kg'], raw_milkmaid: ['Condensed Milk', 'kg'],
+  raw_smp: ['Milk Powder (SMP)', 'kg'], raw_tea_powder: ['Tea Powder', 'kg'],
+  tea_sugar_boxes: ['Tea+Sugar Boxes', 'boxes'], coffee_powder: ['Coffee Powder', 'kg'],
+  honey: ['Honey', 'kg'], lemons: ['Lemons', 'pcs'], oil: ['Cooking Oil', 'L'],
+  plain_buns: ['Plain Buns', 'pcs'], prepared_bun_maska: ['Bun Maska (prepared)', 'pcs'],
+  malai: ['Malai', 'kg'],
+  water_bottles_kitchen: ['Water Bottles (kitchen)', 'pcs'], water_bottles_display: ['Water Bottles (display)', 'pcs'],
+  niloufer_kitchen: ['Niloufer Boxes (kitchen)', 'pcs'], niloufer_display: ['Niloufer Boxes (display)', 'pcs'],
+  osmania_packets_kitchen: ['Osmania Packets (kitchen)', 'pkt'], osmania_packets_display: ['Osmania Packets (display)', 'pkt'],
+  osmania_loose_display: ['Osmania Loose (display)', 'pcs'],
+  fried_cutlets_kitchen: ['Fried Cutlets (kitchen)', 'pcs'], fried_cutlets_display: ['Fried Cutlets (display)', 'pcs'],
+  fried_samosa_kitchen: ['Fried Samosa (kitchen)', 'pcs'], fried_samosa_display: ['Fried Samosa (display)', 'pcs'],
+  fried_cheese_balls_kitchen: ['Fried Cheese Balls (kitchen)', 'pcs'], fried_cheese_balls_display: ['Fried Cheese Balls (display)', 'pcs'],
+  boiled_milk_kitchen: ['Boiled Milk (kitchen)', 'vessels'], boiled_milk_counter: ['Boiled Milk (counter)', 'vessels'],
+  tea_decoction_kitchen: ['Tea Decoction (kitchen)', 'vessels'], tea_decoction_counter: ['Tea Decoction (counter)', 'vessels'],
+};
+
+const RAW_INPUT_GROUPS = [
+  {name: 'Freezer', fields: ['raw_buffalo_milk','raw_cutlets','raw_samosa','raw_cheese_balls','butter']},
+  {name: 'Kitchen', fields: ['raw_sugar','raw_milkmaid','raw_smp','raw_tea_powder','tea_sugar_boxes','coffee_powder','honey','lemons','oil','plain_buns','water_bottles_kitchen','niloufer_kitchen','osmania_packets_kitchen','fried_cutlets_kitchen','fried_samosa_kitchen','fried_cheese_balls_kitchen','malai','boiled_milk_kitchen','tea_decoction_kitchen']},
+  {name: 'Display Counter', fields: ['water_bottles_display','niloufer_display','osmania_packets_display','osmania_loose_display','fried_cutlets_display','fried_samosa_display','fried_cheese_balls_display','prepared_bun_maska']},
+  {name: 'Tea Counter', fields: ['boiled_milk_counter','tea_decoction_counter']},
+];
+
+function renderRawInputTable(rawInput) {
+  if (!rawInput || Object.keys(rawInput).length === 0) return '<div style="color:var(--text2);font-size:13px">Raw data not recorded</div>';
+  let html = '';
+  for (const group of RAW_INPUT_GROUPS) {
+    const rows = [];
+    for (const field of group.fields) {
+      const val = rawInput[field];
+      const label = FIELD_LABELS[field];
+      if (!label) continue;
+      // Vessel entries (arrays)
+      if (Array.isArray(val) && val.length > 0) {
+        for (const v of val) {
+          if (v.weight_kg > 0) rows.push(`<tr><td>${label[0]} — ${v.vessel_code}</td><td class="num">${v.weight_kg} kg</td></tr>`);
+        }
+      } else if (typeof val === 'number' && val > 0) {
+        rows.push(`<tr><td>${label[0]}</td><td class="num">${val} ${label[1]}</td></tr>`);
+      }
+    }
+    if (rows.length > 0) {
+      html += `<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${group.name}</div>`;
+      html += `<table class="inv-table"><tr><th>Item</th><th style="text-align:right">Count</th></tr>${rows.join('')}</table></div>`;
+    }
+  }
+  return html || '<div style="color:var(--text2);font-size:13px">No items recorded</div>';
 }
 
 function renderPnlResult(data) {
@@ -1381,11 +1505,12 @@ function renderPnlResult(data) {
     </div>`;
   }
 
+  const periodStr = data.period ? `${formatTime(data.period.start)} → ${formatTime(data.period.end)} (${Math.floor(data.period.hours)}h ${Math.round((data.period.hours % 1) * 60)}m)` : '';
   html += `
     <div class="pnl-card">
       <div class="pnl-header">
-        <h2>☕ Daily P&L — ${data.settlementDate}</h2>
-        <div class="date">Settled by ${data.settledBy}</div>
+        <h2>☕ Settlement — ${data.settlementDate}</h2>
+        <div class="date">Settled by ${data.settledBy}${periodStr ? ` | ${periodStr}` : ''}</div>
       </div>
       <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
       ${p.revenueBreakdown && (p.revenueBreakdown.cashCounter > 0 || p.revenueBreakdown.runnerCounter > 0 || p.revenueBreakdown.whatsapp > 0) ? `
@@ -1404,9 +1529,16 @@ function renderPnlResult(data) {
     </div>
   `;
 
-  // Inventory breakdown
+  // Staff Physical Count (raw input)
+  if (data.rawInput) {
+    html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
+    html += renderRawInputTable(data.rawInput);
+    html += `</div>`;
+  }
+
+  // Inventory breakdown (decomposed)
   if (data.inventory) {
-    html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement</div>`;
+    html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
     html += renderInventoryMovement(data.inventory);
     html += `</div>`;
   }
@@ -1497,11 +1629,18 @@ async function loadHistory() {
     let html = '';
     for (const s of data.settlements) {
       const statusBadge = s.status === 'bootstrap' ? '<span class="badge badge-blue">Bootstrap</span>' : '<span class="badge badge-green">Completed</span>';
+      // Period duration
+      let periodLabel = '';
+      if (s.period_start && s.period_end && s.status !== 'bootstrap') {
+        const hrs = (new Date(s.period_end) - new Date(s.period_start)) / 3600000;
+        periodLabel = `<span style="font-size:11px;color:var(--muted);margin-left:8px">${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m</span>`;
+      }
       html += `
-        <div class="history-item" onclick="loadSettlementDetail('${s.settlement_date}')">
+        <div class="history-item" onclick="loadSettlementDetail(${s.id})">
           <div class="hi-top">
             <span class="hi-date">${s.settlement_date}</span>
-            ${statusBadge}
+            <span style="font-size:12px;color:var(--text2)">${formatTime(s.settled_at)}</span>
+            ${statusBadge}${periodLabel}
           </div>
           ${s.status === 'completed' ? `
           <div class="hi-grid">
@@ -1523,29 +1662,40 @@ async function loadHistory() {
   }
 }
 
-async function loadSettlementDetail(date) {
+async function loadSettlementDetail(id) {
   $('historyDetail').style.display = 'block';
-  $('historyDetail').innerHTML = `<div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading ${date}...</p></div>`;
+  $('historyDetail').innerHTML = `<div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading settlement #${id}...</p></div>`;
 
   try {
-    const res = await fetch(`${API}?action=get-settlement&date=${date}`);
+    const res = await fetch(`${API}?action=get-settlement&id=${id}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
 
     const s = data.settlement;
     let html = `<div style="margin-bottom:16px"><button class="btn btn-secondary" onclick="$('historyDetail').style.display='none'">← Back to list</button></div>`;
 
+    // Parse raw input for both views
+    let rawInput = null;
+    try { rawInput = JSON.parse(s.inventory_raw_input || '{}'); } catch {}
+
     if (s.status === 'bootstrap') {
       html += `
         <div class="alert alert-info" style="margin-bottom:16px"><span class="alert-icon">🏁</span><div class="alert-text"><strong>Bootstrap — ${s.settlement_date}</strong><br>Settled by ${s.settled_by} at ${formatTime(s.settled_at)}</div></div>
-        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory</div>
+        ${rawInput && Object.keys(rawInput).length > 0 ? `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>${renderRawInputTable(rawInput)}</div>` : ''}
+        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Baseline Inventory <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>
           ${renderInventoryTable(JSON.parse(s.inventory_decomposed || '{}'))}
         </div>
       `;
     } else {
+      // Period info
+      let periodLabel = '';
+      if (s.period_start && s.period_end) {
+        const hrs = (new Date(s.period_end) - new Date(s.period_start)) / 3600000;
+        periodLabel = ` | ${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m period`;
+      }
       html += `
         <div class="pnl-card">
-          <div class="pnl-header"><h2>☕ Daily P&L — ${s.settlement_date}</h2><div class="date">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}</div></div>
+          <div class="pnl-header"><h2>☕ Settlement — ${s.settlement_date}</h2><div class="date">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}${periodLabel}</div></div>
           <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
           <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
           <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(s.cogs_expected)}</span></div>
@@ -1559,7 +1709,9 @@ async function loadSettlementDetail(date) {
           <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
         </div>
 
-        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement</div>
+        ${rawInput && Object.keys(rawInput).length > 0 ? `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>${renderRawInputTable(rawInput)}</div>` : ''}
+
+        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>
           ${renderInventoryMovement({
             opening: JSON.parse(s.inventory_opening || '{}'),
             purchases: JSON.parse(s.inventory_purchases || '{}'),
