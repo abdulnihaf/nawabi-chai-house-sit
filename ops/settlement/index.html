@@ -1701,7 +1701,7 @@
             '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
             cpHtml+
             (ri.tokens>0?
-              '<div class="wizard-input-group"><label>Unsold tokens returned (₹)</label>'+
+              '<div class="wizard-input-group"><label>Unsold tokens (₹)</label>'+
               '<input type="number" id="wizUnsold'+i+'" value="'+ri.unsoldTokens+'" min="0" max="'+ri.tokens+'" step="10" inputmode="numeric" oninput="updateRunnerCalc('+i+')" '+(ri.absent?'disabled':'')+'>'+
               '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.tokens)+'</div></div>':'')+
             '<div class="wrc-calc" id="wizCalc'+i+'">Cash to collect: '+fmt(clampedCalc)+'</div>'+
