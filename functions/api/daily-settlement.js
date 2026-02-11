@@ -218,11 +218,10 @@ export async function onRequest(context) {
   // Default vessel weights (updated from DB if available)
   // These are starting approximations — real values entered after weighing
   const DEFAULT_VESSELS = {
-    'KIT-PATILA-1': {name: 'Kitchen Large Patila', liquid_type: 'boiled_milk', location: 'kitchen', empty_weight_kg: 13.28},
+    'KIT-PATILA-1': {name: 'Kitchen Large Patila', liquid_type: 'boiled_milk', location: 'kitchen', empty_weight_kg: 12.9},
     'CTR-MILK-1': {name: 'Counter Milk Vessel (Copper Samawar)', liquid_type: 'boiled_milk', location: 'counter', empty_weight_kg: 3.15},
-    'CTR-DEC-1': {name: 'Counter Decoction Vessel 1 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.0},
-    'CTR-DEC-2': {name: 'Counter Decoction Vessel 2 (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.0},
-    'KIT-DEC-1': {name: 'Kitchen Decoction Prep Vessel', liquid_type: 'decoction', location: 'kitchen', empty_weight_kg: 11.0},
+    'CTR-DEC-1': {name: 'Counter Decoction Vessel (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.05},
+    'KIT-DEC-1': {name: 'Kitchen Decoction Prep Vessel', liquid_type: 'decoction', location: 'kitchen', empty_weight_kg: 6.0},
   };
 
   const round = (v, d = 4) => Math.round(v * Math.pow(10, d)) / Math.pow(10, d);

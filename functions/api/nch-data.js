@@ -338,6 +338,65 @@ function processDashboardData(orders, payments, razorpayData) {
   };
   grandTotal.avgOrderValue = orders.length > 0 ? Math.round(grandTotal.allSales / orders.length) : 0;
 
+  // === SHIFT RECONCILIATION: The Master Intelligence Layer ===
+  // Total Sales = Cash + UPI (all 7 QRs) + Card + Complimentary
+  const totalRunnerCash = runnerSettlements.reduce((sum, r) => sum + Math.max(0, r.cashToCollect), 0);
+  const verifiedUPITotal = razorpayCounter.amount + razorpayRunnerCounter.amount + razorpayRunners.amount;
+  const expectedTotalCash = grandTotal.allSales - verifiedUPITotal - mainCounter.card - mainCounter.complimentary;
+  const accountedCash = mainCounter.cash + totalRunnerCash;
+  const reconVariance = Math.round((expectedTotalCash - accountedCash) * 100) / 100;
+
+  const shiftReconciliation = {
+    // The equation: totalSales = cash + UPI + card + complimentary
+    totalSales: grandTotal.allSales,
+
+    // Verified digital (goes to bank, not cash)
+    verifiedUPI: {
+      total: verifiedUPITotal,
+      counterQR: razorpayCounter.amount,
+      runnerCounterQR: razorpayRunnerCounter.amount,
+      runnerQRs: Object.fromEntries(
+        runnerSettlements.map(r => [r.barcode, r.upi])
+      ),
+    },
+    card: mainCounter.card,
+    complimentary: mainCounter.complimentary,
+
+    // Expected cash
+    expectedTotalCash,
+    cashBreakdown: {
+      counterDrawer: mainCounter.cash,
+      runnerCashObligations: runnerSettlements.map(r => ({
+        id: r.id, name: r.name, barcode: r.barcode,
+        tokens: r.tokens, sales: r.sales, upi: r.upi,
+        cashToCollect: r.cashToCollect,
+      })),
+      totalRunnerCash,
+    },
+
+    // The balance check
+    balanceCheck: {
+      expectedCash: expectedTotalCash,
+      accountedCash,
+      variance: reconVariance,
+      isBalanced: Math.abs(reconVariance) <= 1,
+      explanation: Math.abs(reconVariance) <= 1 ? 'Shift balanced'
+        : reconVariance > 0 ? `₹${Math.abs(reconVariance)} cash unaccounted — may be cross-payment or POS error`
+        : `₹${Math.abs(reconVariance)} extra cash accounted — check for cross-payments`,
+    },
+
+    // Cross-payments (from existing discrepancies that explain per-runner oddities)
+    crossPayments: discrepancies.filter(d => d.type === 'runner_upi_sale').map(d => ({
+      orderName: d.order, amount: d.amount, runner: d.runner,
+      description: `${d.order}: ₹${d.amount} — customer ordered from ${d.runner}, paid via Runner Counter UPI`,
+      runnerCashImpact: `${d.runner} may have ₹${d.amount} extra cash`,
+      shiftImpact: 'No impact — UPI total is correct',
+    })),
+
+    // UPI verification (already computed)
+    upiVerification: verification,
+  };
+
   // Backward compatible: razorpay field still has runner payments for live dashboard feed
   return {
     mainCounter,
@@ -349,6 +408,7 @@ function processDashboardData(orders, payments, razorpayData) {
     verification,
     grandTotal,
     discrepancies,
+    shiftReconciliation,
     summary: {
       totalOrders: orders.length,
       activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length,

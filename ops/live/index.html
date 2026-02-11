@@ -82,6 +82,13 @@
     .disc-item .di-text{flex:1;color:var(--text2);line-height:1.4}
     .disc-item .di-text strong{color:var(--text)}
     .disc-count{background:var(--red);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;margin-left:8px}
+    .shift-banner{border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:'JetBrains Mono',monospace;display:none}
+    .shift-banner.show{display:flex}
+    .shift-banner.balanced{background:rgba(16,185,129,0.1);border:1px solid var(--green)}
+    .shift-banner.warning{background:rgba(245,158,11,0.1);border:1px solid var(--yellow)}
+    .shift-banner.critical{background:rgba(239,68,68,0.1);border:1px solid var(--red)}
+    .shift-banner .sb-eq{flex:1}
+    .shift-banner .sb-status{font-weight:700;margin-left:12px;white-space:nowrap}
     @media(max-width:1024px){.grid-4{grid-template-columns:repeat(3,1fr) !important}.grid-2{grid-template-columns:1fr}}
     @media(max-width:640px){.grid-4{grid-template-columns:repeat(2,1fr) !important}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%}}
   </style>
@@ -115,6 +122,7 @@
       <div class="card"><div class="label">UPI Collected</div><div class="value blue" id="upiCollected">₹0</div><div class="sub">Counter + Razorpay</div></div>
       <div class="card"><div class="label">Active Runners</div><div class="value purple" id="activeRunners">0</div><div class="sub">With activity</div></div>
     </div>
+    <div class="shift-banner" id="shiftBanner"><span class="sb-eq" id="shiftEq"></span><span class="sb-status" id="shiftStatus"></span></div>
     <div class="section-title">Runner Position</div>
     <div class="table-wrap"><table><thead><tr><th>Runner</th><th>Tokens</th><th>Sales</th><th>UPI</th><th>Cash to Collect</th><th>Status</th></tr></thead><tbody id="runnerTable"><tr><td colspan="6" style="text-align:center;color:var(--muted)">Loading...</td></tr></tbody></table></div>
     <div class="disc-section" id="discSection">
@@ -158,6 +166,8 @@
     function update(data){const d=data.data;$('totalSales').textContent=fmt(d.grandTotal.allSales);$('totalOrders').textContent=d.summary.totalOrders+' orders';$('aov').textContent=fmt(d.grandTotal.avgOrderValue);$('tokenIssue').textContent='Token Issue: '+fmt(d.grandTotal.tokenIssue||0);$('cashCollect').textContent=fmt(d.grandTotal.cashToCollect);$('upiCollected').textContent=fmt(d.grandTotal.upiCollected);$('activeRunners').textContent=d.summary.activeRunners;$('counterCash').textContent=fmt(d.mainCounter.cash);$('counterUpi').textContent=fmt(d.mainCounter.upi);$('counterCard').textContent=fmt(d.mainCounter.card);$('counterToken').textContent=fmt(d.mainCounter.tokenIssue);$('counterComp').textContent=fmt(d.mainCounter.complimentary);$('runnerUpi').textContent=fmt(d.runnerCounter.upi);$('runnerTable').innerHTML=d.runners.length?d.runners.map(r=>'<tr><td><strong>'+r.name+'</strong> <span class="mono" style="color:var(--muted);font-size:11px">'+r.barcode+'</span></td><td class="mono">'+fmt(r.tokens)+'</td><td class="mono">'+fmt(r.sales)+'</td><td class="mono blue">'+fmt(r.upi)+'</td><td class="mono '+(r.cashToCollect>=0?'green':'red')+'">'+fmt(r.cashToCollect)+'</td><td><span class="badge pending">pending</span></td></tr>').join(''):'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No runner activity</td></tr>';
     // Discrepancies section
     const disc=d.discrepancies||[];if(disc.length>0){$('discSection').classList.add('show');$('discCount').textContent=disc.length;$('discList').innerHTML=disc.map(di=>{const cls=di.severity==='critical'?'critical':'warning';const icon=di.severity==='critical'?'🚨':'⚠️';return '<div class="disc-item '+cls+'"><span class="di-icon">'+icon+'</span><span class="di-text">'+di.message+'</span></div>';}).join('');}else{$('discSection').classList.remove('show');}
+    // Shift balance banner
+    const sr=d.shiftReconciliation;if(sr&&sr.totalSales>0){const bc=sr.balanceCheck;const banner=$('shiftBanner');banner.classList.add('show');banner.classList.remove('balanced','warning','critical');if(bc.isBalanced)banner.classList.add('balanced');else if(Math.abs(bc.variance)<=50)banner.classList.add('warning');else banner.classList.add('critical');const statusIcon=bc.isBalanced?'✅':Math.abs(bc.variance)<=50?'⚠️':'🚨';$('shiftEq').textContent='SHIFT: Sales '+fmt(sr.totalSales)+' = Cash '+fmt(bc.expectedCash)+' + UPI '+fmt(sr.verifiedUPI.total)+(sr.card>0?' + Card '+fmt(sr.card):'')+(sr.complimentary>0?' + Comp '+fmt(sr.complimentary):'');$('shiftStatus').textContent=statusIcon+(bc.isBalanced?' Balanced':' ₹'+Math.abs(bc.variance)+' variance');$('shiftStatus').style.color=bc.isBalanced?'var(--green)':Math.abs(bc.variance)<=50?'var(--yellow)':'var(--red)';}else{$('shiftBanner').classList.remove('show');}
     $('razorpayFeed').innerHTML=d.razorpay.payments.length?d.razorpay.payments.slice(0,15).map(p=>'<div class="feed-item"><div class="feed-left"><div class="feed-avatar">'+init(p.runner)+'</div><div><div class="feed-name">'+p.runner+'</div><div class="feed-time">'+fmtT(p.time)+'</div></div></div><span class="feed-amount">'+fmt(p.amount)+'</span></div>').join(''):'<div style="text-align:center;color:var(--muted);padding:20px;font-size:12px">No Razorpay payments</div>';$('dot').style.background='var(--green)';$('statusText').textContent=(isLive?'Live · ':'')+fmtT(data.timestamp);if(isLive){const now=new Date();$('toDate').value=dateStr(now);$('toTime').value=timeStr(now);}}
     function startTimer(){stopTimer();if(isLive)timer=setInterval(refresh,30000);}
     function stopTimer(){if(timer){clearInterval(timer);timer=null;}}

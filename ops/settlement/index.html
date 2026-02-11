@@ -130,6 +130,26 @@
     .discrepancy-item .di-icon{flex-shrink:0}
     .discrepancy-item .di-text{flex:1;color:var(--text2);line-height:1.4}
     .discrepancy-item .di-text strong{color:var(--text)}
+    .recon-panel{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:24px;margin-top:32px;display:none}
+    .recon-panel.show{display:block}
+    .recon-panel.balanced{border-color:var(--green)}
+    .recon-panel.warning{border-color:var(--yellow)}
+    .recon-panel.critical{border-color:var(--red)}
+    .recon-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .recon-equation{background:var(--bg2);border-radius:10px;padding:16px;margin:16px 0;text-align:center;font-family:'JetBrains Mono',monospace}
+    .recon-equation .eq-main{font-size:16px;font-weight:600;line-height:1.8}
+    .recon-equation .eq-status{font-size:14px;font-weight:700;margin-top:8px}
+    .recon-section{margin-top:16px}
+    .recon-section h4{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .recon-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+    .recon-row .rr-label{color:var(--text2)}
+    .recon-row .rr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .recon-row.total{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:600}
+    .recon-row.total .rr-label{color:var(--text)}
+    .cross-payment-notice{background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:10px;padding:14px;margin-top:12px;font-size:13px}
+    .cross-payment-notice .cpn-title{font-weight:600;color:var(--yellow);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+    .cross-payment-notice .cpn-item{color:var(--text2);line-height:1.5;padding:4px 0}
+    .cross-payment-notice .cpn-shift{color:var(--green);font-size:12px;margin-top:6px}
   </style>
 </head>
 <body>
@@ -168,6 +188,7 @@
       </div>
       <div class="counter-balance-readonly" id="counterBalanceReadonly"></div>
       <div class="collection-panel" id="collectionPanel"></div>
+      <div class="recon-panel" id="shiftReconPanel"></div>
     </div>
   </div>
   <script>
@@ -211,6 +232,7 @@
             $('dashboard').classList.add('show');
             renderRunners();
             loadCashAtCounter();
+            loadShiftReconciliation();
           },800);
         }else{
           pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
@@ -228,6 +250,8 @@
       $('collectionPanel').classList.remove('show');
       $('counterBalanceReadonly').classList.remove('show');
       $('panel').classList.remove('show');
+      $('shiftReconPanel').classList.remove('show');
+      lastShiftReconData=null;
       pins.forEach(p=>{p.value='';p.classList.remove('filled');});
       pins[0].focus();
     }
@@ -436,7 +460,8 @@
           if(cash>0){settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';}
           else if(cash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
           else{settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+discHtml+statusBox+settleBtn;
+          const crossPayHtml=renderCrossPaymentNotice(selectedRunner.name);
+          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+discHtml+crossPayHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
           else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
@@ -451,7 +476,7 @@
         const now=new Date();
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:currentRunnerData.cashToCollect,notes:'Settled via dashboard'})});
         const data=await res.json();
-        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();},1500);}
+        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();},1500);}
         else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
@@ -463,7 +488,7 @@
         const now=new Date();const cashToSettle=currentCounterData.cash;
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:'counter',runner_name:'Cash Counter',settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:0,sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,upi_amount:currentCounterData.upi+currentCounterData.card,cash_settled:cashToSettle,notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card})});
         const data=await res.json();
-        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();},1500);}
+        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();loadShiftReconciliation();},1500);}
         else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
@@ -681,6 +706,93 @@
           setTimeout(()=>loadCashAtCounter(),2500);
         }else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+    }
+
+    // ========== SHIFT RECONCILIATION ==========
+    let lastShiftReconData=null;
+
+    async function loadShiftReconciliation(){
+      try{
+        const now=new Date();const todayISO=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+'T00:00:00';
+        const res=await fetch('/api/nch-data?from='+todayISO);
+        const data=await res.json();
+        if(!data.success||!data.data.shiftReconciliation){$('shiftReconPanel').classList.remove('show');return;}
+        const sr=data.data.shiftReconciliation;
+        lastShiftReconData=sr;
+        const bc=sr.balanceCheck;
+        const panel=$('shiftReconPanel');
+        panel.classList.add('show');
+        panel.classList.remove('balanced','warning','critical');
+        if(bc.isBalanced)panel.classList.add('balanced');
+        else if(Math.abs(bc.variance)<=50)panel.classList.add('warning');
+        else panel.classList.add('critical');
+
+        const statusIcon=bc.isBalanced?'✅':Math.abs(bc.variance)<=50?'⚠️':'🚨';
+        const statusText=bc.isBalanced?'SHIFT BALANCED':bc.variance>0?'₹'+Math.abs(bc.variance)+' UNACCOUNTED':'₹'+Math.abs(bc.variance)+' EXTRA';
+        const statusColor=bc.isBalanced?'var(--green)':Math.abs(bc.variance)<=50?'var(--yellow)':'var(--red)';
+
+        let html='<h3>'+statusIcon+' Shift Reconciliation</h3>';
+        html+='<div class="recon-equation">';
+        html+='<div class="eq-main">Sales '+fmt(sr.totalSales)+' = Cash '+fmt(bc.expectedCash)+' + UPI '+fmt(sr.verifiedUPI.total)+' + Card '+fmt(sr.card)+' + Comp '+fmt(sr.complimentary)+'</div>';
+        html+='<div class="eq-status" style="color:'+statusColor+'">'+statusText+'</div>';
+        html+='</div>';
+
+        // Cash breakdown
+        html+='<div class="recon-section"><h4>Cash Breakdown</h4>';
+        html+='<div class="recon-row"><span class="rr-label">Counter Drawer (PM 37)</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
+        for(const r of sr.cashBreakdown.runnerCashObligations){
+          if(r.tokens>0||r.sales>0||r.upi>0){
+            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash Owed</span><span class="rr-val" style="color:'+(r.cashToCollect>=0?'var(--green)':'var(--red)')+'">'+fmt(r.cashToCollect)+'</span></div>';
+          }
+        }
+        html+='<div class="recon-row total"><span class="rr-label">Total Expected Cash</span><span class="rr-val">'+fmt(bc.expectedCash)+'</span></div>';
+        html+='</div>';
+
+        // UPI breakdown
+        html+='<div class="recon-section"><h4>UPI Breakdown (Razorpay Verified)</h4>';
+        html+='<div class="recon-row"><span class="rr-label">Counter QR</span><span class="rr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI.counterQR)+'</span></div>';
+        html+='<div class="recon-row"><span class="rr-label">Runner Counter QR</span><span class="rr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI.runnerCounterQR)+'</span></div>';
+        for(const [barcode,amt] of Object.entries(sr.verifiedUPI.runnerQRs)){
+          if(amt>0)html+='<div class="recon-row"><span class="rr-label">'+barcode+' QR</span><span class="rr-val">'+fmt(amt)+'</span></div>';
+        }
+        html+='<div class="recon-row total"><span class="rr-label">Total Verified UPI</span><span class="rr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI.total)+'</span></div>';
+        html+='</div>';
+
+        // Card + Comp
+        if(sr.card>0||sr.complimentary>0){
+          html+='<div class="recon-section"><h4>Other</h4>';
+          if(sr.card>0)html+='<div class="recon-row"><span class="rr-label">Card</span><span class="rr-val">'+fmt(sr.card)+'</span></div>';
+          if(sr.complimentary>0)html+='<div class="recon-row"><span class="rr-label">Complimentary</span><span class="rr-val" style="color:var(--text2)">'+fmt(sr.complimentary)+'</span></div>';
+          html+='</div>';
+        }
+
+        // Cross-payments
+        if(sr.crossPayments&&sr.crossPayments.length>0){
+          html+='<div class="recon-section"><h4>Cross-Payments</h4>';
+          for(const cp of sr.crossPayments){
+            html+='<div class="cross-payment-notice"><div class="cpn-title">⚠️ '+cp.orderName+'</div><div class="cpn-item">'+cp.description+'</div><div class="cpn-item">'+cp.runnerCashImpact+'</div><div class="cpn-shift">'+cp.shiftImpact+'</div></div>';
+          }
+          html+='</div>';
+        }
+
+        panel.innerHTML=html;
+      }catch(e){console.error('Shift recon error:',e);}
+    }
+
+    function getCrossPaymentsForRunner(runnerName){
+      if(!lastShiftReconData||!lastShiftReconData.crossPayments)return[];
+      return lastShiftReconData.crossPayments.filter(cp=>cp.runner===runnerName);
+    }
+
+    function renderCrossPaymentNotice(runnerName){
+      const cps=getCrossPaymentsForRunner(runnerName);
+      if(cps.length===0)return '';
+      let html='<div class="cross-payment-notice"><div class="cpn-title">⚠️ Cross-Payment Notice</div>';
+      for(const cp of cps){
+        html+='<div class="cpn-item">'+cp.description+'</div><div class="cpn-item" style="color:var(--yellow)">'+cp.runnerCashImpact+'</div>';
+      }
+      html+='<div class="cpn-shift">Shift total is correct — UPI covers this amount at the counter level.</div></div>';
+      return html;
     }
 
     pins[0].focus();
