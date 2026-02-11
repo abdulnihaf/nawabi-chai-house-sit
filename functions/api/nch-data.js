@@ -253,37 +253,37 @@ function processDashboardData(orders, payments, razorpayData) {
         }
 
         // Runner-attributed sale at Runner Counter
-        // Check payment method to distinguish Runner Ledger vs UPI
-        let isUpiSale = false;
+        // Process each payment line separately to handle split payments correctly
+        // (e.g., ₹100 Runner Ledger + ₹50 UPI on the same order)
+        let upiAmount = 0;
+        let runnerLedgerAmount = 0;
         orderPayments.forEach(p => {
           const mid = p.payment_method_id ? p.payment_method_id[0] : null;
-          if (mid === PM.UPI) {
-            isUpiSale = true;
-          }
+          if (mid === PM.UPI) upiAmount += p.amount;
+          else if (mid === PM.RUNNER_LEDGER) runnerLedgerAmount += p.amount;
         });
 
-        if (isUpiSale) {
-          // Cross-payment: order IS this runner's, but paid via Counter/Runner Counter UPI
-          // Add to runner's sales (the order belongs to them)
-          runners[runnerId].sales += order.amount_total;
-          // Track as cross-payment credit (reduces cash obligation — money went to bank via UPI)
+        // The order IS this runner's — ALWAYS add full amount to sales
+        runners[runnerId].sales += order.amount_total;
+        runnerCounter.orderCount++;
+
+        if (upiAmount > 0) {
+          // UPI portion = cross-payment credit (money went to bank, not runner's cash)
           crossPaymentsList.push({
             type: 'runner_order_paid_other_channel',
             orderId: order.id, orderName: order.name,
-            amount: order.amount_total,
+            amount: upiAmount,
             runnerOwner: runners[runnerId].name,
             runnerOwnerId: runnerId,
             paidViaChannel: 'counter_upi',
             paidViaLabel: 'Counter/Runner Counter UPI',
           });
-          // Track UPI for Razorpay cross-verification only
-          runnerCounter.orderCount++;
-          runnerCounter.upi += order.amount_total;
-          // NOTE: Do NOT add to runnerCounter.total — already counted via runner's sales
-        } else {
-          // Normal: Runner Ledger (PM 40) — runner collected the money
-          runners[runnerId].sales += order.amount_total;
-          runnerCounter.runnerLedger += order.amount_total;
+          // Track only the actual UPI amount for Razorpay verification
+          runnerCounter.upi += upiAmount;
+        }
+        if (runnerLedgerAmount > 0) {
+          // Runner Ledger portion = normal cash obligation (runner has this cash)
+          runnerCounter.runnerLedger += runnerLedgerAmount;
         }
       } else {
         // Direct walk-in sale at runner counter (no runner attribution)
