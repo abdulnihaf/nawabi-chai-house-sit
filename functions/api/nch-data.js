@@ -461,6 +461,13 @@ function processDashboardData(orders, payments, razorpayData) {
         if (noRunner.length > 0) sources.push({ type: 'no_runner_selected', count: noRunner.length, amount: noRunner.reduce((s, m) => s + m.amount, 0), fixable: true, label: 'No runner on order' });
         if (Math.abs(verification.cashCounter.variance) > 1) sources.push({ type: 'upi_mismatch_counter', count: 1, amount: verification.cashCounter.variance, fixable: false, label: 'Counter UPI mismatch (Odoo vs Razorpay)' });
         if (Math.abs(verification.runnerCounter.variance) > 1) sources.push({ type: 'upi_mismatch_runner_counter', count: 1, amount: verification.runnerCounter.variance, fixable: false, label: 'Runner Counter UPI mismatch' });
+        // Runner UPI over-collection: when runner collects more UPI than their obligation,
+        // cashToCollect goes negative but Math.max(0) clips it — creating hidden variance
+        const overCollectors = runnerSettlements.filter(r => r.cashToCollect < -1);
+        if (overCollectors.length > 0) {
+          const totalOverCollection = overCollectors.reduce((s, r) => s + Math.abs(r.cashToCollect), 0);
+          sources.push({ type: 'runner_upi_overcollection', count: overCollectors.length, amount: -totalOverCollection, fixable: false, label: 'Runner UPI over-collection (' + overCollectors.map(r => r.name).join(', ') + ')' });
+        }
         return sources;
       })()
     ],

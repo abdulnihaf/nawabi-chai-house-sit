@@ -1014,7 +1014,7 @@
 
         // Cash breakdown
         html+='<div class="recon-section"><h4>Cash Breakdown</h4>';
-        html+='<div class="recon-row"><span class="rr-label">Counter Drawer (PM 37)</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
+        html+='<div class="recon-row"><span class="rr-label">Counter Drawer (Unsettled)</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
         for(const r of sr.cashBreakdown.runnerCashObligations){
           if(r.tokens>0||r.sales>0||r.upi>0){
             html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash Owed</span><span class="rr-val" style="color:'+(r.cashToCollect>=0?'var(--green)':'var(--red)')+'">'+fmt(r.cashToCollect)+'</span></div>';
