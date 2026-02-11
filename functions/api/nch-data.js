@@ -153,8 +153,16 @@ function processDashboardData(orders, payments, razorpayData) {
     68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0}
   };
   const barcodeToPartner = {'RUN001': 64, 'RUN002': 65, 'RUN003': 66, 'RUN004': 67, 'RUN005': 68};
+  const PARTNER_ALIASES = { 90: 64, 37: 64 }; // Known duplicate partners → correct runner
   const PM = {CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMPLIMENTARY: 49};
   const POS = {CASH_COUNTER: 27, RUNNER_COUNTER: 28};
+
+  // Resolve partner to known runner (handles aliases/duplicates)
+  function resolveRunner(partnerId) {
+    if (partnerId && runners[partnerId]) return { id: partnerId, alias: false };
+    if (partnerId && PARTNER_ALIASES[partnerId]) return { id: PARTNER_ALIASES[partnerId], alias: true, original: partnerId };
+    return null;
+  }
 
   const paymentsByOrder = {};
   payments.forEach(p => {
@@ -167,6 +175,8 @@ function processDashboardData(orders, payments, razorpayData) {
   const runnerCounter = {total: 0, upi: 0, runnerLedger: 0, orderCount: 0};
   // Discrepancies detected during processing
   const discrepancies = [];
+  // Orders with wrong/missing runner attribution (fixable via rectification)
+  const misattributedOrders = [];
 
   orders.forEach(order => {
     const configId = order.config_id ? order.config_id[0] : null;
@@ -179,49 +189,86 @@ function processDashboardData(orders, payments, razorpayData) {
         runners[partnerId].tokens += order.amount_total;
         mainCounter.tokenIssue += order.amount_total;
       } else {
-        // Check D5: Token Issue PM used without a runner selected
-        const hasTokenIssuePM = orderPayments.some(p => (p.payment_method_id ? p.payment_method_id[0] : null) === PM.TOKEN_ISSUE);
-        if (hasTokenIssuePM && !partnerId) {
-          discrepancies.push({type: 'token_issue_no_runner', severity: 'critical', order: order.name, amount: order.amount_total, message: `${order.name} — ₹${order.amount_total} Token Issue without runner selected. Tokens given but no runner will be charged.`});
+        // Check for alias resolution (duplicate partner → correct runner)
+        const resolved = resolveRunner(partnerId);
+        if (resolved && resolved.alias) {
+          // Auto-resolve: treat as correct runner, flag for rectification
+          runners[resolved.id].tokens += order.amount_total;
+          mainCounter.tokenIssue += order.amount_total;
+          misattributedOrders.push({
+            order_id: order.id, order_name: order.name, amount: order.amount_total,
+            date_order: order.date_order, config_id: configId,
+            current_partner_id: resolved.original, current_partner_name: order.partner_id ? order.partner_id[1] : null,
+            correct_partner_id: resolved.id, correct_runner_name: runners[resolved.id].name,
+            payment_methods: orderPayments.map(p => p.payment_method_id ? p.payment_method_id[0] : null),
+            auto_resolved: true
+          });
+        } else {
+          // Check D5: Token Issue PM used without a runner selected
+          const hasTokenIssuePM = orderPayments.some(p => (p.payment_method_id ? p.payment_method_id[0] : null) === PM.TOKEN_ISSUE);
+          if (hasTokenIssuePM && !partnerId) {
+            discrepancies.push({type: 'token_issue_no_runner', severity: 'critical', order: order.name, amount: order.amount_total, message: `${order.name} — ₹${order.amount_total} Token Issue without runner selected. Tokens given but no runner will be charged.`});
+            misattributedOrders.push({
+              order_id: order.id, order_name: order.name, amount: order.amount_total,
+              date_order: order.date_order, config_id: configId,
+              current_partner_id: null, current_partner_name: null,
+              correct_partner_id: null, correct_runner_name: null,
+              payment_methods: orderPayments.map(p => p.payment_method_id ? p.payment_method_id[0] : null),
+              auto_resolved: false
+            });
+          }
+          // Direct counter sale to customer
+          mainCounter.orderCount++;
+          mainCounter.total += order.amount_total;
+          orderPayments.forEach(p => {
+            const mid = p.payment_method_id ? p.payment_method_id[0] : null;
+            if (mid === PM.CASH) mainCounter.cash += p.amount;
+            else if (mid === PM.UPI) mainCounter.upi += p.amount;
+            else if (mid === PM.CARD) mainCounter.card += p.amount;
+            else if (mid === PM.COMPLIMENTARY) mainCounter.complimentary += p.amount;
+          });
         }
-        // Direct counter sale to customer
-        mainCounter.orderCount++;
-        mainCounter.total += order.amount_total;
-        orderPayments.forEach(p => {
-          const mid = p.payment_method_id ? p.payment_method_id[0] : null;
-          if (mid === PM.CASH) mainCounter.cash += p.amount;
-          else if (mid === PM.UPI) mainCounter.upi += p.amount;
-          else if (mid === PM.CARD) mainCounter.card += p.amount;
-          else if (mid === PM.COMPLIMENTARY) mainCounter.complimentary += p.amount;
-        });
       }
     } else if (configId === POS.RUNNER_COUNTER) {
-      if (partnerId && runners[partnerId]) {
+      // Check for known runner OR alias resolution
+      const effectiveRunner = (partnerId && runners[partnerId]) ? { id: partnerId, alias: false } : resolveRunner(partnerId);
+      const isKnownRunner = effectiveRunner && (effectiveRunner.alias === false);
+      const isAliasRunner = effectiveRunner && effectiveRunner.alias;
+
+      if (isKnownRunner || isAliasRunner) {
+        const runnerId = effectiveRunner.id;
+
+        // If alias, flag for rectification
+        if (isAliasRunner) {
+          misattributedOrders.push({
+            order_id: order.id, order_name: order.name, amount: order.amount_total,
+            date_order: order.date_order, config_id: configId,
+            current_partner_id: effectiveRunner.original, current_partner_name: order.partner_id ? order.partner_id[1] : null,
+            correct_partner_id: runnerId, correct_runner_name: runners[runnerId].name,
+            payment_methods: orderPayments.map(p => p.payment_method_id ? p.payment_method_id[0] : null),
+            auto_resolved: true
+          });
+        }
+
         // Runner-attributed sale at Runner Counter
         // Check payment method to distinguish Runner Ledger vs UPI
         let isUpiSale = false;
         orderPayments.forEach(p => {
           const mid = p.payment_method_id ? p.payment_method_id[0] : null;
           if (mid === PM.UPI) {
-            // This order was WRONGLY recorded as UPI instead of Runner Ledger
-            // OR the runner counter person took a direct UPI sale but attributed it to the runner
-            // Either way, this needs to be tracked
             isUpiSale = true;
           }
         });
 
         if (isUpiSale) {
           // D3: Runner-attributed order paid as UPI instead of Runner Ledger
-          discrepancies.push({type: 'runner_upi_sale', severity: 'warning', order: order.name, runner: runners[partnerId].name, amount: order.amount_total, message: `${order.name} → ${runners[partnerId].name} — ₹${order.amount_total} paid UPI, should be Runner Ledger`});
-          // This sale is attributed to a runner BUT paid via UPI (PM 38)
-          // The runner should NOT be responsible for this cash
-          // Track it as runner counter UPI, not runner sales
+          discrepancies.push({type: 'runner_upi_sale', severity: 'warning', order: order.name, runner: runners[runnerId].name, amount: order.amount_total, message: `${order.name} → ${runners[runnerId].name} — ₹${order.amount_total} paid UPI, should be Runner Ledger`});
           runnerCounter.orderCount++;
           runnerCounter.total += order.amount_total;
           runnerCounter.upi += order.amount_total;
         } else {
           // Normal: Runner Ledger (PM 40) — runner collected the money
-          runners[partnerId].sales += order.amount_total;
+          runners[runnerId].sales += order.amount_total;
           runnerCounter.runnerLedger += order.amount_total;
         }
       } else {
@@ -230,6 +277,14 @@ function processDashboardData(orders, payments, razorpayData) {
         const hasRunnerLedger = orderPayments.some(p => (p.payment_method_id ? p.payment_method_id[0] : null) === PM.RUNNER_LEDGER);
         if (hasRunnerLedger) {
           discrepancies.push({type: 'runner_ledger_no_runner', severity: 'critical', order: order.name, amount: order.amount_total, message: `${order.name} — ₹${order.amount_total} Runner Ledger without runner selected. Cash is unaccounted.`});
+          misattributedOrders.push({
+            order_id: order.id, order_name: order.name, amount: order.amount_total,
+            date_order: order.date_order, config_id: configId,
+            current_partner_id: null, current_partner_name: null,
+            correct_partner_id: null, correct_runner_name: null,
+            payment_methods: orderPayments.map(p => p.payment_method_id ? p.payment_method_id[0] : null),
+            auto_resolved: false
+          });
         }
         // This is the rush-hour UPI flow: customer pays at runner counter QR
         runnerCounter.orderCount++;
@@ -395,6 +450,20 @@ function processDashboardData(orders, payments, razorpayData) {
 
     // UPI verification (already computed)
     upiVerification: verification,
+
+    // Variance source classification — tells cashier exactly WHY shift doesn't balance
+    varianceSources: [
+      ...(() => {
+        const misattributed = misattributedOrders.filter(m => m.auto_resolved);
+        const noRunner = misattributedOrders.filter(m => !m.auto_resolved);
+        const sources = [];
+        if (misattributed.length > 0) sources.push({ type: 'misattributed_runner', count: misattributed.length, amount: misattributed.reduce((s, m) => s + m.amount, 0), fixable: true, label: 'Wrong runner contact selected' });
+        if (noRunner.length > 0) sources.push({ type: 'no_runner_selected', count: noRunner.length, amount: noRunner.reduce((s, m) => s + m.amount, 0), fixable: true, label: 'No runner on order' });
+        if (Math.abs(verification.cashCounter.variance) > 1) sources.push({ type: 'upi_mismatch_counter', count: 1, amount: verification.cashCounter.variance, fixable: false, label: 'Counter UPI mismatch (Odoo vs Razorpay)' });
+        if (Math.abs(verification.runnerCounter.variance) > 1) sources.push({ type: 'upi_mismatch_runner_counter', count: 1, amount: verification.runnerCounter.variance, fixable: false, label: 'Runner Counter UPI mismatch' });
+        return sources;
+      })()
+    ],
   };
 
   // Backward compatible: razorpay field still has runner payments for live dashboard feed
@@ -408,6 +477,7 @@ function processDashboardData(orders, payments, razorpayData) {
     verification,
     grandTotal,
     discrepancies,
+    misattributedOrders,
     shiftReconciliation,
     summary: {
       totalOrders: orders.length,

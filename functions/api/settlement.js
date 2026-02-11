@@ -9,6 +9,11 @@ export async function onRequest(context) {
   const WA_PHONE_ID = context.env.WA_PHONE_ID || '970365416152029';
   const ALERT_RECIPIENTS = ['917010426808', '918073476051']; // Nihaf, Naveen
 
+  // Odoo constants for rectification API
+  const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+  const ODOO_DB = 'main';
+  const ODOO_UID = 2;
+
   // PIN verification — matches Odoo POS employee PINs
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
   // Users who can collect cash from counter (owner/manager level)
@@ -83,7 +88,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes} = body;
+      const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes} = body;
 
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
@@ -103,11 +108,11 @@ export async function onRequest(context) {
 
       const settledAt = new Date().toISOString();
       await DB.prepare(`
-        INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         String(runner_id), runner_name || runner.name, settledAt, settled_by,
-        period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, notes || ''
+        period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, unsold_tokens || 0, notes || ''
       ).run();
 
       // Trigger background audit — runs async, user gets immediate response
@@ -343,6 +348,93 @@ export async function onRequest(context) {
       ).bind(limit).all();
 
       return new Response(JSON.stringify({success: true, collections: results.results}), {headers: corsHeaders});
+    }
+
+    // === DISCREPANCY RECTIFICATION (fix wrong/missing runner in Odoo) ===
+    if (action === 'rectify-discrepancy' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const body = await context.request.json();
+      const {pin, order_id, order_name, correct_partner_id, original_partner_id} = body;
+
+      // 1. Verify PIN
+      if (!pin || !PINS[pin]) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid PIN'}), {headers: corsHeaders});
+      }
+      const rectifiedBy = PINS[pin];
+
+      // 2. Validate target runner
+      if (!correct_partner_id || !RUNNERS[correct_partner_id]) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid runner selected'}), {headers: corsHeaders});
+      }
+
+      // 3. Duplicate check — don't rectify same order twice
+      const existing = await DB.prepare(
+        "SELECT id FROM audit_logs WHERE check_type = 'rectification' AND details LIKE ?"
+      ).bind(`%"order_id":${order_id}%`).first();
+      if (existing) {
+        return new Response(JSON.stringify({success: false, error: 'This order was already rectified'}), {headers: corsHeaders});
+      }
+
+      // 4. Call Odoo to update partner_id on the POS order
+      let odooSuccess = false;
+      let odooError = null;
+      try {
+        const odooPayload = {
+          jsonrpc: '2.0', method: 'call',
+          params: {
+            service: 'object', method: 'execute_kw',
+            args: [ODOO_DB, ODOO_UID, context.env.ODOO_API_KEY,
+              'pos.order', 'write', [[order_id], {partner_id: correct_partner_id}]]
+          }, id: Date.now()
+        };
+        const odooRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(odooPayload)});
+        const odooData = await odooRes.json();
+        odooSuccess = !odooData.error;
+        if (odooData.error) odooError = JSON.stringify(odooData.error);
+      } catch (e) {
+        odooError = e.message;
+      }
+
+      // 5. Log to audit_logs
+      const details = JSON.stringify({
+        order_id, order_name,
+        original_partner_id: original_partner_id || null,
+        correct_partner_id,
+        correct_runner_name: RUNNERS[correct_partner_id].name,
+        rectified_by: rectifiedBy,
+        odoo_success: odooSuccess,
+        odoo_error: odooError
+      });
+      await DB.prepare(
+        'INSERT INTO audit_logs (check_type, severity, message, details, alerted_to, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(
+        'rectification',
+        odooSuccess ? 'info' : 'warning',
+        `${order_name}: partner ${original_partner_id || 'none'}→${correct_partner_id} (${RUNNERS[correct_partner_id].name}) by ${rectifiedBy}`,
+        details,
+        'nihaf,naveen',
+        new Date().toISOString()
+      ).run();
+
+      // 6. WhatsApp alert
+      if (WA_TOKEN) {
+        const statusEmoji = odooSuccess ? '✅' : '⚠️';
+        const msg = `🔧 *NCH Rectification*\n\n${statusEmoji} ${order_name}\nPartner: ${original_partner_id || 'none'} → ${correct_partner_id} (${RUNNERS[correct_partner_id].name})\nBy: ${rectifiedBy}\nOdoo: ${odooSuccess ? 'Updated' : 'Failed — ' + (odooError || 'unknown')}`;
+        context.waitUntil(Promise.all(ALERT_RECIPIENTS.map(to =>
+          sendWhatsAppAlert(WA_PHONE_ID, WA_TOKEN, to, msg)
+        )).catch(e => console.error('Rectification alert error:', e.message)));
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        rectified: true,
+        odoo_success: odooSuccess,
+        odoo_error: odooError,
+        message: odooSuccess
+          ? `${order_name} rectified to ${RUNNERS[correct_partner_id].name}`
+          : `Logged rectification but Odoo update failed: ${odooError}. Settlement math is still correct via auto-resolution.`
+      }), {headers: corsHeaders});
     }
 
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});

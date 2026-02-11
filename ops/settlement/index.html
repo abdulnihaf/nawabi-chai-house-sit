@@ -150,6 +150,40 @@
     .cross-payment-notice .cpn-title{font-weight:600;color:var(--yellow);margin-bottom:6px;display:flex;align-items:center;gap:6px}
     .cross-payment-notice .cpn-item{color:var(--text2);line-height:1.5;padding:4px 0}
     .cross-payment-notice .cpn-shift{color:var(--green);font-size:12px;margin-top:6px}
+    .rectify-panel{background:var(--card);border:2px solid var(--orange);border-radius:16px;padding:24px;margin-bottom:32px;display:none}
+    .rectify-panel.show{display:block}
+    .rectify-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .rectify-panel .subtitle{font-size:13px;color:var(--text2);margin-bottom:16px}
+    .rectify-card{background:var(--bg2);border-radius:10px;padding:16px;margin-bottom:10px;border-left:3px solid var(--orange)}
+    .rectify-card.critical{border-left-color:var(--red)}
+    .rectify-card.fixed{opacity:0.4;pointer-events:none}
+    .rectify-card .rc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .rectify-card .rc-order{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:14px}
+    .rectify-card .rc-amount{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--orange)}
+    .rectify-card .rc-detail{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px}
+    .rectify-card .rc-actions{display:flex;gap:8px;align-items:center}
+    .rectify-card select{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:8px 10px;flex:1}
+    .rectify-card select:focus{outline:none;border-color:var(--orange)}
+    .rectify-btn{background:var(--orange);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+    .rectify-btn:hover{background:#ea580c}
+    .rectify-btn:disabled{background:var(--border);cursor:not-allowed}
+    .unsold-input-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0}
+    .unsold-input-box label{font-size:12px;color:var(--text2);display:block;margin-bottom:6px}
+    .unsold-input-box input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;padding:10px;font-family:'JetBrains Mono',monospace}
+    .unsold-input-box input:focus{outline:none;border-color:var(--orange)}
+    .unsold-input-box .hint{font-size:11px;color:var(--text2);margin-top:4px}
+    .cash-breakdown-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+    .cash-breakdown-row .cbr-label{color:var(--text2)}
+    .cash-breakdown-row .cbr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .cash-breakdown-row.total{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:600}
+    .cash-breakdown-row.total .cbr-label{color:var(--text)}
+    .badge-count{background:var(--orange);color:#fff;border-radius:12px;font-size:12px;font-weight:700;padding:2px 8px;margin-left:8px}
+    .variance-source{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .variance-source:last-child{border-bottom:none}
+    .variance-source .vs-label{color:var(--text2);flex:1}
+    .variance-source .vs-amount{font-family:'JetBrains Mono',monospace;font-weight:600;margin:0 8px}
+    .variance-source .vs-fix{background:var(--orange);color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600}
+    .variance-source .vs-fix:hover{background:#ea580c}
   </style>
 </head>
 <body>
@@ -179,6 +213,7 @@
     <div class="content">
       <div class="section-title">Select Runner, Counter, or Record Expense</div>
       <div class="runner-grid" id="runnerGrid"></div>
+      <div class="rectify-panel" id="discrepancyPanel"></div>
       <div class="panel" id="panel">
         <div class="panel-header">
           <h2 id="runnerName"></h2>
@@ -233,6 +268,7 @@
             renderRunners();
             loadCashAtCounter();
             loadShiftReconciliation();
+            loadDiscrepancies();
           },800);
         }else{
           pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
@@ -251,6 +287,7 @@
       $('counterBalanceReadonly').classList.remove('show');
       $('panel').classList.remove('show');
       $('shiftReconPanel').classList.remove('show');
+      $('discrepancyPanel').classList.remove('show');
       lastShiftReconData=null;
       pins.forEach(p=>{p.value='';p.classList.remove('filled');});
       pins[0].focus();
@@ -455,13 +492,24 @@
         else if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+' (₹'+hasLast.cash_settled.toLocaleString('en-IN')+' cash)</div>';}
         else{statusBox='<div class="info-box">⚠️ Never settled. Showing from baseline (Feb 4, 5 PM).</div>';}
         if(hasActivity){
-          const cash=runner.cashToCollect;currentRunnerData=runner;
+          const baseCash=runner.cashToCollect;currentRunnerData=runner;
+          // Unsold token input: only show if runner has tokens
+          let unsoldHtml='';
+          if(runner.tokens>0){
+            unsoldHtml='<div class="unsold-input-box">'+
+              '<label>Unsold Tokens Returned (₹ amount)</label>'+
+              '<input type="number" id="unsoldTokensInput" min="0" max="'+runner.tokens+'" value="0" step="10" inputmode="numeric" oninput="recalcRunnerCash()">'+
+              '<div class="hint">Enter the ₹ value of unsold tokens the runner is returning. Max: '+fmt(runner.tokens)+'</div>'+
+            '</div>'+
+            '<div class="row" id="effectiveTokensRow"><span class="label">Effective Tokens Sold</span><span class="value" id="effectiveTokensVal">'+fmt(runner.tokens)+'</span></div>';
+          }
+          const cashColor=baseCash>=0?'var(--green)':'var(--red)';
           let settleBtn='';
-          if(cash>0){settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Settle '+fmt(cash)+' Cash</button>';}
-          else if(cash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
-          else{settleBtn='<button class="settle-btn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
+          if(baseCash>0){settleBtn='<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Settle '+fmt(baseCash)+' Cash</button>';}
+          else if(baseCash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" id="settleRunnerBtn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
+          else{settleBtn='<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
           const crossPayHtml=renderCrossPaymentNotice(selectedRunner.name);
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div><div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" style="color:'+(cash>=0?'var(--green)':'var(--red)')+'">'+fmt(cash)+'</span></div>'+discHtml+crossPayHtml+statusBox+settleBtn;
+          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>'+unsoldHtml+'<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" id="cashToCollectVal" style="color:'+cashColor+'">'+fmt(baseCash)+'</span></div>'+discHtml+crossPayHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
           else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
@@ -471,14 +519,41 @@
 
     async function settleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
-      const btn=document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
+      const btn=document.getElementById('settleRunnerBtn')||document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
       try{
         const now=new Date();
-        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:currentRunnerData.cashToCollect,notes:'Settled via dashboard'})});
+        const unsoldInput=document.getElementById('unsoldTokensInput');
+        const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
+        const effectiveCash=currentRunnerData.cashToCollect-unsoldTokens;
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:effectiveCash,unsold_tokens:unsoldTokens,notes:unsoldTokens>0?'Unsold tokens: '+fmt(unsoldTokens):'Settled via dashboard'})});
         const data=await res.json();
-        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();},1500);}
+        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();},1500);}
         else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+    }
+
+    function recalcRunnerCash(){
+      if(!currentRunnerData)return;
+      const unsoldInput=document.getElementById('unsoldTokensInput');
+      const unsold=unsoldInput?parseFloat(unsoldInput.value)||0:0;
+      // Validate
+      if(unsold>currentRunnerData.tokens){unsoldInput.value=currentRunnerData.tokens;return recalcRunnerCash();}
+      if(unsold<0){unsoldInput.value=0;return recalcRunnerCash();}
+      // Update effective tokens
+      const effectiveTokens=currentRunnerData.tokens-unsold;
+      const effEl=document.getElementById('effectiveTokensVal');
+      if(effEl)effEl.textContent=fmt(effectiveTokens);
+      // Update cash to collect
+      const newCash=currentRunnerData.cashToCollect-unsold;
+      const cashEl=document.getElementById('cashToCollectVal');
+      if(cashEl){cashEl.textContent=fmt(newCash);cashEl.style.color=newCash>=0?'var(--green)':'var(--red)';}
+      // Update settle button
+      const btn=document.getElementById('settleRunnerBtn');
+      if(btn){
+        if(newCash>0){btn.textContent='✓ Settle '+fmt(newCash)+' Cash';btn.style.background='var(--green)';}
+        else if(newCash===0){btn.textContent='✓ Mark as Settled (₹0 cash)';btn.style.background='var(--green)';}
+        else{btn.textContent='✓ Confirm Settlement';btn.style.background='var(--blue)';}
+      }
     }
 
     async function settleCounter(){
@@ -597,17 +672,25 @@
           if(bal.totalExpenses>0)bdHtml+='<div class="cb-card"><div class="cb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="cb-label">Expenses</div></div>';
           bdHtml+='</div>';
 
-          // TWO BIG CARDS: Total Cash at Counter, then New Cash Since Last Collection
+          // Physical cash card with full breakdown
+          const displayCash=Math.max(0,totalCash);
+          const totalCounterCashForBreakdown=bal.counterCash+liveCounterCash;
           let cardsHtml=
-            '<div style="display:grid;gap:14px;margin-bottom:16px">'+
-              '<div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(234,179,8,0.05));border:1.5px solid var(--yellow);border-radius:14px;padding:20px;text-align:center">'+
-                '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">Total Cash at Counter</div>'+
-                '<div style="font-size:44px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(totalCash)+'</div>'+
-                '<div style="font-size:12px;color:var(--text2);margin-top:4px">Petty ₹'+bal.pettyCash.toLocaleString('en-IN')+' + New ₹'+newCash.toLocaleString('en-IN')+'</div>'+
+            '<div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(234,179,8,0.05));border:1.5px solid var(--yellow);border-radius:14px;padding:20px;margin-bottom:16px">'+
+              '<div style="text-align:center;margin-bottom:16px">'+
+                '<div style="font-size:13px;color:var(--text2);margin-bottom:6px">💵 Physical Cash at Counter</div>'+
+                '<div style="font-size:44px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(displayCash)+'</div>'+
+                '<div style="font-size:12px;color:var(--text2);margin-top:4px">This is what you should count</div>'+
               '</div>'+
-              '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">'+
-                '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">New Cash Since Last Collection</div>'+
-                '<div style="font-size:28px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(newCash)+'</div>'+
+              (totalCash<0?'<div style="background:rgba(239,68,68,0.15);border:1px solid var(--red);border-radius:8px;padding:10px;font-size:12px;color:var(--red);text-align:center;margin-bottom:12px">⚠️ System expects less cash than zero — check for unrecorded expenses or settlements</div>':'')+
+              '<div style="border-top:1px solid rgba(234,179,8,0.2);padding-top:12px">'+
+                '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">📊 Breakdown</div>'+
+                '<div class="cash-breakdown-row"><span class="cbr-label">Previous petty cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>'+
+                '<div class="cash-breakdown-row"><span class="cbr-label">+ Counter cash settled</span><span class="cbr-val">'+fmt(bal.counterCash)+'</span></div>'+
+                '<div class="cash-breakdown-row"><span class="cbr-label">+ Unsettled drawer</span><span class="cbr-val">'+fmt(liveCounterCash)+'</span></div>'+
+                '<div class="cash-breakdown-row"><span class="cbr-label">+ Runner cash settled</span><span class="cbr-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</span></div>'+
+                (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>':'')+
+                '<div class="cash-breakdown-row total"><span class="cbr-label">= Physical cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(displayCash)+'</span></div>'+
               '</div>'+
             '</div>';
 
@@ -629,20 +712,23 @@
           if(bal.totalExpenses>0){breakdownHtml+='<div class="bb"><div class="bb-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</div><div class="bb-label">Expenses</div></div>';}
           breakdownHtml+='</div>';
 
+          const staffDisplayCash=Math.max(0,totalCash);
           $('counterBalanceReadonly').innerHTML=
-            '<h3>💰 Cash at Counter</h3>'+
-            '<div style="display:grid;gap:12px;margin-bottom:12px">'+
-              '<div style="text-align:center">'+
-                '<div class="bal-amount">'+fmt(totalCash)+'</div>'+
-                '<div class="bal-detail">Total cash at counter</div>'+
-              '</div>'+
-              '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'+
-                '<div style="font-size:20px;font-weight:600;font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(staffNewCash)+'</div>'+
-                '<div style="font-size:11px;color:var(--text2);margin-top:2px">New cash since last collection</div>'+
-              '</div>'+
+            '<h3>💵 Cash at Counter</h3>'+
+            '<div style="text-align:center;margin-bottom:16px">'+
+              '<div class="bal-amount">'+fmt(staffDisplayCash)+'</div>'+
+              '<div class="bal-detail">Physical cash at counter</div>'+
             '</div>'+
-            (bal.pettyCash>0?'<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text2);display:flex;justify-content:space-between"><span>Petty cash (from last collection)</span><span style="font-family:JetBrains Mono,monospace;color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>':'')+
-            breakdownHtml+
+            (totalCash<0?'<div style="background:rgba(239,68,68,0.15);border:1px solid var(--red);border-radius:8px;padding:10px;font-size:12px;color:var(--red);text-align:center;margin-bottom:12px">⚠️ System expects negative — check expenses/settlements</div>':'')+
+            '<div style="background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:12px">'+
+              '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">📊 Breakdown</div>'+
+              '<div class="cash-breakdown-row"><span class="cbr-label">Previous petty cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(bal.pettyCash)+'</span></div>'+
+              '<div class="cash-breakdown-row"><span class="cbr-label">+ Counter cash settled</span><span class="cbr-val">'+fmt(bal.counterCash)+'</span></div>'+
+              '<div class="cash-breakdown-row"><span class="cbr-label">+ Unsettled drawer</span><span class="cbr-val">'+fmt(liveCounterCash)+'</span></div>'+
+              '<div class="cash-breakdown-row"><span class="cbr-label">+ Runner cash settled</span><span class="cbr-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</span></div>'+
+              (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>':'')+
+              '<div class="cash-breakdown-row total"><span class="cbr-label">= Physical cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(staffDisplayCash)+'</span></div>'+
+            '</div>'+
             (sinceText?'<div class="bal-detail" style="margin-top:8px">'+sinceText+'</div>':'')+
             '<div class="bal-detail">'+bal.settlementCount+' settlement'+(bal.settlementCount!==1?'s':'')+' since last collection</div>';
         }
@@ -766,6 +852,19 @@
           html+='</div>';
         }
 
+        // Variance sources — explain WHY shift doesn't balance
+        if(sr.varianceSources&&sr.varianceSources.length>0&&!bc.isBalanced){
+          html+='<div class="recon-section"><h4>Variance Sources</h4>';
+          for(const vs of sr.varianceSources){
+            html+='<div class="variance-source">';
+            html+='<span class="vs-label">'+(vs.fixable?'🔧':'📊')+' '+vs.label+' ('+vs.count+')</span>';
+            html+='<span class="vs-amount" style="color:'+(vs.fixable?'var(--orange)':'var(--red)')+'">'+fmt(Math.abs(vs.amount))+'</span>';
+            if(vs.fixable)html+='<button class="vs-fix" onclick="document.getElementById(\'discrepancyPanel\').scrollIntoView({behavior:\'smooth\'})">Fix</button>';
+            html+='</div>';
+          }
+          html+='</div>';
+        }
+
         // Cross-payments
         if(sr.crossPayments&&sr.crossPayments.length>0){
           html+='<div class="recon-section"><h4>Cross-Payments</h4>';
@@ -793,6 +892,105 @@
       }
       html+='<div class="cpn-shift">Shift total is correct — UPI covers this amount at the counter level.</div></div>';
       return html;
+    }
+
+    // ========== DISCREPANCY RECTIFICATION PANEL ==========
+    let currentMisattributed=[];
+    const RUNNER_OPTIONS=[
+      {id:64,name:'FAROOQ'},{id:65,name:'AMIN'},
+      {id:66,name:'NCH Runner 03'},{id:67,name:'NCH Runner 04'},{id:68,name:'NCH Runner 05'}
+    ];
+
+    async function loadDiscrepancies(){
+      try{
+        const now=new Date();const todayISO=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+'T00:00:00';
+        const res=await fetch('/api/nch-data?from='+todayISO);
+        const data=await res.json();
+        if(!data.success)return;
+        currentMisattributed=data.data.misattributedOrders||[];
+        const panel=$('discrepancyPanel');
+        if(currentMisattributed.length===0){panel.classList.remove('show');return;}
+        panel.classList.add('show');
+
+        let html='<h3>⚠️ Discrepancies <span class="badge-count">'+currentMisattributed.length+'</span></h3>';
+        html+='<div class="subtitle">These orders have wrong or missing runner attribution. Fix them to make the shift math accurate.</div>';
+
+        for(let i=0;i<currentMisattributed.length;i++){
+          const m=currentMisattributed[i];
+          const orderTime=m.date_order?new Date(m.date_order+'Z').toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}):'';
+          const posLabel=m.config_id===27?'Cash Counter':'Runner Counter';
+          const isAuto=m.auto_resolved;
+          const isCritical=!isAuto;
+          const pmNames={37:'Cash',38:'UPI',39:'Card',40:'Runner Ledger',48:'Token Issue',49:'Complimentary'};
+          const pmLabel=(m.payment_methods||[]).map(id=>pmNames[id]||'PM'+id).join(', ');
+
+          html+='<div class="rectify-card'+(isCritical?' critical':'')+'" id="rectCard'+i+'">';
+          html+='<div class="rc-header"><span class="rc-order">'+(isCritical?'🚨':'⚠️')+' '+m.order_name+' • '+posLabel+' • '+orderTime+'</span><span class="rc-amount">'+fmt(m.amount)+'</span></div>';
+          html+='<div class="rc-detail">';
+          html+='Payment: '+pmLabel+'<br>';
+          if(isAuto){
+            html+='Selected: "'+m.current_partner_name+'" (wrong contact)<br>';
+            html+='Auto-detected: <strong>'+m.correct_runner_name+'</strong>';
+          }else{
+            html+='<span style="color:var(--red)">No runner was selected</span><br>';
+            html+='Who received this order?';
+          }
+          html+='</div>';
+          html+='<div class="rc-actions">';
+          html+='<select id="rectSelect'+i+'">';
+          if(!isAuto)html+='<option value="">— Select Runner —</option>';
+          for(const ro of RUNNER_OPTIONS){
+            const sel=(isAuto&&m.correct_partner_id===ro.id)?' selected':'';
+            html+='<option value="'+ro.id+'"'+sel+'>'+ro.name+'</option>';
+          }
+          html+='</select>';
+          html+='<button class="rectify-btn" id="rectBtn'+i+'" onclick="rectifyOrder('+i+')">✓ Fix in Odoo</button>';
+          html+='</div></div>';
+        }
+        panel.innerHTML=html;
+      }catch(e){console.error('Load discrepancies error:',e);}
+    }
+
+    async function rectifyOrder(idx){
+      const m=currentMisattributed[idx];
+      const selectEl=document.getElementById('rectSelect'+idx);
+      const btn=document.getElementById('rectBtn'+idx);
+      const card=document.getElementById('rectCard'+idx);
+      if(!selectEl||!btn)return;
+
+      const correctId=parseInt(selectEl.value);
+      if(!correctId){btn.textContent='Select runner';setTimeout(()=>{btn.textContent='✓ Fix in Odoo';},1500);return;}
+
+      // Ask for PIN
+      const pin=prompt('Enter your 4-digit PIN to confirm rectification:');
+      if(!pin||pin.length!==4)return;
+
+      btn.disabled=true;btn.textContent='Fixing...';
+
+      try{
+        const res=await fetch('/api/settlement?action=rectify-discrepancy',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            pin,
+            order_id:m.order_id,
+            order_name:m.order_name,
+            correct_partner_id:correctId,
+            original_partner_id:m.current_partner_id
+          })
+        });
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Fixed!';btn.style.background='var(--green)';
+          if(card)card.classList.add('fixed');
+          // Refresh shift recon to show updated variance
+          setTimeout(()=>{loadShiftReconciliation();},1000);
+        }else{
+          throw new Error(data.error);
+        }
+      }catch(e){
+        btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';
+        setTimeout(()=>{btn.textContent='✓ Fix in Odoo';btn.style.background='';},3000);
+      }
     }
 
     pins[0].focus();

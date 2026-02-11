@@ -12,6 +12,7 @@ CREATE TABLE settlements (
   sales_amount REAL DEFAULT 0,
   upi_amount REAL DEFAULT 0,
   cash_settled REAL NOT NULL,
+  unsold_tokens REAL DEFAULT 0,
   notes TEXT DEFAULT ''
 );
 
