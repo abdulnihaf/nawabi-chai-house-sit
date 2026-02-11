@@ -1423,8 +1423,8 @@
       }
     }
 
-    // ========== SHIFT WIZARD v2 ==========
-    let wizardData=null, wizardStep=1, wizardCounterCashEntered=0, wizardRunnerInputs=[];
+    // ========== SHIFT WIZARD v3 — Full Drawer Accountability ==========
+    let wizardData=null, wizardStep=1, wizardDrawerCashEntered=0, wizardRunnerInputs=[];
 
     async function startShiftWizard(){
       $('wizardContent').innerHTML='<div class="loading-text">Loading shift data...</div>';
@@ -1436,91 +1436,121 @@
         const baseline=new Date(2026,1,4,17,0,0);
         const runnerIds=[64,65,66,67,68];
 
-        // Fetch counter + all runner periods in parallel
-        const periodPromises=[
+        // Parallel fetch: counter-balance + counter period + all runner periods
+        const [cbRes, ...periodResults]=await Promise.all([
+          fetch('/api/settlement?action=counter-balance').then(r=>r.json()),
           fetch('/api/settlement?action=get-last-settlement&runner_id=counter').then(r=>r.json()),
           ...runnerIds.map(id=>fetch('/api/settlement?action=get-last-settlement&runner_id='+id).then(r=>r.json()))
-        ];
-        const periodResults=await Promise.all(periodPromises);
+        ]);
+
+        const counterBalance=cbRes.success?{...cbRes.balance,lastCollectionAt:cbRes.lastCollection?.collected_at||null}:{pettyCash:0,counterCash:0,runnerCash:0,totalExpenses:0,expenses:[],settlements:[],total:0,lastCollectionAt:null};
         const counterPeriod=periodResults[0];
         const runnerPeriods={};
         runnerIds.forEach((id,i)=>{runnerPeriods[id]=periodResults[i+1];});
 
         const shiftFrom=counterPeriod.periodStart?new Date(counterPeriod.periodStart):baseline;
 
-        // Fetch main shift data from counter period (counter data is always correct)
+        // Fetch live Odoo + Razorpay data from counter period
         const res=await fetch('/api/nch-data?from='+toLocalISO(shiftFrom));
         const data=await res.json();
         if(!data.success) throw new Error(data.error||'Failed to load data');
 
-        // Check for runners settled AFTER the counter period (mid-shift individual settlements)
-        // These runners need fresh data from their own period, not the counter's
+        // === Runner classification using counter-balance settlements ===
+        // Runners in settlements list = already settled (cash in drawer)
+        // Runners with activity but NOT in settlements = unsettled (cash with runner)
+        const settledRunnerIds=new Set();
+        const settledRunnerInfo={};
+        if(counterBalance.settlements&&counterBalance.settlements.length>0){
+          for(const s of counterBalance.settlements){
+            settledRunnerIds.add(s.runner_id);
+            settledRunnerInfo[s.runner_id]=s;
+          }
+        }
+
+        // Check for runners who were settled but have NEW activity after their settlement
         const runnersNeedingRefresh=[];
         for(const id of runnerIds){
-          const rp=runnerPeriods[id];
-          if(rp.periodStart){
-            const rpFrom=new Date(rp.periodStart);
-            if(rpFrom>shiftFrom){
-              runnersNeedingRefresh.push({id,from:rpFrom,periodStart:rp.periodStart});
+          if(settledRunnerIds.has(id)){
+            const rp=runnerPeriods[id];
+            if(rp.periodStart){
+              const rpFrom=new Date(rp.periodStart);
+              // Runner's period start is AFTER the counter period start = they were settled mid-shift
+              // Check if they have new activity by fetching from their period
+              if(rpFrom>shiftFrom){
+                runnersNeedingRefresh.push({id,from:rpFrom,periodStart:rp.periodStart});
+              }
             }
           }
         }
 
-        // If any runners were individually settled mid-shift, re-fetch their data
+        // Re-fetch data for runners with post-settlement activity
         let runnerOverrides={};
-        const midShiftRunnerIds=new Set(runnersNeedingRefresh.map(r=>r.id));
         if(runnersNeedingRefresh.length>0){
           const refreshPromises=runnersNeedingRefresh.map(r=>
             fetch('/api/nch-data?from='+toLocalISO(r.from)).then(res=>res.json()).then(d=>{
               if(d.success){
                 const runner=d.data.runners.find(x=>x.id===r.id);
-                if(runner){
+                if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
                   runnerOverrides[r.id]=runner;
-                }else{
-                  // Runner had no activity after their mid-shift settlement — zero out
-                  runnerOverrides[r.id]={id:r.id,name:'',tokens:0,sales:0,upi:0,crossPaymentCredit:0,cashToCollect:0};
                 }
+                // If no new activity, runner stays as "settled" (no override)
               }
             })
           );
           await Promise.all(refreshPromises);
         }
 
-        // Merge runner data: use overrides for mid-shift settled runners
-        const mergedRunners=(data.data.runners||[]).map(r=>{
-          if(midShiftRunnerIds.has(r.id)){
-            // Always use override for mid-shift settled runners (even if zero activity)
+        // Build runner list with classification
+        const allRunners=(data.data.runners||[]).map(r=>{
+          // If runner has post-settlement new activity, use refreshed data
+          if(runnerOverrides[r.id]){
             const override=runnerOverrides[r.id];
-            if(override){
-              if(!override.name) override.name=r.name; // preserve name from main data
-              return override;
-            }
-            // Fetch failed — zero out to be safe rather than show already-settled data
-            return{...r,tokens:0,sales:0,upi:0,crossPaymentCredit:0,cashToCollect:0};
+            if(!override.name) override.name=r.name;
+            return{...override,_settled:false,_hasNewActivity:true};
           }
-          return r;
+          // If runner was settled and has NO new activity → mark as settled
+          if(settledRunnerIds.has(r.id)){
+            const sInfo=settledRunnerInfo[r.id];
+            return{...r,_settled:true,_settlementInfo:sInfo};
+          }
+          // Unsettled runner
+          return{...r,_settled:false};
         });
+
+        // Compute expected drawer using counter-balance formula
+        // unsettledCounterCash = live Odoo PM 37 counter cash MINUS what's already in counter-balance settlements for counter
+        // counter-balance.counterCash = settled counter cash from D1
+        // We need unsettled = total live counter cash - already settled counter cash
+        const liveCounterCash=data.data.mainCounter?.cash||0;
+        const unsettledCounterCash=Math.max(0,liveCounterCash-counterBalance.counterCash);
+
+        const expectedDrawer=counterBalance.pettyCash+counterBalance.counterCash+unsettledCounterCash+counterBalance.runnerCash-counterBalance.totalExpenses;
 
         wizardData={
           shiftFrom,
           periodStart:toLocalISO(shiftFrom),
           mainCounter:data.data.mainCounter,
           runnerCounter:data.data.runnerCounter,
-          runners:mergedRunners,
+          runners:allRunners,
           verification:data.data.verification||{},
           shiftRecon:data.data.shiftReconciliation||{},
           crossPayments:data.data.crossPayments||[],
           discrepancies:data.data.discrepancies||[],
           misattributed:data.data.misattributedOrders||[],
-          runnerPeriods:runnerPeriods,
-          runnerOverrides:Object.keys(runnerOverrides).map(Number)
+          runnerPeriods,
+          counterBalance,
+          expectedDrawer,
+          unsettledCounterCash,
+          // Separate runner lists
+          settledRunners:allRunners.filter(r=>r._settled&&(r.tokens>0||r.sales>0||r.upi>0)),
+          unsettledRunners:allRunners.filter(r=>!r._settled&&(r.tokens>0||r.sales>0||r.upi>0))
         };
 
-        // Active runners = those with tokens, sales, or UPI activity
-        wizardData.activeRunners=wizardData.runners.filter(r=>r.tokens>0||r.sales>0||r.upi>0);
+        // Active runners = all with activity (for step 2 display)
+        wizardData.activeRunners=[...wizardData.unsettledRunners,...wizardData.settledRunners];
 
-        // Init runner inputs
-        wizardRunnerInputs=wizardData.activeRunners.map(r=>({
+        // Init runner inputs ONLY for unsettled runners (settled ones are read-only)
+        wizardRunnerInputs=wizardData.unsettledRunners.map(r=>({
           runner_id:r.id,
           runner_name:r.name,
           tokens:r.tokens,
@@ -1531,8 +1561,7 @@
           cashCalculated:Math.max(0,r.cashToCollect),
           cashCollected:Math.max(0,r.cashToCollect),
           userEdited:false,
-          absent:false,
-          midShiftSettled:wizardData.runnerOverrides.includes(r.id)
+          absent:false
         }));
 
         renderWizardStep1();
@@ -1557,103 +1586,99 @@
 
     function renderWizardStep1(){
       wizardStep=1;updateWizardSteps();
-      const mc=wizardData.mainCounter;
-      const v=wizardData.verification;
-      const counterQRVar=(v.cashCounter?.variance)||0;
-      const rcQRVar=(v.runnerCounter?.variance)||0;
-
-      // UPI verification boxes
-      let counterUpiHtml='';
-      if(Math.abs(counterQRVar)<=1){
-        counterUpiHtml='<div class="wizard-upi-box ok"><div class="upi-title"><span style="color:var(--green)">Cash Counter QR</span><span style="color:var(--green)">✅ Verified</span></div><div class="upi-detail">Odoo: '+fmt(mc.upi)+' | Razorpay: '+fmt(v.cashCounter?.razorpay||mc.upi)+'</div></div>';
-      }else{
-        const dir=counterQRVar>0?'extra cash (recorded as UPI but was cash)':'less cash (UPI received but not in Odoo)';
-        counterUpiHtml='<div class="wizard-upi-box warn"><div class="upi-title"><span style="color:var(--yellow)">Cash Counter QR</span><span style="color:var(--yellow)">⚠️ '+fmt(Math.abs(counterQRVar))+' variance</span></div><div class="upi-detail">Odoo: '+fmt(mc.upi)+' | Razorpay: '+fmt(v.cashCounter?.razorpay||0)+'<br>You may have '+fmt(Math.abs(counterQRVar))+' '+dir+'</div></div>';
-      }
-
-      let rcUpiHtml='';
-      const rcOdoo=wizardData.runnerCounter?.upi||0;
-      const rcRazorpay=v.runnerCounter?.razorpay||0;
-      if(Math.abs(rcQRVar)<=1){
-        rcUpiHtml='<div class="wizard-upi-box ok"><div class="upi-title"><span style="color:var(--green)">Runner Counter QR</span><span style="color:var(--green)">✅ Verified</span></div><div class="upi-detail">Odoo: '+fmt(rcOdoo)+' | Razorpay: '+fmt(rcRazorpay)+'</div></div>';
-      }else{
-        const dir2=rcQRVar>0?'extra cash':'less cash';
-        rcUpiHtml='<div class="wizard-upi-box warn"><div class="upi-title"><span style="color:var(--yellow)">Runner Counter QR</span><span style="color:var(--yellow)">⚠️ '+fmt(Math.abs(rcQRVar))+' variance</span></div><div class="upi-detail">Odoo: '+fmt(rcOdoo)+' | Razorpay: '+fmt(rcRazorpay)+'<br>You may have '+fmt(Math.abs(rcQRVar))+' '+dir2+'</div></div>';
-      }
-
-      const expectedCash=mc.cash||0;
+      const cb=wizardData.counterBalance;
+      const ed=wizardData.expectedDrawer;
       const shiftLabel=fmtD(wizardData.shiftFrom)+' → Now';
+
+      // Build expandable breakdown
+      const lastCollectionTime=cb.lastCollectionAt?fmtD(new Date(cb.lastCollectionAt)):'start';
+      let breakdownHtml=
+        '<div id="wizBreakdownPanel" style="display:none;margin-top:12px;padding:12px;background:var(--bg2);border-radius:8px;font-size:13px">'+
+          '<div class="wizard-row"><span class="wr-label">Petty cash (from last collection)</span><span class="wr-val">'+fmt(cb.pettyCash||0)+'</span></div>'+
+          '<div class="wizard-row"><span class="wr-label">+ Counter settled (D1)</span><span class="wr-val" style="color:var(--green)">+'+fmt(cb.counterCash||0)+'</span></div>'+
+          '<div class="wizard-row"><span class="wr-label">+ Unsettled counter cash (live)</span><span class="wr-val" style="color:var(--green)">+'+fmt(wizardData.unsettledCounterCash||0)+'</span></div>'+
+          '<div class="wizard-row"><span class="wr-label">+ Runner cash settled (D1)</span><span class="wr-val" style="color:var(--green)">+'+fmt(cb.runnerCash||0)+'</span></div>'+
+          '<div class="wizard-row"><span class="wr-label">- Expenses ('+(cb.expenses?.length||0)+' items)</span><span class="wr-val" style="color:var(--red)">-'+fmt(cb.totalExpenses||0)+'</span></div>'+
+          '<div class="wizard-row total" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span class="wr-label">= Expected drawer</span><span class="wr-val">'+fmt(ed)+'</span></div>'+
+        '</div>';
 
       $('wizardContent').innerHTML=
         '<div class="wizard-step-content active" id="step1Content">'+
-          '<div class="wizard-card"><h3>📊 Counter Sales Breakdown</h3>'+
-            '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+shiftLabel+'</div>'+
-            '<div class="wizard-row"><span class="wr-label">Cash Sales (PM 37)</span><span class="wr-val">'+fmt(mc.cash)+'</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">UPI (to bank)</span><span class="wr-val" style="color:var(--blue)">'+fmt(mc.upi)+'</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">Card (to bank)</span><span class="wr-val" style="color:var(--blue)">'+fmt(mc.card)+'</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">Token Issue (→ Runners)</span><span class="wr-val" style="color:var(--text2)">'+fmt(mc.tokenIssue)+'</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">Complimentary</span><span class="wr-val" style="color:var(--text2)">'+fmt(mc.complimentary)+'</span></div>'+
-            '<div class="wizard-row total"><span class="wr-label">Expected Cash in Drawer</span><span class="wr-val">'+fmt(expectedCash)+'</span></div>'+
-          '</div>'+
-          '<div class="wizard-card"><h3>🔍 UPI Verification</h3>'+counterUpiHtml+rcUpiHtml+'</div>'+
-          '<div class="wizard-card"><h3>💵 Your Count</h3>'+
+          '<div class="wizard-card"><h3>💵 Count Your Drawer</h3>'+
+            '<div style="font-size:12px;color:var(--text2);margin-bottom:16px">Count ALL the cash in your drawer right now.</div>'+
             '<div class="wizard-input-group">'+
-              '<label>How much CASH do you physically have at the counter?</label>'+
-              '<div class="wi-expected">Expected: '+fmt(expectedCash)+'</div>'+
-              '<input type="number" id="wizCounterCash" value="'+expectedCash+'" min="0" step="10" inputmode="numeric" oninput="updateCounterMatch()">'+
+              '<input type="number" id="wizDrawerCash" placeholder="Enter total cash amount" min="0" step="10" inputmode="numeric" style="font-size:24px;text-align:center;padding:16px" oninput="updateDrawerMatch()">'+
             '</div>'+
-            '<div id="wizCounterMatch"></div>'+
+            '<div id="wizDrawerMatch"></div>'+
+            '<div style="margin-top:12px;text-align:center">'+
+              '<a href="javascript:void(0)" onclick="document.getElementById(\'wizBreakdownPanel\').style.display=document.getElementById(\'wizBreakdownPanel\').style.display===\'none\'?\'block\':\'none\'" style="font-size:12px;color:var(--blue);text-decoration:none">▼ How is expected calculated?</a>'+
+            '</div>'+
+            breakdownHtml+
           '</div>'+
           '<div class="wizard-nav">'+
             '<button class="wn-back" onclick="closeWizard()">✕ Cancel</button>'+
-            (wizardData.activeRunners.length>0
+            (wizardData.unsettledRunners.length>0
               ?'<button class="wn-next" onclick="goToWizardStep2()">Next → Runners</button>'
-              :'<button class="wn-next" onclick="goToWizardStep3()">Next → Reconcile</button>')+
+              :'<button class="wn-next" onclick="goToWizardStep3()">Next → Confirm</button>')+
           '</div>'+
         '</div>';
-      updateCounterMatch();
     }
 
-    function updateCounterMatch(){
-      const input=document.getElementById('wizCounterCash');
+    function updateDrawerMatch(){
+      const input=document.getElementById('wizDrawerCash');
       if(!input)return;
       const entered=parseFloat(input.value)||0;
-      wizardCounterCashEntered=entered;
-      const expected=wizardData.mainCounter.cash||0;
+      wizardDrawerCashEntered=entered;
+      const expected=wizardData.expectedDrawer;
       const diff=entered-expected;
-      const v=wizardData.verification;
-      const posCounterQR=Math.max(0,(v.cashCounter?.variance)||0);
-      const posRCQR=Math.max(0,(v.runnerCounter?.variance)||0);
-      const totalExplainable=posCounterQR+posRCQR;
 
       let html='';
-      if(Math.abs(diff)<=1){
-        html='<div class="wizard-match ok">✅ Perfect match with system calculation</div>';
-      }else if(diff>0&&diff<=totalExplainable+1){
-        html='<div class="wizard-match ok">✅ Extra '+fmt(diff)+' — explained by UPI variance<br><span style="font-size:12px">A cash payment was likely recorded as UPI in Odoo</span></div>';
-      }else if(diff>0&&diff>totalExplainable){
-        const explained=totalExplainable;
-        const unexplained=diff-explained;
-        html='<div class="wizard-match warn">⚠️ Extra '+fmt(diff);
-        if(explained>0) html+=' — '+fmt(explained)+' explained by UPI variance';
-        html+='<br>'+fmt(unexplained)+' unexplained extra cash</div>';
-      }else if(diff<0){
-        html='<div class="wizard-match bad">🚨 '+fmt(Math.abs(diff))+' SHORT — investigate before proceeding</div>';
+      if(!input.value||input.value===''){
+        html='';
+      }else if(Math.abs(diff)<=5){
+        html='<div class="wizard-match ok">✅ Matches expected — '+fmt(expected)+'</div>';
+      }else if(Math.abs(diff)<=50){
+        html='<div class="wizard-match warn">⚠️ '+(diff>0?'+':'')+fmt(diff)+' variance from expected '+fmt(expected)+'</div>';
+      }else{
+        html='<div class="wizard-match bad">🚨 '+(diff>0?'+':'')+fmt(diff)+' variance from expected '+fmt(expected)+' — investigate before proceeding</div>';
       }
-      $('wizCounterMatch').innerHTML=html;
+      $('wizDrawerMatch').innerHTML=html;
     }
 
     function goToWizardStep2(){
-      wizardCounterCashEntered=parseFloat(document.getElementById('wizCounterCash')?.value)||0;
+      wizardDrawerCashEntered=parseFloat(document.getElementById('wizDrawerCash')?.value)||0;
       wizardStep=2;updateWizardSteps();
 
       let html='<div class="wizard-step-content active" id="step2Content">';
-      if(wizardData.activeRunners.length===0){
-        html+='<div class="wizard-card"><div class="loading-text">No active runners this shift</div></div>';
+
+      // === Already-settled runners (read-only) ===
+      if(wizardData.settledRunners.length>0){
+        html+='<div class="wizard-card" style="opacity:0.7"><h3 style="color:var(--green)">✅ Already Collected</h3>';
+        for(const r of wizardData.settledRunners){
+          const sInfo=r._settlementInfo||{};
+          const settledTime=sInfo.settled_at?fmtD(new Date(sInfo.settled_at)):'earlier';
+          const settledBy=sInfo.settled_by||'cashier';
+          html+='<div style="padding:8px 0;border-bottom:1px solid var(--border)">'+
+            '<div style="font-weight:600;font-size:14px">'+r.name+'</div>'+
+            '<div style="font-size:12px;color:var(--text2);margin-top:4px">'+
+              'Tokens: '+fmt(r.tokens)+' | Sales: '+fmt(r.sales)+' | UPI: '+fmt(r.upi)+
+            '</div>'+
+            '<div style="font-size:12px;color:var(--green);margin-top:4px">'+
+              '✅ '+fmt(sInfo.cash_settled||r.cashToCollect||0)+' collected by '+settledBy+' at '+settledTime+
+            '</div>'+
+          '</div>';
+        }
+        html+='</div>';
+      }
+
+      // === Unsettled runners (with inputs) ===
+      if(wizardRunnerInputs.length===0){
+        if(wizardData.settledRunners.length===0){
+          html+='<div class="wizard-card"><div class="loading-text">No active runners this shift</div></div>';
+        }
       }else{
         for(let i=0;i<wizardRunnerInputs.length;i++){
           const ri=wizardRunnerInputs[i];
-          const r=wizardData.activeRunners[i];
           const cashCalc=(ri.tokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit;
           const clampedCalc=Math.max(0,cashCalc);
           ri.cashCalculated=clampedCalc;
@@ -1669,16 +1694,8 @@
             overCollectNote='<div class="wizard-match info">Runner collected more UPI than sales. '+fmt(Math.abs(cashCalc))+' excess. No cash to collect.</div>';
           }
 
-          let midShiftNote='';
-          if(ri.midShiftSettled){
-            const rp=wizardData.runnerPeriods[ri.runner_id];
-            const rpTime=rp&&rp.periodStart?fmtD(new Date(rp.periodStart)):'earlier this shift';
-            midShiftNote='<div class="wizard-match info" style="margin-bottom:8px">ℹ️ Settled mid-shift. Showing activity since '+rpTime+'</div>';
-          }
-
           html+='<div class="wizard-runner-card'+(ri.absent?' absent':'')+'" id="wizRunner'+i+'">'+
-            '<div class="wrc-header"><span class="wrc-name">'+ri.runner_name+'</span><span class="wrc-badge">Runner '+(i+1)+' of '+wizardRunnerInputs.length+'</span></div>'+
-            midShiftNote+
+            '<div class="wrc-header"><span class="wrc-name">'+ri.runner_name+'</span><span class="wrc-badge">Unsettled — collect cash</span></div>'+
             '<div class="wizard-row"><span class="wr-label">Tokens Issued</span><span class="wr-val">'+fmt(ri.tokens)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">Sales (Snacks)</span><span class="wr-val">'+fmt(ri.sales)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
@@ -1687,7 +1704,7 @@
               '<div class="wizard-input-group"><label>Unsold tokens returned (₹)</label>'+
               '<input type="number" id="wizUnsold'+i+'" value="'+ri.unsoldTokens+'" min="0" max="'+ri.tokens+'" step="10" inputmode="numeric" oninput="updateRunnerCalc('+i+')" '+(ri.absent?'disabled':'')+'>'+
               '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.tokens)+'</div></div>':'')+
-            '<div class="wrc-calc" id="wizCalc'+i+'">System calculates: '+fmt(clampedCalc)+' cash owed</div>'+
+            '<div class="wrc-calc" id="wizCalc'+i+'">Cash to collect: '+fmt(clampedCalc)+'</div>'+
             overCollectNote+
             (cashCalc>=0?
               '<div class="wizard-input-group"><label>Actual cash collected from runner</label>'+
@@ -1699,10 +1716,10 @@
       }
       html+='<div class="wizard-nav">'+
         '<button class="wn-back" onclick="renderWizardStep1()">← Back</button>'+
-        '<button class="wn-next" onclick="goToWizardStep3()">Next → Reconcile</button>'+
+        '<button class="wn-next" onclick="goToWizardStep3()">Next → Confirm</button>'+
       '</div></div>';
       $('wizardContent').innerHTML=html;
-      // Trigger match status for each runner
+      // Trigger match status for each unsettled runner
       for(let i=0;i<wizardRunnerInputs.length;i++) updateRunnerActual(i);
     }
 
@@ -1717,8 +1734,7 @@
       const clamped=Math.max(0,cashCalc);
       ri.cashCalculated=clamped;
       const calcEl=document.getElementById('wizCalc'+idx);
-      if(calcEl) calcEl.textContent='System calculates: '+fmt(clamped)+' cash owed';
-      // Update actual if user hasn't manually edited
+      if(calcEl) calcEl.textContent='Cash to collect: '+fmt(clamped);
       if(!ri.userEdited){
         ri.cashCollected=clamped;
         const actEl=document.getElementById('wizActual'+idx);
@@ -1740,23 +1756,11 @@
       const matchEl=document.getElementById('wizRunnerMatch'+idx);
       if(!matchEl)return;
 
-      const v=wizardData.verification;
-      const posCounterQR=Math.max(0,(v.cashCounter?.variance)||0);
-      const posRCQR=Math.max(0,(v.runnerCounter?.variance)||0);
-      const totalUPIVar=posCounterQR+posRCQR;
-
       if(Math.abs(diff)<=1){
-        matchEl.innerHTML='<div class="wizard-match ok">✅ Matches system calculation</div>';
-      }else if(diff>0&&totalUPIVar>0){
-        const mappable=Math.min(diff,totalUPIVar);
-        const unmapped=diff-mappable;
-        let msg='⚠️ '+fmt(diff)+' extra → ';
-        if(mappable>0) msg+=fmt(mappable)+' auto-mapped to UPI variance';
-        if(unmapped>0) msg+=(mappable>0?', ':'')+fmt(unmapped)+' unexplained';
-        matchEl.innerHTML='<div class="wizard-match '+(unmapped>0?'warn':'ok')+'">'+msg+'</div>';
+        matchEl.innerHTML='<div class="wizard-match ok">✅ Matches expected</div>';
       }else if(diff>0){
-        matchEl.innerHTML='<div class="wizard-match warn">⚠️ '+fmt(diff)+' extra — no UPI variance to explain it</div>';
-      }else if(diff<0){
+        matchEl.innerHTML='<div class="wizard-match warn">⚠️ '+fmt(diff)+' extra cash from runner</div>';
+      }else{
         matchEl.innerHTML='<div class="wizard-match bad">🚨 '+fmt(Math.abs(diff))+' short — confirm with runner</div>';
       }
     }
@@ -1766,10 +1770,7 @@
       const ri=wizardRunnerInputs[idx];
       ri.absent=cb.checked;
       const card=document.getElementById('wizRunner'+idx);
-      if(card){
-        card.classList.toggle('absent',ri.absent);
-      }
-      // Disable/enable inputs
+      if(card) card.classList.toggle('absent',ri.absent);
       const unsoldEl=document.getElementById('wizUnsold'+idx);
       const actualEl=document.getElementById('wizActual'+idx);
       if(unsoldEl) unsoldEl.disabled=ri.absent;
@@ -1789,6 +1790,10 @@
     }
 
     function goToWizardStep3(){
+      // Capture drawer cash from step 1 (if skipping step 2)
+      const drawerInput=document.getElementById('wizDrawerCash');
+      if(drawerInput) wizardDrawerCashEntered=parseFloat(drawerInput.value)||0;
+
       // Capture Step 2 inputs if coming from step 2
       if(wizardStep===2){
         for(let i=0;i<wizardRunnerInputs.length;i++){
@@ -1806,74 +1811,61 @@
       }
       wizardStep=3;updateWizardSteps();
 
-      // === DISCREPANCY AUTO-RESOLUTION ALGORITHM ===
+      // === SILENT UPI VARIANCE RESOLUTION ===
       const v=wizardData.verification;
       let unresolvedCounterQR=Math.max(0,(v.cashCounter?.variance)||0);
       let unresolvedRCQR=Math.max(0,(v.runnerCounter?.variance)||0);
       const resolutions=[];
 
-      // Counter excess
-      const counterExpected=wizardData.mainCounter.cash||0;
-      let counterExcess=wizardCounterCashEntered-counterExpected;
+      // Drawer variance (drawer entered vs expected drawer)
+      const drawerVariance=wizardDrawerCashEntered-wizardData.expectedDrawer;
 
-      // Phase 1: Counter extra → Counter QR
-      if(counterExcess>0&&unresolvedCounterQR>0){
-        const resolved=Math.min(counterExcess,unresolvedCounterQR);
-        resolutions.push({source:'counter_qr_variance',amount:resolved,resolved_by:'counter_extra_cash',explanation:'Counter had '+fmt(resolved)+' extra → matches Counter QR UPI variance'});
-        unresolvedCounterQR-=resolved;counterExcess-=resolved;
+      // Runner collected total and expected total (unsettled runners only)
+      const runnerCollectedTotal=wizardRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCollected,0);
+      const runnerExpectedTotal=wizardRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCalculated,0);
+
+      // Total physical = drawer + newly collected from runners
+      const totalPhysical=wizardDrawerCashEntered+runnerCollectedTotal;
+      // Total expected = drawer expected + runner expected
+      const totalExpected=wizardData.expectedDrawer+runnerExpectedTotal;
+      const rawVariance=totalPhysical-totalExpected;
+
+      // Phase 1: Positive variance → Counter QR
+      let remainingExcess=Math.max(0,rawVariance);
+      if(remainingExcess>0&&unresolvedCounterQR>0){
+        const resolved=Math.min(remainingExcess,unresolvedCounterQR);
+        resolutions.push({source:'counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Counter QR): '+fmt(resolved)});
+        unresolvedCounterQR-=resolved;remainingExcess-=resolved;
       }
-      // Phase 2: Counter extra → Runner Counter QR
-      if(counterExcess>0&&unresolvedRCQR>0){
-        const resolved=Math.min(counterExcess,unresolvedRCQR);
-        resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:'counter_extra_cash',explanation:'Counter had '+fmt(resolved)+' extra → matches Runner Counter QR variance'});
-        unresolvedRCQR-=resolved;counterExcess-=resolved;
+      // Phase 2: Remaining → Runner Counter QR
+      if(remainingExcess>0&&unresolvedRCQR>0){
+        const resolved=Math.min(remainingExcess,unresolvedRCQR);
+        resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Runner Counter QR): '+fmt(resolved)});
+        unresolvedRCQR-=resolved;remainingExcess-=resolved;
       }
-      // Phase 3: Runner extras → UPI variances
-      for(const ri of wizardRunnerInputs){
-        if(ri.absent)continue;
-        let runnerExcess=ri.cashCollected-ri.cashCalculated;
-        if(runnerExcess<=0)continue;
-        ri.excessMappedTo='';ri.excessMappedAmount=0;
-        if(runnerExcess>0&&unresolvedCounterQR>0){
-          const resolved=Math.min(runnerExcess,unresolvedCounterQR);
-          resolutions.push({source:'counter_qr_variance',amount:resolved,resolved_by:ri.runner_name+'_extra_cash',explanation:ri.runner_name+' had '+fmt(resolved)+' extra → matches Counter QR UPI variance'});
-          unresolvedCounterQR-=resolved;runnerExcess-=resolved;
-          ri.excessMappedTo='counter_qr_variance';ri.excessMappedAmount+=resolved;
-        }
-        if(runnerExcess>0&&unresolvedRCQR>0){
-          const resolved=Math.min(runnerExcess,unresolvedRCQR);
-          resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:ri.runner_name+'_extra_cash',explanation:ri.runner_name+' had '+fmt(resolved)+' extra → matches Runner Counter QR variance'});
-          unresolvedRCQR-=resolved;runnerExcess-=resolved;
-          ri.excessMappedTo=(ri.excessMappedTo?ri.excessMappedTo+',':'')+'runner_counter_qr_variance';ri.excessMappedAmount+=resolved;
-        }
-        if(runnerExcess>0){
-          resolutions.push({source:'unexplained',amount:runnerExcess,resolved_by:ri.runner_name+'_extra_cash',explanation:ri.runner_name+' had '+fmt(runnerExcess)+' unexplained extra cash'});
-        }
-      }
-      if(counterExcess>0){
-        resolutions.push({source:'unexplained',amount:counterExcess,resolved_by:'counter_extra_cash',explanation:'Counter had '+fmt(counterExcess)+' unexplained extra cash'});
+      // Phase 3: Still remaining = unexplained
+      if(remainingExcess>0){
+        resolutions.push({source:'unexplained',amount:remainingExcess,resolved_by:'none',explanation:fmt(remainingExcess)+' unexplained extra cash'});
       }
 
-      // Totals
-      const totalPhysical=wizardCounterCashEntered+wizardRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCollected,0);
-      // Compute expected cash from actual wizard data (not shiftRecon which may include already-settled runner activity)
-      // v, unresolvedCounterQR, unresolvedRCQR already declared above
-      const mc=wizardData.mainCounter;
-      // Counter expected = counter cash (PM 37) from Odoo
-      const counterCashExpected=mc.cash||0;
-      // Runner expected = sum of each present runner's cashCalculated (already uses correct per-runner periods)
-      const runnerCashExpected=wizardRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCalculated,0);
-      const effectiveExpected=counterCashExpected+runnerCashExpected;
-      const totalUnsold=wizardRunnerInputs.reduce((s,r)=>s+r.unsoldTokens,0);
-      const absentObligation=wizardRunnerInputs.filter(r=>r.absent).reduce((s,r)=>s+r.cashCalculated,0);
-      const rawVariance=totalPhysical-effectiveExpected;
       const varianceResolved=resolutions.filter(r=>r.source!=='unexplained').reduce((s,r)=>s+r.amount,0);
       const varianceUnresolved=rawVariance-varianceResolved;
+      const absentObligation=wizardRunnerInputs.filter(r=>r.absent).reduce((s,r)=>s+r.cashCalculated,0);
+
+      // Map excess per runner for DB storage
+      for(const ri of wizardRunnerInputs){
+        if(ri.absent)continue;
+        ri.excessMappedTo='';ri.excessMappedAmount=0;
+        const excess=ri.cashCollected-ri.cashCalculated;
+        if(excess>0){
+          ri.excessMappedTo='runner_excess';ri.excessMappedAmount=excess;
+        }
+      }
 
       // Store for submission
       wizardData.reconciliation={
         total_physical_cash:totalPhysical,
-        expected_cash:effectiveExpected,
+        expected_cash:totalExpected,
         raw_variance:rawVariance,
         variance_resolved:varianceResolved,
         variance_unresolved:varianceUnresolved,
@@ -1884,65 +1876,45 @@
       let html='<div class="wizard-step-content active" id="step3Content">';
 
       // Physical cash summary
-      html+='<div class="wizard-card"><h3>💵 Physical Cash Summary</h3>';
-      html+='<div class="wizard-row"><span class="wr-label">Counter cash entered</span><span class="wr-val">'+fmt(wizardCounterCashEntered)+'</span></div>';
+      html+='<div class="wizard-card"><h3>💵 Cash Summary</h3>';
+      html+='<div class="wizard-row"><span class="wr-label">Drawer cash entered</span><span class="wr-val">'+fmt(wizardDrawerCashEntered)+'</span></div>';
       for(const ri of wizardRunnerInputs){
         if(ri.absent) continue;
-        const varText=ri.cashVariance!==0?' <span style="font-size:11px;color:'+(ri.cashVariance>0?'var(--yellow)':'var(--red)')+'">('+(ri.cashVariance>0?'+':'')+ri.cashVariance+')</span>':'';
-        html+='<div class="wizard-row"><span class="wr-label">'+ri.runner_name+' collected</span><span class="wr-val">'+fmt(ri.cashCollected)+varText+'</span></div>';
+        html+='<div class="wizard-row"><span class="wr-label">+ '+ri.runner_name+' collected</span><span class="wr-val">+'+fmt(ri.cashCollected)+'</span></div>';
       }
       html+='<div class="wizard-row total"><span class="wr-label">Total physical cash</span><span class="wr-val">'+fmt(totalPhysical)+'</span></div>';
-      html+='</div>';
-
-      // System expected — built from actual wizard data per component
-      html+='<div class="wizard-card"><h3>📊 System Expected Cash</h3>';
-      html+='<div class="wizard-row"><span class="wr-label">Counter cash (Odoo PM 37)</span><span class="wr-val">'+fmt(counterCashExpected)+'</span></div>';
+      html+='<div style="height:8px"></div>';
+      html+='<div class="wizard-row"><span class="wr-label">Drawer expected</span><span class="wr-val">'+fmt(wizardData.expectedDrawer)+'</span></div>';
       for(const ri of wizardRunnerInputs){
         if(ri.absent) continue;
-        html+='<div class="wizard-row"><span class="wr-label">'+ri.runner_name+' cash owed</span><span class="wr-val">'+fmt(ri.cashCalculated)+'</span></div>';
+        html+='<div class="wizard-row"><span class="wr-label">+ '+ri.runner_name+' expected</span><span class="wr-val">+'+fmt(ri.cashCalculated)+'</span></div>';
       }
-      if(absentObligation>0) html+='<div class="wizard-row"><span class="wr-label" style="color:var(--orange)">Absent runner obligations (excluded)</span><span class="wr-val" style="color:var(--orange)">'+fmt(absentObligation)+'</span></div>';
-      html+='<div class="wizard-row total"><span class="wr-label">Expected cash</span><span class="wr-val">'+fmt(effectiveExpected)+'</span></div>';
+      html+='<div class="wizard-row total"><span class="wr-label">Expected total</span><span class="wr-val">'+fmt(totalExpected)+'</span></div>';
       html+='</div>';
 
-      // Resolution
-      if(resolutions.length>0){
-        html+='<div class="wizard-card"><h3>🔧 Discrepancy Resolution</h3>';
-        html+='<div class="wizard-resolution"><div class="wr-title">How extra cash is explained</div>';
-        for(const r of resolutions){
-          const icon=r.source==='unexplained'?'⚠️':'✅';
-          html+='<div class="wizard-resolution-item"><span class="wri-icon">'+icon+'</span><span class="wri-text">'+r.explanation+'</span></div>';
-        }
-        html+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between"><span style="color:var(--text2)">Total resolved</span><span style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">'+fmt(varianceResolved)+'</span></div>';
-        html+='</div></div>';
-      }
-
-      // Final status
-      if(Math.abs(varianceUnresolved)<=1){
-        html+='<div class="wizard-recon-box balanced"><div class="wrb-icon">✅</div><div class="wrb-text">SHIFT BALANCED</div><div class="wrb-amount" style="color:var(--green)">Variance: ₹0</div></div>';
+      // Final status — simplified for cashier
+      if(Math.abs(varianceUnresolved)<=5){
+        html+='<div class="wizard-recon-box balanced"><div class="wrb-icon">✅</div><div class="wrb-text">BALANCED</div><div class="wrb-amount" style="color:var(--green)">All cash accounted for</div></div>';
+      }else if(varianceResolved>0&&Math.abs(varianceUnresolved)<=5){
+        html+='<div class="wizard-recon-box balanced"><div class="wrb-icon">✅</div><div class="wrb-text">BALANCED</div><div class="wrb-amount" style="color:var(--green)">'+fmt(varianceResolved)+' auto-resolved (UPI mismatch)</div></div>';
       }else if(varianceUnresolved>0){
-        html+='<div class="wizard-recon-box '+(varianceUnresolved>50?'bad':'variance')+'"><div class="wrb-icon">'+(varianceUnresolved>50?'🚨':'⚠️')+'</div><div class="wrb-text">EXTRA CASH</div><div class="wrb-amount" style="color:'+(varianceUnresolved>50?'var(--red)':'var(--yellow)')+'">+'+fmt(varianceUnresolved)+' unresolved</div></div>';
+        html+='<div class="wizard-recon-box '+(varianceUnresolved>50?'bad':'variance')+'"><div class="wrb-icon">'+(varianceUnresolved>50?'🚨':'⚠️')+'</div><div class="wrb-text">'+(varianceResolved>0?fmt(varianceResolved)+' auto-resolved':'EXTRA CASH')+'</div><div class="wrb-amount" style="color:'+(varianceUnresolved>50?'var(--red)':'var(--yellow)')+'">'+fmt(varianceUnresolved)+' unresolved extra</div></div>';
       }else{
         html+='<div class="wizard-recon-box '+(Math.abs(varianceUnresolved)>50?'bad':'variance')+'"><div class="wrb-icon">'+(Math.abs(varianceUnresolved)>50?'🚨':'⚠️')+'</div><div class="wrb-text">CASH SHORT</div><div class="wrb-amount" style="color:var(--red)">'+fmt(Math.abs(varianceUnresolved))+' unresolved</div></div>';
       }
 
       // Absent runners
-      const absentList=wizardRunnerInputs.filter(r=>r.absent);
-      if(absentList.length>0){
+      if(absentObligation>0){
+        const absentList=wizardRunnerInputs.filter(r=>r.absent);
         html+='<div class="wizard-card" style="border-color:var(--orange)">';
         for(const r of absentList){
-          html+='<div style="padding:8px 0;font-size:13px;color:var(--orange)">⚠️ '+r.runner_name+' ('+fmt(r.cashCalculated)+' obligation) — carried to next shift</div>';
+          html+='<div style="padding:8px 0;font-size:13px;color:var(--orange)">⚠️ '+r.runner_name+' ('+fmt(r.cashCalculated)+') — carried to next shift</div>';
         }
         html+='</div>';
       }
 
-      // Misattributed orders warning
-      if(wizardData.misattributed.length>0){
-        html+='<div class="wizard-match warn" style="margin:12px 0">⚠️ '+wizardData.misattributed.length+' order(s) with missing/wrong runner attribution. Fix via discrepancy panel after settling.</div>';
-      }
-
       html+='<div class="wizard-nav">'+
-        '<button class="wn-back" onclick="'+(wizardData.activeRunners.length>0?'goToWizardStep2()':'renderWizardStep1()')+'">← Back</button>'+
+        '<button class="wn-back" onclick="'+(wizardData.unsettledRunners.length>0?'goToWizardStep2()':'renderWizardStep1()')+'">← Back</button>'+
         '<button class="wn-submit" id="wizSubmitBtn" onclick="submitShiftWizard()">✅ Confirm & End Shift</button>'+
       '</div></div>';
 
@@ -1957,30 +1929,40 @@
       const mc=wizardData.mainCounter;
       const v=wizardData.verification;
       const rc=wizardData.reconciliation;
+      const cb=wizardData.counterBalance;
       const now=new Date();
 
       const payload={
         settled_by:currentUser,
         period_start:wizardData.periodStart,
         period_end:toLocalISO(now),
+        counter_balance:{
+          petty_cash_start:cb.pettyCash||0,
+          counter_cash_settled:cb.counterCash||0,
+          unsettled_counter_cash:wizardData.unsettledCounterCash||0,
+          runner_cash_settled:cb.runnerCash||0,
+          expenses_total:cb.totalExpenses||0,
+          expected_drawer:wizardData.expectedDrawer||0
+        },
+        drawer_cash_entered:wizardDrawerCashEntered,
         counter:{
-          cash_entered:wizardCounterCashEntered,
+          cash_entered:wizardDrawerCashEntered,
           cash_expected:mc.cash||0,
           upi:mc.upi||0,
           card:mc.card||0,
           token_issue:mc.tokenIssue||0,
-          complimentary:mc.complimentary||0,
-          upi_discrepancy:{
-            counter_qr:{
-              odoo:mc.upi||0,
-              razorpay:v.cashCounter?.razorpay||0,
-              variance:(v.cashCounter?.variance)||0
-            },
-            runner_counter_qr:{
-              odoo:wizardData.runnerCounter?.upi||0,
-              razorpay:v.runnerCounter?.razorpay||0,
-              variance:(v.runnerCounter?.variance)||0
-            }
+          complimentary:mc.complimentary||0
+        },
+        upi_verification:{
+          counter_qr:{
+            odoo:mc.upi||0,
+            razorpay:v.cashCounter?.razorpay||0,
+            variance:(v.cashCounter?.variance)||0
+          },
+          runner_counter_qr:{
+            odoo:wizardData.runnerCounter?.upi||0,
+            razorpay:v.runnerCounter?.razorpay||0,
+            variance:(v.runnerCounter?.variance)||0
           }
         },
         runner_checkpoints:wizardRunnerInputs.map(ri=>({

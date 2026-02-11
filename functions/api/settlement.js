@@ -442,7 +442,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, period_start, period_end, counter, runner_checkpoints, reconciliation} = body;
+      const {settled_by, period_start, period_end, counter, runner_checkpoints, reconciliation, counter_balance, drawer_cash_entered, upi_verification} = body;
 
       // 1. Validate settled_by
       const validUsers = Object.values(PINS);
@@ -460,10 +460,15 @@ export async function onRequest(context) {
 
       const settledAt = new Date().toISOString();
 
-      // 3. Insert parent cashier_shifts record
+      // 3. Insert parent cashier_shifts record (v3: includes drawer formula columns)
+      const cb = counter_balance || {};
+      const uv = upi_verification || {};
       const shiftResult = await DB.prepare(`
         INSERT INTO cashier_shifts (
           cashier_name, settled_at, period_start, period_end,
+          petty_cash_start, counter_cash_settled, unsettled_counter_cash,
+          runner_cash_settled, expenses_total, expected_drawer,
+          drawer_cash_entered, drawer_variance,
           counter_cash_expected, counter_cash_entered, counter_cash_variance,
           counter_upi, counter_card, counter_token_issue, counter_complimentary,
           counter_qr_odoo, counter_qr_razorpay, counter_qr_variance,
@@ -471,13 +476,20 @@ export async function onRequest(context) {
           total_cash_physical, total_cash_expected, final_variance,
           variance_resolved, variance_unresolved,
           discrepancy_resolutions, runner_count, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         settled_by, settledAt, period_start, period_end,
+        cb.petty_cash_start || 0, cb.counter_cash_settled || 0, cb.unsettled_counter_cash || 0,
+        cb.runner_cash_settled || 0, cb.expenses_total || 0, cb.expected_drawer || 0,
+        drawer_cash_entered || 0, (drawer_cash_entered || 0) - (cb.expected_drawer || 0),
         counter.cash_expected || 0, counter.cash_entered || 0, (counter.cash_entered || 0) - (counter.cash_expected || 0),
         counter.upi || 0, counter.card || 0, counter.token_issue || 0, counter.complimentary || 0,
-        counter.upi_discrepancy?.counter_qr?.odoo || 0, counter.upi_discrepancy?.counter_qr?.razorpay || 0, counter.upi_discrepancy?.counter_qr?.variance || 0,
-        counter.upi_discrepancy?.runner_counter_qr?.odoo || 0, counter.upi_discrepancy?.runner_counter_qr?.razorpay || 0, counter.upi_discrepancy?.runner_counter_qr?.variance || 0,
+        uv.counter_qr?.odoo || counter.upi_discrepancy?.counter_qr?.odoo || 0,
+        uv.counter_qr?.razorpay || counter.upi_discrepancy?.counter_qr?.razorpay || 0,
+        uv.counter_qr?.variance || counter.upi_discrepancy?.counter_qr?.variance || 0,
+        uv.runner_counter_qr?.odoo || counter.upi_discrepancy?.runner_counter_qr?.odoo || 0,
+        uv.runner_counter_qr?.razorpay || counter.upi_discrepancy?.runner_counter_qr?.razorpay || 0,
+        uv.runner_counter_qr?.variance || counter.upi_discrepancy?.runner_counter_qr?.variance || 0,
         reconciliation.total_physical_cash || 0, reconciliation.expected_cash || 0, reconciliation.raw_variance || 0,
         reconciliation.variance_resolved || 0, reconciliation.variance_unresolved || 0,
         JSON.stringify(reconciliation.discrepancy_resolutions || []),
@@ -544,7 +556,7 @@ export async function onRequest(context) {
         0, (counter.cash_expected || 0) + (counter.upi || 0) + (counter.card || 0),
         (counter.upi || 0) + (counter.card || 0),
         counter.cash_entered || 0, 0,
-        `Shift wizard: expected=${counter.cash_expected}, entered=${counter.cash_entered}, variance=${reconciliation.variance_unresolved || 0}`
+        `Shift wizard v3: drawer_entered=${drawer_cash_entered || counter.cash_entered}, expected_drawer=${cb.expected_drawer || counter.cash_expected}, variance=${reconciliation.variance_unresolved || 0}`
       ).run();
 
       // 6. WhatsApp alert if significant unresolved variance

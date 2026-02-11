@@ -105,6 +105,15 @@ CREATE TABLE cashier_shifts (
   settled_at TEXT NOT NULL,
   period_start TEXT NOT NULL,
   period_end TEXT NOT NULL,
+  -- Drawer formula components (v3)
+  petty_cash_start REAL DEFAULT 0,
+  counter_cash_settled REAL DEFAULT 0,
+  unsettled_counter_cash REAL DEFAULT 0,
+  runner_cash_settled REAL DEFAULT 0,
+  expenses_total REAL DEFAULT 0,
+  expected_drawer REAL DEFAULT 0,
+  drawer_cash_entered REAL DEFAULT 0,
+  drawer_variance REAL DEFAULT 0,
   -- Counter assessment (Step 1)
   counter_cash_expected REAL DEFAULT 0,
   counter_cash_entered REAL DEFAULT 0,
@@ -169,3 +178,13 @@ CREATE INDEX idx_src_runner ON shift_runner_checkpoints(runner_id);
 -- CREATE INDEX IF NOT EXISTS idx_cs_cashier ON cashier_shifts(cashier_name);
 -- CREATE INDEX IF NOT EXISTS idx_src_shift ON shift_runner_checkpoints(shift_id);
 -- CREATE INDEX IF NOT EXISTS idx_src_runner ON shift_runner_checkpoints(runner_id);
+--
+-- v3 migration (add drawer formula columns to existing cashier_shifts):
+-- ALTER TABLE cashier_shifts ADD COLUMN petty_cash_start REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN counter_cash_settled REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN unsettled_counter_cash REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN runner_cash_settled REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN expenses_total REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN expected_drawer REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN drawer_cash_entered REAL DEFAULT 0;
+-- ALTER TABLE cashier_shifts ADD COLUMN drawer_variance REAL DEFAULT 0;
