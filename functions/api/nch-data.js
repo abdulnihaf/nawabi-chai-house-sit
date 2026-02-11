@@ -175,6 +175,8 @@ function processDashboardData(orders, payments, razorpayData) {
   const runnerCounter = {total: 0, upi: 0, runnerLedger: 0, orderCount: 0};
   // Discrepancies detected during processing
   const discrepancies = [];
+  // Cross-payments: runner orders paid through a different UPI channel (NOT errors — just routing)
+  const crossPaymentsList = [];
   // Orders with wrong/missing runner attribution (fixable via rectification)
   const misattributedOrders = [];
 
@@ -261,11 +263,23 @@ function processDashboardData(orders, payments, razorpayData) {
         });
 
         if (isUpiSale) {
-          // D3: Runner-attributed order paid as UPI instead of Runner Ledger
-          discrepancies.push({type: 'runner_upi_sale', severity: 'warning', order: order.name, runner: runners[runnerId].name, amount: order.amount_total, message: `${order.name} → ${runners[runnerId].name} — ₹${order.amount_total} paid UPI, should be Runner Ledger`});
+          // Cross-payment: order IS this runner's, but paid via Counter/Runner Counter UPI
+          // Add to runner's sales (the order belongs to them)
+          runners[runnerId].sales += order.amount_total;
+          // Track as cross-payment credit (reduces cash obligation — money went to bank via UPI)
+          crossPaymentsList.push({
+            type: 'runner_order_paid_other_channel',
+            orderId: order.id, orderName: order.name,
+            amount: order.amount_total,
+            runnerOwner: runners[runnerId].name,
+            runnerOwnerId: runnerId,
+            paidViaChannel: 'counter_upi',
+            paidViaLabel: 'Counter/Runner Counter UPI',
+          });
+          // Track UPI for Razorpay cross-verification only
           runnerCounter.orderCount++;
-          runnerCounter.total += order.amount_total;
           runnerCounter.upi += order.amount_total;
+          // NOTE: Do NOT add to runnerCounter.total — already counted via runner's sales
         } else {
           // Normal: Runner Ledger (PM 40) — runner collected the money
           runners[runnerId].sales += order.amount_total;
@@ -373,12 +387,49 @@ function processDashboardData(orders, payments, razorpayData) {
     verification.runnerCounter.status = verification.runnerCounter.variance > 0 ? 'odoo_higher' : 'razorpay_higher';
   }
 
-  // Runner settlements
+  // === CROSS-PAYMENT CREDIT CALCULATION ===
+  // Sum cross-payments per runner: orders that were theirs but paid via other UPI channels
+  const crossPaymentCredits = {};
+  for (const cp of crossPaymentsList) {
+    if (!crossPaymentCredits[cp.runnerOwnerId]) crossPaymentCredits[cp.runnerOwnerId] = 0;
+    crossPaymentCredits[cp.runnerOwnerId] += cp.amount;
+  }
+
+  // Runner settlements (now includes cross-payment credit)
   const runnerSettlements = Object.values(runners).map(r => {
     const totalRevenue = r.tokens + r.sales;
-    const cashToCollect = totalRevenue - r.upi;
-    return {...r, totalRevenue, cashToCollect, status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')};
+    const crossCredit = crossPaymentCredits[r.id] || 0;
+    const cashToCollect = totalRevenue - r.upi - crossCredit;
+    const runnerCrossPayments = crossPaymentsList.filter(cp => cp.runnerOwnerId === r.id);
+    return {...r, totalRevenue, cashToCollect, crossPaymentCredit: crossCredit, crossPayments: runnerCrossPayments, status: totalRevenue === 0 ? 'inactive' : (cashToCollect <= 0 ? 'settled' : 'pending')};
   }).filter(r => r.tokens > 0 || r.sales > 0 || r.upi > 0);
+
+  // === RUNNER-TO-RUNNER CROSS-QR DETECTION (heuristic) ===
+  // If Runner A has UPI over-collection (cashToCollect < 0) and Runner B has positive
+  // unmatched cash obligation, a customer likely paid on the wrong runner's QR.
+  // These are flagged as "probable" (blue info) — NOT auto-corrected.
+  const overCollectRunners = runnerSettlements.filter(r => r.cashToCollect < -1);
+  const underCollectRunners = runnerSettlements.filter(r => r.cashToCollect > 1 && r.crossPaymentCredit === 0);
+  if (overCollectRunners.length > 0 && underCollectRunners.length > 0) {
+    for (const over of overCollectRunners) {
+      const excess = Math.abs(over.cashToCollect);
+      for (const under of underCollectRunners) {
+        const matchAmount = Math.min(excess, under.cashToCollect);
+        if (matchAmount > 1) {
+          crossPaymentsList.push({
+            type: 'probable_cross_qr',
+            orderId: null, orderName: null,
+            amount: matchAmount,
+            runnerOwner: under.name,
+            runnerOwnerId: under.id,
+            paidViaChannel: over.barcode.toLowerCase(),
+            paidViaLabel: `${over.name}'s QR (${over.barcode})`,
+            isProbable: true,
+          });
+        }
+      }
+    }
+  }
 
   // Grand totals
   const totalRunnerSales = Object.values(runners).reduce((sum, r) => sum + r.sales, 0);
@@ -424,7 +475,9 @@ function processDashboardData(orders, payments, razorpayData) {
       runnerCashObligations: runnerSettlements.map(r => ({
         id: r.id, name: r.name, barcode: r.barcode,
         tokens: r.tokens, sales: r.sales, upi: r.upi,
+        crossPaymentCredit: r.crossPaymentCredit,
         cashToCollect: r.cashToCollect,
+        crossPayments: r.crossPayments,
       })),
       totalRunnerCash,
     },
@@ -435,17 +488,28 @@ function processDashboardData(orders, payments, razorpayData) {
       accountedCash,
       variance: reconVariance,
       isBalanced: Math.abs(reconVariance) <= 1,
+      hasCrossPayments: crossPaymentsList.length > 0,
+      crossPaymentTotal: crossPaymentsList.filter(cp => !cp.isProbable).reduce((s, cp) => s + cp.amount, 0),
       explanation: Math.abs(reconVariance) <= 1 ? 'Shift balanced'
-        : reconVariance > 0 ? `₹${Math.abs(reconVariance)} cash unaccounted — may be cross-payment or POS error`
-        : `₹${Math.abs(reconVariance)} extra cash accounted — check for cross-payments`,
+        : reconVariance > 0 ? `₹${Math.abs(reconVariance)} cash unaccounted`
+        : `₹${Math.abs(reconVariance)} extra cash — likely cross-payment routing`,
     },
 
-    // Cross-payments (from existing discrepancies that explain per-runner oddities)
-    crossPayments: discrepancies.filter(d => d.type === 'runner_upi_sale').map(d => ({
-      orderName: d.order, amount: d.amount, runner: d.runner,
-      description: `${d.order}: ₹${d.amount} — customer ordered from ${d.runner}, paid via Runner Counter UPI`,
-      runnerCashImpact: `${d.runner} may have ₹${d.amount} extra cash`,
-      shiftImpact: 'No impact — UPI total is correct',
+    // Cross-payments: orders paid through different channels (NOT errors — routing differences)
+    crossPayments: crossPaymentsList.map(cp => ({
+      type: cp.type,
+      orderName: cp.orderName,
+      amount: cp.amount,
+      runner: cp.runnerOwner,
+      runnerId: cp.runnerOwnerId,
+      paidVia: cp.paidViaLabel,
+      channel: cp.paidViaChannel,
+      isProbable: cp.isProbable || false,
+      description: cp.orderName
+        ? `${cp.orderName}: ${cp.runnerOwner}'s order (₹${cp.amount}) paid via ${cp.paidViaLabel}`
+        : `₹${cp.amount} likely paid on ${cp.paidViaLabel} for ${cp.runnerOwner}'s orders`,
+      runnerCashImpact: `${cp.runnerOwner}'s cash reduced by ₹${cp.amount}`,
+      shiftImpact: 'No shift impact — payment verified via Razorpay',
     })),
 
     // UPI verification (already computed)
@@ -484,12 +548,14 @@ function processDashboardData(orders, payments, razorpayData) {
     verification,
     grandTotal,
     discrepancies,
+    crossPayments: crossPaymentsList,
     misattributedOrders,
     shiftReconciliation,
     summary: {
       totalOrders: orders.length,
       activeRunners: runnerSettlements.filter(r => r.status !== 'inactive').length,
-      discrepancyCount: discrepancies.length
+      discrepancyCount: discrepancies.length,
+      crossPaymentCount: crossPaymentsList.length
     }
   };
 }

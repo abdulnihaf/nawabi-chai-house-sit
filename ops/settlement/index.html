@@ -557,8 +557,28 @@
           if(baseCash>0){settleBtn=runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Settle '+fmt(baseCash)+' Cash</button>';}
           else if(baseCash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div>'+runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
           else{settleBtn=runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
-          const crossPayHtml=renderCrossPaymentNotice(selectedRunner.name);
-          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>'+unsoldHtml+'<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" id="cashToCollectVal" style="color:'+cashColor+'">'+fmt(baseCash)+'</span></div>'+discHtml+crossPayHtml+statusBox+settleBtn;
+          // Cross-payment credit display (blue, informational — NOT error)
+          let crossPayHtml='';
+          if(runner.crossPaymentCredit>0){
+            crossPayHtml+='<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:12px;margin:8px 0">';
+            crossPayHtml+='<div class="row" style="margin:0"><span class="label" style="color:var(--blue)">✓ Cross-Payment Credit</span><span class="value" style="color:var(--blue)">-'+fmt(runner.crossPaymentCredit)+'</span></div>';
+            crossPayHtml+='<div style="padding:4px 0 0 0;font-size:12px;color:var(--text2)">';
+            for(const cp of (runner.crossPayments||[])){
+              if(cp.orderName){crossPayHtml+='<div style="padding:2px 0">✓ '+cp.orderName+': Customer paid via '+cp.paidViaLabel+'</div>';}
+            }
+            crossPayHtml+='<div style="color:var(--blue);margin-top:4px">No cash owed for these orders — payment verified via Razorpay</div>';
+            crossPayHtml+='</div></div>';
+          }
+          // Probable cross-QR notice (heuristic, informational)
+          const probableCPs=(runner.crossPayments||[]).filter(cp=>cp.isProbable);
+          let probableHtml='';
+          if(probableCPs.length>0){
+            probableHtml='<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:10px;padding:12px;margin:8px 0">';
+            probableHtml+='<div style="font-weight:600;color:var(--blue);font-size:13px;margin-bottom:4px">ℹ️ Possible Cross-QR Payment</div>';
+            for(const cp of probableCPs){probableHtml+='<div style="font-size:12px;color:var(--text2);padding:2px 0">₹'+cp.amount+' may have been paid on '+cp.paidViaLabel+'</div>';}
+            probableHtml+='<div style="font-size:11px;color:var(--blue);margin-top:6px">Confirm with runner if needed</div></div>';
+          }
+          $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>'+unsoldHtml+'<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div>'+crossPayHtml+'<div class="row total"><span class="label">Cash to Collect</span><span class="value" id="cashToCollectVal" style="color:'+cashColor+'">'+fmt(baseCash)+'</span></div>'+discHtml+probableHtml+statusBox+settleBtn;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
           else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
@@ -585,6 +605,7 @@
       }
       rows.push({label:'Sales (Snacks)',value:fmt(currentRunnerData.sales)});
       rows.push({label:'UPI Collected',value:fmt(currentRunnerData.upi),color:'var(--blue)'});
+      if(currentRunnerData.crossPaymentCredit>0){rows.push({label:'Cross-Payment Credit',value:'-'+fmt(currentRunnerData.crossPaymentCredit),color:'var(--blue)'});}
       rows.push({label:'Cash to Collect',value:fmt(effectiveCash),color:effectiveCash>=0?'var(--green)':'var(--red)'});
       // Checks
       const checks=[];
@@ -607,7 +628,10 @@
       if(btn){btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';}
       try{
         const now=new Date();
-        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:effectiveCash,unsold_tokens:unsoldTokens,notes:unsoldTokens>0?'Unsold tokens: '+fmt(unsoldTokens):'Settled via dashboard'})});
+        const notesParts=[];
+        if(unsoldTokens>0)notesParts.push('Unsold tokens: '+fmt(unsoldTokens));
+        if(currentRunnerData.crossPaymentCredit>0)notesParts.push('Cross-payment credit: '+fmt(currentRunnerData.crossPaymentCredit)+' ('+currentRunnerData.crossPayments.length+' orders paid via other channels)');
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:effectiveCash,unsold_tokens:unsoldTokens,notes:notesParts.length>0?notesParts.join('; '):'Settled via dashboard'})});
         const data=await res.json();
         if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();loadShiftHistory();},1500);}
         else{throw new Error(data.error);}
@@ -1017,7 +1041,8 @@
         html+='<div class="recon-row"><span class="rr-label">Counter Drawer (Unsettled)</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
         for(const r of sr.cashBreakdown.runnerCashObligations){
           if(r.tokens>0||r.sales>0||r.upi>0){
-            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash Owed</span><span class="rr-val" style="color:'+(r.cashToCollect>=0?'var(--green)':'var(--red)')+'">'+fmt(r.cashToCollect)+'</span></div>';
+            const cpNote=r.crossPaymentCredit>0?' <span style="font-size:11px;color:var(--blue)">(incl. -'+fmt(r.crossPaymentCredit)+' credit)</span>':'';
+            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash Owed'+cpNote+'</span><span class="rr-val" style="color:'+(r.cashToCollect>=0?'var(--green)':'var(--red)')+'">'+fmt(r.cashToCollect)+'</span></div>';
           }
         }
         html+='<div class="recon-row total"><span class="rr-label">Total Expected Cash</span><span class="rr-val">'+fmt(bc.expectedCash)+'</span></div>';
@@ -1054,11 +1079,28 @@
           html+='</div>';
         }
 
-        // Cross-payments
+        // Cross-payments (green confirmed, blue probable — NOT errors)
         if(sr.crossPayments&&sr.crossPayments.length>0){
+          const confirmed=sr.crossPayments.filter(cp=>!cp.isProbable);
+          const probable=sr.crossPayments.filter(cp=>cp.isProbable);
           html+='<div class="recon-section"><h4>Cross-Payments</h4>';
-          for(const cp of sr.crossPayments){
-            html+='<div class="cross-payment-notice"><div class="cpn-title">⚠️ '+cp.orderName+'</div><div class="cpn-item">'+cp.description+'</div><div class="cpn-item">'+cp.runnerCashImpact+'</div><div class="cpn-shift">'+cp.shiftImpact+'</div></div>';
+          if(confirmed.length>0){
+            html+='<div style="font-size:12px;color:var(--green);margin-bottom:8px">Confirmed — orders paid via different QR channel:</div>';
+            for(const cp of confirmed){
+              html+='<div class="cross-payment-notice" style="border-color:rgba(34,197,94,0.3);background:rgba(34,197,94,0.05)">';
+              html+='<div class="cpn-title" style="color:var(--green)">✓ '+(cp.orderName||'Cross-QR')+' — '+fmt(cp.amount)+'</div>';
+              html+='<div class="cpn-item">'+cp.description+'</div>';
+              html+='<div class="cpn-item" style="color:var(--green)">'+cp.runnerCashImpact+'</div>';
+              html+='<div class="cpn-shift">'+cp.shiftImpact+'</div></div>';
+            }
+          }
+          if(probable.length>0){
+            html+='<div style="font-size:12px;color:var(--blue);margin:'+(confirmed.length>0?'12px':'0')+' 0 8px 0">Probable — detected from Razorpay patterns:</div>';
+            for(const cp of probable){
+              html+='<div class="cross-payment-notice" style="border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.05)">';
+              html+='<div class="cpn-title" style="color:var(--blue)">ℹ️ Possible Cross-QR — '+fmt(cp.amount)+'</div>';
+              html+='<div class="cpn-item">'+cp.description+'</div></div>';
+            }
           }
           html+='</div>';
         }
@@ -1150,7 +1192,8 @@
         html+='<div class="recon-row"><span class="rr-label">Counter Drawer</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
         for(const r of sr.cashBreakdown.runnerCashObligations){
           if(r.tokens>0||r.sales>0||r.upi>0){
-            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash</span><span class="rr-val">'+fmt(r.cashToCollect)+'</span></div>';
+            const cpNote=r.crossPaymentCredit>0?' <span style="font-size:10px;color:var(--blue)">(-'+fmt(r.crossPaymentCredit)+' credit)</span>':'';
+            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash'+cpNote+'</span><span class="rr-val">'+fmt(r.cashToCollect)+'</span></div>';
           }
         }
         html+='</div>';
@@ -1163,6 +1206,17 @@
           if(amt>0)html+='<div class="recon-row"><span class="rr-label">'+barcode+'</span><span class="rr-val">'+fmt(amt)+'</span></div>';
         }
         html+='</div>';
+
+        // Cross-payments
+        if(sr.crossPayments&&sr.crossPayments.length>0){
+          html+='<div class="recon-section" style="padding:8px 0"><h4 style="font-size:12px">Cross-Payments</h4>';
+          for(const cp of sr.crossPayments){
+            const color=cp.isProbable?'var(--blue)':'var(--green)';
+            const icon=cp.isProbable?'ℹ️':'✓';
+            html+='<div class="recon-row"><span class="rr-label" style="color:'+color+'">'+icon+' '+(cp.orderName||'Cross-QR')+' → '+cp.runner+'</span><span class="rr-val" style="color:'+color+'">'+fmt(cp.amount)+'</span></div>';
+          }
+          html+='</div>';
+        }
 
         // Variance sources
         if(sr.varianceSources&&sr.varianceSources.length>0&&!bc.isBalanced){
