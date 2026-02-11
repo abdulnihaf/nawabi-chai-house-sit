@@ -1856,10 +1856,9 @@
 
       // Totals
       const totalPhysical=wizardCounterCashEntered+wizardRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCollected,0);
-      const sr=wizardData.shiftRecon;
-      const mc=wizardData.mainCounter;
-      const v=wizardData.verification;
       // Compute expected cash from actual wizard data (not shiftRecon which may include already-settled runner activity)
+      // v, unresolvedCounterQR, unresolvedRCQR already declared above
+      const mc=wizardData.mainCounter;
       // Counter expected = counter cash (PM 37) from Odoo
       const counterCashExpected=mc.cash||0;
       // Runner expected = sum of each present runner's cashCalculated (already uses correct per-runner periods)
