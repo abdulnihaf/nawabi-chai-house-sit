@@ -94,3 +94,78 @@ CREATE TABLE razorpay_sync (
 
 CREATE INDEX idx_rp_label ON razorpay_sync(qr_label);
 CREATE INDEX idx_rp_captured ON razorpay_sync(captured_at);
+
+-- Cashier Shifts v2: parent record for "End My Shift" wizard
+-- One row per full cashier shift settlement (counter + all runner checkpoints)
+DROP TABLE IF EXISTS cashier_shifts;
+
+CREATE TABLE cashier_shifts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cashier_name TEXT NOT NULL,
+  settled_at TEXT NOT NULL,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  -- Counter assessment (Step 1)
+  counter_cash_expected REAL DEFAULT 0,
+  counter_cash_entered REAL DEFAULT 0,
+  counter_cash_variance REAL DEFAULT 0,
+  counter_upi REAL DEFAULT 0,
+  counter_card REAL DEFAULT 0,
+  counter_token_issue REAL DEFAULT 0,
+  counter_complimentary REAL DEFAULT 0,
+  -- UPI discrepancy snapshot (Odoo vs Razorpay)
+  counter_qr_odoo REAL DEFAULT 0,
+  counter_qr_razorpay REAL DEFAULT 0,
+  counter_qr_variance REAL DEFAULT 0,
+  runner_counter_qr_odoo REAL DEFAULT 0,
+  runner_counter_qr_razorpay REAL DEFAULT 0,
+  runner_counter_qr_variance REAL DEFAULT 0,
+  -- Grand reconciliation (Step 3)
+  total_cash_physical REAL DEFAULT 0,
+  total_cash_expected REAL DEFAULT 0,
+  final_variance REAL DEFAULT 0,
+  variance_resolved REAL DEFAULT 0,
+  variance_unresolved REAL DEFAULT 0,
+  discrepancy_resolutions TEXT DEFAULT '[]',
+  -- Metadata
+  runner_count INTEGER DEFAULT 0,
+  notes TEXT DEFAULT ''
+);
+
+CREATE INDEX idx_cs_settled_at ON cashier_shifts(settled_at);
+CREATE INDEX idx_cs_cashier ON cashier_shifts(cashier_name);
+
+-- Shift Runner Checkpoints: per-runner record within a cashier shift
+-- Also dual-writes to legacy `settlements` table for period continuity
+DROP TABLE IF EXISTS shift_runner_checkpoints;
+
+CREATE TABLE shift_runner_checkpoints (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shift_id INTEGER NOT NULL,
+  runner_id INTEGER NOT NULL,
+  runner_name TEXT NOT NULL,
+  tokens_amount REAL DEFAULT 0,
+  sales_amount REAL DEFAULT 0,
+  upi_amount REAL DEFAULT 0,
+  cross_payment_credit REAL DEFAULT 0,
+  unsold_tokens REAL DEFAULT 0,
+  cash_calculated REAL DEFAULT 0,
+  cash_collected REAL DEFAULT 0,
+  cash_variance REAL DEFAULT 0,
+  excess_mapped_to TEXT DEFAULT '',
+  excess_mapped_amount REAL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'present',
+  FOREIGN KEY (shift_id) REFERENCES cashier_shifts(id)
+);
+
+CREATE INDEX idx_src_shift ON shift_runner_checkpoints(shift_id);
+CREATE INDEX idx_src_runner ON shift_runner_checkpoints(runner_id);
+
+-- Migration SQL (run on live D1 — does NOT drop existing tables):
+--
+-- CREATE TABLE IF NOT EXISTS cashier_shifts ( ... );  -- copy from above
+-- CREATE TABLE IF NOT EXISTS shift_runner_checkpoints ( ... );  -- copy from above
+-- CREATE INDEX IF NOT EXISTS idx_cs_settled_at ON cashier_shifts(settled_at);
+-- CREATE INDEX IF NOT EXISTS idx_cs_cashier ON cashier_shifts(cashier_name);
+-- CREATE INDEX IF NOT EXISTS idx_src_shift ON shift_runner_checkpoints(shift_id);
+-- CREATE INDEX IF NOT EXISTS idx_src_runner ON shift_runner_checkpoints(runner_id);

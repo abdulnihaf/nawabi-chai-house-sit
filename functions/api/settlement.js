@@ -437,6 +437,184 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // === CASHIER SHIFT SETTLE (End My Shift wizard — atomic shift settlement) ===
+    if (action === 'cashier-shift-settle' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const body = await context.request.json();
+      const {settled_by, period_start, period_end, counter, runner_checkpoints, reconciliation} = body;
+
+      // 1. Validate settled_by
+      const validUsers = Object.values(PINS);
+      if (!settled_by || !validUsers.includes(settled_by)) {
+        return new Response(JSON.stringify({success: false, error: 'Invalid user'}), {headers: corsHeaders});
+      }
+
+      // 2. Duplicate prevention: same cashier within 5 minutes
+      const recentShift = await DB.prepare(
+        "SELECT id, settled_at FROM cashier_shifts WHERE cashier_name = ? AND settled_at > datetime('now', '-5 minutes') ORDER BY settled_at DESC LIMIT 1"
+      ).bind(settled_by).first();
+      if (recentShift) {
+        return new Response(JSON.stringify({success: false, error: 'You already ended your shift recently. Wait a few minutes if you need to re-submit.'}), {headers: corsHeaders});
+      }
+
+      const settledAt = new Date().toISOString();
+
+      // 3. Insert parent cashier_shifts record
+      const shiftResult = await DB.prepare(`
+        INSERT INTO cashier_shifts (
+          cashier_name, settled_at, period_start, period_end,
+          counter_cash_expected, counter_cash_entered, counter_cash_variance,
+          counter_upi, counter_card, counter_token_issue, counter_complimentary,
+          counter_qr_odoo, counter_qr_razorpay, counter_qr_variance,
+          runner_counter_qr_odoo, runner_counter_qr_razorpay, runner_counter_qr_variance,
+          total_cash_physical, total_cash_expected, final_variance,
+          variance_resolved, variance_unresolved,
+          discrepancy_resolutions, runner_count, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        settled_by, settledAt, period_start, period_end,
+        counter.cash_expected || 0, counter.cash_entered || 0, (counter.cash_entered || 0) - (counter.cash_expected || 0),
+        counter.upi || 0, counter.card || 0, counter.token_issue || 0, counter.complimentary || 0,
+        counter.upi_discrepancy?.counter_qr?.odoo || 0, counter.upi_discrepancy?.counter_qr?.razorpay || 0, counter.upi_discrepancy?.counter_qr?.variance || 0,
+        counter.upi_discrepancy?.runner_counter_qr?.odoo || 0, counter.upi_discrepancy?.runner_counter_qr?.razorpay || 0, counter.upi_discrepancy?.runner_counter_qr?.variance || 0,
+        reconciliation.total_physical_cash || 0, reconciliation.expected_cash || 0, reconciliation.raw_variance || 0,
+        reconciliation.variance_resolved || 0, reconciliation.variance_unresolved || 0,
+        JSON.stringify(reconciliation.discrepancy_resolutions || []),
+        (runner_checkpoints || []).length, ''
+      ).run();
+
+      const shiftId = shiftResult.meta?.last_row_id;
+
+      // 4. Insert runner checkpoints + legacy settlement records
+      const checkpoints = runner_checkpoints || [];
+      for (const rc of checkpoints) {
+        // New table: shift_runner_checkpoints
+        await DB.prepare(`
+          INSERT INTO shift_runner_checkpoints (
+            shift_id, runner_id, runner_name,
+            tokens_amount, sales_amount, upi_amount, cross_payment_credit,
+            unsold_tokens, cash_calculated, cash_collected, cash_variance,
+            excess_mapped_to, excess_mapped_amount, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          shiftId, rc.runner_id, rc.runner_name,
+          rc.tokens_amount || 0, rc.sales_amount || 0, rc.upi_amount || 0, rc.cross_payment_credit || 0,
+          rc.unsold_tokens || 0, rc.cash_calculated || 0, rc.cash_collected || 0, rc.cash_variance || 0,
+          rc.excess_mapped_to || '', rc.excess_mapped_amount || 0, rc.status || 'present'
+        ).run();
+
+        // Legacy settlements table: for period continuity (get-last-settlement)
+        if (rc.status === 'present') {
+          const notesParts = [`Shift wizard: calc=${rc.cash_calculated}, collected=${rc.cash_collected}`];
+          if (rc.unsold_tokens > 0) notesParts.push(`unsold=${rc.unsold_tokens}`);
+          if (rc.cross_payment_credit > 0) notesParts.push(`crossCredit=${rc.cross_payment_credit}`);
+          if (rc.cash_variance !== 0) notesParts.push(`variance=${rc.cash_variance}`);
+
+          await DB.prepare(`
+            INSERT INTO settlements (
+              runner_id, runner_name, settled_at, settled_by,
+              period_start, period_end,
+              tokens_amount, sales_amount, upi_amount,
+              cash_settled, unsold_tokens, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            String(rc.runner_id), rc.runner_name,
+            settledAt, settled_by,
+            period_start, period_end,
+            rc.tokens_amount || 0, rc.sales_amount || 0, rc.upi_amount || 0,
+            rc.cash_collected || 0, rc.unsold_tokens || 0,
+            notesParts.join('; ')
+          ).run();
+        }
+      }
+
+      // 5. Legacy counter settlement record
+      await DB.prepare(`
+        INSERT INTO settlements (
+          runner_id, runner_name, settled_at, settled_by,
+          period_start, period_end,
+          tokens_amount, sales_amount, upi_amount,
+          cash_settled, unsold_tokens, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        'counter', 'Cash Counter',
+        settledAt, settled_by,
+        period_start, period_end,
+        0, (counter.cash_expected || 0) + (counter.upi || 0) + (counter.card || 0),
+        (counter.upi || 0) + (counter.card || 0),
+        counter.cash_entered || 0, 0,
+        `Shift wizard: expected=${counter.cash_expected}, entered=${counter.cash_entered}, variance=${reconciliation.variance_unresolved || 0}`
+      ).run();
+
+      // 6. WhatsApp alert if significant unresolved variance
+      if (WA_TOKEN && Math.abs(reconciliation.variance_unresolved || 0) > 50) {
+        const dir = reconciliation.variance_unresolved > 0 ? 'extra' : 'short';
+        const runnerSummary = checkpoints
+          .filter(r => r.status === 'present')
+          .map(r => `${r.runner_name}: ₹${r.cash_collected}${r.cash_variance !== 0 ? ` (${r.cash_variance > 0 ? '+' : ''}${r.cash_variance})` : ''}`)
+          .join('\n');
+        const absentRunners = checkpoints.filter(r => r.status === 'absent').map(r => r.runner_name).join(', ');
+
+        const msg = `🏁 *NCH Shift Settlement*\n\n⚠️ Unresolved Variance: ₹${Math.abs(reconciliation.variance_unresolved).toFixed(0)} ${dir}\n\nCashier: ${settled_by}\nCounter cash: ₹${counter.cash_entered} (expected ₹${counter.cash_expected})\n${runnerSummary ? 'Runners:\n' + runnerSummary : 'No runners'}${absentRunners ? '\nAbsent: ' + absentRunners : ''}\n\nTotal physical: ₹${reconciliation.total_physical_cash}\nExpected: ₹${reconciliation.expected_cash}\nResolved: ₹${reconciliation.variance_resolved || 0}`;
+        context.waitUntil(Promise.all(ALERT_RECIPIENTS.map(to =>
+          sendWhatsAppAlert(WA_PHONE_ID, WA_TOKEN, to, msg)
+        )).catch(e => console.error('Shift alert error:', e.message)));
+      }
+
+      return new Response(JSON.stringify({
+        success: true, shift_id: shiftId,
+        message: 'Shift settled successfully'
+      }), {headers: corsHeaders});
+    }
+
+    // === SHIFT HISTORY V2 (cashier shift records with nested checkpoints) ===
+    if (action === 'shift-history-v2') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      const limit = url.searchParams.get('limit') || 20;
+      const shifts = await DB.prepare(
+        'SELECT * FROM cashier_shifts ORDER BY settled_at DESC LIMIT ?'
+      ).bind(limit).all();
+
+      // Load checkpoints for each shift
+      const results = [];
+      for (const shift of shifts.results) {
+        const checkpoints = await DB.prepare(
+          'SELECT * FROM shift_runner_checkpoints WHERE shift_id = ? ORDER BY runner_id'
+        ).bind(shift.id).all();
+        results.push({...shift, checkpoints: checkpoints.results});
+      }
+
+      return new Response(JSON.stringify({success: true, shifts: results}), {headers: corsHeaders});
+    }
+
+    // === RAZORPAYX BALANCE (real-time business account balance) ===
+    if (action === 'razorpayx-balance') {
+      const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
+      const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
+      if (!RAZORPAY_KEY || !RAZORPAY_SECRET) {
+        return new Response(JSON.stringify({success: false, error: 'Razorpay credentials not configured'}), {headers: corsHeaders});
+      }
+
+      try {
+        const auth = btoa(RAZORPAY_KEY + ':' + RAZORPAY_SECRET);
+        const balRes = await fetch('https://api.razorpay.com/v1/balance', {
+          headers: {'Authorization': 'Basic ' + auth}
+        });
+        const balData = await balRes.json();
+        // Balance is in paisa, convert to rupees
+        const balanceRupees = (balData.balance || 0) / 100;
+        return new Response(JSON.stringify({
+          success: true,
+          balance: balanceRupees,
+          currency: balData.currency || 'INR'
+        }), {headers: corsHeaders});
+      } catch (e) {
+        return new Response(JSON.stringify({success: false, error: 'Failed to fetch balance: ' + e.message}), {headers: corsHeaders});
+      }
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), {status: 500, headers: corsHeaders});
