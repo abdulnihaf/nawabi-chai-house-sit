@@ -1436,14 +1436,18 @@
         const baseline=new Date(2026,1,4,17,0,0);
         const runnerIds=[64,65,66,67,68];
 
-        // Parallel fetch: counter-balance + counter period + all runner periods
-        const [cbRes, ...periodResults]=await Promise.all([
+        // Parallel fetch: counter-balance + counter period + all runner periods + last shift
+        const [cbRes, lastShiftRes, ...periodResults]=await Promise.all([
           fetch('/api/settlement?action=counter-balance').then(r=>r.json()),
+          fetch('/api/settlement?action=shift-history-v2&limit=1').then(r=>r.json()),
           fetch('/api/settlement?action=get-last-settlement&runner_id=counter').then(r=>r.json()),
           ...runnerIds.map(id=>fetch('/api/settlement?action=get-last-settlement&runner_id='+id).then(r=>r.json()))
         ]);
 
         const counterBalance=cbRes.success?{...cbRes.balance,lastCollectionAt:cbRes.lastCollection?.collected_at||null}:{pettyCash:0,counterCash:0,runnerCash:0,totalExpenses:0,expenses:[],settlements:[],total:0,lastCollectionAt:null};
+        // Previous shift carry-forward: if last shift had a shortage, this shift can offset it
+        const lastShift=(lastShiftRes.success&&lastShiftRes.shifts&&lastShiftRes.shifts.length>0)?lastShiftRes.shifts[0]:null;
+        const prevVariance=lastShift?(lastShift.variance_unresolved||0):0;
         const counterPeriod=periodResults[0];
         const runnerPeriods={};
         runnerIds.forEach((id,i)=>{runnerPeriods[id]=periodResults[i+1];});
@@ -1455,27 +1459,36 @@
         const data=await res.json();
         if(!data.success) throw new Error(data.error||'Failed to load data');
 
-        // === Runner classification: fetch each runner from their OWN period ===
+        // === Runner classification: each runner from their OWN period ===
         // Every runner with activity since their last settlement is UNSETTLED.
-        // counter-balance.settlements is only used for drawer formula (runnerCash in drawer),
-        // NOT for classifying runners as settled/unsettled.
-        const runnerDataPromises=runnerIds.map(id=>{
+        // Optimization: reuse the main nch-data for runners whose period >= counter period.
+        // Only make separate API calls for runners with earlier periods.
+        const allRunners=[];
+        const extraFetches=[];
+        for(const id of runnerIds){
           const rp=runnerPeriods[id];
           const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
-          return fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
-            if(d.success){
-              const runner=d.data.runners.find(x=>x.id===id);
-              if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
-                return runner;
-              }
+          if(rpFrom>=shiftFrom){
+            // Runner's period starts at or after counter period — main nch-data covers it
+            const runner=data.data.runners.find(x=>x.id===id);
+            if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+              allRunners.push(runner);
             }
-            return null;
-          });
-        });
-        const runnerResults=await Promise.all(runnerDataPromises);
-
-        // All runners with activity are unsettled — no "already settled" category
-        const allRunners=runnerResults.filter(r=>r!==null);
+          }else{
+            // Runner's period is earlier — needs separate fetch
+            extraFetches.push(
+              fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
+                if(d.success){
+                  const runner=d.data.runners.find(x=>x.id===id);
+                  if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+                    allRunners.push(runner);
+                  }
+                }
+              }).catch(()=>{/* skip runner on API error */})
+            );
+          }
+        }
+        if(extraFetches.length>0) await Promise.all(extraFetches);
 
         // Compute expected drawer using counter-balance formula
         // liveCounterCash = PM 37 from nch-data for the CURRENT unsettled counter window only
@@ -1502,6 +1515,8 @@
           counterBalance,
           expectedDrawer,
           unsettledCounterCash,
+          prevVariance,
+          lastShiftCashier:lastShift?.cashier_name||null,
           // ALL runners with activity are unsettled — no "already collected" category
           unsettledRunners:allRunners,
           settledRunners:[]
@@ -1782,7 +1797,16 @@
         resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Runner Counter QR): '+fmt(resolved)});
         unresolvedRCQR-=resolved;remainingExcess-=resolved;
       }
-      // Phase 3: Still remaining = unexplained
+      // Phase 3: Carry-forward from previous shift shortage
+      // If the previous shift was short (prevVariance < 0) and current has excess,
+      // the excess is recovering that shortage — not truly extra cash.
+      if(remainingExcess>0&&wizardData.prevVariance<0){
+        const shortage=Math.abs(wizardData.prevVariance);
+        const recovered=Math.min(remainingExcess,shortage);
+        resolutions.push({source:'prev_shift_carryforward',amount:recovered,resolved_by:'shortage_recovery',explanation:'Recovering '+fmt(recovered)+' shortage from '+(wizardData.lastShiftCashier||'previous')+' shift (was '+fmt(shortage)+' short)'});
+        remainingExcess-=recovered;
+      }
+      // Phase 4: Still remaining = unexplained
       if(remainingExcess>0){
         resolutions.push({source:'unexplained',amount:remainingExcess,resolved_by:'none',explanation:fmt(remainingExcess)+' unexplained extra cash'});
       }
