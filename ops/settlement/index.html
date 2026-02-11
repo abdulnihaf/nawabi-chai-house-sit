@@ -184,6 +184,32 @@
     .variance-source .vs-amount{font-family:'JetBrains Mono',monospace;font-weight:600;margin:0 8px}
     .variance-source .vs-fix{background:var(--orange);color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600}
     .variance-source .vs-fix:hover{background:#ea580c}
+    .confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+    .confirm-dialog{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:24px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto}
+    .confirm-dialog h3{font-size:18px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .confirm-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border)}
+    .confirm-row:last-of-type{border-bottom:none}
+    .confirm-row .cr-label{color:var(--text2)}
+    .confirm-row .cr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .confirm-checks{margin:16px 0;padding:12px;background:var(--bg2);border-radius:10px}
+    .confirm-check{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px}
+    .confirm-check .cc-icon{font-size:16px;flex-shrink:0}
+    .confirm-check .cc-label{flex:1;color:var(--text2)}
+    .confirm-check .cc-status{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12px}
+    .confirm-check .cc-status.ok{color:var(--green)}
+    .confirm-check .cc-status.warn{color:var(--yellow)}
+    .confirm-check .cc-status.bad{color:var(--red)}
+    .confirm-warn{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);border-radius:8px;padding:10px;font-size:12px;color:var(--yellow);margin:12px 0}
+    .confirm-buttons{display:flex;gap:12px;margin-top:16px}
+    .confirm-buttons button{flex:1;padding:14px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:all 0.2s}
+    .confirm-buttons .cancel-btn{background:var(--bg2);color:var(--text);border:1px solid var(--border)}
+    .confirm-buttons .cancel-btn:hover{background:var(--border)}
+    .shift-health{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding:12px;background:var(--bg2);border-radius:10px}
+    .shift-health .sh-item{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);padding:4px 8px;background:var(--bg);border-radius:6px}
+    .shift-health .sh-item.ok{border:1px solid rgba(34,197,94,0.3)}
+    .shift-health .sh-item.warn{border:1px solid rgba(234,179,8,0.3)}
+    .shift-health .sh-item.bad{border:1px solid rgba(239,68,68,0.3)}
+    .expense-attr{padding-left:16px;font-size:11px;color:var(--text2);opacity:0.8}
   </style>
 </head>
 <body>
@@ -439,7 +465,9 @@
           rcHtml='<div class="row" style="opacity:0.5"><span class="label">Runner Counter UPI (direct)</span><span class="value" style="color:var(--blue)">'+fmt(rc.upi)+'</span></div>';
         }
 
-        let settleBtn='';if(counterRevenue>0){settleBtn='<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';}
+        let settleBtn='';
+        const shiftBadge=buildShiftHealthBadge();
+        if(counterRevenue>0){settleBtn=shiftBadge+'<button class="settle-btn counter-btn" onclick="settleCounter()">✓ Settle '+fmt(cashToSettle)+' Cash</button>';}
         if(counterRevenue>0||hasLast){
           $('panelContent').innerHTML=
             '<div class="row"><span class="label">Counter Revenue</span><span class="value">'+fmt(counterRevenue)+'</span></div>'+
@@ -504,10 +532,11 @@
             '<div class="row" id="effectiveTokensRow"><span class="label">Effective Tokens Sold</span><span class="value" id="effectiveTokensVal">'+fmt(runner.tokens)+'</span></div>';
           }
           const cashColor=baseCash>=0?'var(--green)':'var(--red)';
+          const runnerShiftBadge=buildShiftHealthBadge();
           let settleBtn='';
-          if(baseCash>0){settleBtn='<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Settle '+fmt(baseCash)+' Cash</button>';}
-          else if(baseCash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div><button class="settle-btn" id="settleRunnerBtn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
-          else{settleBtn='<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
+          if(baseCash>0){settleBtn=runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Settle '+fmt(baseCash)+' Cash</button>';}
+          else if(baseCash<0){settleBtn='<div class="info-box" style="background:rgba(59,130,246,0.1);border-color:var(--blue);color:var(--blue)">Runner collected more UPI than sales - verify before settling</div>'+runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" style="background:var(--blue)" onclick="settleRunner()">✓ Confirm Settlement</button>';}
+          else{settleBtn=runnerShiftBadge+'<button class="settle-btn" id="settleRunnerBtn" onclick="settleRunner()">✓ Mark as Settled (₹0 cash)</button>';}
           const crossPayHtml=renderCrossPaymentNotice(selectedRunner.name);
           $('panelContent').innerHTML='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>'+unsoldHtml+'<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div><div class="row"><span class="label">UPI Collected (Razorpay)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div><div class="row total"><span class="label">Cash to Collect</span><span class="value" id="cashToCollectVal" style="color:'+cashColor+'">'+fmt(baseCash)+'</span></div>'+discHtml+crossPayHtml+statusBox+settleBtn;
         }else{
@@ -519,17 +548,50 @@
 
     async function settleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
-      const btn=document.getElementById('settleRunnerBtn')||document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
+      const unsoldInput=document.getElementById('unsoldTokensInput');
+      const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
+      const effectiveCash=currentRunnerData.cashToCollect-unsoldTokens;
+      const sr=lastShiftReconData;
+      const bc=sr?sr.balanceCheck:null;
+      const discCount=currentMisattributed.length;
+      // Build rows
+      const rows=[{label:'Period',value:$('period').textContent}];
+      if(currentRunnerData.tokens>0){
+        rows.push({label:'Tokens Issued',value:fmt(currentRunnerData.tokens)});
+        if(unsoldTokens>0){
+          rows.push({label:'Unsold Returned',value:'-'+fmt(unsoldTokens),color:'var(--orange)'});
+          rows.push({label:'Effective Tokens',value:fmt(currentRunnerData.tokens-unsoldTokens)});
+        }
+      }
+      rows.push({label:'Sales (Snacks)',value:fmt(currentRunnerData.sales)});
+      rows.push({label:'UPI Collected',value:fmt(currentRunnerData.upi),color:'var(--blue)'});
+      rows.push({label:'Cash to Collect',value:fmt(effectiveCash),color:effectiveCash>=0?'var(--green)':'var(--red)'});
+      // Checks
+      const checks=[];
+      if(bc){
+        if(bc.isBalanced){checks.push({icon:'✅',label:'Shift Balance',status:'BALANCED',cls:'ok'});}
+        else{checks.push({icon:Math.abs(bc.variance)<=50?'⚠️':'🚨',label:'Shift Balance',status:'₹'+Math.abs(bc.variance)+' variance',cls:Math.abs(bc.variance)<=50?'warn':'bad'});}
+      }
+      checks.push({icon:discCount===0?'✅':'⚠️',label:'Discrepancies',status:discCount===0?'None':discCount+' unfixed',cls:discCount===0?'ok':'warn'});
+      let warning='';
+      if(effectiveCash<0)warning='Runner owes less than UPI collected — verify before confirming.';
+      showConfirmDialog({
+        title:'📋 Confirm '+selectedRunner.name+' Settlement',
+        rows,checks,warning:warning||null,amount:effectiveCash,btnColor:'var(--green)',
+        onConfirm:()=>doSettleRunner(unsoldTokens,effectiveCash)
+      });
+    }
+
+    async function doSettleRunner(unsoldTokens,effectiveCash){
+      const btn=document.getElementById('settleRunnerBtn')||document.querySelector('.settle-btn');
+      if(btn){btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';}
       try{
         const now=new Date();
-        const unsoldInput=document.getElementById('unsoldTokensInput');
-        const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
-        const effectiveCash=currentRunnerData.cashToCollect-unsoldTokens;
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:effectiveCash,unsold_tokens:unsoldTokens,notes:unsoldTokens>0?'Unsold tokens: '+fmt(unsoldTokens):'Settled via dashboard'})});
         const data=await res.json();
-        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();},1500);}
+        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();},1500);}
         else{throw new Error(data.error);}
-      }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+      }catch(e){if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}}
     }
 
     function recalcRunnerCash(){
@@ -556,16 +618,118 @@
       }
     }
 
+    // ========== SHIFT HEALTH BADGE ==========
+    function buildShiftHealthBadge(){
+      if(!lastShiftReconData)return '';
+      const sr=lastShiftReconData;
+      const bc=sr.balanceCheck;
+      const discCount=currentMisattributed.length;
+      // Shift balance check
+      let balCls='ok',balText='✅ Balanced';
+      if(!bc.isBalanced){
+        if(Math.abs(bc.variance)<=50){balCls='warn';balText='⚠️ ₹'+Math.abs(bc.variance)+' variance';}
+        else{balCls='bad';balText='🚨 ₹'+Math.abs(bc.variance)+' variance';}
+      }
+      // UPI check
+      let upiCls='ok',upiText='✅ UPI Verified';
+      if(sr.verifiedUPI){
+        const ccVar=Math.abs((sr.verifiedUPI.counterQR||0)-(sr.verifiedUPI.counterQR||0));
+        // Check from the raw verification data if available
+      }
+      // Discrepancy check
+      let discCls='ok',discText='✅ 0 issues';
+      if(discCount>0){discCls=discCount>2?'bad':'warn';discText='⚠️ '+discCount+' issue'+(discCount>1?'s':'');}
+      return '<div class="shift-health">'+
+        '<div class="sh-item '+balCls+'">Shift: '+balText+'</div>'+
+        '<div class="sh-item '+upiCls+'">'+upiText+'</div>'+
+        '<div class="sh-item '+discCls+'">Discrepancies: '+discText+'</div>'+
+      '</div>';
+    }
+
+    // ========== CONFIRMATION DIALOG ==========
+    function showConfirmDialog(opts){
+      // opts: {title, rows:[{label,value,color}], checks:[{icon,label,status,cls}], warning, amount, onConfirm, btnColor}
+      const overlay=document.createElement('div');
+      overlay.className='confirm-overlay';
+      let rowsHtml=opts.rows.map(r=>'<div class="confirm-row"><span class="cr-label">'+r.label+'</span><span class="cr-val"'+(r.color?' style="color:'+r.color+'"':'')+'>'+(r.value||'')+'</span></div>').join('');
+      let checksHtml='';
+      if(opts.checks&&opts.checks.length>0){
+        checksHtml='<div class="confirm-checks">'+
+          opts.checks.map(c=>'<div class="confirm-check"><span class="cc-icon">'+c.icon+'</span><span class="cc-label">'+c.label+'</span><span class="cc-status '+c.cls+'">'+c.status+'</span></div>').join('')+
+        '</div>';
+      }
+      let warnHtml=opts.warning?'<div class="confirm-warn">⚠️ '+opts.warning+'</div>':'';
+      overlay.innerHTML='<div class="confirm-dialog">'+
+        '<h3>'+opts.title+'</h3>'+rowsHtml+checksHtml+warnHtml+
+        '<div class="confirm-buttons">'+
+          '<button class="cancel-btn" onclick="this.closest(\'.confirm-overlay\').remove()">Cancel</button>'+
+          '<button class="settle-btn" style="margin:0;background:'+(opts.btnColor||'var(--green)')+'" id="confirmSettleBtn">✓ Confirm '+fmt(opts.amount)+'</button>'+
+        '</div></div>';
+      document.body.appendChild(overlay);
+      overlay.querySelector('#confirmSettleBtn').addEventListener('click',()=>{overlay.remove();opts.onConfirm();});
+      overlay.addEventListener('click',(e)=>{if(e.target===overlay)overlay.remove();});
+    }
+
     async function settleCounter(){
       if(!currentCounterData)return;
-      const btn=document.querySelector('.settle-btn');btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
+      const cashToSettle=currentCounterData.cash;
+      const sr=lastShiftReconData;
+      const bc=sr?sr.balanceCheck:null;
+      const discCount=currentMisattributed.length;
+      // Build checks
+      const checks=[];
+      if(bc){
+        if(bc.isBalanced){checks.push({icon:'✅',label:'Shift Balance',status:'BALANCED',cls:'ok'});}
+        else if(Math.abs(bc.variance)<=50){checks.push({icon:'⚠️',label:'Shift Balance',status:'₹'+Math.abs(bc.variance)+' variance',cls:'warn'});}
+        else{checks.push({icon:'🚨',label:'Shift Balance',status:'₹'+Math.abs(bc.variance)+' variance',cls:'bad'});}
+      }
+      checks.push({icon:discCount===0?'✅':'⚠️',label:'Discrepancies',status:discCount===0?'None':discCount+' unfixed',cls:discCount===0?'ok':'warn'});
+      // Warning if shift not balanced
+      let warning='';
+      if(bc&&!bc.isBalanced)warning='Settling with ₹'+Math.abs(bc.variance)+' shift variance.';
+      if(discCount>0)warning+=(warning?' ':'')+'There are '+discCount+' unfixed discrepancies.';
+      showConfirmDialog({
+        title:'📋 Confirm Counter Settlement',
+        rows:[
+          {label:'Period',value:$('period').textContent},
+          {label:'Cash Sales',value:fmt(currentCounterData.cash)},
+          {label:'UPI (to bank)',value:fmt(currentCounterData.upi),color:'var(--blue)'},
+          {label:'Card (to bank)',value:fmt(currentCounterData.card),color:'var(--blue)'},
+          {label:'Token Issue (→ Runners)',value:fmt(currentCounterData.tokenIssue),color:'var(--text2)'},
+          {label:'Complimentary',value:fmt(currentCounterData.complimentary),color:'var(--text2)'},
+          {label:'Cash to Settle',value:fmt(cashToSettle),color:'var(--orange)'}
+        ],
+        checks,warning:warning||null,amount:cashToSettle,btnColor:'var(--orange)',
+        onConfirm:doSettleCounter
+      });
+    }
+
+    async function doSettleCounter(){
+      const btn=document.querySelector('.settle-btn');if(btn){btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';}
       try{
         const now=new Date();const cashToSettle=currentCounterData.cash;
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:'counter',runner_name:'Cash Counter',settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:0,sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,upi_amount:currentCounterData.upi+currentCounterData.card,cash_settled:cashToSettle,notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card})});
         const data=await res.json();
-        if(data.success){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();loadShiftReconciliation();},1500);}
+        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();loadShiftReconciliation();},1500);}
         else{throw new Error(data.error);}
-      }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+      }catch(e){if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}}
+    }
+
+    // ========== EXPENSE ATTRIBUTION HELPER ==========
+    function buildExpenseAttribution(expenses){
+      if(!expenses||expenses.length===0)return '';
+      const byPerson={};
+      for(const e of expenses){
+        const who=e.recorded_by||'Unknown';
+        if(!byPerson[who])byPerson[who]={total:0,count:0};
+        byPerson[who].total+=e.amount;
+        byPerson[who].count++;
+      }
+      let html='';
+      for(const [who,data] of Object.entries(byPerson)){
+        html+='<div class="expense-attr">'+who+': -'+fmt(data.total)+' ('+data.count+' item'+(data.count>1?'s':'')+')</div>';
+      }
+      return html;
     }
 
     // ========== CASH AT COUNTER / COLLECTION ==========
@@ -689,7 +853,7 @@
                 '<div class="cash-breakdown-row"><span class="cbr-label">+ Counter cash settled</span><span class="cbr-val">'+fmt(bal.counterCash)+'</span></div>'+
                 '<div class="cash-breakdown-row"><span class="cbr-label">+ Unsettled drawer</span><span class="cbr-val">'+fmt(liveCounterCash)+'</span></div>'+
                 '<div class="cash-breakdown-row"><span class="cbr-label">+ Runner cash settled</span><span class="cbr-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</span></div>'+
-                (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>':'')+
+                (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>'+buildExpenseAttribution(bal.expenses):'')+
                 '<div class="cash-breakdown-row total"><span class="cbr-label">= Physical cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(displayCash)+'</span></div>'+
               '</div>'+
             '</div>';
@@ -726,7 +890,7 @@
               '<div class="cash-breakdown-row"><span class="cbr-label">+ Counter cash settled</span><span class="cbr-val">'+fmt(bal.counterCash)+'</span></div>'+
               '<div class="cash-breakdown-row"><span class="cbr-label">+ Unsettled drawer</span><span class="cbr-val">'+fmt(liveCounterCash)+'</span></div>'+
               '<div class="cash-breakdown-row"><span class="cbr-label">+ Runner cash settled</span><span class="cbr-val" style="color:var(--purple)">'+fmt(bal.runnerCash)+'</span></div>'+
-              (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>':'')+
+              (bal.totalExpenses>0?'<div class="cash-breakdown-row"><span class="cbr-label" style="color:var(--red)">− Expenses</span><span class="cbr-val" style="color:var(--red)">-'+fmt(bal.totalExpenses)+'</span></div>'+buildExpenseAttribution(bal.expenses):'')+
               '<div class="cash-breakdown-row total"><span class="cbr-label">= Physical cash</span><span class="cbr-val" style="color:var(--yellow)">'+fmt(staffDisplayCash)+'</span></div>'+
             '</div>'+
             (sinceText?'<div class="bal-detail" style="margin-top:8px">'+sinceText+'</div>':'')+
