@@ -1455,70 +1455,27 @@
         const data=await res.json();
         if(!data.success) throw new Error(data.error||'Failed to load data');
 
-        // === Runner classification using counter-balance settlements ===
-        // Runners in settlements list = already settled (cash in drawer)
-        // Runners with activity but NOT in settlements = unsettled (cash with runner)
-        const settledRunnerIds=new Set();
-        const settledRunnerInfo={};
-        if(counterBalance.settlements&&counterBalance.settlements.length>0){
-          for(const s of counterBalance.settlements){
-            const rid=Number(s.runner_id);
-            if(!isNaN(rid)){
-              settledRunnerIds.add(rid);
-              settledRunnerInfo[rid]=s;
-            }
-          }
-        }
-
-        // Check for runners who were settled but have NEW activity after their settlement
-        const runnersNeedingRefresh=[];
-        for(const id of runnerIds){
-          if(settledRunnerIds.has(id)){
-            const rp=runnerPeriods[id];
-            if(rp.periodStart){
-              const rpFrom=new Date(rp.periodStart);
-              // Runner's period start is AFTER the counter period start = they were settled mid-shift
-              // Check if they have new activity by fetching from their period
-              if(rpFrom>shiftFrom){
-                runnersNeedingRefresh.push({id,from:rpFrom,periodStart:rp.periodStart});
+        // === Runner classification: fetch each runner from their OWN period ===
+        // Every runner with activity since their last settlement is UNSETTLED.
+        // counter-balance.settlements is only used for drawer formula (runnerCash in drawer),
+        // NOT for classifying runners as settled/unsettled.
+        const runnerDataPromises=runnerIds.map(id=>{
+          const rp=runnerPeriods[id];
+          const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
+          return fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
+            if(d.success){
+              const runner=d.data.runners.find(x=>x.id===id);
+              if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+                return runner;
               }
             }
-          }
-        }
-
-        // Re-fetch data for runners with post-settlement activity
-        let runnerOverrides={};
-        if(runnersNeedingRefresh.length>0){
-          const refreshPromises=runnersNeedingRefresh.map(r=>
-            fetch('/api/nch-data?from='+toLocalISO(r.from)).then(res=>res.json()).then(d=>{
-              if(d.success){
-                const runner=d.data.runners.find(x=>x.id===r.id);
-                if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
-                  runnerOverrides[r.id]=runner;
-                }
-                // If no new activity, runner stays as "settled" (no override)
-              }
-            })
-          );
-          await Promise.all(refreshPromises);
-        }
-
-        // Build runner list with classification
-        const allRunners=(data.data.runners||[]).map(r=>{
-          // If runner has post-settlement new activity, use refreshed data
-          if(runnerOverrides[r.id]){
-            const override=runnerOverrides[r.id];
-            if(!override.name) override.name=r.name;
-            return{...override,_settled:false,_hasNewActivity:true};
-          }
-          // If runner was settled and has NO new activity → mark as settled
-          if(settledRunnerIds.has(r.id)){
-            const sInfo=settledRunnerInfo[r.id];
-            return{...r,_settled:true,_settlementInfo:sInfo};
-          }
-          // Unsettled runner
-          return{...r,_settled:false};
+            return null;
+          });
         });
+        const runnerResults=await Promise.all(runnerDataPromises);
+
+        // All runners with activity are unsettled — no "already settled" category
+        const allRunners=runnerResults.filter(r=>r!==null);
 
         // Compute expected drawer using counter-balance formula
         // liveCounterCash = PM 37 from nch-data for the CURRENT unsettled counter window only
@@ -1545,16 +1502,16 @@
           counterBalance,
           expectedDrawer,
           unsettledCounterCash,
-          // Separate runner lists
-          settledRunners:allRunners.filter(r=>r._settled&&(r.tokens>0||r.sales>0||r.upi>0)),
-          unsettledRunners:allRunners.filter(r=>!r._settled&&(r.tokens>0||r.sales>0||r.upi>0))
+          // ALL runners with activity are unsettled — no "already collected" category
+          unsettledRunners:allRunners,
+          settledRunners:[]
         };
 
-        // Active runners = all with activity (for step 2 display)
-        wizardData.activeRunners=[...wizardData.unsettledRunners,...wizardData.settledRunners];
+        // Active runners = all unsettled runners (for step 2 display)
+        wizardData.activeRunners=allRunners;
 
-        // Init runner inputs ONLY for unsettled runners (settled ones are read-only)
-        wizardRunnerInputs=wizardData.unsettledRunners.map(r=>({
+        // Init runner inputs for ALL runners with activity
+        wizardRunnerInputs=allRunners.map(r=>({
           runner_id:r.id,
           runner_name:r.name,
           tokens:r.tokens,
@@ -1655,31 +1612,9 @@
 
       let html='<div class="wizard-step-content active" id="step2Content">';
 
-      // === Already-settled runners (read-only) ===
-      if(wizardData.settledRunners.length>0){
-        html+='<div class="wizard-card" style="opacity:0.7"><h3 style="color:var(--green)">✅ Already Collected</h3>';
-        for(const r of wizardData.settledRunners){
-          const sInfo=r._settlementInfo||{};
-          const settledTime=sInfo.settled_at?fmtD(new Date(sInfo.settled_at)):'earlier';
-          const settledBy=sInfo.settled_by||'cashier';
-          html+='<div style="padding:8px 0;border-bottom:1px solid var(--border)">'+
-            '<div style="font-weight:600;font-size:14px">'+r.name+'</div>'+
-            '<div style="font-size:12px;color:var(--text2);margin-top:4px">'+
-              'Tokens: '+fmt(r.tokens)+' | Sales: '+fmt(r.sales)+' | UPI: '+fmt(r.upi)+
-            '</div>'+
-            '<div style="font-size:12px;color:var(--green);margin-top:4px">'+
-              '✅ '+fmt(sInfo.cash_settled||r.cashToCollect||0)+' collected by '+settledBy+' at '+settledTime+
-            '</div>'+
-          '</div>';
-        }
-        html+='</div>';
-      }
-
-      // === Unsettled runners (with inputs) ===
+      // === All runners with activity — collect from each ===
       if(wizardRunnerInputs.length===0){
-        if(wizardData.settledRunners.length===0){
-          html+='<div class="wizard-card"><div class="loading-text">No active runners this shift</div></div>';
-        }
+        html+='<div class="wizard-card"><div class="loading-text">No active runners this shift</div></div>';
       }else{
         for(let i=0;i<wizardRunnerInputs.length;i++){
           const ri=wizardRunnerInputs[i];

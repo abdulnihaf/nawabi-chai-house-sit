@@ -450,14 +450,8 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({success: false, error: 'Invalid user'}), {headers: corsHeaders});
       }
 
-      // 2. Duplicate prevention: same cashier within 5 minutes
-      const recentShift = await DB.prepare(
-        "SELECT id, settled_at FROM cashier_shifts WHERE cashier_name = ? AND settled_at > datetime('now', '-5 minutes') ORDER BY settled_at DESC LIMIT 1"
-      ).bind(settled_by).first();
-      if (recentShift) {
-        return new Response(JSON.stringify({success: false, error: 'You already ended your shift recently. Wait a few minutes if you need to re-submit.'}), {headers: corsHeaders});
-      }
-
+      // 2. No time-based duplicate prevention — same cashier can settle multiple times
+      // for different time windows. Frontend button-disabling prevents accidental double-clicks.
       const settledAt = new Date().toISOString();
 
       // 3. Insert parent cashier_shifts record (v3: includes drawer formula columns)
