@@ -399,7 +399,8 @@ export async function onRequest(context) {
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
-      const openingStock = JSON.parse(previous.inventory_decomposed || '{}');
+      // Use inventory_closing (gap-adjusted) as opening stock, falling back to inventory_decomposed for older records
+      const openingStock = JSON.parse(previous.inventory_closing || previous.inventory_decomposed || '{}');
       const prevRunnerTokens = JSON.parse(previous.runner_tokens || '{}');
 
       // ── Step 3: Fetch Odoo data for the period ──
