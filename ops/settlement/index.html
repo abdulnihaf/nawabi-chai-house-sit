@@ -1462,8 +1462,11 @@
         const settledRunnerInfo={};
         if(counterBalance.settlements&&counterBalance.settlements.length>0){
           for(const s of counterBalance.settlements){
-            settledRunnerIds.add(s.runner_id);
-            settledRunnerInfo[s.runner_id]=s;
+            const rid=Number(s.runner_id);
+            if(!isNaN(rid)){
+              settledRunnerIds.add(rid);
+              settledRunnerInfo[rid]=s;
+            }
           }
         }
 
@@ -1948,6 +1951,7 @@
         counter:{
           cash_entered:wizardDrawerCashEntered,
           cash_expected:mc.cash||0,
+          unsettled_counter_cash:wizardData.unsettledCounterCash||0,
           upi:mc.upi||0,
           card:mc.card||0,
           token_issue:mc.tokenIssue||0,

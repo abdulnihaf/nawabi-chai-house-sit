@@ -555,8 +555,8 @@ export async function onRequest(context) {
         period_start, period_end,
         0, (counter.cash_expected || 0) + (counter.upi || 0) + (counter.card || 0),
         (counter.upi || 0) + (counter.card || 0),
-        counter.cash_entered || 0, 0,
-        `Shift wizard v3: drawer_entered=${drawer_cash_entered || counter.cash_entered}, expected_drawer=${cb.expected_drawer || counter.cash_expected}, variance=${reconciliation.variance_unresolved || 0}`
+        counter.unsettled_counter_cash || counter.cash_expected || 0, 0,
+        `Shift wizard v3: drawer_entered=${drawer_cash_entered || counter.cash_entered}, expected_drawer=${cb.expected_drawer || counter.cash_expected}, unsettled_counter=${counter.unsettled_counter_cash || 0}, variance=${reconciliation.variance_unresolved || 0}`
       ).run();
 
       // 6. WhatsApp alert if significant unresolved variance
