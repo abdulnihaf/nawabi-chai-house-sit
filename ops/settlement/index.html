@@ -210,6 +210,23 @@
     .shift-health .sh-item.warn{border:1px solid rgba(234,179,8,0.3)}
     .shift-health .sh-item.bad{border:1px solid rgba(239,68,68,0.3)}
     .expense-attr{padding-left:16px;font-size:11px;color:var(--text2);opacity:0.8}
+    .shift-history-panel{background:var(--card);border-radius:16px;padding:24px;margin-bottom:32px;display:none}
+    .shift-history-panel.show{display:block}
+    .shift-history-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .shift-history-panel .subtitle{font-size:13px;color:var(--text2);margin-bottom:16px}
+    .sh-card{background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:all 0.2s}
+    .sh-card:hover{border-color:var(--blue)}
+    .sh-card-header{display:flex;justify-content:space-between;align-items:center}
+    .sh-card-title{font-size:14px;font-weight:600}
+    .sh-card-time{font-size:12px;color:var(--text2)}
+    .sh-card-meta{display:flex;gap:12px;margin-top:6px;font-size:12px;color:var(--text2)}
+    .sh-card-meta span{font-family:JetBrains Mono,monospace}
+    .sh-card-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+    .sh-card-badge.balanced{background:rgba(34,197,94,0.15);color:var(--green)}
+    .sh-card-badge.variance{background:rgba(239,68,68,0.15);color:var(--red)}
+    .sh-card-detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:none}
+    .sh-card-detail.show{display:block}
+    .sh-card-detail .loading-text{font-size:12px;color:var(--text2);text-align:center;padding:12px}
   </style>
 </head>
 <body>
@@ -250,6 +267,7 @@
       <div class="counter-balance-readonly" id="counterBalanceReadonly"></div>
       <div class="collection-panel" id="collectionPanel"></div>
       <div class="recon-panel" id="shiftReconPanel"></div>
+      <div class="shift-history-panel" id="shiftHistoryPanel"></div>
     </div>
   </div>
   <script>
@@ -295,6 +313,7 @@
             loadCashAtCounter();
             loadShiftReconciliation();
             loadDiscrepancies();
+            loadShiftHistory();
           },800);
         }else{
           pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
@@ -313,6 +332,7 @@
       $('counterBalanceReadonly').classList.remove('show');
       $('panel').classList.remove('show');
       $('shiftReconPanel').classList.remove('show');
+      $('shiftHistoryPanel').classList.remove('show');
       $('discrepancyPanel').classList.remove('show');
       lastShiftReconData=null;
       pins.forEach(p=>{p.value='';p.classList.remove('filled');});
@@ -589,7 +609,7 @@
         const now=new Date();
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:effectiveCash,unsold_tokens:unsoldTokens,notes:unsoldTokens>0?'Unsold tokens: '+fmt(unsoldTokens):'Settled via dashboard'})});
         const data=await res.json();
-        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();},1500);}
+        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner(selectedRunner.id,card);loadCashAtCounter();loadShiftReconciliation();loadDiscrepancies();loadShiftHistory();},1500);}
         else{throw new Error(data.error);}
       }catch(e){if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}}
     }
@@ -710,7 +730,7 @@
         const now=new Date();const cashToSettle=currentCounterData.cash;
         const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:'counter',runner_name:'Cash Counter',settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:0,sales_amount:currentCounterData.cash+currentCounterData.upi+currentCounterData.card,upi_amount:currentCounterData.upi+currentCounterData.card,cash_settled:cashToSettle,notes:'Counter settlement - Cash:'+currentCounterData.cash+' UPI:'+currentCounterData.upi+' Card:'+currentCounterData.card})});
         const data=await res.json();
-        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();loadShiftReconciliation();},1500);}
+        if(data.success){if(btn){btn.textContent='✓ Settlement Recorded!';btn.style.background='var(--green)';}setTimeout(()=>{const card=document.querySelector('.runner-card.selected');if(card)selectRunner('counter',card);loadCashAtCounter();loadShiftReconciliation();loadShiftHistory();},1500);}
         else{throw new Error(data.error);}
       }catch(e){if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}}
     }
@@ -963,8 +983,12 @@
 
     async function loadShiftReconciliation(){
       try{
-        const now=new Date();const todayISO=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+'T00:00:00';
-        const res=await fetch('/api/nch-data?from='+todayISO);
+        // Fetch active shift period (same logic as counter settlement)
+        const periodRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
+        const periodData=await periodRes.json();
+        const baseline=new Date(2026,1,4,17,0,0);
+        const shiftFrom=periodData.periodStart?new Date(periodData.periodStart):baseline;
+        const res=await fetch('/api/nch-data?from='+toLocalISO(shiftFrom));
         const data=await res.json();
         if(!data.success||!data.data.shiftReconciliation){$('shiftReconPanel').classList.remove('show');return;}
         const sr=data.data.shiftReconciliation;
@@ -981,7 +1005,8 @@
         const statusText=bc.isBalanced?'SHIFT BALANCED':bc.variance>0?'₹'+Math.abs(bc.variance)+' UNACCOUNTED':'₹'+Math.abs(bc.variance)+' EXTRA';
         const statusColor=bc.isBalanced?'var(--green)':Math.abs(bc.variance)<=50?'var(--yellow)':'var(--red)';
 
-        let html='<h3>'+statusIcon+' Shift Reconciliation</h3>';
+        const shiftPeriodLabel=fmtD(shiftFrom)+' → Now';
+        let html='<h3>'+statusIcon+' Shift Reconciliation</h3><div class="subtitle">'+shiftPeriodLabel+'</div>';
         html+='<div class="recon-equation">';
         html+='<div class="eq-main">Sales '+fmt(sr.totalSales)+' = Cash '+fmt(bc.expectedCash)+' + UPI '+fmt(sr.verifiedUPI.total)+' + Card '+fmt(sr.card)+' + Comp '+fmt(sr.complimentary)+'</div>';
         html+='<div class="eq-status" style="color:'+statusColor+'">'+statusText+'</div>';
@@ -1056,6 +1081,103 @@
       }
       html+='<div class="cpn-shift">Shift total is correct — UPI covers this amount at the counter level.</div></div>';
       return html;
+    }
+
+    // ========== SHIFT HISTORY TRAIL ==========
+    async function loadShiftHistory(){
+      try{
+        const res=await fetch('/api/settlement?action=history&limit=20');
+        const data=await res.json();
+        if(!data.success||!data.settlements||data.settlements.length===0){$('shiftHistoryPanel').classList.remove('show');return;}
+        const panel=$('shiftHistoryPanel');
+        panel.classList.add('show');
+        let html='<h3>📋 Shift History</h3><div class="subtitle">Tap any shift to view full reconciliation</div>';
+        for(const s of data.settlements){
+          const pStart=new Date(s.period_start);
+          const pEnd=new Date(s.period_end);
+          const isCounter=s.runner_id==='counter'||s.runner_id===0;
+          const typeBadge=isCounter?'Counter':'Runner';
+          const typeIcon=isCounter?'💰':'🏃';
+          html+='<div class="sh-card" onclick="toggleShiftDetail(this,\''+s.period_start+'\',\''+s.period_end+'\')">';
+          html+='<div class="sh-card-header">';
+          html+='<div><div class="sh-card-title">'+typeIcon+' '+(isCounter?'Counter Settlement':s.runner_name)+' → '+s.settled_by+'</div>';
+          html+='<div class="sh-card-time">'+fmtD(pStart)+' → '+fmtD(pEnd)+'</div></div>';
+          html+='<div style="text-align:right"><div style="font-size:18px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--green)">'+fmt(s.cash_settled)+'</div></div>';
+          html+='</div>';
+          html+='<div class="sh-card-meta">';
+          if(s.tokens_amount>0)html+='<span>Tokens: '+fmt(s.tokens_amount)+'</span>';
+          if(s.sales_amount>0)html+='<span>Sales: '+fmt(s.sales_amount)+'</span>';
+          if(s.upi_amount>0)html+='<span>UPI: '+fmt(s.upi_amount)+'</span>';
+          if(s.unsold_tokens>0)html+='<span style="color:var(--orange)">Returned: '+fmt(s.unsold_tokens)+'</span>';
+          html+='</div>';
+          html+='<div class="sh-card-detail" id="shd_'+s.id+'"><div class="loading-text">Tap to load full reconciliation...</div></div>';
+          html+='</div>';
+        }
+        panel.innerHTML=html;
+      }catch(e){console.error('Shift history error:',e);}
+    }
+
+    async function toggleShiftDetail(card,periodStart,periodEnd){
+      const detail=card.querySelector('.sh-card-detail');
+      if(!detail)return;
+      if(detail.classList.contains('show')){detail.classList.remove('show');return;}
+      // Close all other open details
+      document.querySelectorAll('.sh-card-detail.show').forEach(d=>d.classList.remove('show'));
+      detail.classList.add('show');
+      // If already loaded, just show
+      if(detail.dataset.loaded==='true')return;
+      detail.innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
+      try{
+        const fromISO=toLocalISO(new Date(periodStart));
+        const toISO=toLocalISO(new Date(periodEnd));
+        const res=await fetch('/api/nch-data?from='+fromISO+'&to='+toISO);
+        const data=await res.json();
+        if(!data.success){detail.innerHTML='<div class="loading-text" style="color:var(--red)">Error loading data</div>';return;}
+        const sr=data.data.shiftReconciliation;
+        if(!sr){detail.innerHTML='<div class="loading-text">No reconciliation data for this period</div>';return;}
+        const bc=sr.balanceCheck;
+        const statusIcon=bc.isBalanced?'✅':Math.abs(bc.variance)<=50?'⚠️':'🚨';
+        const statusText=bc.isBalanced?'BALANCED':bc.variance>0?'₹'+Math.abs(bc.variance)+' UNACCOUNTED':'₹'+Math.abs(bc.variance)+' EXTRA';
+        const statusColor=bc.isBalanced?'var(--green)':Math.abs(bc.variance)<=50?'var(--yellow)':'var(--red)';
+
+        let html='<div class="recon-equation" style="margin-bottom:8px">';
+        html+='<div class="eq-main">Sales '+fmt(sr.totalSales)+' = Cash '+fmt(bc.expectedCash)+' + UPI '+fmt(sr.verifiedUPI.total)+' + Card '+fmt(sr.card)+' + Comp '+fmt(sr.complimentary)+'</div>';
+        html+='<div class="eq-status" style="color:'+statusColor+'">'+statusIcon+' '+statusText+'</div>';
+        html+='</div>';
+
+        // Cash breakdown
+        html+='<div class="recon-section" style="padding:8px 0"><h4 style="font-size:12px">Cash Breakdown</h4>';
+        html+='<div class="recon-row"><span class="rr-label">Counter Drawer</span><span class="rr-val">'+fmt(sr.cashBreakdown.counterDrawer)+'</span></div>';
+        for(const r of sr.cashBreakdown.runnerCashObligations){
+          if(r.tokens>0||r.sales>0||r.upi>0){
+            html+='<div class="recon-row"><span class="rr-label">'+r.name+' Cash</span><span class="rr-val">'+fmt(r.cashToCollect)+'</span></div>';
+          }
+        }
+        html+='</div>';
+
+        // UPI breakdown
+        html+='<div class="recon-section" style="padding:8px 0"><h4 style="font-size:12px">UPI (Razorpay)</h4>';
+        html+='<div class="recon-row"><span class="rr-label">Counter QR</span><span class="rr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI.counterQR)+'</span></div>';
+        if(sr.verifiedUPI.runnerCounterQR>0)html+='<div class="recon-row"><span class="rr-label">Runner Counter QR</span><span class="rr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI.runnerCounterQR)+'</span></div>';
+        for(const [barcode,amt] of Object.entries(sr.verifiedUPI.runnerQRs)){
+          if(amt>0)html+='<div class="recon-row"><span class="rr-label">'+barcode+'</span><span class="rr-val">'+fmt(amt)+'</span></div>';
+        }
+        html+='</div>';
+
+        // Variance sources
+        if(sr.varianceSources&&sr.varianceSources.length>0&&!bc.isBalanced){
+          html+='<div class="recon-section" style="padding:8px 0"><h4 style="font-size:12px">Variance Sources</h4>';
+          for(const vs of sr.varianceSources){
+            html+='<div class="variance-source"><span class="vs-label">'+(vs.fixable?'🔧':'📊')+' '+vs.label+'</span><span class="vs-amount" style="color:var(--red)">'+fmt(Math.abs(vs.amount))+'</span></div>';
+          }
+          html+='</div>';
+        }
+
+        detail.innerHTML=html;
+        detail.dataset.loaded='true';
+      }catch(e){
+        detail.innerHTML='<div class="loading-text" style="color:var(--red)">Failed: '+e.message+'</div>';
+      }
     }
 
     // ========== DISCREPANCY RECTIFICATION PANEL ==========
