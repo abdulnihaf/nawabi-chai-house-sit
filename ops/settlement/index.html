@@ -1521,11 +1521,12 @@
         });
 
         // Compute expected drawer using counter-balance formula
-        // unsettledCounterCash = live Odoo PM 37 counter cash MINUS what's already in counter-balance settlements for counter
-        // counter-balance.counterCash = settled counter cash from D1
-        // We need unsettled = total live counter cash - already settled counter cash
+        // liveCounterCash = PM 37 from nch-data for the CURRENT unsettled counter window only
+        //   (from last counter settlement → now). This does NOT overlap with counterBalance.counterCash
+        //   which covers settled periods since last collection. No subtraction needed.
+        // Formula matches loadCashAtCounter(): petty + settled_counter + unsettled_counter + runner - expenses
         const liveCounterCash=data.data.mainCounter?.cash||0;
-        const unsettledCounterCash=Math.max(0,liveCounterCash-counterBalance.counterCash);
+        const unsettledCounterCash=liveCounterCash;
 
         const expectedDrawer=counterBalance.pettyCash+counterBalance.counterCash+unsettledCounterCash+counterBalance.runnerCash-counterBalance.totalExpenses;
 
