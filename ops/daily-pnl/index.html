@@ -114,21 +114,8 @@
     .wastage-entry .qty-input{width:80px}
     .wastage-entry .reason-input{flex:1;min-width:100px}
 
-    /* ── P&L RESULT ── */
-    .pnl-card{background:linear-gradient(135deg,rgba(20,184,166,0.05),rgba(6,182,212,0.05));border:1px solid var(--teal);border-radius:16px;padding:24px;margin-bottom:16px}
-    .pnl-header{text-align:center;margin-bottom:20px}
-    .pnl-header h2{font-size:20px;margin-bottom:4px}
-    .pnl-header .date{font-family:'JetBrains Mono',monospace;color:var(--text2);font-size:13px}
-    .pnl-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
-    .pnl-row:last-child{border-bottom:none}
-    .pnl-row .label{color:var(--text2)}
-    .pnl-row .value{font-weight:600;font-family:'JetBrains Mono',monospace}
-    .pnl-row.total{padding-top:16px;margin-top:8px;border-top:2px solid var(--border);border-bottom:none}
-    .pnl-row.total .label{font-weight:700;color:var(--text);font-size:16px}
-    .pnl-row.total .value{font-size:24px}
-    .pnl-row.sub{padding:4px 0 4px 16px;font-size:13px;opacity:0.7}
-    .profit-positive{color:var(--green)}
-    .profit-negative{color:var(--red)}
+    /* ── PRINT HEADER (hidden on screen, visible in PDF) ── */
+    .print-header{display:none}
 
     /* ── INVENTORY TABLE ── */
     .inv-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -203,7 +190,24 @@
       .vessel-entry select{width:100%}
       .vessel-entry .weight-input{width:100%;flex:none}
       .history-item .hi-grid{grid-template-columns:repeat(2,1fr)}
-      .pnl-row.total .value{font-size:20px}
+    }
+
+    /* ── PRINT / PDF ── */
+    @media print {
+      .pin-screen, .header, .tabs, .date-bar, .logout-btn,
+      #settleForm, #settleLoading, #settleAlreadyDone, #periodInfo,
+      .history-item, #historyLoading, .camera-overlay,
+      button, .btn, .no-print { display: none !important; }
+      body { background: #fff !important; color: #000 !important; font-size: 11pt; }
+      .dashboard, .content, .tab-content { background: #fff !important; padding: 0 !important; max-width: 100% !important; }
+      .tab-content.show { display: block !important; }
+      .section { background: #fff !important; border: 1px solid #ccc !important; box-shadow: none !important; page-break-inside: avoid; margin-bottom: 12px !important; }
+      .inv-table th { color: #333 !important; border-bottom: 2px solid #333 !important; }
+      .inv-table td { color: #000 !important; border-bottom: 1px solid #ddd !important; }
+      .mono, .num { color: #000 !important; }
+      .print-header { display: block !important; text-align: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #333; }
+      .print-header h2 { margin: 0 0 4px 0; font-size: 18pt; color: #000; }
+      .print-header p { margin: 2px 0; font-size: 11pt; color: #333; }
     }
   </style>
 </head>
@@ -263,11 +267,8 @@
             <div class="alert-text"><strong>Bootstrap Settlement</strong> — No previous settlement found. This will record your baseline inventory. Only physical counts are needed — no P&L will be calculated.<br><br>Count everything as accurately as possible. This becomes Day 0.</div>
           </div>
 
-          <!-- Revenue auto-fetched -->
-          <div id="revenueSection" class="section">
-            <div class="section-title"><span class="sec-icon">💰</span> Revenue (Auto from POS)</div>
-            <div id="revenueContent"></div>
-          </div>
+          <!-- Revenue hidden — inventory-only mode -->
+          <div id="revenueSection" style="display:none"></div>
 
           <!-- ═══ INVENTORY COUNT — 4 PHYSICAL ZONES ═══ -->
 
@@ -1034,15 +1035,9 @@ async function prepareSettlement() {
     isBootstrap = data.needsBootstrap;
     $('settleForm').style.display = 'block';
     $('bootstrapBanner').style.display = isBootstrap ? 'flex' : 'none';
-    $('revenueSection').style.display = isBootstrap ? 'none' : 'block';
     $('runnerTokenSection').style.display = isBootstrap ? 'none' : 'block';
     $('submitBtn').textContent = isBootstrap ? '🏁 Submit Bootstrap Count' : '✅ Submit Settlement';
     $('dateStatus').textContent = isBootstrap ? '🏁 Bootstrap mode' : `📊 Settlement #${data.previousSettlement ? data.previousSettlement.id + 1 : '1'}`;
-
-    // Render revenue
-    if (!isBootstrap && data.revenue) {
-      renderRevenue(data.revenue);
-    }
 
     // Pre-populate default vessel entries
     resetForm();
@@ -1100,22 +1095,7 @@ function resetForm() {
   $('decompPreview').style.display = 'none';
 }
 
-function renderRevenue(revenue) {
-  if (!revenue || !revenue.products || revenue.products.length === 0) {
-    $('revenueContent').innerHTML = `<div style="color:var(--text2);font-size:13px">No POS sales recorded for this date</div>`;
-    return;
-  }
-  let html = `<div style="font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-bottom:16px">${fmt(revenue.total)}</div>`;
-  html += `<div style="display:grid;gap:6px">`;
-  for (const item of revenue.products) {
-    html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px">
-      <span style="color:var(--text2)">${item.productName} × ${item.qtySold}</span>
-      <span class="mono">${fmt(item.amount)}</span>
-    </div>`;
-  }
-  html += '</div>';
-  $('revenueContent').innerHTML = html;
-}
+// renderRevenue removed — inventory-only mode
 
 // ── VESSEL ENTRIES ───────────────────────────────────────
 
@@ -1640,9 +1620,6 @@ function renderBeverageConsumption(products, inventory) {
 }
 
 function renderPnlResult(data) {
-  const p = data.pnl;
-  const profitClass = p.adjustedNetProfit >= 0 ? 'profit-positive' : 'profit-negative';
-
   let html = '';
 
   // Show warnings banner if any negative consumption detected
@@ -1658,10 +1635,21 @@ function renderPnlResult(data) {
 
   const periodStr = data.period ? `${formatTime(data.period.start)} → ${formatTime(data.period.end)} (${Math.floor(data.period.hours)}h ${Math.round((data.period.hours % 1) * 60)}m)` : '';
 
+  // ── Print header (hidden on screen, visible in PDF) ──
+  html += `<div class="print-header">
+    <h2>Nawabi Chai House — Inventory Report</h2>
+    <p><strong>${data.settlementDate}</strong></p>
+    ${periodStr ? `<p>Period: ${periodStr}</p>` : ''}
+    <p>Settled by: ${data.settledBy}</p>
+  </div>`;
+
   // ── INVENTORY REPORT (shown first — staff-friendly) ──
-  html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px">
-    <div style="font-size:15px;font-weight:600">Inventory Report — ${data.settlementDate}</div>
-    <div style="font-size:12px;color:var(--text2)">Settled by ${data.settledBy}${periodStr ? ` | ${periodStr}` : ''}</div>
+  html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:15px;font-weight:600">Inventory Report — ${data.settlementDate}</div>
+      <div style="font-size:12px;color:var(--text2)">Settled by ${data.settledBy}${periodStr ? ` | ${periodStr}` : ''}</div>
+    </div>
+    <button class="btn btn-secondary no-print" onclick="window.print()" style="padding:6px 14px;font-size:13px">📥 Download PDF</button>
   </div>`;
 
   // Section A: Items Sold
@@ -1673,32 +1661,11 @@ function renderPnlResult(data) {
   // Section C: Beverage Consumption
   html += renderBeverageConsumption(data.products, data.inventory);
 
-  // ── P&L + detailed sections (owner-only: PIN 0305) ──
-  if (currentPin === '0305') {
-    html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
-    html += `
-      <div class="pnl-card">
-        <div class="pnl-header"><h2>P&L Summary</h2></div>
-        <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
-        <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
-        <div class="pnl-row"><span class="label">Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
-        <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(p.opex)}</span></div>
-        ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
-        <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${profitClass}">${fmt(p.adjustedNetProfit)}</span></div>
-      </div>
-    </div>`;
-
-    if (data.rawInput) {
-      html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
-      html += renderRawInputTable(data.rawInput);
-      html += `</div>`;
-    }
-
-    if (data.inventory) {
-      html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-      html += renderInventoryMovement(data.inventory);
-      html += `</div>`;
-    }
+  // ── Inventory Movement (visible to all) ──
+  if (data.inventory) {
+    html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
+    html += renderInventoryMovement(data.inventory);
+    html += `</div>`;
   }
 
   $('settleResult').innerHTML = html;
@@ -1786,12 +1753,7 @@ async function loadHistory() {
             ${statusBadge}${periodLabel}
           </div>
           ${s.status === 'completed' ? `
-          <div class="hi-grid">
-            <div class="hi-stat"><div class="hs-val">${fmt(s.revenue_total)}</div><div class="hs-label">Revenue</div></div>
-            <div class="hi-stat"><div class="hs-val">${fmt(s.cogs_actual)}</div><div class="hs-label">COGS</div></div>
-            <div class="hi-stat"><div class="hs-val">${fmt(s.opex_total)}</div><div class="hs-label">OpEx</div></div>
-            <div class="hi-stat"><div class="hs-val ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</div><div class="hs-label">Net Profit</div></div>
-          </div>` : `
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">Settled by ${s.settled_by}</div>` : `
           <div style="font-size:13px;color:var(--text2);margin-top:4px">Baseline inventory recorded by ${s.settled_by}</div>`}
         </div>
       `;
@@ -1847,10 +1809,24 @@ async function loadSettlementDetail(id) {
         expected: JSON.parse(s.inventory_expected || '{}'),
       };
 
+      // ── Print header (hidden on screen, visible in PDF) ──
+      const periodStrFull = s.period_start && s.period_end
+        ? `${formatTime(s.period_start)} → ${formatTime(s.period_end)}${periodLabel}`
+        : '';
+      html += `<div class="print-header">
+        <h2>Nawabi Chai House — Inventory Report</h2>
+        <p><strong>${s.settlement_date}</strong></p>
+        ${periodStrFull ? `<p>Period: ${periodStrFull}</p>` : ''}
+        <p>Settled by: ${s.settled_by} at ${formatTime(s.settled_at)}</p>
+      </div>`;
+
       // ── INVENTORY REPORT (shown first) ──
-      html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px">
-        <div style="font-size:15px;font-weight:600">Inventory Report — ${s.settlement_date}</div>
-        <div style="font-size:12px;color:var(--text2)">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}${periodLabel}</div>
+      html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:15px;font-weight:600">Inventory Report — ${s.settlement_date}</div>
+          <div style="font-size:12px;color:var(--text2)">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}${periodLabel}</div>
+        </div>
+        <button class="btn btn-secondary no-print" onclick="window.print()" style="padding:6px 14px;font-size:13px">📥 Download PDF</button>
       </div>`;
 
       // Section A: Items Sold
@@ -1862,31 +1838,10 @@ async function loadSettlementDetail(id) {
       // Section C: Beverage Consumption
       html += renderBeverageConsumption(products, inventory);
 
-      // ── P&L + detailed sections (owner-only: PIN 0305) ──
-      if (currentPin === '0305') {
-        html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
-        html += `
-          <div class="pnl-card">
-            <div class="pnl-header"><h2>P&L Summary</h2></div>
-            <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
-            <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
-            <div class="pnl-row"><span class="label">Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
-            <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
-            ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
-            <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
-          </div>
-        </div>`;
-
-        if (rawInput && Object.keys(rawInput).length > 0) {
-          html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
-          html += renderRawInputTable(rawInput);
-          html += `</div>`;
-        }
-
-        html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-        html += renderInventoryMovement(inventory);
-        html += `</div>`;
-      }
+      // ── Inventory Movement (visible to all) ──
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
+      html += renderInventoryMovement(inventory);
+      html += `</div>`;
 
       // Runner tokens
       const tokens = JSON.parse(s.runner_tokens || '{}');
