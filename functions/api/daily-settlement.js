@@ -909,6 +909,134 @@ export async function onRequest(context) {
       return json({success: true, settlement: result}, corsHeaders);
     }
 
+    // ─── AMEND: correct a completed settlement ──────────────
+    if (action === 'amend' && context.request.method === 'POST') {
+      if (!DB) return json({success: false, error: 'DB not configured'}, corsHeaders);
+      const body = await context.request.json();
+      const {pin, id, corrections} = body;
+
+      // Owner-only
+      if (pin !== '0305') return json({success: false, error: 'Unauthorized — owner PIN required'}, corsHeaders);
+      if (!id || !corrections || !Array.isArray(corrections) || corrections.length === 0) {
+        return json({success: false, error: 'id and corrections[] required'}, corsHeaders);
+      }
+
+      // Load existing settlement
+      const settlement = await DB.prepare('SELECT * FROM daily_settlements WHERE id = ?').bind(parseInt(id)).first();
+      if (!settlement) return json({success: false, error: 'Settlement not found'}, corsHeaders);
+
+      // Parse JSON columns
+      const opening = JSON.parse(settlement.inventory_opening || '{}');
+      const purchases = JSON.parse(settlement.inventory_purchases || '{}');
+      const closing = JSON.parse(settlement.inventory_closing || '{}');
+      const expectedConsumption = JSON.parse(settlement.inventory_expected || '{}');
+      const wastageItems = JSON.parse(settlement.wastage_items || '[]');
+      const editTrail = JSON.parse(settlement.edit_trail || '{}');
+
+      // Save previous values for audit
+      const previousValues = {
+        inventory_purchases: settlement.inventory_purchases,
+        inventory_closing: settlement.inventory_closing,
+        cogs_actual: settlement.cogs_actual,
+        adjusted_net_profit: settlement.adjusted_net_profit,
+      };
+
+      // Apply corrections
+      const appliedCorrections = [];
+      for (const c of corrections) {
+        if (c.type === 'purchase' && c.material_id) {
+          const matId = String(c.material_id);
+          const oldEntry = purchases[matId] || {qty: 0, cost: 0};
+          const oldQty = oldEntry.qty || 0;
+          const unitCost = oldQty > 0 ? oldEntry.cost / oldQty : 0;
+          purchases[matId] = {qty: c.new_qty, cost: round(c.new_qty * unitCost, 2)};
+          appliedCorrections.push({type: 'purchase', material_id: matId, old_qty: oldQty, new_qty: c.new_qty, reason: c.reason || ''});
+        } else if (c.type === 'closing' && c.material_id) {
+          const matId = String(c.material_id);
+          const oldVal = closing[matId] || 0;
+          closing[matId] = c.new_value;
+          appliedCorrections.push({type: 'closing', material_id: matId, old_value: oldVal, new_value: c.new_value, reason: c.reason || ''});
+        }
+      }
+
+      // Recalculate consumption
+      const consumption = {};
+      const allMaterialIds = new Set([...Object.keys(opening), ...Object.keys(purchases), ...Object.keys(closing)]);
+      for (const mid of allMaterialIds) {
+        const matId = String(mid);
+        const o = opening[matId] || 0;
+        const p = purchases[matId] ? purchases[matId].qty : 0;
+        const cl = closing[matId] || 0;
+        const used = round(o + p - cl, 4);
+        if (used !== 0 || o > 0 || p > 0) consumption[matId] = round(used, 4);
+      }
+
+      // Load material costs
+      const materialCosts = await getAllMaterialCosts(DB, settlement.settlement_date);
+      const getCost = (matId) => materialCosts[String(matId)] || FALLBACK_COSTS[matId] || 0;
+
+      // Recalculate discrepancy
+      const discrepancy = {};
+      let discrepancyValue = 0;
+      const allDiscIds = new Set([...Object.keys(consumption), ...Object.keys(expectedConsumption)]);
+      for (const matId of allDiscIds) {
+        const actual = consumption[matId] || 0;
+        const expected = expectedConsumption[matId] || 0;
+        const wastedQty = (wastageItems || []).filter(w => String(w.material_id) === String(matId)).reduce((s, w) => s + (w.qty || 0), 0);
+        const disc = round(actual - expected - wastedQty, 4);
+        if (Math.abs(disc) > 0.001) {
+          const cost = getCost(matId);
+          const discVal = round(disc * cost, 2);
+          discrepancy[matId] = {qty: disc, value: discVal, uom: RAW_MATERIALS[matId]?.uom || ''};
+          discrepancyValue += discVal;
+        }
+      }
+
+      // Recalculate COGS
+      let cogsActual = 0;
+      for (const [matId, qty] of Object.entries(consumption)) {
+        cogsActual += Math.max(0, qty) * getCost(matId);
+      }
+      cogsActual = round(cogsActual, 2);
+
+      // Recalculate P&L
+      const wastageValue = round((wastageItems || []).reduce((s, w) => s + (w.qty || 0) * getCost(w.material_id), 0), 2);
+      const grossProfit = round(settlement.revenue_total - cogsActual, 2);
+      const netProfit = round(grossProfit - settlement.opex_total, 2);
+      const adjustedNetProfit = round(netProfit - discrepancyValue - wastageValue, 2);
+
+      // Update edit trail
+      if (!editTrail.amendments) editTrail.amendments = [];
+      editTrail.amendments.push({
+        at: new Date().toISOString(),
+        by: PINS[pin],
+        corrections: appliedCorrections,
+        previous: previousValues,
+      });
+
+      // Update DB
+      await DB.prepare(`UPDATE daily_settlements SET
+        inventory_purchases = ?, inventory_closing = ?,
+        inventory_consumption = ?, inventory_discrepancy = ?, discrepancy_value = ?,
+        cogs_actual = ?, gross_profit = ?, net_profit = ?, adjusted_net_profit = ?,
+        edit_trail = ?
+        WHERE id = ?`
+      ).bind(
+        JSON.stringify(purchases), JSON.stringify(closing),
+        JSON.stringify(consumption), JSON.stringify(discrepancy), discrepancyValue,
+        cogsActual, grossProfit, netProfit, adjustedNetProfit,
+        JSON.stringify(editTrail),
+        parseInt(id)
+      ).run();
+
+      return json({
+        success: true,
+        message: `Settlement #${id} amended with ${appliedCorrections.length} correction(s)`,
+        corrections: appliedCorrections,
+        updated: {cogsActual, grossProfit, netProfit, adjustedNetProfit, discrepancyValue},
+      }, corsHeaders);
+    }
+
     // ─── VESSELS: manage vessel weights ──────────────────────
     if (action === 'get-vessels') {
       const vessels = await getVessels(DB);
@@ -958,7 +1086,7 @@ export async function onRequest(context) {
       return json({success: false, error: 'Invalid PIN'}, corsHeaders);
     }
 
-    return json({success: false, error: 'Invalid action. Use: get-config, prepare, submit, history, get-settlement, get-vessels, save-vessel, get-salaries, save-salary, verify-pin'}, corsHeaders);
+    return json({success: false, error: 'Invalid action. Use: get-config, prepare, submit, amend, history, get-settlement, get-vessels, save-vessel, get-salaries, save-salary, verify-pin'}, corsHeaders);
 
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), {status: 500, headers: corsHeaders});
