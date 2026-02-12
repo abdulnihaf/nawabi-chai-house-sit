@@ -720,23 +720,6 @@ export async function onRequest(context) {
       }
     }
 
-    // ─── ADMIN: D1 cleanup for reverted pickings ──────────────
-    if (action === 'admin-fix' && context.request.method === 'POST') {
-      const body = await context.request.json();
-      if (body.pin !== '0305') return new Response(JSON.stringify({success: false, error: 'Unauthorized'}), {headers: corsHeaders});
-      const log = [];
-      if (DB) {
-        // Delete receipt confirmations for pickings that were reverted
-        for (const pid of [2296, 2204]) {
-          try {
-            await DB.prepare('DELETE FROM receipt_confirmations WHERE picking_id = ?').bind(pid).run();
-            log.push(`Deleted D1 receipt_confirmation for picking ${pid}`);
-          } catch (e) { log.push(`D1 delete ${pid} failed: ${e.message}`); }
-        }
-      }
-      return new Response(JSON.stringify({success: true, log}), {headers: corsHeaders});
-    }
-
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
 
   } catch (error) {
