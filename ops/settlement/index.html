@@ -298,6 +298,32 @@
     .shift-card{border-color:var(--green)}
     .shift-card:hover{background:rgba(34,197,94,0.1)!important;border-color:var(--green)!important}
     .shift-card.selected{background:rgba(34,197,94,0.15);border-color:var(--green)}
+    .shift-report{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .shift-report.show{display:block}
+    .shift-report-section{margin-bottom:16px}
+    .shift-report-section h4{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .sr-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+    .sr-row .sr-label{color:var(--text2)}
+    .sr-row .sr-val{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .sr-row.total{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:600}
+    .sr-row.total .sr-label{color:var(--text)}
+    .print-report-header{display:none;text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #333}
+    .print-report-header h2{font-size:22px;margin-bottom:4px}
+    .print-report-header p{font-size:13px;color:#666}
+    @media print{
+      body{background:#fff!important;color:#000!important;font-size:12px}
+      .pin-screen,.header,.runner-grid,.panel,.collection-panel,.counter-balance-readonly,.recon-panel,.wizard-overlay,.discrepancy-panel,.sh-card:not(.printing),.wizard-nav,.no-print{display:none!important}
+      .dashboard{display:block!important}
+      .shift-history-panel{display:block!important;background:#fff!important;border:none!important}
+      .shift-history-panel h3,.shift-history-panel .subtitle{display:none!important}
+      .sh-card.printing{display:block!important;border:1px solid #ccc!important;background:#fff!important;color:#000!important;page-break-inside:avoid}
+      .sh-card.printing *{color:#000!important}
+      .sh-card.printing .sh-card-badge{border:1px solid #333}
+      .sh-card.printing .shift-report{display:block!important}
+      .print-report-header{display:block!important}
+      .sr-row .sr-label{color:#666!important}
+      .shift-report-section h4{color:#333!important;border-color:#ccc!important}
+    }
   </style>
 </head>
 <body>
@@ -1989,12 +2015,12 @@
         const res=await fetch('/api/settlement?action=shift-history-v2&limit=10');
         const data=await res.json();
         if(!data.success||!data.shifts||data.shifts.length===0) return;
-        // Inject v2 shift cards at the top of the existing shift history panel
         const panel=$('shiftHistoryPanel');
         if(!panel.classList.contains('show')) panel.classList.add('show');
 
         let v2Html='';
-        for(const s of data.shifts){
+        for(let si=0;si<data.shifts.length;si++){
+          const s=data.shifts[si];
           const pStart=new Date(s.period_start);
           const pEnd=new Date(s.settled_at);
           const isBalanced=Math.abs(s.variance_unresolved||0)<=1;
@@ -2002,7 +2028,7 @@
             ?'<span class="sh-card-badge balanced">✅ Balanced</span>'
             :'<span class="sh-card-badge variance">⚠️ ₹'+Math.abs(s.variance_unresolved).toFixed(0)+'</span>';
 
-          v2Html+='<div class="sh-card" style="border:1px solid '+(isBalanced?'var(--green)':'var(--yellow)')+';border-radius:12px">';
+          v2Html+='<div class="sh-card" id="shiftV2Card'+si+'" style="border:1px solid '+(isBalanced?'var(--green)':'var(--yellow)')+';border-radius:12px" onclick="toggleShiftReport('+si+',\''+s.period_start+'\',\''+s.period_end+'\')">';
           v2Html+='<div class="sh-card-header"><div><div class="sh-card-title">🏁 Shift — '+s.cashier_name+'</div><div class="sh-card-time">'+fmtD(pStart)+' → '+fmtD(pEnd)+'</div></div><div style="text-align:right">'+statusBadge+'<div style="font-size:18px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--green);margin-top:4px">'+fmt(s.total_cash_physical)+'</div></div></div>';
           v2Html+='<div class="sh-card-meta"><span>Counter: '+fmt(s.counter_cash_entered)+'</span>';
           if(s.runner_count>0) v2Html+='<span>Runners: '+s.runner_count+'</span>';
@@ -2030,6 +2056,15 @@
             v2Html+='</div>';
           }
 
+          // Detailed report area (expandable — loaded on click for owners)
+          v2Html+='<div class="shift-report" id="shiftReport'+si+'">'+
+            '<div class="print-report-header" id="shiftReportHeader'+si+'">'+
+              '<h2>Nawabi Chai House — Shift Settlement Report</h2>'+
+              '<p><strong>'+s.cashier_name+'</strong> | '+fmtDate(pStart)+' → '+fmtDate(pEnd)+'</p>'+
+            '</div>'+
+            '<div id="shiftReportContent'+si+'"><div class="loading-text">Loading detailed report...</div></div>'+
+          '</div>';
+
           v2Html+='</div>';
         }
 
@@ -2041,12 +2076,169 @@
           marker.innerHTML=v2Html;
           const existingMarker=document.getElementById('v2ShiftCards');
           if(existingMarker) existingMarker.remove();
-          existingH3.after(document.createElement('div')); // subtitle spacer
           const subtitle=panel.querySelector('.subtitle');
           if(subtitle) subtitle.after(marker);
           else existingH3.after(marker);
         }
       }catch(e){console.error('Shift history v2 error:',e);}
+    }
+
+    // ========== SHIFT REPORT DETAIL (Owner only) ==========
+    async function toggleShiftReport(idx,periodStart,periodEnd){
+      const report=document.getElementById('shiftReport'+idx);
+      if(!report)return;
+      // Toggle visibility
+      if(report.classList.contains('show')){report.classList.remove('show');return;}
+      // Close all others
+      document.querySelectorAll('.shift-report.show').forEach(r=>r.classList.remove('show'));
+      report.classList.add('show');
+      // If already loaded, just show
+      const content=document.getElementById('shiftReportContent'+idx);
+      if(content.dataset.loaded==='true')return;
+      content.innerHTML='<div class="loading-text">Loading from Odoo & Razorpay...</div>';
+      try{
+        const fromISO=toLocalISO(new Date(periodStart));
+        const toISO=toLocalISO(new Date(periodEnd));
+        const res=await fetch('/api/nch-data?from='+fromISO+'&to='+toISO);
+        const data=await res.json();
+        if(!data.success){content.innerHTML='<div class="loading-text" style="color:var(--red)">Error loading data</div>';return;}
+        const sr=data.data.shiftReconciliation;
+        const mc=data.data.mainCounter;
+        const rc=data.data.runnerCounter;
+        const runners=data.data.runners||[];
+        const vf=data.data.verification;
+        const disc=data.data.discrepancies||[];
+        const crossPay=sr?.crossPayments||[];
+        const misattr=data.data.misattributedOrders||[];
+
+        let html='';
+
+        // === 1. SALES OVERVIEW ===
+        html+='<div class="shift-report-section"><h4>📊 Sales Overview</h4>';
+        const totalSales=sr?sr.totalSales:((mc?.cash||0)+(mc?.upi||0)+(mc?.card||0)+(mc?.tokenIssue||0)+(mc?.complimentary||0));
+        html+='<div class="sr-row total"><span class="sr-label">Total Sales</span><span class="sr-val">'+fmt(totalSales)+'</span></div>';
+        html+='</div>';
+
+        // === 2. PAYMENT BREAKDOWN ===
+        html+='<div class="shift-report-section"><h4>💳 Payment Method Breakdown</h4>';
+        html+='<div class="sr-row"><span class="sr-label">Cash (PM 37)</span><span class="sr-val">'+fmt(mc?.cash||0)+'</span></div>';
+        html+='<div class="sr-row"><span class="sr-label">UPI Counter (PM 38)</span><span class="sr-val" style="color:var(--blue)">'+fmt(mc?.upi||0)+'</span></div>';
+        html+='<div class="sr-row"><span class="sr-label">Card (PM 39)</span><span class="sr-val" style="color:var(--blue)">'+fmt(mc?.card||0)+'</span></div>';
+        html+='<div class="sr-row"><span class="sr-label">Token Issue → Runners (PM 48)</span><span class="sr-val">'+fmt(mc?.tokenIssue||0)+'</span></div>';
+        html+='<div class="sr-row"><span class="sr-label">Complimentary (PM 49)</span><span class="sr-val" style="color:var(--text2)">'+fmt(mc?.complimentary||0)+'</span></div>';
+        if(rc&&rc.upi>0)html+='<div class="sr-row"><span class="sr-label">Runner Counter UPI (direct)</span><span class="sr-val" style="color:var(--blue)">'+fmt(rc.upi)+'</span></div>';
+        html+='</div>';
+
+        // === 3. UPI VERIFICATION ===
+        if(vf){
+          html+='<div class="shift-report-section"><h4>🔍 UPI Cross-Verification (Odoo ↔ Razorpay)</h4>';
+          const ccOk=vf.cashCounter?.status==='ok';
+          const rcOk=vf.runnerCounter?.status==='ok';
+          html+='<div class="sr-row"><span class="sr-label">Counter QR — Odoo</span><span class="sr-val">'+fmt(vf.cashCounter?.odooUPI||0)+'</span></div>';
+          html+='<div class="sr-row"><span class="sr-label">Counter QR — Razorpay</span><span class="sr-val">'+fmt(vf.cashCounter?.razorpayUPI||0)+'</span></div>';
+          html+='<div class="sr-row"><span class="sr-label">Counter QR Variance</span><span class="sr-val" style="color:'+(ccOk?'var(--green)':'var(--red)')+'">'+fmt(Math.abs(vf.cashCounter?.variance||0))+' '+(ccOk?'✓':'⚠')+'</span></div>';
+          html+='<div style="height:8px"></div>';
+          html+='<div class="sr-row"><span class="sr-label">Runner Counter QR — Odoo</span><span class="sr-val">'+fmt(vf.runnerCounter?.odooUPI||0)+'</span></div>';
+          html+='<div class="sr-row"><span class="sr-label">Runner Counter QR — Razorpay</span><span class="sr-val">'+fmt(vf.runnerCounter?.razorpayUPI||0)+'</span></div>';
+          html+='<div class="sr-row"><span class="sr-label">Runner Counter QR Variance</span><span class="sr-val" style="color:'+(rcOk?'var(--green)':'var(--red)')+'">'+fmt(Math.abs(vf.runnerCounter?.variance||0))+' '+(rcOk?'✓':'⚠')+'</span></div>';
+          html+='</div>';
+        }
+
+        // === 4. RUNNER BREAKDOWN ===
+        if(runners.length>0){
+          html+='<div class="shift-report-section"><h4>🏃 Runner Activity</h4>';
+          for(const r of runners){
+            if(r.tokens===0&&r.sales===0&&r.upi===0)continue;
+            const cashExp=Math.max(0,(r.tokens+r.sales)-r.upi-(r.crossPaymentCredit||0));
+            html+='<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:8px">';
+            html+='<div style="font-weight:600;margin-bottom:6px">'+r.name+'</div>';
+            html+='<div class="sr-row"><span class="sr-label">Tokens Issued</span><span class="sr-val">'+fmt(r.tokens)+'</span></div>';
+            html+='<div class="sr-row"><span class="sr-label">Sales (Snacks)</span><span class="sr-val">'+fmt(r.sales)+'</span></div>';
+            html+='<div class="sr-row"><span class="sr-label">UPI Collected (QR)</span><span class="sr-val" style="color:var(--blue)">'+fmt(r.upi)+'</span></div>';
+            if(r.crossPaymentCredit>0)html+='<div class="sr-row"><span class="sr-label">Cross-Payment Credit</span><span class="sr-val" style="color:var(--blue)">-'+fmt(r.crossPaymentCredit)+'</span></div>';
+            html+='<div class="sr-row total"><span class="sr-label">Cash to Collect</span><span class="sr-val" style="color:'+(cashExp>=0?'var(--green)':'var(--red)')+'">'+fmt(cashExp)+'</span></div>';
+            html+='</div>';
+          }
+          html+='</div>';
+        }
+
+        // === 5. CASH RECONCILIATION ===
+        if(sr){
+          html+='<div class="shift-report-section"><h4>💵 Cash Reconciliation</h4>';
+          const bc=sr.balanceCheck;
+          html+='<div class="sr-row"><span class="sr-label">Counter Drawer Cash</span><span class="sr-val">'+fmt(sr.cashBreakdown?.counterDrawer||0)+'</span></div>';
+          for(const ro of (sr.cashBreakdown?.runnerCashObligations||[])){
+            if(ro.tokens>0||ro.sales>0)html+='<div class="sr-row"><span class="sr-label">'+ro.name+' Cash Owed</span><span class="sr-val">'+fmt(ro.cashToCollect)+'</span></div>';
+          }
+          html+='<div class="sr-row total"><span class="sr-label">Total Expected Cash</span><span class="sr-val">'+fmt(bc?.expectedCash||0)+'</span></div>';
+          html+='<div style="height:4px"></div>';
+          html+='<div class="sr-row"><span class="sr-label">Total UPI (Razorpay verified)</span><span class="sr-val" style="color:var(--blue)">'+fmt(sr.verifiedUPI?.total||0)+'</span></div>';
+          if(sr.card>0)html+='<div class="sr-row"><span class="sr-label">Card</span><span class="sr-val">'+fmt(sr.card)+'</span></div>';
+          if(sr.complimentary>0)html+='<div class="sr-row"><span class="sr-label">Complimentary</span><span class="sr-val">'+fmt(sr.complimentary)+'</span></div>';
+          const balanceStatus=bc?.isBalanced?'✅ BALANCED':'⚠️ ₹'+Math.abs(bc?.variance||0)+' '+(bc?.variance>0?'UNACCOUNTED':'EXTRA');
+          const balColor=bc?.isBalanced?'var(--green)':'var(--red)';
+          html+='<div class="sr-row total"><span class="sr-label">Shift Balance</span><span class="sr-val" style="color:'+balColor+'">'+balanceStatus+'</span></div>';
+          html+='</div>';
+        }
+
+        // === 6. CROSS-PAYMENTS ===
+        if(crossPay.length>0){
+          html+='<div class="shift-report-section"><h4>🔄 Cross-Payments</h4>';
+          for(const cp of crossPay){
+            const color=cp.isProbable?'var(--blue)':'var(--green)';
+            const icon=cp.isProbable?'ℹ️':'✓';
+            html+='<div class="sr-row"><span class="sr-label" style="color:'+color+'">'+icon+' '+(cp.orderName||'Cross-QR')+' → '+cp.runner+'</span><span class="sr-val" style="color:'+color+'">'+fmt(cp.amount)+'</span></div>';
+          }
+          html+='</div>';
+        }
+
+        // === 7. DISCREPANCIES ===
+        if(disc.length>0){
+          html+='<div class="shift-report-section"><h4>⚠️ Discrepancies</h4>';
+          for(const d of disc){
+            html+='<div class="sr-row"><span class="sr-label">'+(d.severity==='critical'?'🚨':'⚠️')+' '+d.message+'</span><span class="sr-val" style="color:var(--red)">'+fmt(d.amount||0)+'</span></div>';
+          }
+          html+='</div>';
+        }
+
+        // === 8. MISATTRIBUTED ORDERS ===
+        if(misattr.length>0){
+          html+='<div class="shift-report-section"><h4>🔧 Misattributed Orders</h4>';
+          for(const m of misattr){
+            html+='<div class="sr-row"><span class="sr-label">'+(m.auto_resolved?'✓':'🚨')+' '+m.order_name+' — '+fmt(m.amount)+'</span><span class="sr-val" style="color:var(--orange)">'+(m.auto_resolved?m.correct_runner_name:'No runner')+'</span></div>';
+          }
+          html+='</div>';
+        }
+
+        // === VARIANCE SOURCES ===
+        if(sr&&sr.varianceSources&&sr.varianceSources.length>0){
+          html+='<div class="shift-report-section"><h4>📊 Variance Sources</h4>';
+          for(const vs of sr.varianceSources){
+            html+='<div class="sr-row"><span class="sr-label">'+(vs.fixable?'🔧':'📊')+' '+vs.label+' ('+vs.count+')</span><span class="sr-val" style="color:var(--red)">'+fmt(Math.abs(vs.amount))+'</span></div>';
+          }
+          html+='</div>';
+        }
+
+        // Download button
+        html+='<div style="text-align:center;margin-top:16px" class="no-print">'+
+          '<button onclick="event.stopPropagation();downloadShiftReport('+idx+')" style="background:var(--purple);color:#fff;border:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">📥 Download Report</button>'+
+        '</div>';
+
+        content.innerHTML=html;
+        content.dataset.loaded='true';
+      }catch(e){
+        content.innerHTML='<div class="loading-text" style="color:var(--red)">Failed: '+e.message+'</div>';
+      }
+    }
+
+    function downloadShiftReport(idx){
+      // Mark this card for printing
+      document.querySelectorAll('.sh-card').forEach(c=>c.classList.remove('printing'));
+      const card=document.getElementById('shiftV2Card'+idx);
+      if(card)card.classList.add('printing');
+      window.print();
+      // Cleanup after print
+      setTimeout(()=>{if(card)card.classList.remove('printing');},1000);
     }
 
     // ========== STAFF SIMPLIFIED UI ==========
