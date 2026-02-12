@@ -369,7 +369,9 @@
       {id:68,name:'NCH Runner 05',barcode:'RUN005'}
     ];
     const COLLECTORS=['Naveen','Nihaf'];
-    let currentUser=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0,currentLiveCounterCash=0;
+    let currentUser=null,currentPin=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0,currentLiveCounterCash=0;
+    const OWNER_PINS=['0305','3754'];
+    let isStaffSimpleUI=true;
 
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
@@ -389,18 +391,24 @@
         const data=await res.json();
         if(data.success){
           currentUser=data.user;
+          currentPin=pin;
+          isStaffSimpleUI=!OWNER_PINS.includes(pin);
           $('pinSuccess').textContent='✓ Welcome, '+data.user;
           $('pinSuccess').classList.add('show');
           $('userName').textContent=data.user;
           setTimeout(()=>{
             $('pinScreen').classList.add('hidden');
             $('dashboard').classList.add('show');
-            renderRunners();
-            loadCashAtCounter();
-            loadShiftReconciliation();
-            loadDiscrepancies();
-            loadShiftHistory();
-            loadShiftHistoryV2();
+            if(isStaffSimpleUI){
+              renderStaffDashboard();
+            }else{
+              renderRunners();
+              loadCashAtCounter();
+              loadShiftReconciliation();
+              loadDiscrepancies();
+              loadShiftHistory();
+              loadShiftHistoryV2();
+            }
           },800);
         }else{
           pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
@@ -411,7 +419,7 @@
     }
 
     function logout(){
-      currentUser=null;selectedRunner=null;
+      currentUser=null;currentPin=null;isStaffSimpleUI=true;selectedRunner=null;
       $('dashboard').classList.remove('show');
       $('pinScreen').classList.remove('hidden');
       $('pinSuccess').classList.remove('show');
@@ -2039,6 +2047,513 @@
           else existingH3.after(marker);
         }
       }catch(e){console.error('Shift history v2 error:',e);}
+    }
+
+    // ========== STAFF SIMPLIFIED UI ==========
+    // Staff sees: "End My Shift" + runner cards (blind entry) + shift history
+    // No counter card, no expense card, no balance info, no formulas
+
+    function renderStaffDashboard(){
+      // Section title
+      $('runnerGrid').parentElement.querySelector('.section-title').textContent='Settlement';
+      // Runner grid: "End My Shift" + runner cards only (no counter, no expense)
+      let html='<div class="runner-card shift-card" onclick="startStaffShiftWizard()"><div class="name">🏁 End My Shift</div><div class="code">Settle All</div></div>';
+      const runnerOnly=RUNNERS.filter(r=>typeof r.id==='number');
+      html+=runnerOnly.map(r=>'<div class="runner-card" onclick="staffSelectRunner('+r.id+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');
+      $('runnerGrid').innerHTML=html;
+      // Hide owner-only panels
+      $('collectionPanel').classList.remove('show');
+      $('counterBalanceReadonly').classList.remove('show');
+      $('shiftReconPanel').classList.remove('show');
+      $('discrepancyPanel').classList.remove('show');
+      // Load simplified shift history
+      loadStaffShiftHistory();
+    }
+
+    // === STAFF: Individual Runner Settlement (blind entry) ===
+    async function staffSelectRunner(id,el){
+      document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedRunner=RUNNERS.find(r=>r.id===id);
+      $('panel').classList.add('show');
+      $('runnerName').textContent=selectedRunner.name;
+      $('period').textContent='Loading...';
+      $('panelContent').innerHTML='<div class="loading-text">Loading runner data...</div>';
+      try{
+        const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id='+id);
+        const lastData=await lastRes.json();
+        const baseline=new Date(2026,1,4,17,0,0);
+        let fromDate=lastData.periodStart?new Date(lastData.periodStart):baseline;
+        currentPeriodStart=fromDate;
+        $('period').textContent=fmtD(fromDate)+' → Now';
+        const res=await fetch('/api/nch-data?from='+toLocalISO(fromDate));
+        const data=await res.json();
+        if(!data.success)throw new Error(data.error);
+        const runner=data.data.runners.find(r=>r.id===id);
+        currentRunnerData=runner;
+        const hasLast=lastData.lastSettlement;
+        const hasActivity=runner&&(runner.tokens>0||runner.sales>0||runner.upi>0);
+        if(hasActivity){
+          // Blind entry: show tokens/sales/UPI as facts, cash input without expected amount
+          let html='';
+          html+='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>';
+          html+='<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div>';
+          html+='<div class="row"><span class="label">UPI Collected (QR)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div>';
+          // Unsold tokens input (if runner has tokens)
+          if(runner.tokens>0){
+            html+='<div class="unsold-input-box">'+
+              '<label>Unsold Tokens Returned (₹ amount)</label>'+
+              '<input type="number" id="staffUnsoldTokens" min="0" max="'+runner.tokens+'" value="0" step="10" inputmode="numeric">'+
+              '<div class="hint">Enter the ₹ value of unsold tokens the runner is returning. Max: '+fmt(runner.tokens)+'</div>'+
+            '</div>';
+          }
+          // Cash collected input — NO expected amount shown
+          html+='<div style="margin-top:16px"><div class="wizard-input-group">'+
+            '<label style="font-size:14px;font-weight:600;color:var(--text)">Cash Collected from '+selectedRunner.name+'</label>'+
+            '<input type="number" id="staffRunnerCash" placeholder="Enter cash amount" min="0" step="10" inputmode="numeric" style="font-size:22px;text-align:center;padding:14px">'+
+          '</div></div>';
+          // Status box
+          let statusBox='';
+          if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+'</div>';}
+          html+=statusBox;
+          html+='<button class="settle-btn" id="staffSettleRunnerBtn" onclick="staffSettleRunner()">✓ Settle Runner</button>';
+          $('panelContent').innerHTML=html;
+        }else{
+          if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
+          else{$('panelContent').innerHTML='<div class="loading-text">No activity for this runner</div>';}
+        }
+      }catch(e){$('panelContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';}
+    }
+
+    async function staffSettleRunner(){
+      if(!selectedRunner||!currentRunnerData)return;
+      const btn=document.getElementById('staffSettleRunnerBtn');
+      const unsoldInput=document.getElementById('staffUnsoldTokens');
+      const cashInput=document.getElementById('staffRunnerCash');
+      const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
+      const cashCollected=cashInput?parseFloat(cashInput.value)||0:0;
+      // Validate
+      if(unsoldTokens>currentRunnerData.tokens){if(btn){btn.textContent='Unsold tokens too high';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
+      if(!cashInput||cashInput.value===''){if(btn){btn.textContent='Enter cash amount';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
+      // Calculate expected behind the scenes
+      const expectedCash=Math.max(0,(currentRunnerData.tokens-unsoldTokens+currentRunnerData.sales)-currentRunnerData.upi-(currentRunnerData.crossPaymentCredit||0));
+      const variance=cashCollected-expectedCash;
+      // If short, warn staff
+      if(variance<-5){
+        const shortAmt=Math.abs(variance);
+        if(!confirm('⚠️ Cash is ₹'+shortAmt.toLocaleString('en-IN')+' short from '+selectedRunner.name+'.\n\nVerify with the runner and recount.\n\nSubmit anyway?'))return;
+      }
+      // Proceed with settlement (same API as owner)
+      btn.disabled=true;btn.classList.add('loading');btn.textContent='Recording settlement...';
+      try{
+        const now=new Date();
+        const notesParts=['Staff blind entry'];
+        if(unsoldTokens>0)notesParts.push('Unsold tokens: '+fmt(unsoldTokens));
+        if(currentRunnerData.crossPaymentCredit>0)notesParts.push('Cross-payment credit: '+fmt(currentRunnerData.crossPaymentCredit));
+        if(variance>0)notesParts.push('Extra cash: +'+fmt(variance));
+        if(variance<0)notesParts.push('Short: '+fmt(Math.abs(variance)));
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:cashCollected,unsold_tokens:unsoldTokens,notes:notesParts.join('; ')})});
+        const data=await res.json();
+        if(data.success){
+          // Show result based on variance
+          if(variance>=0){
+            // Match or extra → silent success
+            btn.textContent='✅ Settlement Recorded!';btn.style.background='var(--green)';
+          }else{
+            // Short → show it was recorded with warning
+            btn.textContent='⚠️ Recorded (₹'+Math.abs(variance)+' short)';btn.style.background='var(--yellow)';btn.style.color='#000';
+          }
+          setTimeout(()=>{
+            const card=document.querySelector('.runner-card.selected');
+            if(card)staffSelectRunner(selectedRunner.id,card);
+          },1500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
+    }
+
+    // === STAFF: Shift Wizard (blind entry — 3 steps) ===
+    let staffWizardData=null,staffWizardStep=1,staffDrawerCash=0,staffRunnerInputs=[];
+
+    async function startStaffShiftWizard(){
+      $('wizardContent').innerHTML='<div class="loading-text">Loading shift data...</div>';
+      $('wizardOverlay').classList.add('show');
+      // Reuse wizard header but change label
+      document.querySelector('.wizard-header h2').textContent='🏁 End My Shift';
+      staffWizardStep=1;updateStaffWizardSteps();
+
+      try{
+        const baseline=new Date(2026,1,4,17,0,0);
+        const runnerIds=[64,65,66,67,68];
+        // Same parallel fetch as owner wizard
+        const [cbRes,lastShiftRes,...periodResults]=await Promise.all([
+          fetch('/api/settlement?action=counter-balance').then(r=>r.json()),
+          fetch('/api/settlement?action=shift-history-v2&limit=1').then(r=>r.json()),
+          fetch('/api/settlement?action=get-last-settlement&runner_id=counter').then(r=>r.json()),
+          ...runnerIds.map(id=>fetch('/api/settlement?action=get-last-settlement&runner_id='+id).then(r=>r.json()))
+        ]);
+        const counterBalance=cbRes.success?{...cbRes.balance,lastCollectionAt:cbRes.lastCollection?.collected_at||null}:{pettyCash:0,counterCash:0,runnerCash:0,totalExpenses:0,expenses:[],settlements:[],total:0,lastCollectionAt:null};
+        const lastShift=(lastShiftRes.success&&lastShiftRes.shifts&&lastShiftRes.shifts.length>0)?lastShiftRes.shifts[0]:null;
+        const prevVariance=lastShift?(lastShift.variance_unresolved||0):0;
+        const counterPeriod=periodResults[0];
+        const runnerPeriods={};
+        runnerIds.forEach((id,i)=>{runnerPeriods[id]=periodResults[i+1];});
+        const shiftFrom=counterPeriod.periodStart?new Date(counterPeriod.periodStart):baseline;
+        // Fetch live data
+        const res=await fetch('/api/nch-data?from='+toLocalISO(shiftFrom));
+        const data=await res.json();
+        if(!data.success)throw new Error(data.error||'Failed to load data');
+        // Classify runners (same logic as owner wizard)
+        const allRunners=[];const extraFetches=[];
+        for(const id of runnerIds){
+          const rp=runnerPeriods[id];
+          const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
+          if(rpFrom>=shiftFrom){
+            const runner=data.data.runners.find(x=>x.id===id);
+            if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0))allRunners.push(runner);
+          }else{
+            extraFetches.push(fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
+              if(d.success){const runner=d.data.runners.find(x=>x.id===id);if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0))allRunners.push(runner);}
+            }).catch(()=>{}));
+          }
+        }
+        if(extraFetches.length>0)await Promise.all(extraFetches);
+        const liveCounterCash=data.data.mainCounter?.cash||0;
+        const unsettledCounterCash=liveCounterCash;
+        const expectedDrawer=counterBalance.pettyCash+counterBalance.counterCash+unsettledCounterCash+counterBalance.runnerCash-counterBalance.totalExpenses;
+        // Discrepancy auto-mapping: sum up cash obligations from discrepancies
+        const discrepancies=data.data.discrepancies||[];
+        const verification=data.data.verification||{};
+        let discrepancyCashAdd=0;
+        // Type 1: Counter UPI recorded but not in Razorpay (Odoo PM38 > Razorpay)
+        if(verification.cashCounter&&verification.cashCounter.variance>0)discrepancyCashAdd+=verification.cashCounter.variance;
+        // Type 2: Runner Counter UPI mismatch
+        if(verification.runnerCounter&&verification.runnerCounter.variance>0)discrepancyCashAdd+=verification.runnerCounter.variance;
+        // Type 3: Runner ledger without runner (PM 40) + Token issue without runner (PM 48)
+        for(const d of discrepancies){
+          if(d.type==='runner_ledger_no_runner'||d.type==='token_issue_no_runner'){
+            discrepancyCashAdd+=(d.amount||0);
+          }
+        }
+        staffWizardData={
+          shiftFrom,periodStart:toLocalISO(shiftFrom),
+          mainCounter:data.data.mainCounter,
+          runnerCounter:data.data.runnerCounter,
+          verification,discrepancies,
+          counterBalance,expectedDrawer,unsettledCounterCash,
+          discrepancyCashAdd,
+          prevVariance,lastShiftCashier:lastShift?.cashier_name||null,
+          unsettledRunners:allRunners,
+          runnerPeriods,
+          misattributed:data.data.misattributedOrders||[],
+          crossPayments:data.data.crossPayments||[]
+        };
+        staffRunnerInputs=allRunners.map(r=>({
+          runner_id:r.id,runner_name:r.name,
+          tokens:r.tokens,sales:r.sales,upi:r.upi,
+          crossPaymentCredit:r.crossPaymentCredit||0,
+          unsoldTokens:0,
+          cashCalculated:Math.max(0,r.cashToCollect),
+          cashCollected:0,userEdited:false,absent:false
+        }));
+        renderStaffWizardStep1();
+      }catch(e){
+        $('wizardContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';
+      }
+    }
+
+    function updateStaffWizardSteps(){
+      for(let i=1;i<=3;i++){
+        const el=$('wizStep'+i);
+        el.classList.remove('active','done');
+        if(i===staffWizardStep)el.classList.add('active');
+        else if(i<staffWizardStep)el.classList.add('done');
+      }
+    }
+
+    function renderStaffWizardStep1(){
+      staffWizardStep=1;updateStaffWizardSteps();
+      $('wizardContent').innerHTML=
+        '<div class="wizard-step-content active">'+
+          '<div class="wizard-card"><h3>💰 Count Your Cash</h3>'+
+            '<div style="font-size:14px;color:var(--text2);margin-bottom:8px;line-height:1.6">Count all the cash at the counter and enter the total amount.</div>'+
+            '<div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">Include all cash from sales, runner collections, and any remaining petty cash. Do NOT include UPI or card amounts.</div>'+
+            '<div class="wizard-input-group">'+
+              '<label style="font-size:15px;font-weight:600;color:var(--text)">Total Cash at Counter</label>'+
+              '<input type="number" id="staffDrawerCashInput" placeholder="₹ Enter total cash" min="0" step="10" inputmode="numeric" style="font-size:28px;text-align:center;padding:18px">'+
+            '</div>'+
+          '</div>'+
+          '<div class="wizard-nav">'+
+            '<button class="wn-back" onclick="closeStaffWizard()">✕ Cancel</button>'+
+            (staffWizardData.unsettledRunners.length>0
+              ?'<button class="wn-next" onclick="goToStaffWizardStep2()">Next → Runners</button>'
+              :'<button class="wn-next" onclick="goToStaffWizardStep3()">Next → Submit</button>')+
+          '</div>'+
+        '</div>';
+    }
+
+    function closeStaffWizard(){
+      $('wizardOverlay').classList.remove('show');
+      staffWizardData=null;staffWizardStep=1;staffRunnerInputs=[];
+    }
+
+    function goToStaffWizardStep2(){
+      staffDrawerCash=parseFloat(document.getElementById('staffDrawerCashInput')?.value)||0;
+      if(staffDrawerCash<=0){alert('Please enter the cash amount at the counter');return;}
+      staffWizardStep=2;updateStaffWizardSteps();
+      let html='<div class="wizard-step-content active">';
+      html+='<div style="font-size:14px;color:var(--text2);margin-bottom:16px">Collect cash from each runner and enter the amount received.</div>';
+      if(staffRunnerInputs.length===0){
+        html+='<div class="wizard-card"><div class="loading-text">No active runners this shift</div></div>';
+      }else{
+        for(let i=0;i<staffRunnerInputs.length;i++){
+          const ri=staffRunnerInputs[i];
+          html+='<div class="wizard-runner-card'+(ri.absent?' absent':'')+'" id="staffWizRunner'+i+'">'+
+            '<div class="wrc-header"><span class="wrc-name">'+ri.runner_name+'</span></div>'+
+            '<div class="wizard-row"><span class="wr-label">Tokens Issued</span><span class="wr-val">'+fmt(ri.tokens)+'</span></div>'+
+            '<div class="wizard-row"><span class="wr-label">Sales (Snacks)</span><span class="wr-val">'+fmt(ri.sales)+'</span></div>'+
+            '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
+            (ri.tokens>0?
+              '<div class="wizard-input-group"><label>Unsold tokens returned (₹)</label>'+
+              '<input type="number" id="staffWizUnsold'+i+'" value="0" min="0" max="'+ri.tokens+'" step="10" inputmode="numeric" '+(ri.absent?'disabled':'')+'>'+
+              '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.tokens)+'</div></div>':'')+
+            '<div class="wizard-input-group"><label style="font-weight:600">Cash Collected from '+ri.runner_name+'</label>'+
+            '<input type="number" id="staffWizCash'+i+'" placeholder="₹ Enter cash" min="0" step="10" inputmode="numeric" style="font-size:20px;text-align:center;padding:12px" '+(ri.absent?'disabled':'')+'>'+
+            '</div>'+
+            '<label class="wizard-absent-toggle"><input type="checkbox" id="staffWizAbsent'+i+'" '+(ri.absent?'checked':'')+' onchange="toggleStaffAbsent('+i+')"> Runner not present (carry to next shift)</label>'+
+          '</div>';
+        }
+      }
+      html+='<div class="wizard-nav">'+
+        '<button class="wn-back" onclick="renderStaffWizardStep1()">← Back</button>'+
+        '<button class="wn-next" onclick="goToStaffWizardStep3()">Next → Submit</button>'+
+      '</div></div>';
+      $('wizardContent').innerHTML=html;
+    }
+
+    function toggleStaffAbsent(idx){
+      const cb=document.getElementById('staffWizAbsent'+idx);
+      const ri=staffRunnerInputs[idx];
+      ri.absent=cb.checked;
+      const card=document.getElementById('staffWizRunner'+idx);
+      if(card)card.classList.toggle('absent',ri.absent);
+      const unsoldEl=document.getElementById('staffWizUnsold'+idx);
+      const cashEl=document.getElementById('staffWizCash'+idx);
+      if(unsoldEl)unsoldEl.disabled=ri.absent;
+      if(cashEl)cashEl.disabled=ri.absent;
+      if(ri.absent){ri.cashCollected=0;ri.unsoldTokens=0;if(cashEl)cashEl.value='';if(unsoldEl)unsoldEl.value=0;}
+    }
+
+    function goToStaffWizardStep3(){
+      // Capture step 1 if needed
+      const drawerInput=document.getElementById('staffDrawerCashInput');
+      if(drawerInput)staffDrawerCash=parseFloat(drawerInput.value)||0;
+      if(staffDrawerCash<=0&&staffWizardStep===1){alert('Please enter the cash amount');return;}
+      // Capture step 2 inputs
+      for(let i=0;i<staffRunnerInputs.length;i++){
+        const ri=staffRunnerInputs[i];
+        if(!ri.absent){
+          const unsoldEl=document.getElementById('staffWizUnsold'+i);
+          const cashEl=document.getElementById('staffWizCash'+i);
+          if(unsoldEl)ri.unsoldTokens=parseFloat(unsoldEl.value)||0;
+          if(cashEl)ri.cashCollected=parseFloat(cashEl.value)||0;
+          // Recalculate expected
+          ri.cashCalculated=Math.max(0,(ri.tokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit);
+          ri.cashVariance=ri.cashCollected-ri.cashCalculated;
+        }
+      }
+      staffWizardStep=3;updateStaffWizardSteps();
+      // === Calculate result ===
+      const expectedDrawer=staffWizardData.expectedDrawer;
+      const discAdd=staffWizardData.discrepancyCashAdd;
+      const adjustedExpectedDrawer=expectedDrawer+discAdd;
+      const runnerCollected=staffRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCollected,0);
+      const runnerExpected=staffRunnerInputs.filter(r=>!r.absent).reduce((s,r)=>s+r.cashCalculated,0);
+      // Total cash staff is accounting for = drawer + runner cash collected
+      // Expected = adjusted drawer expected + runner expected
+      // But runner cash collected goes INTO the drawer, so:
+      // The drawer already contains: petty + settled counter + unsettled + settled runner - expenses + newly collected runner cash
+      // Expected drawer = expectedDrawer (before runner collection) + runner expected cash
+      // But staff enters drawer BEFORE collecting from runners in step 2
+      // So: total physical = drawer_entered + runner_collected
+      // total expected = adjustedExpectedDrawer + runnerExpected
+      const totalPhysical=staffDrawerCash+runnerCollected;
+      const totalExpected=adjustedExpectedDrawer+runnerExpected;
+      const totalVariance=totalPhysical-totalExpected;
+      // Check runner variances individually
+      const runnerShortages=staffRunnerInputs.filter(r=>!r.absent&&r.cashVariance<-10);
+      // Store for submission
+      staffWizardData.reconciliation={
+        total_physical_cash:totalPhysical,
+        expected_cash:totalExpected,
+        raw_variance:totalVariance,
+        discrepancy_cash_addition:discAdd,
+        variance_resolved:0,
+        variance_unresolved:totalVariance,
+        discrepancy_resolutions:[]
+      };
+      // Handle carry-forward from previous shift
+      let resolvedFromPrev=0;
+      if(totalVariance>0&&staffWizardData.prevVariance<0){
+        const shortage=Math.abs(staffWizardData.prevVariance);
+        resolvedFromPrev=Math.min(totalVariance,shortage);
+        staffWizardData.reconciliation.variance_resolved=resolvedFromPrev;
+        staffWizardData.reconciliation.variance_unresolved=totalVariance-resolvedFromPrev;
+        staffWizardData.reconciliation.discrepancy_resolutions.push({source:'prev_shift_carryforward',amount:resolvedFromPrev,resolved_by:'shortage_recovery',explanation:'Recovering '+fmt(resolvedFromPrev)+' from previous shift shortage'});
+      }
+      const finalVariance=totalVariance-resolvedFromPrev;
+      // Map excess per runner for DB
+      for(const ri of staffRunnerInputs){
+        if(ri.absent)continue;
+        ri.excessMappedTo='';ri.excessMappedAmount=0;
+        const excess=ri.cashCollected-ri.cashCalculated;
+        if(excess>0){ri.excessMappedTo='runner_excess';ri.excessMappedAmount=excess;}
+      }
+      // === RENDER RESULT ===
+      let html='<div class="wizard-step-content active">';
+      if(finalVariance>=-5){
+        // ALL CLEAR (match or extra)
+        // If extra → silent, staff never knows. Log as unaccounted sale.
+        if(finalVariance>5){
+          staffWizardData.reconciliation.unaccounted_sale=finalVariance;
+          staffWizardData.reconciliation.discrepancy_resolutions.push({source:'unaccounted_sale',amount:finalVariance,resolved_by:'silent_extra',explanation:'Extra cash logged as unaccounted sale'});
+        }
+        html+='<div class="wizard-card" style="border-color:var(--green);text-align:center;padding:40px 20px">'+
+          '<div style="font-size:48px;margin-bottom:12px">✅</div>'+
+          '<div style="font-size:22px;font-weight:700;color:var(--green);margin-bottom:8px">All Clear</div>'+
+          '<div style="font-size:15px;color:var(--text2);margin-bottom:24px">Your shift has been settled successfully.<br>All cash is accounted for.</div>'+
+          '<div style="display:flex;gap:16px;justify-content:center;margin-bottom:8px">'+
+            '<div style="text-align:center"><div style="font-size:12px;color:var(--text2)">Counter Cash</div><div style="font-size:20px;font-weight:700;font-family:JetBrains Mono,monospace">'+fmt(staffDrawerCash)+'</div></div>'+
+            (runnerCollected>0?'<div style="text-align:center"><div style="font-size:12px;color:var(--text2)">Runner Cash</div><div style="font-size:20px;font-weight:700;font-family:JetBrains Mono,monospace">'+fmt(runnerCollected)+' ('+staffRunnerInputs.filter(r=>!r.absent).length+' runners)</div></div>':'')+
+          '</div>'+
+        '</div>';
+        // Auto-submit
+        html+='<div class="wizard-nav"><button class="wn-submit" id="staffWizSubmitBtn" onclick="submitStaffShiftWizard()">Done ✓</button></div>';
+      }else{
+        // CASH SHORT
+        const shortAmount=Math.abs(finalVariance);
+        html+='<div class="wizard-card" style="border-color:var(--red);text-align:center;padding:30px 20px">'+
+          '<div style="font-size:48px;margin-bottom:12px">⚠️</div>'+
+          '<div style="font-size:22px;font-weight:700;color:var(--red);margin-bottom:8px">Cash Shortage: '+fmt(shortAmount)+'</div>'+
+          '<div style="font-size:15px;color:var(--text2);margin-bottom:24px">The cash entered is '+fmt(shortAmount)+' less than expected.</div>'+
+          '<div style="text-align:left;background:var(--bg2);border-radius:10px;padding:16px;margin-bottom:16px">'+
+            '<div style="font-size:13px;color:var(--text2);margin-bottom:8px">Summary</div>'+
+            '<div class="wizard-row"><span class="wr-label">Counter Cash Entered</span><span class="wr-val">'+fmt(staffDrawerCash)+'</span></div>'+
+            (runnerCollected>0?'<div class="wizard-row"><span class="wr-label">Runner Cash Collected</span><span class="wr-val">'+fmt(runnerCollected)+'</span></div>':'')+
+            '<div class="wizard-row total"><span class="wr-label">Total Cash</span><span class="wr-val">'+fmt(totalPhysical)+'</span></div>'+
+          '</div>'+
+          '<div style="text-align:left;font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:16px">'+
+            'Please verify:<br>'+
+            '• Recount the cash in the drawer<br>'+
+            '• Check if any expenses were not recorded<br>'+
+            '• Confirm all runner collections'+
+          '</div>'+
+        '</div>';
+        // Runner shortages if any
+        if(runnerShortages.length>0){
+          html+='<div class="wizard-card" style="border-color:var(--yellow)">';
+          for(const rs of runnerShortages){
+            html+='<div style="padding:8px 0;font-size:14px;color:var(--yellow)">⚠️ '+rs.runner_name+': ₹'+Math.abs(rs.cashVariance)+' short (collected '+fmt(rs.cashCollected)+', expected '+fmt(rs.cashCalculated)+')</div>';
+          }
+          html+='</div>';
+        }
+        html+='<div class="wizard-nav">'+
+          '<button class="wn-back" onclick="renderStaffWizardStep1()">🔄 Recount Cash</button>'+
+          '<button class="wn-submit" id="staffWizSubmitBtn" style="background:var(--yellow);color:#000" onclick="submitStaffShiftWizard()">Submit As-Is</button>'+
+        '</div>';
+      }
+      // Absent runners
+      const absentRunners=staffRunnerInputs.filter(r=>r.absent);
+      if(absentRunners.length>0){
+        let absentHtml='<div class="wizard-card" style="border-color:var(--orange)">';
+        for(const r of absentRunners){
+          absentHtml+='<div style="padding:8px 0;font-size:13px;color:var(--orange)">⚠️ '+r.runner_name+' ('+fmt(r.cashCalculated)+') — obligation carried to next shift</div>';
+        }
+        absentHtml+='</div>';
+        // Insert before nav
+        html=html.replace('<div class="wizard-nav">',absentHtml+'<div class="wizard-nav">');
+      }
+      html+='</div>';
+      $('wizardContent').innerHTML=html;
+    }
+
+    async function submitStaffShiftWizard(){
+      const btn=document.getElementById('staffWizSubmitBtn');
+      if(!btn)return;
+      btn.disabled=true;btn.textContent='Recording settlement...';
+      const mc=staffWizardData.mainCounter;
+      const v=staffWizardData.verification;
+      const rc=staffWizardData.reconciliation;
+      const cb=staffWizardData.counterBalance;
+      const now=new Date();
+      const payload={
+        settled_by:currentUser,
+        period_start:staffWizardData.periodStart,
+        period_end:toLocalISO(now),
+        counter_balance:{
+          petty_cash_start:cb.pettyCash||0,
+          counter_cash_settled:cb.counterCash||0,
+          unsettled_counter_cash:staffWizardData.unsettledCounterCash||0,
+          runner_cash_settled:cb.runnerCash||0,
+          expenses_total:cb.totalExpenses||0,
+          expected_drawer:staffWizardData.expectedDrawer||0
+        },
+        drawer_cash_entered:staffDrawerCash,
+        counter:{
+          cash_entered:staffDrawerCash,
+          cash_expected:mc.cash||0,
+          unsettled_counter_cash:staffWizardData.unsettledCounterCash||0,
+          upi:mc.upi||0,card:mc.card||0,
+          token_issue:mc.tokenIssue||0,
+          complimentary:mc.complimentary||0
+        },
+        upi_verification:{
+          counter_qr:{odoo:mc.upi||0,razorpay:v.cashCounter?.razorpay||0,variance:(v.cashCounter?.variance)||0},
+          runner_counter_qr:{odoo:staffWizardData.runnerCounter?.upi||0,razorpay:v.runnerCounter?.razorpay||0,variance:(v.runnerCounter?.variance)||0}
+        },
+        runner_checkpoints:staffRunnerInputs.map(ri=>({
+          runner_id:ri.runner_id,runner_name:ri.runner_name,
+          tokens_amount:ri.tokens,sales_amount:ri.sales,upi_amount:ri.upi,
+          cross_payment_credit:ri.crossPaymentCredit,
+          unsold_tokens:ri.unsoldTokens,
+          cash_calculated:ri.cashCalculated,cash_collected:ri.cashCollected,
+          cash_variance:ri.cashCollected-ri.cashCalculated,
+          excess_mapped_to:ri.excessMappedTo||'',excess_mapped_amount:ri.excessMappedAmount||0,
+          status:ri.absent?'absent':'present'
+        })),
+        reconciliation:rc
+      };
+      try{
+        const res=await fetch('/api/settlement?action=cashier-shift-settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✅ Shift Settled!';btn.style.background='var(--green)';btn.style.color='#fff';
+          setTimeout(()=>{closeStaffWizard();renderStaffDashboard();},1500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';btn.style.color='#fff';setTimeout(()=>{btn.textContent='Submit';btn.style.background='';btn.disabled=false;},3000);}
+    }
+
+    // === STAFF: Simplified Shift History ===
+    async function loadStaffShiftHistory(){
+      try{
+        const res=await fetch('/api/settlement?action=shift-history-v2&limit=10');
+        const data=await res.json();
+        const panel=$('shiftHistoryPanel');
+        if(!data.success||!data.shifts||data.shifts.length===0){panel.classList.remove('show');return;}
+        panel.classList.add('show');
+        let html='<h3>📋 Recent Settlements</h3><div class="subtitle">Your shift history</div>';
+        for(const s of data.shifts){
+          const pStart=new Date(s.period_start);const pEnd=new Date(s.settled_at);
+          const isBalanced=Math.abs(s.variance_unresolved||0)<=5;
+          html+='<div class="sh-card" style="border:1px solid '+(isBalanced?'var(--green)':'var(--yellow)')+';border-radius:12px">'+
+            '<div class="sh-card-header"><div><div class="sh-card-title">🏁 Shift — '+s.cashier_name+'</div><div class="sh-card-time">'+fmtD(pStart)+' → '+fmtD(pEnd)+'</div></div>'+
+            '<div style="text-align:right"><span class="sh-card-badge '+(isBalanced?'balanced':'variance')+'">'+(isBalanced?'✅ All Clear':'⚠️ ₹'+Math.abs(s.variance_unresolved).toFixed(0)+' short')+'</span>'+
+            '<div style="font-size:18px;font-weight:700;font-family:JetBrains Mono,monospace;color:var(--green);margin-top:4px">'+fmt(s.total_cash_physical)+'</div></div></div>';
+          html+='<div class="sh-card-meta"><span>Counter: '+fmt(s.counter_cash_entered)+'</span>';
+          if(s.runner_count>0)html+='<span>Runners: '+s.runner_count+'</span>';
+          html+='</div></div>';
+        }
+        panel.innerHTML=html;
+      }catch(e){console.error('Staff shift history error:',e);}
     }
 
     pins[0].focus();
