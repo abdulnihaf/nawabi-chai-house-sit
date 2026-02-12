@@ -1673,35 +1673,32 @@ function renderPnlResult(data) {
   // Section C: Beverage Consumption
   html += renderBeverageConsumption(data.products, data.inventory);
 
-  // ── P&L CARD (below inventory sections) ──
-  html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
-  html += `
-    <div class="pnl-card">
-      <div class="pnl-header">
-        <h2>P&L Summary</h2>
+  // ── P&L + detailed sections (owner-only: PIN 0305) ──
+  if (currentPin === '0305') {
+    html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
+    html += `
+      <div class="pnl-card">
+        <div class="pnl-header"><h2>P&L Summary</h2></div>
+        <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
+        <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
+        <div class="pnl-row"><span class="label">Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
+        <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(p.opex)}</span></div>
+        ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
+        <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${profitClass}">${fmt(p.adjustedNetProfit)}</span></div>
       </div>
-      <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
-      <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
-      <div class="pnl-row"><span class="label">Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
-      <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(p.opex)}</span></div>
-      ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
-      <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${profitClass}">${fmt(p.adjustedNetProfit)}</span></div>
-    </div>
-  `;
-  html += `</div>`;
+    </div>`;
 
-  // Staff Physical Count (raw input) — collapsed below
-  if (data.rawInput) {
-    html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
-    html += renderRawInputTable(data.rawInput);
-    html += `</div>`;
-  }
+    if (data.rawInput) {
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
+      html += renderRawInputTable(data.rawInput);
+      html += `</div>`;
+    }
 
-  // Inventory Movement (decomposed) — kept for detailed view
-  if (data.inventory) {
-    html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-    html += renderInventoryMovement(data.inventory);
-    html += `</div>`;
+    if (data.inventory) {
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
+      html += renderInventoryMovement(data.inventory);
+      html += `</div>`;
+    }
   }
 
   $('settleResult').innerHTML = html;
@@ -1865,31 +1862,31 @@ async function loadSettlementDetail(id) {
       // Section C: Beverage Consumption
       html += renderBeverageConsumption(products, inventory);
 
-      // ── P&L CARD (below inventory) ──
-      html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
-      html += `
-        <div class="pnl-card">
-          <div class="pnl-header"><h2>P&L Summary</h2></div>
-          <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
-          <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
-          <div class="pnl-row"><span class="label">Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
-          <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
-          ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
-          <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
-        </div>
-      </div>`;
+      // ── P&L + detailed sections (owner-only: PIN 0305) ──
+      if (currentPin === '0305') {
+        html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
+        html += `
+          <div class="pnl-card">
+            <div class="pnl-header"><h2>P&L Summary</h2></div>
+            <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
+            <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
+            <div class="pnl-row"><span class="label">Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
+            <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
+            ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
+            <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
+          </div>
+        </div>`;
 
-      // Raw input
-      if (rawInput && Object.keys(rawInput).length > 0) {
-        html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
-        html += renderRawInputTable(rawInput);
+        if (rawInput && Object.keys(rawInput).length > 0) {
+          html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
+          html += renderRawInputTable(rawInput);
+          html += `</div>`;
+        }
+
+        html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
+        html += renderInventoryMovement(inventory);
         html += `</div>`;
       }
-
-      // Inventory Movement (decomposed detail)
-      html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-      html += renderInventoryMovement(inventory);
-      html += `</div>`;
 
       // Runner tokens
       const tokens = JSON.parse(s.runner_tokens || '{}');
