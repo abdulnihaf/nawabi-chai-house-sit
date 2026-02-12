@@ -1668,6 +1668,26 @@ function renderPnlResult(data) {
     html += `</div>`;
   }
 
+  // ── Runner Tokens ──
+  if (data.runnerTokens?.current) {
+    const tokens = data.runnerTokens.current;
+    const tokenTotal = Object.values(tokens).reduce((a, b) => a + b, 0);
+    if (tokenTotal > 0) {
+      const runnerNames = {64:'FAROOQ',65:'AMIN',66:'RUN03',67:'RUN04',68:'RUN05'};
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">🎟️</span> Runner Tokens (${tokenTotal} total)</div><div style="display:flex;gap:12px;flex-wrap:wrap">`;
+      for (const [rid, count] of Object.entries(tokens)) {
+        if (count > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px"><span style="color:var(--text2)">${runnerNames[rid] || rid}:</span> <span class="mono">${count}</span></div>`;
+      }
+      html += '</div></div>';
+    }
+  }
+
+  // ── Notes ──
+  const settlementNotes = $('settlementNotes')?.value || '';
+  if (settlementNotes) {
+    html += `<div class="section"><div class="section-title"><span class="sec-icon">📝</span> Notes</div><div style="font-size:14px;color:var(--text2);line-height:1.6">${settlementNotes}</div></div>`;
+  }
+
   $('settleResult').innerHTML = html;
 }
 
