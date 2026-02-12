@@ -720,180 +720,20 @@ export async function onRequest(context) {
       }
     }
 
-    // ─── ADMIN FIX: one-time data corrections ──────────────────
-    // Temporary action to fix corrupted receipts from old buggy code
+    // ─── ADMIN: D1 cleanup for reverted pickings ──────────────
     if (action === 'admin-fix' && context.request.method === 'POST') {
       const body = await context.request.json();
-      const {fix, pin} = body;
-      if (pin !== '0305') return new Response(JSON.stringify({success: false, error: 'Unauthorized'}), {headers: corsHeaders});
-
+      if (body.pin !== '0305') return new Response(JSON.stringify({success: false, error: 'Unauthorized'}), {headers: corsHeaders});
       const log = [];
-
-      // ─── FIX 1: Revert Prabhu picking 2296 back to draft/assigned ───
-      if (fix === 'revert-prabhu' || fix === 'all') {
-        const pickingId = 2296;
-        try {
-          // Read current state
-          const [p] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'stock.picking', 'read', [[pickingId]], {fields: ['state', 'name', 'move_ids']});
-          log.push(`Prabhu picking ${p.name}: state=${p.state}, moves=${p.move_ids}`);
-
-          if (p.state === 'done') {
-            // Revert: set picking back to draft via action_back_to_draft or direct write
-            // In Odoo 19, we can try button_draft or direct state change
-            try {
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'action_back_to_draft', [[pickingId]]);
-              log.push('Reverted to draft via action_back_to_draft');
-            } catch (e) {
-              // Try direct state write as fallback
-              try {
-                // First set moves back to draft
-                for (const moveId of p.move_ids) {
-                  await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                    'stock.move', 'write', [[moveId], {state: 'draft', quantity: 0, picked: false}]);
-                }
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.picking', 'write', [[pickingId], {state: 'draft'}]);
-                log.push('Reverted to draft via direct write');
-              } catch (e2) {
-                log.push(`Direct write failed: ${e2.message}`);
-              }
-            }
-
-            // Re-read state
-            const [p2] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.picking', 'read', [[pickingId]], {fields: ['state']});
-            log.push(`After revert: state=${p2.state}`);
-
-            // If draft, confirm + assign to make it pending
-            if (p2.state === 'draft') {
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'action_confirm', [[pickingId]]);
-              try {
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.picking', 'action_assign', [[pickingId]]);
-              } catch (e) { /* may fail if no stock */ }
-
-              const [p3] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'read', [[pickingId]], {fields: ['state']});
-              log.push(`After re-confirm: state=${p3.state}`);
-            }
-          } else {
-            log.push(`Prabhu picking already in state=${p.state}, no fix needed`);
-          }
-
-          // Remove receipt confirmation from D1
-          if (DB) {
-            try {
-              await DB.prepare('DELETE FROM receipt_confirmations WHERE picking_id = ?').bind(pickingId).run();
-              log.push('Deleted D1 receipt_confirmation for picking 2296');
-            } catch (e) { log.push(`D1 delete failed: ${e.message}`); }
-          }
-        } catch (e) {
-          log.push(`Prabhu fix error: ${e.message}`);
+      if (DB) {
+        // Delete receipt confirmations for pickings that were reverted
+        for (const pid of [2296, 2204]) {
+          try {
+            await DB.prepare('DELETE FROM receipt_confirmations WHERE picking_id = ?').bind(pid).run();
+            log.push(`Deleted D1 receipt_confirmation for picking ${pid}`);
+          } catch (e) { log.push(`D1 delete ${pid} failed: ${e.message}`); }
         }
       }
-
-      // ─── FIX 2: Samosa picking 2204 — change qty from 20 to 10, create backorder ───
-      if (fix === 'fix-samosa' || fix === 'all') {
-        const pickingId = 2204;
-        try {
-          const [p] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'stock.picking', 'read', [[pickingId]], {fields: ['state', 'name', 'move_ids', 'backorder_ids']});
-          log.push(`Samosa picking ${p.name}: state=${p.state}, moves=${p.move_ids}, backorders=${p.backorder_ids}`);
-
-          if (p.state === 'done') {
-            // Read the move
-            const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.move', 'read', [p.move_ids],
-              {fields: ['id', 'product_id', 'quantity', 'product_uom_qty', 'move_line_ids', 'state']});
-            log.push(`Samosa moves: ${JSON.stringify(moves.map(m => ({id: m.id, qty: m.quantity, demand: m.product_uom_qty, state: m.state})))}`);
-
-            // Approach: revert picking to draft, set qty to 10, re-validate with backorder
-            try {
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'action_back_to_draft', [[pickingId]]);
-              log.push('Samosa: reverted to draft');
-            } catch (e) {
-              // Direct write fallback
-              try {
-                for (const move of moves) {
-                  // Reset move lines
-                  if (move.move_line_ids && move.move_line_ids.length > 0) {
-                    await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                      'stock.move.line', 'write', [move.move_line_ids, {quantity: 0, picked: false}]);
-                  }
-                  await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                    'stock.move', 'write', [[move.id], {state: 'draft', quantity: 0, picked: false}]);
-                }
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.picking', 'write', [[pickingId], {state: 'draft'}]);
-                log.push('Samosa: reverted to draft via direct write');
-              } catch (e2) {
-                log.push(`Samosa direct write failed: ${e2.message}`);
-              }
-            }
-
-            // Re-read state
-            const [p2] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.picking', 'read', [[pickingId]], {fields: ['state', 'move_ids']});
-            log.push(`Samosa after revert: state=${p2.state}`);
-
-            if (p2.state === 'draft') {
-              // Confirm + assign
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'action_confirm', [[pickingId]]);
-              try {
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.picking', 'action_assign', [[pickingId]]);
-              } catch (e) { /* may fail */ }
-
-              // Re-read moves after confirm
-              const [p3] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'read', [[pickingId]], {fields: ['state', 'move_ids']});
-              const moves3 = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.move', 'read', [p3.move_ids], {fields: ['id', 'move_line_ids', 'product_uom_qty']});
-
-              // Set move line quantity to 10 (partial)
-              for (const move of moves3) {
-                if (move.move_line_ids && move.move_line_ids.length > 0) {
-                  await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                    'stock.move.line', 'write', [move.move_line_ids, {quantity: 10, picked: true}]);
-                }
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.move', 'write', [[move.id], {picked: true}]);
-              }
-              log.push('Samosa: set move line qty=10, picked=true');
-
-              // Validate — should trigger backorder wizard
-              const valResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'button_validate', [[pickingId]]);
-              log.push(`Samosa validate result: ${JSON.stringify(valResult)}`);
-
-              if (valResult && typeof valResult === 'object' && valResult.res_model === 'stock.backorder.confirmation') {
-                const wizardId = valResult.res_id;
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.backorder.confirmation', 'process',
-                  [[wizardId]],
-                  {context: {button_validate_picking_ids: [pickingId], skip_backorder: false}}
-                );
-                log.push('Samosa: backorder wizard processed');
-              }
-
-              // Read final state
-              const [p4] = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.picking', 'read', [[pickingId]], {fields: ['state', 'backorder_ids']});
-              log.push(`Samosa final: state=${p4.state}, backorder_ids=${p4.backorder_ids}`);
-            }
-          } else {
-            log.push(`Samosa picking already in state=${p.state}`);
-          }
-        } catch (e) {
-          log.push(`Samosa fix error: ${e.message}`);
-        }
-      }
-
       return new Response(JSON.stringify({success: true, log}), {headers: corsHeaders});
     }
 
