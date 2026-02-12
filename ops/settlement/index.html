@@ -310,9 +310,34 @@
     .print-report-header{display:none;text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #333}
     .print-report-header h2{font-size:22px;margin-bottom:4px}
     .print-report-header p{font-size:13px;color:#666}
+    .payment-trail-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:32px;display:none}
+    .payment-trail-panel.show{display:block}
+    .payment-trail-panel h3{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+    .payment-trail-panel .subtitle{font-size:13px;color:var(--text2);margin-bottom:16px}
+    .pt-method-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+    .pt-method-card{background:var(--bg2);border-radius:10px;padding:14px;text-align:center}
+    .pt-method-card .pt-icon{font-size:20px;margin-bottom:4px}
+    .pt-method-card .pt-label{font-size:11px;color:var(--text2);margin-bottom:2px}
+    .pt-method-card .pt-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .pt-expense-section{background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;padding:14px;margin-bottom:16px}
+    .pt-expense-section .pt-exp-title{font-size:12px;font-weight:600;color:var(--red);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .pt-expense-item{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--text2)}
+    .pt-expense-item .pt-exp-amt{font-family:'JetBrains Mono',monospace;font-weight:500;color:var(--red)}
+    .pt-grand-total{display:flex;justify-content:space-between;padding:14px 0;border-top:2px solid var(--border);font-size:16px;font-weight:700}
+    .pt-grand-total .pt-gt-label{color:var(--text)}
+    .pt-grand-total .pt-gt-val{font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .pt-runner-breakdown{background:var(--bg2);border-radius:10px;margin-top:12px;overflow:hidden}
+    .pt-rb-toggle{width:100%;background:none;border:none;color:var(--text2);padding:12px 14px;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Plus Jakarta Sans',sans-serif}
+    .pt-rb-toggle:hover{color:var(--text)}
+    .pt-rb-content{display:none;padding:0 14px 14px}
+    .pt-rb-content.show{display:block}
+    .pt-rb-runner{margin-bottom:10px}
+    .pt-rb-runner-name{font-size:13px;font-weight:600;margin-bottom:4px}
+    .pt-rb-row{display:flex;justify-content:space-between;padding:3px 0 3px 12px;font-size:12px;color:var(--text2)}
+    .pt-rb-row .pt-rb-val{font-family:'JetBrains Mono',monospace;font-weight:500}
     @media print{
       body{background:#fff!important;color:#000!important;font-size:12px}
-      .pin-screen,.header,.runner-grid,.panel,.collection-panel,.counter-balance-readonly,.recon-panel,.wizard-overlay,.discrepancy-panel,.sh-card:not(.printing),.wizard-nav,.no-print{display:none!important}
+      .pin-screen,.header,.runner-grid,.panel,.collection-panel,.counter-balance-readonly,.recon-panel,.wizard-overlay,.discrepancy-panel,.payment-trail-panel,.sh-card:not(.printing),.wizard-nav,.no-print{display:none!important}
       .dashboard{display:block!important}
       .shift-history-panel{display:block!important;background:#fff!important;border:none!important}
       .shift-history-panel h3,.shift-history-panel .subtitle{display:none!important}
@@ -364,6 +389,7 @@
       <div class="counter-balance-readonly" id="counterBalanceReadonly"></div>
       <div class="collection-panel" id="collectionPanel"></div>
       <div class="recon-panel" id="shiftReconPanel"></div>
+      <div class="payment-trail-panel" id="paymentTrailPanel"></div>
       <div class="shift-history-panel" id="shiftHistoryPanel"></div>
     </div>
   </div>
@@ -398,6 +424,8 @@
     let currentUser=null,currentPin=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0,currentLiveCounterCash=0;
     const OWNER_PINS=['0305','3754'];
     let isStaffSimpleUI=true;
+    let staffMisattributed=[];
+    let staffShiftDataCache={data:null,from:null,timestamp:0};
 
     const pins=Array.from($('pinInput').querySelectorAll('input'));
     pins.forEach((input,i)=>{
@@ -446,6 +474,7 @@
 
     function logout(){
       currentUser=null;currentPin=null;isStaffSimpleUI=true;selectedRunner=null;
+      staffMisattributed=[];staffShiftDataCache={data:null,from:null,timestamp:0};
       $('dashboard').classList.remove('show');
       $('pinScreen').classList.remove('hidden');
       $('pinSuccess').classList.remove('show');
@@ -455,6 +484,7 @@
       $('shiftReconPanel').classList.remove('show');
       $('shiftHistoryPanel').classList.remove('show');
       $('discrepancyPanel').classList.remove('show');
+      $('paymentTrailPanel').classList.remove('show');
       lastShiftReconData=null;
       pins.forEach(p=>{p.value='';p.classList.remove('filled');});
       pins[0].focus();
@@ -2242,24 +2272,227 @@
     }
 
     // ========== STAFF SIMPLIFIED UI ==========
-    // Staff sees: "End My Shift" + runner cards (blind entry) + shift history
-    // No counter card, no expense card, no balance info, no formulas
+    // === STAFF: Cached shift data fetch ===
+    async function getStaffShiftData(){
+      const baseline=new Date(2026,1,4,17,0,0);
+      const lastRes=await fetch('/api/settlement?action=get-last-settlement&runner_id=counter');
+      const lastData=await lastRes.json();
+      const shiftFrom=lastData.periodStart?new Date(lastData.periodStart):baseline;
+      const fromKey=toLocalISO(shiftFrom);
+      const now=Date.now();
+      if(staffShiftDataCache.data&&staffShiftDataCache.from===fromKey&&(now-staffShiftDataCache.timestamp)<30000){
+        return {data:staffShiftDataCache.data,shiftFrom};
+      }
+      const res=await fetch('/api/nch-data?from='+fromKey);
+      const nchData=await res.json();
+      if(!nchData.success)throw new Error(nchData.error||'Failed to load shift data');
+      staffShiftDataCache={data:nchData.data,from:fromKey,timestamp:now};
+      return {data:nchData.data,shiftFrom};
+    }
+
+    function invalidateStaffCache(){staffShiftDataCache={data:null,from:null,timestamp:0};}
+
+    // Staff dashboard: End My Shift + Record Expense + runner cards + discrepancies + payment trail + shift history
 
     function renderStaffDashboard(){
-      // Section title
       $('runnerGrid').parentElement.querySelector('.section-title').textContent='Settlement';
-      // Runner grid: "End My Shift" + runner cards only (no counter, no expense)
+      // Grid: [End My Shift] [Record Expense] + 5 runner cards
       let html='<div class="runner-card shift-card" onclick="startStaffShiftWizard()"><div class="name">🏁 End My Shift</div><div class="code">Settle All</div></div>';
+      html+='<div class="runner-card expense" onclick="staffOpenExpensePanel(this)"><div class="name">📝 Record Expense</div><div class="code">Cash Out</div></div>';
       const runnerOnly=RUNNERS.filter(r=>typeof r.id==='number');
       html+=runnerOnly.map(r=>'<div class="runner-card" onclick="staffSelectRunner('+r.id+',this)"><div class="name">'+r.name+'</div><div class="code">'+r.barcode+'</div></div>').join('');
       $('runnerGrid').innerHTML=html;
-      // Hide owner-only panels
+      // Hide owner-only panels (staff must never see counter cash balance)
       $('collectionPanel').classList.remove('show');
       $('counterBalanceReadonly').classList.remove('show');
       $('shiftReconPanel').classList.remove('show');
-      $('discrepancyPanel').classList.remove('show');
-      // Load simplified shift history
+      // Load staff-specific panels
+      loadStaffDiscrepancies();
+      loadStaffPaymentTrail();
       loadStaffShiftHistory();
+    }
+
+    // === STAFF: Discrepancy Panel ===
+    async function loadStaffDiscrepancies(){
+      try{
+        const {data,shiftFrom}=await getStaffShiftData();
+        const misattributed=data.misattributedOrders||[];
+        const discrepancies=data.discrepancies||[];
+        staffMisattributed=misattributed;
+        const panel=$('discrepancyPanel');
+        if(misattributed.length===0){panel.classList.remove('show');return;}
+        panel.classList.add('show');
+        let html='<h3>⚠️ Discrepancies <span class="badge-count">'+misattributed.length+'</span></h3>';
+        html+='<div class="subtitle">Fix discrepancies before ending your shift.</div>';
+        const pmNames={37:'Cash',38:'UPI',39:'Card',40:'Runner Ledger',48:'Token Issue',49:'Complimentary'};
+        for(let i=0;i<misattributed.length;i++){
+          const m=misattributed[i];
+          const orderTime=m.date_order?new Date(m.date_order+'Z').toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}):'';
+          const posLabel=m.config_id===27?'Cash Counter':'Runner Counter';
+          const isAuto=m.auto_resolved;
+          const isCritical=!isAuto;
+          const pmLabel=(m.payment_methods||[]).map(id=>pmNames[id]||'PM'+id).join(', ');
+          html+='<div class="rectify-card'+(isCritical?' critical':'')+'" id="staffRectCard'+i+'">';
+          html+='<div class="rc-header"><span class="rc-order">'+(isCritical?'🚨':'⚠️')+' '+m.order_name+' • '+posLabel+' • '+orderTime+'</span><span class="rc-amount">'+fmt(m.amount)+'</span></div>';
+          html+='<div class="rc-detail">Payment: '+pmLabel+'<br>';
+          if(isAuto){
+            html+='Selected: "'+m.current_partner_name+'" (wrong contact)<br>';
+            html+='Auto-detected: <strong>'+m.correct_runner_name+'</strong>';
+          }else{
+            html+='<span style="color:var(--red)">No runner was selected</span><br>Who received this order?';
+          }
+          html+='</div>';
+          html+='<div class="rc-actions">';
+          html+='<select id="staffRectSelect'+i+'">';
+          if(!isAuto)html+='<option value="">— Select Runner —</option>';
+          for(const ro of RUNNER_OPTIONS){
+            const sel=(isAuto&&m.correct_partner_id===ro.id)?' selected':'';
+            html+='<option value="'+ro.id+'"'+sel+'>'+ro.name+'</option>';
+          }
+          html+='</select>';
+          html+='<button class="rectify-btn" id="staffRectBtn'+i+'" onclick="staffRectifyOrder('+i+')">✓ Fix in Odoo</button>';
+          html+='</div></div>';
+        }
+        panel.innerHTML=html;
+      }catch(e){console.error('Staff discrepancies error:',e);}
+    }
+
+    async function staffRectifyOrder(idx){
+      const m=staffMisattributed[idx];
+      const selectEl=document.getElementById('staffRectSelect'+idx);
+      const btn=document.getElementById('staffRectBtn'+idx);
+      const card=document.getElementById('staffRectCard'+idx);
+      if(!selectEl||!btn)return;
+      const correctId=parseInt(selectEl.value);
+      if(!correctId){btn.textContent='Select runner';setTimeout(()=>{btn.textContent='✓ Fix in Odoo';},1500);return;}
+      btn.disabled=true;btn.textContent='Fixing...';
+      try{
+        const res=await fetch('/api/settlement?action=rectify-discrepancy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:currentPin,order_id:m.order_id,order_name:m.order_name,correct_partner_id:correctId,original_partner_id:m.current_partner_id})});
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Fixed!';btn.style.background='var(--green)';
+          if(card)card.classList.add('fixed');
+          invalidateStaffCache();
+          setTimeout(()=>{loadStaffDiscrepancies();loadStaffPaymentTrail();},1000);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';setTimeout(()=>{btn.textContent='✓ Fix in Odoo';btn.style.background='';},3000);}
+    }
+
+    // === STAFF: Payment Trail ===
+    async function loadStaffPaymentTrail(){
+      const panel=$('paymentTrailPanel');
+      try{
+        const {data,shiftFrom}=await getStaffShiftData();
+        const mc=data.mainCounter||{};
+        const rc=data.runnerCounter||{};
+        const runners=data.runners||[];
+        // Fetch expenses for current shift period
+        const cbRes=await fetch('/api/settlement?action=counter-balance');
+        const cbData=await cbRes.json();
+        const allExpenses=(cbData.success&&cbData.balance)?cbData.balance.expenses||[]:[];
+        // Filter expenses to current shift period
+        const shiftExpenses=allExpenses.filter(e=>{
+          const et=new Date(e.recorded_at);
+          return et>=shiftFrom;
+        });
+        const totalExpenses=shiftExpenses.reduce((s,e)=>s+(e.amount||0),0);
+        // Calculate order count
+        const totalOrders=(mc.orderCount||0)+(rc.orderCount||0);
+        // Payment methods
+        const methods=[];
+        if((mc.cash||0)>0)methods.push({icon:'💵',label:'Cash',amount:mc.cash});
+        if((mc.upi||0)>0)methods.push({icon:'📱',label:'UPI Counter',amount:mc.upi});
+        if((mc.card||0)>0)methods.push({icon:'💳',label:'Card',amount:mc.card});
+        if((mc.tokenIssue||0)>0)methods.push({icon:'🎫',label:'Token Issue',amount:mc.tokenIssue});
+        if((rc.runnerLedger||0)>0)methods.push({icon:'📒',label:'Runner Ledger',amount:rc.runnerLedger});
+        // Runner UPI (sum of individual runners)
+        const runnerUpiTotal=runners.reduce((s,r)=>s+(r.upi||0),0);
+        if(runnerUpiTotal>0)methods.push({icon:'📱',label:'Runner UPI',amount:runnerUpiTotal});
+        if((rc.upi||0)>0)methods.push({icon:'📱',label:'Runner Counter UPI',amount:rc.upi});
+        if((mc.complimentary||0)>0)methods.push({icon:'🎁',label:'Complimentary',amount:mc.complimentary});
+        const grandTotal=methods.reduce((s,m)=>s+m.amount,0);
+        if(methods.length===0&&totalExpenses===0){panel.classList.remove('show');return;}
+        panel.classList.add('show');
+        let html='<h3>💳 Payment Trail</h3>';
+        html+='<div class="subtitle">'+totalOrders+' orders since '+fmtD(shiftFrom)+'</div>';
+        // Method cards grid
+        html+='<div class="pt-method-grid">';
+        for(const m of methods){
+          html+='<div class="pt-method-card"><div class="pt-icon">'+m.icon+'</div><div class="pt-label">'+m.label+'</div><div class="pt-amount">'+fmt(m.amount)+'</div></div>';
+        }
+        html+='</div>';
+        // Expenses section
+        if(shiftExpenses.length>0){
+          html+='<div class="pt-expense-section"><div class="pt-exp-title">📤 Expenses (-'+fmt(totalExpenses)+')</div>';
+          for(const e of shiftExpenses){
+            html+='<div class="pt-expense-item"><span>'+e.reason+'</span><span class="pt-exp-amt">-'+fmt(e.amount)+'</span></div>';
+          }
+          html+='</div>';
+        }
+        // Grand total
+        html+='<div class="pt-grand-total"><span class="pt-gt-label">Total Sales</span><span class="pt-gt-val">'+fmt(grandTotal)+'</span></div>';
+        // Runner breakdown (collapsible)
+        if(runners.length>0){
+          html+='<div class="pt-runner-breakdown">';
+          html+='<button class="pt-rb-toggle" onclick="toggleStaffRunnerBreakdown()"><span>▼ Runner Breakdown</span><span id="ptRbArrow">▼</span></button>';
+          html+='<div class="pt-rb-content" id="ptRunnerBreakdown">';
+          for(const r of runners){
+            if((r.tokens||0)===0&&(r.sales||0)===0&&(r.upi||0)===0)continue;
+            html+='<div class="pt-rb-runner"><div class="pt-rb-runner-name">'+r.name+'</div>';
+            if(r.tokens>0)html+='<div class="pt-rb-row"><span>Tokens</span><span class="pt-rb-val">'+fmt(r.tokens)+'</span></div>';
+            if(r.sales>0)html+='<div class="pt-rb-row"><span>Sales</span><span class="pt-rb-val">'+fmt(r.sales)+'</span></div>';
+            if(r.upi>0)html+='<div class="pt-rb-row"><span>UPI</span><span class="pt-rb-val" style="color:var(--blue)">'+fmt(r.upi)+'</span></div>';
+            html+='<div class="pt-rb-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;font-weight:600"><span>Cash To Collect</span><span class="pt-rb-val">'+fmt(r.cashToCollect||0)+'</span></div>';
+            html+='</div>';
+          }
+          html+='</div></div>';
+        }
+        panel.innerHTML=html;
+      }catch(e){
+        console.error('Payment trail error:',e);
+        panel.classList.remove('show');
+      }
+    }
+
+    function toggleStaffRunnerBreakdown(){
+      const content=document.getElementById('ptRunnerBreakdown');
+      const arrow=document.getElementById('ptRbArrow');
+      if(!content)return;
+      const isShown=content.classList.toggle('show');
+      if(arrow)arrow.textContent=isShown?'▲':'▼';
+    }
+
+    // === STAFF: Expense Recording ===
+    function staffOpenExpensePanel(el){
+      document.querySelectorAll('.runner-card').forEach(c=>c.classList.remove('selected'));
+      if(el)el.classList.add('selected');
+      $('panel').classList.add('show');
+      $('runnerName').textContent='📝 Record Expense';
+      $('period').textContent='';
+      $('panelContent').innerHTML=
+        '<div style="margin-bottom:16px;color:var(--text2);font-size:14px">Record cash given out from the counter for supplies, milk, etc.</div>'+
+        '<div class="field-group"><label>Amount (₹)</label><input type="number" id="staffExpAmount" class="expense-input" placeholder="e.g. 200" min="1" step="10" inputmode="numeric"></div>'+
+        '<div class="field-group" style="margin-top:12px"><label>Reason</label><input type="text" id="staffExpReason" class="expense-reason" placeholder="e.g. Milk, Sugar, Supplies"></div>'+
+        '<button class="settle-btn" style="background:var(--red)" id="staffExpBtn" onclick="staffRecordExpense()">Record Expense</button>';
+    }
+
+    async function staffRecordExpense(){
+      const amount=parseFloat(document.getElementById('staffExpAmount')?.value||'0');
+      const reason=(document.getElementById('staffExpReason')?.value||'').trim();
+      const btn=document.getElementById('staffExpBtn');
+      if(!btn)return;
+      if(amount<=0){btn.textContent='Enter amount';setTimeout(()=>{btn.textContent='Record Expense';},1500);return;}
+      if(!reason){btn.textContent='Enter reason';setTimeout(()=>{btn.textContent='Record Expense';},1500);return;}
+      btn.disabled=true;btn.textContent='Recording...';
+      try{
+        const res=await fetch('/api/settlement?action=record-expense',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recorded_by:currentUser,amount,reason})});
+        const data=await res.json();
+        if(data.success){
+          btn.textContent='✓ Expense Recorded!';btn.style.background='var(--green)';
+          invalidateStaffCache();
+          setTimeout(()=>{staffOpenExpensePanel(document.querySelector('.runner-card.selected'));loadStaffPaymentTrail();},1500);
+        }else{throw new Error(data.error);}
+      }catch(e){btn.disabled=false;btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
 
     // === STAFF: Individual Runner Settlement (blind entry) ===
@@ -2377,9 +2610,11 @@
             infoDiv.innerHTML='🎫 '+selectedRunner.name+' has <strong>'+fmt(unsoldTokens)+'</strong> in unsold tokens (will carry to next settlement)';
             btn.parentNode.insertBefore(infoDiv,btn.nextSibling);
           }
+          invalidateStaffCache();
           setTimeout(()=>{
             const card=document.querySelector('.runner-card.selected');
             if(card)staffSelectRunner(selectedRunner.id,card);
+            loadStaffPaymentTrail();
           },2500);
         }else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
