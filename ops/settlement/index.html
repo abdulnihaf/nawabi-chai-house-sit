@@ -2291,14 +2291,6 @@
           html+='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>';
           html+='<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div>';
           html+='<div class="row"><span class="label">UPI Collected (QR)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div>';
-          // Unsold tokens input (if runner has tokens)
-          if(runner.tokens>0){
-            html+='<div class="unsold-input-box">'+
-              '<label>Unsold Tokens Returned (₹ amount)</label>'+
-              '<input type="number" id="staffUnsoldTokens" min="0" max="'+runner.tokens+'" value="0" step="10" inputmode="numeric">'+
-              '<div class="hint">Enter the ₹ value of unsold tokens the runner is returning. Max: '+fmt(runner.tokens)+'</div>'+
-            '</div>';
-          }
           // Cash collected input — NO expected amount shown
           html+='<div style="margin-top:16px"><div class="wizard-input-group">'+
             '<label style="font-size:14px;font-weight:600;color:var(--text)">Cash Collected from '+selectedRunner.name+'</label>'+
@@ -2320,15 +2312,12 @@
     async function staffSettleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
       const btn=document.getElementById('staffSettleRunnerBtn');
-      const unsoldInput=document.getElementById('staffUnsoldTokens');
       const cashInput=document.getElementById('staffRunnerCash');
-      const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
       const cashCollected=cashInput?parseFloat(cashInput.value)||0:0;
-      // Validate
-      if(unsoldTokens>currentRunnerData.tokens){if(btn){btn.textContent='Unsold tokens too high';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
       if(!cashInput||cashInput.value===''){if(btn){btn.textContent='Enter cash amount';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
-      // Calculate expected behind the scenes
-      const expectedCash=Math.max(0,(currentRunnerData.tokens-unsoldTokens+currentRunnerData.sales)-currentRunnerData.upi-(currentRunnerData.crossPaymentCredit||0));
+      // Expected cash = full obligation (tokens + sales) - upi - crossPaymentCredit
+      // Tokens are already a completed sale in Odoo — runner owes cash for ALL issued tokens
+      const expectedCash=Math.max(0,(currentRunnerData.tokens+currentRunnerData.sales)-currentRunnerData.upi-(currentRunnerData.crossPaymentCredit||0));
       const variance=cashCollected-expectedCash;
       // If short, warn staff
       if(variance<-5){
@@ -2340,25 +2329,31 @@
       try{
         const now=new Date();
         const notesParts=['Staff blind entry'];
-        if(unsoldTokens>0)notesParts.push('Unsold tokens: '+fmt(unsoldTokens));
         if(currentRunnerData.crossPaymentCredit>0)notesParts.push('Cross-payment credit: '+fmt(currentRunnerData.crossPaymentCredit));
         if(variance>0)notesParts.push('Extra cash: +'+fmt(variance));
         if(variance<0)notesParts.push('Short: '+fmt(Math.abs(variance)));
-        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:cashCollected,unsold_tokens:unsoldTokens,notes:notesParts.join('; ')})});
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:cashCollected,unsold_tokens:0,notes:notesParts.join('; ')})});
         const data=await res.json();
         if(data.success){
           // Show result based on variance
+          let resultHtml='';
           if(variance>=0){
-            // Match or extra → silent success
             btn.textContent='✅ Settlement Recorded!';btn.style.background='var(--green)';
           }else{
-            // Short → show it was recorded with warning
             btn.textContent='⚠️ Recorded (₹'+Math.abs(variance)+' short)';btn.style.background='var(--yellow)';btn.style.color='#000';
+          }
+          // Show tokens-with-runner info if runner had tokens
+          if(currentRunnerData.tokens>0){
+            const infoDiv=document.createElement('div');
+            infoDiv.className='info-box';
+            infoDiv.style.cssText='background:rgba(59,130,246,0.08);border-color:var(--blue);color:var(--blue);margin-top:12px';
+            infoDiv.innerHTML='🎫 '+selectedRunner.name+' has <strong>'+fmt(currentRunnerData.tokens)+'</strong> in tokens (issued this period)';
+            btn.parentNode.insertBefore(infoDiv,btn.nextSibling);
           }
           setTimeout(()=>{
             const card=document.querySelector('.runner-card.selected');
             if(card)staffSelectRunner(selectedRunner.id,card);
-          },1500);
+          },2500);
         }else{throw new Error(data.error);}
       }catch(e){btn.disabled=false;btn.classList.remove('loading');btn.textContent='Error: '+e.message;btn.style.background='var(--red)';}
     }
@@ -2504,10 +2499,6 @@
             '<div class="wizard-row"><span class="wr-label">Tokens Issued</span><span class="wr-val">'+fmt(ri.tokens)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">Sales (Snacks)</span><span class="wr-val">'+fmt(ri.sales)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
-            (ri.tokens>0?
-              '<div class="wizard-input-group"><label>Unsold tokens returned (₹)</label>'+
-              '<input type="number" id="staffWizUnsold'+i+'" value="0" min="0" max="'+ri.tokens+'" step="10" inputmode="numeric" '+(ri.absent?'disabled':'')+'>'+
-              '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.tokens)+'</div></div>':'')+
             '<div class="wizard-input-group"><label style="font-weight:600">Cash Collected from '+ri.runner_name+'</label>'+
             '<input type="number" id="staffWizCash'+i+'" placeholder="₹ Enter cash" min="0" step="10" inputmode="numeric" style="font-size:20px;text-align:center;padding:12px" '+(ri.absent?'disabled':'')+'>'+
             '</div>'+
@@ -2528,11 +2519,9 @@
       ri.absent=cb.checked;
       const card=document.getElementById('staffWizRunner'+idx);
       if(card)card.classList.toggle('absent',ri.absent);
-      const unsoldEl=document.getElementById('staffWizUnsold'+idx);
       const cashEl=document.getElementById('staffWizCash'+idx);
-      if(unsoldEl)unsoldEl.disabled=ri.absent;
       if(cashEl)cashEl.disabled=ri.absent;
-      if(ri.absent){ri.cashCollected=0;ri.unsoldTokens=0;if(cashEl)cashEl.value='';if(unsoldEl)unsoldEl.value=0;}
+      if(ri.absent){ri.cashCollected=0;ri.unsoldTokens=0;if(cashEl)cashEl.value='';}
     }
 
     function goToStaffWizardStep3(){
@@ -2544,12 +2533,11 @@
       for(let i=0;i<staffRunnerInputs.length;i++){
         const ri=staffRunnerInputs[i];
         if(!ri.absent){
-          const unsoldEl=document.getElementById('staffWizUnsold'+i);
           const cashEl=document.getElementById('staffWizCash'+i);
-          if(unsoldEl)ri.unsoldTokens=parseFloat(unsoldEl.value)||0;
           if(cashEl)ri.cashCollected=parseFloat(cashEl.value)||0;
-          // Recalculate expected
-          ri.cashCalculated=Math.max(0,(ri.tokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit);
+          ri.unsoldTokens=0; // No unsold tokens — full token amount is cash obligation
+          // Expected = full (tokens + sales) - upi - crossPaymentCredit
+          ri.cashCalculated=Math.max(0,(ri.tokens+ri.sales)-ri.upi-ri.crossPaymentCredit);
           ri.cashVariance=ri.cashCollected-ri.cashCalculated;
         }
       }
@@ -2617,6 +2605,15 @@
             '<div style="text-align:center"><div style="font-size:12px;color:var(--text2)">Counter Cash</div><div style="font-size:20px;font-weight:700;font-family:JetBrains Mono,monospace">'+fmt(staffDrawerCash)+'</div></div>'+
             (runnerCollected>0?'<div style="text-align:center"><div style="font-size:12px;color:var(--text2)">Runner Cash</div><div style="font-size:20px;font-weight:700;font-family:JetBrains Mono,monospace">'+fmt(runnerCollected)+' ('+staffRunnerInputs.filter(r=>!r.absent).length+' runners)</div></div>':'')+
           '</div>'+
+          (function(){
+            const runnersWithTokens=staffRunnerInputs.filter(r=>!r.absent&&r.tokens>0);
+            if(runnersWithTokens.length===0)return '';
+            let thtml='<div style="margin-top:12px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:8px;padding:10px 14px;text-align:left">';
+            thtml+='<div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">🎫 Tokens with Runners</div>';
+            for(const r of runnersWithTokens){thtml+='<div style="font-size:13px;color:var(--text2);padding:2px 0">'+r.runner_name+': '+fmt(r.tokens)+'</div>';}
+            thtml+='</div>';
+            return thtml;
+          })()+
         '</div>';
         // Auto-submit
         html+='<div class="wizard-nav"><button class="wn-submit" id="staffWizSubmitBtn" onclick="submitStaffShiftWizard()">Done ✓</button></div>';
@@ -2639,6 +2636,15 @@
             '• Check if any expenses were not recorded<br>'+
             '• Confirm all runner collections'+
           '</div>'+
+          (function(){
+            const runnersWithTokens=staffRunnerInputs.filter(r=>!r.absent&&r.tokens>0);
+            if(runnersWithTokens.length===0)return '';
+            let thtml='<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:8px;padding:10px 14px;text-align:left;margin-bottom:12px">';
+            thtml+='<div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">🎫 Tokens with Runners</div>';
+            for(const r of runnersWithTokens){thtml+='<div style="font-size:13px;color:var(--text2);padding:2px 0">'+r.runner_name+': '+fmt(r.tokens)+'</div>';}
+            thtml+='</div>';
+            return thtml;
+          })()+
         '</div>';
         // Runner shortages if any
         if(runnerShortages.length>0){
