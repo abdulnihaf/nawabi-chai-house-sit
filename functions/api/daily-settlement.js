@@ -829,6 +829,7 @@ export async function onRequest(context) {
         period: {start: periodStartIST, end: periodEndIST, hours: round((periodEndUTC - periodStartUTC) / 3600000, 2)},
         warnings: consumptionWarnings,
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
+        products: revenue.products,
         timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
       }, corsHeaders);
     }

@@ -858,6 +858,49 @@ const RAW_MATERIALS = {
   1120:{name:'Coffee Powder',uom:'kg'},1121:{name:'Lemon',uom:'Units'},1123:{name:'Honey',uom:'kg'},
 };
 
+// ── PRODUCT DISPLAY CONFIG (for inventory report UI) ──
+const PRODUCT_DISPLAY = {
+  1028:{name:'Irani Chai',icon:'☕',order:1},
+  1102:{name:'Nawabi Special Coffee',icon:'☕',order:2},
+  1103:{name:'Lemon Tea',icon:'🍋',order:3},
+  1029:{name:'Bun Maska',icon:'🍞',order:4},
+  1118:{name:'Malai Bun',icon:'🍞',order:5},
+  1031:{name:'Chicken Cutlet',icon:'🍗',order:6},
+  1115:{name:'Pyaaz Samosa',icon:'🥟',order:7},
+  1117:{name:'Cheese Balls',icon:'🧀',order:8},
+  1033:{name:'Osmania Pack of 3',icon:'🍪',order:9},
+  1030:{name:'Osmania Loose',icon:'🍪',order:10},
+  1111:{name:'Niloufer Box 500g',icon:'📦',order:11},
+  1094:{name:'Water',icon:'💧',order:12},
+};
+
+// Count-check mapping: raw material ID → which POS products contribute (with multiplier)
+const COUNT_CHECK_ITEMS = [
+  {rmId:'1104', name:'Buns',        sources:[{pid:1029,mult:1},{pid:1118,mult:1}]},
+  {rmId:'1106', name:'Cutlet',      sources:[{pid:1031,mult:1}]},
+  {rmId:'1113', name:'Samosa',      sources:[{pid:1115,mult:1}]},
+  {rmId:'1116', name:'Cheese Balls',sources:[{pid:1117,mult:1}]},
+  {rmId:'1105', name:'Osmania (Loose)', sources:[{pid:1033,mult:3},{pid:1030,mult:1}]},
+  {rmId:'1107', name:'Water Bottle',sources:[{pid:1094,mult:1}]},
+  {rmId:'1110', name:'Niloufer Box',sources:[{pid:1111,mult:1}]},
+];
+
+// Beverage raw materials to show in consumption section
+const BEVERAGE_MATERIALS = [
+  {rmId:'1095', name:'Buffalo Milk', uom:'L', perCupUnit:'ml', perCupMult:1000},
+  {rmId:'1112', name:'Condensed Milk', uom:'kg', perCupUnit:'g', perCupMult:1000},
+  {rmId:'1096', name:'SMP (Milk Powder)', uom:'kg', perCupUnit:'g', perCupMult:1000},
+  {rmId:'1098', name:'Tea Powder', uom:'kg', perCupUnit:'g', perCupMult:1000},
+  {rmId:'1097', name:'Sugar', uom:'kg', perCupUnit:'g', perCupMult:1000},
+];
+
+// Coffee recipe (per cup) — to subtract from chai per-cup calc
+const COFFEE_RECIPE = {1095:0.08613,1096:0.002153,1112:0.001723};
+// Lemon Tea recipe (per cup) — uses tea powder, sugar, water
+const LEMON_TEA_RECIPE = {1098:0.000449,1097:0.000899};
+// Bun Maska recipe — uses sugar
+const BUN_MASKA_SUGAR = 0.004;
+
 // Decomposition ratios (mirrored from API)
 const BOILED_MILK_RATIO = {1095:0.957,1096:0.02392,1112:0.01914};
 const DECOCTION_RATIO = {1098:0.005618,1097:0.01124,1101:0.9831};
@@ -1488,6 +1531,114 @@ function renderRawInputTable(rawInput) {
   return html || '<div style="color:var(--text2);font-size:13px">No items recorded</div>';
 }
 
+// ═══════════════════════════════════════════════════════════════
+// INVENTORY REPORT SECTIONS (staff-friendly, post-settlement)
+// ═══════════════════════════════════════════════════════════════
+
+function renderItemsSold(products) {
+  if (!products || Object.keys(products).length === 0) return '';
+  const items = Object.entries(products)
+    .map(([pid, p]) => ({pid: parseInt(pid), name: p.name, qty: p.qty, display: PRODUCT_DISPLAY[pid]}))
+    .filter(p => p.qty > 0)
+    .sort((a, b) => ((a.display?.order || 99) - (b.display?.order || 99)));
+  if (items.length === 0) return '';
+  const totalItems = items.reduce((s, p) => s + p.qty, 0);
+  let html = `<div class="section"><div class="section-title"><span class="sec-icon">🛒</span> Items Sold This Period <span style="font-size:12px;color:var(--text2);margin-left:8px">${totalItems} items total</span></div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px">`;
+  for (const item of items) {
+    const icon = item.display?.icon || '📦';
+    const name = item.display?.name || item.name;
+    html += `<div style="background:var(--bg2);border-radius:10px;padding:14px 12px;text-align:center">
+      <div style="font-size:24px;margin-bottom:4px">${icon}</div>
+      <div style="font-size:22px;font-weight:700;color:var(--golden-amber)">${item.qty}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.3">${name}</div>
+    </div>`;
+  }
+  html += `</div></div>`;
+  return html;
+}
+
+function renderCountCheck(products, inventory) {
+  if (!products || !inventory) return '';
+  let html = `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Count Check — Missing Items</div>`;
+  html += `<div style="overflow-x:auto;margin-top:8px"><table class="inv-table">
+    <tr><th>Item</th><th style="text-align:right">Opening</th><th style="text-align:right">Bought</th><th style="text-align:right">Sold</th><th style="text-align:right">Should Be</th><th style="text-align:right">Counted</th><th style="text-align:right">Missing</th></tr>`;
+  let totalMissing = 0;
+  for (const item of COUNT_CHECK_ITEMS) {
+    const opening = inventory.opening?.[item.rmId] || 0;
+    const purchased = inventory.purchases?.[item.rmId]?.qty || inventory.purchases?.[item.rmId] || 0;
+    const closing = inventory.closing?.[item.rmId] || 0;
+    // Calculate total sold from POS products
+    let sold = 0;
+    for (const src of item.sources) {
+      const p = products[String(src.pid)];
+      if (p) sold += p.qty * src.mult;
+    }
+    const shouldBe = Math.round((opening + purchased - sold) * 100) / 100;
+    const missing = Math.round((shouldBe - closing) * 100) / 100;
+    totalMissing += Math.max(0, missing);
+    const rowStyle = missing > 0 ? 'background:rgba(239,68,68,0.08)' : missing < 0 ? 'background:rgba(234,179,8,0.08)' : '';
+    const missingStr = missing === 0 ? '<span style="color:var(--green);font-weight:600">✓ 0</span>'
+      : missing > 0 ? `<span style="color:var(--red);font-weight:700">−${missing}</span>`
+      : `<span style="color:var(--yellow);font-weight:600">+${Math.abs(missing)}</span>`;
+    html += `<tr style="${rowStyle}">
+      <td style="font-weight:500">${item.name}</td>
+      <td class="num">${opening}</td>
+      <td class="num">${purchased > 0 ? purchased : '—'}</td>
+      <td class="num" style="color:var(--cyan)">${sold}</td>
+      <td class="num">${shouldBe}</td>
+      <td class="num">${closing}</td>
+      <td class="num">${missingStr}</td>
+    </tr>`;
+  }
+  html += `</table></div>`;
+  if (totalMissing > 0) {
+    html += `<div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,0.08);border-radius:8px;font-size:13px;color:var(--red)">
+      <strong>${totalMissing} items</strong> consumed but not recorded in POS (staff meals / complimentary / waste)
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderBeverageConsumption(products, inventory) {
+  if (!products || !inventory) return '';
+  const chaiQty = products['1028']?.qty || 0;
+  const coffeeQty = products['1102']?.qty || 0;
+  const lemonTeaQty = products['1103']?.qty || 0;
+  if (chaiQty === 0 && coffeeQty === 0 && lemonTeaQty === 0) return '';
+  let html = `<div class="section"><div class="section-title"><span class="sec-icon">☕</span> Chai & Coffee — Raw Material Consumed</div>`;
+  html += `<div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 14px">`;
+  if (chaiQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Irani Chai: <strong style="color:var(--golden-amber)">${chaiQty}</strong> cups</div>`;
+  if (coffeeQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Coffee: <strong style="color:var(--golden-amber)">${coffeeQty}</strong> cups</div>`;
+  if (lemonTeaQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Lemon Tea: <strong style="color:var(--golden-amber)">${lemonTeaQty}</strong> cups</div>`;
+  html += `</div>`;
+  html += `<table class="inv-table">
+    <tr><th>Raw Material</th><th style="text-align:right">Total Consumed</th>${chaiQty > 0 ? '<th style="text-align:right">Per Chai Cup</th>' : ''}</tr>`;
+  for (const mat of BEVERAGE_MATERIALS) {
+    const consumed = inventory.consumption?.[mat.rmId] || 0;
+    if (consumed <= 0) continue;
+    let perCupStr = '';
+    if (chaiQty > 0) {
+      // Subtract coffee & lemon tea share before dividing by chai cups
+      let otherShare = 0;
+      if (COFFEE_RECIPE[mat.rmId]) otherShare += coffeeQty * COFFEE_RECIPE[mat.rmId];
+      if (LEMON_TEA_RECIPE[mat.rmId]) otherShare += lemonTeaQty * LEMON_TEA_RECIPE[mat.rmId];
+      if (mat.rmId === '1097') otherShare += (products['1029']?.qty || 0) * BUN_MASKA_SUGAR; // bun maska sugar
+      const chaiOnly = consumed - otherShare;
+      const perCup = (chaiOnly / chaiQty) * mat.perCupMult;
+      perCupStr = `<td class="num" style="color:var(--golden-amber);font-weight:600">~${Math.round(perCup * 10) / 10} ${mat.perCupUnit}</td>`;
+    }
+    html += `<tr>
+      <td>${mat.name}</td>
+      <td class="num">${consumed.toFixed(3)} ${mat.uom}</td>
+      ${perCupStr}
+    </tr>`;
+  }
+  html += `</table></div>`;
+  return html;
+}
+
 function renderPnlResult(data) {
   const p = data.pnl;
   const profitClass = p.adjustedNetProfit >= 0 ? 'profit-positive' : 'profit-negative';
@@ -1506,56 +1657,51 @@ function renderPnlResult(data) {
   }
 
   const periodStr = data.period ? `${formatTime(data.period.start)} → ${formatTime(data.period.end)} (${Math.floor(data.period.hours)}h ${Math.round((data.period.hours % 1) * 60)}m)` : '';
+
+  // ── INVENTORY REPORT (shown first — staff-friendly) ──
+  html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px">
+    <div style="font-size:15px;font-weight:600">Inventory Report — ${data.settlementDate}</div>
+    <div style="font-size:12px;color:var(--text2)">Settled by ${data.settledBy}${periodStr ? ` | ${periodStr}` : ''}</div>
+  </div>`;
+
+  // Section A: Items Sold
+  html += renderItemsSold(data.products);
+
+  // Section B: Count Check
+  html += renderCountCheck(data.products, data.inventory);
+
+  // Section C: Beverage Consumption
+  html += renderBeverageConsumption(data.products, data.inventory);
+
+  // ── P&L CARD (below inventory sections) ──
+  html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
   html += `
     <div class="pnl-card">
       <div class="pnl-header">
-        <h2>☕ Settlement — ${data.settlementDate}</h2>
-        <div class="date">Settled by ${data.settledBy}${periodStr ? ` | ${periodStr}` : ''}</div>
+        <h2>P&L Summary</h2>
       </div>
-      <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
-      ${p.revenueBreakdown && (p.revenueBreakdown.cashCounter > 0 || p.revenueBreakdown.runnerCounter > 0 || p.revenueBreakdown.whatsapp > 0) ? `
-      <div class="pnl-row sub"><span class="label">Counter</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.cashCounter)}</span></div>
-      <div class="pnl-row sub"><span class="label">Runner</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.runnerCounter)}</span></div>
-      ${p.revenueBreakdown.whatsapp > 0 ? `<div class="pnl-row sub"><span class="label">Delivery</span><span class="value" style="color:var(--text2)">${fmt(p.revenueBreakdown.whatsapp)}</span></div>` : ''}
-      ` : ''}
-      <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
-      <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(p.cogsExpected)}</span></div>
-      <div class="pnl-row"><span class="label">📊 Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
-      <div class="pnl-row"><span class="label">💸 Operating Expenses</span><span class="value">${fmt(p.opex)}</span></div>
-      <div class="pnl-row"><span class="label">📈 Net Profit</span><span class="value">${fmt(p.netProfit)}</span></div>
-      ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">🗑️ Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
-      ${Math.abs(p.discrepancy) > 10 ? `<div class="pnl-row"><span class="label">⚠️ Discrepancy</span><span class="value" style="color:var(--orange)">${fmt(p.discrepancy)}</span></div>` : ''}
+      <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(p.revenue)}</span></div>
+      <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(p.cogs)}</span></div>
+      <div class="pnl-row"><span class="label">Gross Profit</span><span class="value ${p.revenue - p.cogs >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(p.revenue - p.cogs)}</span></div>
+      <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(p.opex)}</span></div>
+      ${p.wastage > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(p.wastage)}</span></div>` : ''}
       <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${profitClass}">${fmt(p.adjustedNetProfit)}</span></div>
     </div>
   `;
+  html += `</div>`;
 
-  // Staff Physical Count (raw input)
+  // Staff Physical Count (raw input) — collapsed below
   if (data.rawInput) {
     html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
     html += renderRawInputTable(data.rawInput);
     html += `</div>`;
   }
 
-  // Inventory breakdown (decomposed)
+  // Inventory Movement (decomposed) — kept for detailed view
   if (data.inventory) {
     html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
     html += renderInventoryMovement(data.inventory);
     html += `</div>`;
-  }
-
-  // Discrepancy details
-  if (data.inventory?.discrepancy) {
-    const discItems = Object.entries(data.inventory.discrepancy).filter(([_, d]) => Math.abs(d.qty) > 0.001);
-    if (discItems.length > 0) {
-      html += `<div class="section"><div class="section-title"><span class="sec-icon">⚠️</span> Discrepancy Details</div>`;
-      html += `<table class="inv-table"><tr><th>Material</th><th style="text-align:right">Variance</th><th style="text-align:right">Value</th></tr>`;
-      for (const [matId, d] of discItems) {
-        const mat = RAW_MATERIALS[matId];
-        const cls = d.qty > 0 ? 'disc-pos' : 'disc-neg';
-        html += `<tr><td>${mat?.name || matId}</td><td class="num ${cls}">${d.qty > 0 ? '+' : ''}${fmtQty(d.qty, d.uom)} ${d.uom}</td><td class="num ${cls}">${fmt(d.value)}</td></tr>`;
-      }
-      html += `</table></div>`;
-    }
   }
 
   $('settleResult').innerHTML = html;
@@ -1691,50 +1837,59 @@ async function loadSettlementDetail(id) {
       let periodLabel = '';
       if (s.period_start && s.period_end) {
         const hrs = (new Date(s.period_end) - new Date(s.period_start)) / 3600000;
-        periodLabel = ` | ${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m period`;
+        periodLabel = ` | ${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m`;
       }
+
+      // Parse all inventory data
+      const products = JSON.parse(s.revenue_breakdown || '{}');
+      const inventory = {
+        opening: JSON.parse(s.inventory_opening || '{}'),
+        purchases: JSON.parse(s.inventory_purchases || '{}'),
+        closing: JSON.parse(s.inventory_closing || '{}'),
+        consumption: JSON.parse(s.inventory_consumption || '{}'),
+        expected: JSON.parse(s.inventory_expected || '{}'),
+      };
+
+      // ── INVENTORY REPORT (shown first) ──
+      html += `<div style="margin-bottom:8px;padding:10px 14px;background:var(--bg2);border-radius:10px">
+        <div style="font-size:15px;font-weight:600">Inventory Report — ${s.settlement_date}</div>
+        <div style="font-size:12px;color:var(--text2)">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}${periodLabel}</div>
+      </div>`;
+
+      // Section A: Items Sold
+      html += renderItemsSold(products);
+
+      // Section B: Count Check
+      html += renderCountCheck(products, inventory);
+
+      // Section C: Beverage Consumption
+      html += renderBeverageConsumption(products, inventory);
+
+      // ── P&L CARD (below inventory) ──
+      html += `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">`;
       html += `
         <div class="pnl-card">
-          <div class="pnl-header"><h2>☕ Settlement — ${s.settlement_date}</h2><div class="date">Settled by ${s.settled_by} at ${formatTime(s.settled_at)}${periodLabel}</div></div>
-          <div class="pnl-row"><span class="label">💰 Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
-          <div class="pnl-row"><span class="label">📦 COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
-          <div class="pnl-row sub"><span class="label">Expected COGS</span><span class="value" style="color:var(--text2)">${fmt(s.cogs_expected)}</span></div>
-          <div class="pnl-row"><span class="label">📊 Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
-          <div class="pnl-row"><span class="label">💸 OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
-          <div class="pnl-row sub"><span class="label">Salaries</span><span class="value" style="color:var(--text2)">${fmt(s.opex_salaries)}</span></div>
-          <div class="pnl-row sub"><span class="label">Counter Expenses</span><span class="value" style="color:var(--text2)">${fmt(s.opex_counter_expenses)}</span></div>
-          <div class="pnl-row"><span class="label">📈 Net Profit</span><span class="value">${fmt(s.net_profit)}</span></div>
-          ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">🗑️ Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
-          ${Math.abs(s.discrepancy_value) > 10 ? `<div class="pnl-row"><span class="label">⚠️ Discrepancy</span><span class="value" style="color:var(--orange)">${fmt(s.discrepancy_value)}</span></div>` : ''}
+          <div class="pnl-header"><h2>P&L Summary</h2></div>
+          <div class="pnl-row"><span class="label">Revenue</span><span class="value">${fmt(s.revenue_total)}</span></div>
+          <div class="pnl-row"><span class="label">COGS (Actual)</span><span class="value">${fmt(s.cogs_actual)}</span></div>
+          <div class="pnl-row"><span class="label">Gross Profit</span><span class="value">${fmt(s.gross_profit)}</span></div>
+          <div class="pnl-row"><span class="label">OpEx</span><span class="value">${fmt(s.opex_total)}</span></div>
+          ${s.wastage_total_value > 0 ? `<div class="pnl-row"><span class="label">Wastage</span><span class="value" style="color:var(--yellow)">${fmt(s.wastage_total_value)}</span></div>` : ''}
           <div class="pnl-row total"><span class="label">Adjusted Net Profit</span><span class="value ${s.adjusted_net_profit >= 0 ? 'profit-positive' : 'profit-negative'}">${fmt(s.adjusted_net_profit)}</span></div>
         </div>
+      </div>`;
 
-        ${rawInput && Object.keys(rawInput).length > 0 ? `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>${renderRawInputTable(rawInput)}</div>` : ''}
-
-        <div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>
-          ${renderInventoryMovement({
-            opening: JSON.parse(s.inventory_opening || '{}'),
-            purchases: JSON.parse(s.inventory_purchases || '{}'),
-            closing: JSON.parse(s.inventory_closing || '{}'),
-            consumption: JSON.parse(s.inventory_consumption || '{}'),
-            expected: JSON.parse(s.inventory_expected || '{}'),
-          })}
-        </div>
-      `;
-
-      // Discrepancy
-      const disc = JSON.parse(s.inventory_discrepancy || '{}');
-      const discItems = Object.entries(disc).filter(([_, d]) => Math.abs(d.qty) > 0.001);
-      if (discItems.length > 0) {
-        html += `<div class="section"><div class="section-title"><span class="sec-icon">⚠️</span> Discrepancy Details</div>
-          <table class="inv-table"><tr><th>Material</th><th style="text-align:right">Variance</th><th style="text-align:right">Value</th></tr>`;
-        for (const [matId, d] of discItems) {
-          const mat = RAW_MATERIALS[matId];
-          const cls = d.qty > 0 ? 'disc-pos' : 'disc-neg';
-          html += `<tr><td>${mat?.name || matId}</td><td class="num ${cls}">${d.qty > 0 ? '+' : ''}${fmtQty(d.qty, d.uom)} ${d.uom}</td><td class="num ${cls}">${fmt(d.value)}</td></tr>`;
-        }
-        html += '</table></div>';
+      // Raw input
+      if (rawInput && Object.keys(rawInput).length > 0) {
+        html += `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Staff Physical Count <span style="font-size:11px;background:rgba(6,182,212,0.15);color:var(--cyan);padding:2px 8px;border-radius:4px;margin-left:8px">RAW</span></div>`;
+        html += renderRawInputTable(rawInput);
+        html += `</div>`;
       }
+
+      // Inventory Movement (decomposed detail)
+      html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
+      html += renderInventoryMovement(inventory);
+      html += `</div>`;
 
       // Runner tokens
       const tokens = JSON.parse(s.runner_tokens || '{}');
