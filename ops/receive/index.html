@@ -624,6 +624,8 @@ async function submitWithPin() {
         pickingId: currentPicking.pickingId,
         pin: pin,
         items: items,
+        poName: currentPicking.poName,
+        vendorName: currentPicking.vendorName,
       }),
     });
     const data = await res.json();
@@ -658,7 +660,7 @@ function renderSuccessScreen(data) {
       <h2>Delivery Confirmed!</h2>
       <p>${currentPicking.vendorName} • ${currentPicking.poName}</p>
       <p style="font-size:13px;color:var(--text2)">Confirmed by ${data.confirmedBy || 'Staff'} at ${new Date().toLocaleTimeString('en-IN')}</p>
-      ${data.backorderCreated ? '<p style="color:var(--orange);font-size:13px;margin-top:8px">📋 Backorder created for missing items</p>' : ''}
+      ${data.backorderCreated ? '<p style="color:var(--orange);font-size:13px;margin-top:8px">📋 Remaining items will appear as a new pending delivery</p>' : ''}
       ${data.hasDiscrepancy ? '<p style="color:var(--red);font-size:13px">⚠️ Zoya has been notified about quantity mismatch</p>' : ''}
       <div class="detail-box">
         ${itemRows}

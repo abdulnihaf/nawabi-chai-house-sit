@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH - Live Inventory</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--red-dim:rgba(239,68,68,.12);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);--orange:#f97316;--orange-dim:rgba(249,115,22,.12);--yellow:#eab308;--purple:#a855f7;--purple-dim:rgba(168,85,247,.12)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ─── HEADER ─────────────────────────── */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;position:sticky;top:0;z-index:100}
+    .header-top{display:flex;justify-content:space-between;align-items:center}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1 .accent{width:4px;height:22px;background:var(--green);border-radius:2px}
+    .header-sub{color:var(--text2);font-size:12px;margin-top:4px}
+    .refresh-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .refresh-btn:active{background:var(--border)}
+    .refresh-btn.spinning{animation:spin .6s ease}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+    /* ─── TABS ────────────────────────────── */
+    .tabs{display:flex;gap:0;margin:16px 20px 0;background:var(--bg2);border-radius:10px;padding:3px;border:1px solid var(--border)}
+    .tab{flex:1;padding:10px;text-align:center;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;color:var(--text2);transition:all .15s}
+    .tab.active{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    .tab:active{transform:scale(.98)}
+    .tab-content{display:none;padding:16px 20px 80px;max-width:600px;margin:0 auto}
+    .tab-content.active{display:block}
+
+    /* ─── SUMMARY CHIPS ───────────────────── */
+    .chips{display:flex;gap:10px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px}
+    .chip{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:100px;flex-shrink:0}
+    .chip .value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .chip .label{color:var(--text2);font-size:11px;margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+
+    /* ─── SECTION TITLE ───────────────────── */
+    .section-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin:24px 0 12px;display:flex;align-items:center;gap:8px}
+    .section-title .icon{font-size:16px}
+
+    /* ─── MATERIAL CARD ───────────────────── */
+    .mat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+    .mat-card:active{border-color:var(--text2)}
+    .mat-row{display:flex;justify-content:space-between;align-items:baseline}
+    .mat-name{font-size:15px;font-weight:600}
+    .mat-uom{color:var(--text2);font-size:12px;margin-left:4px}
+    .mat-current{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .mat-breakdown{display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--text2)}
+    .mat-breakdown .opening{display:flex;align-items:center;gap:4px}
+    .mat-breakdown .received{color:var(--green);display:flex;align-items:center;gap:4px}
+    .mat-bar{height:6px;border-radius:3px;margin-top:10px;background:var(--bg2);overflow:hidden;display:flex}
+    .mat-bar .seg-opening{background:var(--blue);border-radius:3px 0 0 3px}
+    .mat-bar .seg-received{background:var(--green);border-radius:0 3px 3px 0}
+    .mat-vendor-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .mat-card.expanded .mat-vendor-detail{display:block}
+    .vendor-line{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px}
+    .vendor-line .vname{color:var(--text2)}
+    .vendor-line .vqty{font-family:'JetBrains Mono',monospace;font-weight:500}
+    .vendor-line .vcost{color:var(--text2);font-size:11px;margin-left:6px}
+
+    /* ─── DELIVERY CARD ───────────────────── */
+    .del-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px}
+    .del-header{display:flex;justify-content:space-between;align-items:flex-start}
+    .del-vendor{font-size:15px;font-weight:600}
+    .del-po{color:var(--text2);font-size:12px;margin-top:2px}
+    .del-time{text-align:right}
+    .del-time .time{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .del-time .date{color:var(--text2);font-size:11px}
+    .del-confirmer{color:var(--text2);font-size:12px;margin-top:8px;display:flex;align-items:center;gap:4px}
+    .del-confirmer .name{color:var(--green);font-weight:500}
+    .del-items{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+    .del-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px}
+    .del-item .qty{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text)}
+    .del-item .cost{color:var(--text2);margin-left:4px}
+
+    /* ─── SETTLEMENT TRAIL CARD ───────────── */
+    .trail-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+    .trail-card:active{border-color:var(--text2)}
+    .trail-header{display:flex;justify-content:space-between;align-items:flex-start}
+    .trail-date{font-size:15px;font-weight:600}
+    .trail-meta{color:var(--text2);font-size:12px;margin-top:2px}
+    .trail-badge{font-size:11px;padding:3px 8px;border-radius:6px;font-weight:600}
+    .trail-badge.completed{background:var(--green-dim);color:var(--green)}
+    .trail-badge.bootstrap{background:var(--purple-dim);color:var(--purple)}
+    .trail-detail{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+    .trail-card.expanded .trail-detail{display:block}
+    .trail-table{width:100%;font-size:12px;border-collapse:collapse}
+    .trail-table th{color:var(--text2);font-weight:500;text-align:left;padding:6px 4px;border-bottom:1px solid var(--border)}
+    .trail-table td{padding:6px 4px;border-bottom:1px solid rgba(45,58,79,.3);font-family:'JetBrains Mono',monospace;font-size:11px}
+    .trail-table td:first-child{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:var(--text)}
+    .trail-table .positive{color:var(--green)}
+    .trail-table .negative{color:var(--red)}
+
+    /* ─── EMPTY STATE ─────────────────────── */
+    .empty-state{text-align:center;padding:60px 20px}
+    .empty-state .icon{font-size:48px;margin-bottom:16px;opacity:.6}
+    .empty-state h2{font-size:18px;margin-bottom:8px}
+    .empty-state p{color:var(--text2);font-size:13px;line-height:1.6}
+
+    /* ─── LOADING ──────────────────────────── */
+    .loading-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,26,.8);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+    .loading-overlay.show{display:flex}
+    .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+    .loading-overlay p{color:var(--text2);font-size:14px}
+
+    /* ─── AUTO-REFRESH INDICATOR ──────────── */
+    .auto-refresh{position:fixed;bottom:16px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;z-index:50}
+    .auto-refresh .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <p>Loading inventory...</p>
+</div>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1><span class="accent"></span>Live Inventory</h1>
+      <div class="header-sub" id="headerSub">Loading...</div>
+    </div>
+    <button class="refresh-btn" onclick="refresh()">↻</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('stock')">Current Stock</div>
+  <div class="tab" onclick="switchTab('trail')">Settlement Trail</div>
+</div>
+
+<div class="tab-content active" id="stockTab">
+  <div class="chips" id="summaryChips"></div>
+  <div class="section-title"><span class="icon">📦</span> Current Stock</div>
+  <div id="stockList"></div>
+  <div class="section-title"><span class="icon">🚛</span> Deliveries Since Settlement</div>
+  <div id="deliveryList"></div>
+</div>
+
+<div class="tab-content" id="trailTab">
+  <div id="trailList"></div>
+</div>
+
+<div class="auto-refresh" id="autoRefresh"><span class="dot"></span>Auto-refresh 60s</div>
+
+<script>
+const API = '/api/inventory';
+let liveData = null;
+let trailData = null;
+let refreshTimer = null;
+let trailLoaded = false;
+
+// ─── INIT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadLiveStatus();
+  startAutoRefresh();
+});
+
+// ─── TAB SWITCHING ───────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (tab === 'stock' && i === 0) || (tab === 'trail' && i === 1));
+  });
+  document.getElementById('stockTab').classList.toggle('active', tab === 'stock');
+  document.getElementById('trailTab').classList.toggle('active', tab === 'trail');
+
+  if (tab === 'trail' && !trailLoaded) {
+    loadSettlementTrail();
+  }
+
+  // Auto-refresh only on stock tab
+  if (tab === 'stock') {
+    startAutoRefresh();
+    document.getElementById('autoRefresh').style.display = 'flex';
+  } else {
+    stopAutoRefresh();
+    document.getElementById('autoRefresh').style.display = 'none';
+  }
+}
+
+// ─── AUTO-REFRESH ────────────────────────────────────────────
+function startAutoRefresh() {
+  stopAutoRefresh();
+  refreshTimer = setInterval(() => loadLiveStatus(true), 60000);
+}
+function stopAutoRefresh() {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
+
+// ─── LOAD LIVE STATUS ────────────────────────────────────────
+async function loadLiveStatus(silent) {
+  if (!silent) showLoading();
+  try {
+    const res = await fetch(`${API}?action=live-status`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    liveData = data;
+    renderLiveStock();
+  } catch (e) {
+    if (!silent) {
+      document.getElementById('stockList').innerHTML = `
+        <div class="empty-state"><div class="icon">⚠️</div><h2>Connection Error</h2><p>${e.message}</p></div>`;
+    }
+  }
+  if (!silent) hideLoading();
+}
+
+// ─── RENDER LIVE STOCK ───────────────────────────────────────
+function renderLiveStock() {
+  if (!liveData) return;
+  const {lastSettlement, deliveries, currentStock} = liveData;
+
+  // Header sub
+  if (lastSettlement) {
+    const d = toIST(new Date(lastSettlement.settledAt));
+    document.getElementById('headerSub').textContent =
+      `Since ${fmtDate(d)} ${fmtTime(d)} by ${lastSettlement.settledBy}`;
+  } else {
+    document.getElementById('headerSub').textContent = 'No settlement found';
+  }
+
+  // Summary chips
+  const matKeys = Object.keys(currentStock);
+  const delivCount = deliveries.length;
+  const lastRecvTime = deliveries.length > 0 ? timeAgo(deliveries[0].dateDone) : '—';
+  document.getElementById('summaryChips').innerHTML = `
+    <div class="chip"><div class="value">${matKeys.length}</div><div class="label">Materials</div></div>
+    <div class="chip"><div class="value">${delivCount}</div><div class="label">Deliveries</div></div>
+    <div class="chip"><div class="value">${lastRecvTime}</div><div class="label">Last Recv</div></div>
+  `;
+
+  // Build vendor-per-material map from deliveries
+  const vendorByMat = {};
+  for (const del of deliveries) {
+    for (const item of del.items) {
+      const mid = String(item.materialId);
+      if (!vendorByMat[mid]) vendorByMat[mid] = [];
+      vendorByMat[mid].push({
+        vendor: del.vendorName,
+        qty: item.qty,
+        uom: item.uom,
+        unitCost: item.unitCost,
+      });
+    }
+  }
+
+  // Sort: materials with receipts first, then alphabetical
+  const sorted = matKeys.sort((a, b) => {
+    const aRecv = currentStock[a].received > 0 ? 0 : 1;
+    const bRecv = currentStock[b].received > 0 ? 0 : 1;
+    if (aRecv !== bRecv) return aRecv - bRecv;
+    return currentStock[a].name.localeCompare(currentStock[b].name);
+  });
+
+  // Material cards
+  document.getElementById('stockList').innerHTML = sorted.map(matId => {
+    const m = currentStock[matId];
+    const total = m.opening + m.received;
+    const openPct = total > 0 ? Math.round((m.opening / total) * 100) : 100;
+    const recvPct = total > 0 ? Math.round((m.received / total) * 100) : 0;
+
+    // Vendor detail
+    const vendors = vendorByMat[matId] || [];
+    let vendorHtml = '';
+    if (vendors.length > 0) {
+      vendorHtml = `<div class="mat-vendor-detail">${vendors.map(v =>
+        `<div class="vendor-line">
+          <span class="vname">${shortVendor(v.vendor)}</span>
+          <span><span class="vqty">${fmtNum(v.qty)} ${v.uom}</span><span class="vcost">@ ₹${fmtNum(v.unitCost)}</span></span>
+        </div>`
+      ).join('')}</div>`;
+    }
+
+    return `
+      <div class="mat-card" onclick="this.classList.toggle('expanded')">
+        <div class="mat-row">
+          <div><span class="mat-name">${m.name}</span><span class="mat-uom">${m.uom}</span></div>
+          <span class="mat-current">${fmtNum(m.current)}</span>
+        </div>
+        <div class="mat-breakdown">
+          <span class="opening">Opening: ${fmtNum(m.opening)}</span>
+          ${m.received > 0 ? `<span class="received">+${fmtNum(m.received)} received</span>` : ''}
+        </div>
+        ${total > 0 ? `<div class="mat-bar"><div class="seg-opening" style="width:${openPct}%"></div><div class="seg-received" style="width:${recvPct}%"></div></div>` : ''}
+        ${vendorHtml}
+      </div>`;
+  }).join('');
+
+  // Delivery log
+  if (deliveries.length === 0) {
+    document.getElementById('deliveryList').innerHTML = `
+      <div class="empty-state" style="padding:30px"><div class="icon">📭</div><p>No deliveries since last settlement</p></div>`;
+  } else {
+    document.getElementById('deliveryList').innerHTML = deliveries.map(del => {
+      const dt = toIST(new Date(del.dateDone));
+      return `
+        <div class="del-card">
+          <div class="del-header">
+            <div>
+              <div class="del-vendor">${shortVendor(del.vendorName)}</div>
+              <div class="del-po">${del.poName} · ${del.pickingName}</div>
+            </div>
+            <div class="del-time">
+              <div class="time">${fmtTime(dt)}</div>
+              <div class="date">${fmtDate(dt)}</div>
+            </div>
+          </div>
+          <div class="del-confirmer">
+            Confirmed by <span class="name">${del.confirmedBy || '—'}</span>
+          </div>
+          <div class="del-items">
+            ${del.items.map(i => `
+              <span class="del-item">
+                <span class="qty">${fmtNum(i.qty)} ${i.uom}</span> ${i.name}
+                <span class="cost">@ ₹${fmtNum(i.unitCost)}</span>
+              </span>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+// ─── LOAD SETTLEMENT TRAIL ───────────────────────────────────
+async function loadSettlementTrail() {
+  showLoading();
+  try {
+    const res = await fetch(`${API}?action=settlement-trail&limit=20`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    trailData = data;
+    trailLoaded = true;
+    renderTrail();
+  } catch (e) {
+    document.getElementById('trailList').innerHTML = `
+      <div class="empty-state"><div class="icon">⚠️</div><h2>Error</h2><p>${e.message}</p></div>`;
+  }
+  hideLoading();
+}
+
+// ─── RENDER SETTLEMENT TRAIL ─────────────────────────────────
+function renderTrail() {
+  if (!trailData || !trailData.settlements || trailData.settlements.length === 0) {
+    document.getElementById('trailList').innerHTML = `
+      <div class="empty-state" style="padding:40px"><div class="icon">📋</div><h2>No Settlements Yet</h2><p>Settlement history will appear here after the first daily settlement.</p></div>`;
+    return;
+  }
+
+  const rm = trailData.rawMaterials || {};
+  document.getElementById('trailList').innerHTML = trailData.settlements.map(s => {
+    const ps = toIST(new Date(s.periodStart));
+    const pe = toIST(new Date(s.periodEnd));
+    const dur = s.duration > 0 ? `${s.duration}h` : '';
+
+    // Build detail table — only show materials that had activity
+    const allMats = new Set([
+      ...Object.keys(s.opening || {}),
+      ...Object.keys(s.purchases || {}),
+      ...Object.keys(s.closing || {}),
+      ...Object.keys(s.consumption || {}),
+    ]);
+
+    let tableRows = '';
+    for (const mid of allMats) {
+      const mat = rm[mid];
+      if (!mat) continue;
+      const o = s.opening[mid] || 0;
+      const p = s.purchases[mid] ? (typeof s.purchases[mid] === 'object' ? s.purchases[mid].qty : s.purchases[mid]) : 0;
+      const c = s.closing[mid] || 0;
+      const u = s.consumption[mid] || 0;
+      if (o === 0 && p === 0 && c === 0 && u === 0) continue;
+      tableRows += `<tr>
+        <td>${mat.name}</td>
+        <td>${fmtNum(o)}</td>
+        <td class="positive">${p > 0 ? '+' + fmtNum(p) : '—'}</td>
+        <td>${fmtNum(c)}</td>
+        <td class="${u > 0 ? '' : u < 0 ? 'negative' : ''}">${fmtNum(u)}</td>
+      </tr>`;
+    }
+
+    return `
+      <div class="trail-card" onclick="this.classList.toggle('expanded')">
+        <div class="trail-header">
+          <div>
+            <div class="trail-date">${fmtDate(ps)} ${fmtTime(ps)} → ${fmtTime(pe)}</div>
+            <div class="trail-meta">${dur} · Settled by ${s.settledBy}</div>
+          </div>
+          <span class="trail-badge ${s.status}">${s.status === 'bootstrap' ? 'Bootstrap' : 'Completed'}</span>
+        </div>
+        <div class="trail-detail">
+          ${tableRows ? `
+            <table class="trail-table">
+              <thead><tr><th>Material</th><th>Open</th><th>Purch</th><th>Close</th><th>Used</th></tr></thead>
+              <tbody>${tableRows}</tbody>
+            </table>` : '<p style="color:var(--text2);font-size:13px">No inventory data for this period</p>'}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─── REFRESH ─────────────────────────────────────────────────
+async function refresh() {
+  const btn = document.querySelector('.refresh-btn');
+  btn.classList.add('spinning');
+  const activeTab = document.getElementById('stockTab').classList.contains('active') ? 'stock' : 'trail';
+  if (activeTab === 'stock') {
+    await loadLiveStatus();
+  } else {
+    await loadSettlementTrail();
+  }
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+
+function toIST(d) {
+  return new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+}
+
+function fmtTime(ist) {
+  const h = ist.getUTCHours(), m = ist.getUTCMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function fmtDate(ist) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]}`;
+}
+
+function fmtNum(n) {
+  if (n === 0) return '0';
+  if (Number.isInteger(n)) return n.toLocaleString('en-IN');
+  return parseFloat(n.toFixed(2)).toLocaleString('en-IN');
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '—';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function shortVendor(name) {
+  if (!name) return 'Unknown';
+  // "farm taste, navya milk vendor" → "Navya Milk Vendor"
+  const parts = name.split(',');
+  const vendor = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).trim();
+  return vendor.charAt(0).toUpperCase() + vendor.slice(1);
+}
+</script>
+</body>
+</html>

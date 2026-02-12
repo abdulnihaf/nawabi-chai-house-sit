@@ -19,6 +19,37 @@ export async function onRequest(context) {
   // PIN verification — matches Odoo POS employee PINs
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
 
+  // Raw materials reference (matches daily-settlement.js)
+  const RAW_MATERIALS = {
+    1095: {name: 'Buffalo Milk', code: 'RM-BFM', uom: 'L'},
+    1096: {name: 'Skimmed Milk Powder', code: 'RM-SMP', uom: 'kg'},
+    1097: {name: 'Sugar', code: 'RM-SUG', uom: 'kg'},
+    1098: {name: 'Tea Powder', code: 'RM-TEA', uom: 'kg'},
+    1101: {name: 'Filter Water', code: 'RM-WTR', uom: 'L'},
+    1104: {name: 'Buns', code: 'RM-BUN', uom: 'Units'},
+    1105: {name: 'Osmania Biscuit (Loose)', code: 'RM-OSMG', uom: 'Units'},
+    1106: {name: 'Chicken Cutlet (Unfried)', code: 'RM-CCT', uom: 'Units'},
+    1107: {name: 'Bottled Water', code: 'RM-BWR', uom: 'Units'},
+    1110: {name: 'Osmania Biscuit Box', code: 'RM-OSMN', uom: 'Units'},
+    1112: {name: 'Condensed Milk', code: 'RM-CM', uom: 'kg'},
+    1113: {name: 'Samosa Raw', code: 'RM-SAM', uom: 'Units'},
+    1114: {name: 'Oil', code: 'RM-OIL', uom: 'L'},
+    1116: {name: 'Cheese Balls Raw', code: 'RM-CHB', uom: 'Units'},
+    1119: {name: 'Butter', code: 'RM-BTR', uom: 'kg'},
+    1120: {name: 'Coffee Powder', code: 'RM-COF', uom: 'kg'},
+    1121: {name: 'Lemon', code: 'RM-LMN', uom: 'Units'},
+    1123: {name: 'Honey', code: 'RM-HNY', uom: 'kg'},
+  };
+
+  // Fallback unit costs (matches daily-settlement.js)
+  const FALLBACK_COSTS = {
+    1095: 80, 1096: 310, 1097: 44, 1098: 500, 1101: 1.5, 1104: 8,
+    1105: 6.65, 1106: 15, 1107: 6.7, 1110: 173, 1112: 326, 1113: 8,
+    1114: 120, 1116: 10, 1119: 500, 1120: 1200, 1121: 5, 1123: 400,
+  };
+
+  const DB = context.env.DB;
+
   try {
     // ─── GET PENDING RECEIPTS ────────────────────────────────────
     // Returns all receipts in 'assigned' (Ready) state for NCH
@@ -157,36 +188,66 @@ export async function onRequest(context) {
         }
       }
 
+      // Check if this is a partial receipt (any item received < expected)
+      const isPartial = items.some(item => item.receivedQty < item.expectedQty);
+
       // Validate the picking (button_validate)
-      const validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'stock.picking', 'button_validate',
-        [[pickingId]]
-      );
+      let validateResult;
+      try {
+        validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'button_validate',
+          [[pickingId]]
+        );
+      } catch (valErr) {
+        // If validation fails, return meaningful error
+        return new Response(JSON.stringify({
+          success: false, error: `Validation failed: ${valErr.message}`,
+          confirmedBy: confirmedBy,
+        }), {headers: corsHeaders});
+      }
 
       // Check if backorder wizard was returned (partial receipt)
       let backorderCreated = false;
       if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
-        // A wizard was returned — this means partial receipt
-        // We need to handle the backorder wizard
         if (validateResult.res_model === 'stock.backorder.confirmation') {
           // Create backorder for remaining items
+          const wizardId = validateResult.res_id;
           try {
+            // In Odoo 19, process() creates backorder for undelivered qty
             await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              validateResult.res_model, 'process',
-              [[validateResult.res_id]]
+              'stock.backorder.confirmation', 'process',
+              [[wizardId]]
             );
             backorderCreated = true;
           } catch (e) {
-            // Try alternative: process_cancel_backorder to just receive what was given
+            // Try with context that identifies the picking
             try {
               await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                validateResult.res_model, 'process_cancel_backorder',
-                [[validateResult.res_id]]
+                'stock.backorder.confirmation', 'process',
+                [[wizardId]],
+                {context: {button_validate_picking_ids: [pickingId]}}
               );
+              backorderCreated = true;
             } catch (e2) {
-              // Wizard handling failed, but the picking may still have been validated
+              // Last resort: cancel backorder (just receive what was given, no remainder)
+              try {
+                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                  'stock.backorder.confirmation', 'process_cancel_backorder',
+                  [[wizardId]]
+                );
+              } catch (e3) {
+                // Wizard handling failed entirely
+              }
             }
           }
+        } else if (validateResult.res_model === 'stock.immediate.transfer') {
+          // Immediate transfer wizard — process it
+          try {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.immediate.transfer', 'process',
+              [[validateResult.res_id]]
+            );
+          } catch (e) { /* ignore */ }
         }
       }
 
@@ -194,11 +255,30 @@ export async function onRequest(context) {
       const finalState = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'read',
         [[pickingId]],
-        {fields: ['state', 'name', 'backorder_ids']}
+        {fields: ['state', 'name', 'origin', 'partner_id', 'backorder_ids']}
       );
 
       const picking = finalState[0] || {};
       const hasDiscrepancy = items.some(item => item.receivedQty !== item.expectedQty);
+      backorderCreated = backorderCreated || (picking.backorder_ids && picking.backorder_ids.length > 0);
+
+      // Persist receipt confirmation to D1
+      if (DB) {
+        try {
+          await DB.prepare(
+            'INSERT INTO receipt_confirmations (picking_id, picking_name, po_name, vendor_name, confirmed_by, confirmed_at) VALUES (?,?,?,?,?,?)'
+          ).bind(
+            pickingId,
+            picking.name || '',
+            picking.origin || '',
+            picking.partner_id ? picking.partner_id[1] : '',
+            confirmedBy,
+            new Date().toISOString()
+          ).run();
+        } catch (dbErr) {
+          // D1 write failed — non-fatal, continue
+        }
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -206,7 +286,7 @@ export async function onRequest(context) {
         confirmedBy: confirmedBy,
         pickingState: picking.state,
         pickingName: picking.name,
-        backorderCreated: backorderCreated || (picking.backorder_ids && picking.backorder_ids.length > 0),
+        backorderCreated: backorderCreated,
         hasDiscrepancy: hasDiscrepancy,
         items: items.map(i => ({product: i.productName, expected: i.expectedQty, received: i.receivedQty}))
       }), {headers: corsHeaders});
@@ -435,7 +515,175 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
-    return new Response(JSON.stringify({success: false, error: 'Invalid action. Use: pending-receipts, confirm-receipt, stock-on-hand, verify-pin, recent-receipts, storage-stock, kitchen-stock, transfer'}), {headers: corsHeaders});
+    // ─── LIVE INVENTORY STATUS ─────────────────────────────────────
+    // Returns current stock (last settlement closing + received since)
+    // with vendor-level delivery breakdown and receipt confirmations
+    if (action === 'live-status') {
+      // 1. Get latest settlement from D1
+      let lastSettlement = null;
+      let closingStock = {};
+      if (DB) {
+        try {
+          lastSettlement = await DB.prepare(
+            "SELECT id, settlement_date, settled_at, settled_by, inventory_closing FROM daily_settlements WHERE status IN ('completed','bootstrap') ORDER BY settled_at DESC LIMIT 1"
+          ).first();
+          if (lastSettlement) {
+            closingStock = JSON.parse(lastSettlement.inventory_closing || '{}');
+          }
+        } catch (e) { /* table may not exist */ }
+      }
+
+      // 2. Query Odoo for incoming pickings since settlement
+      const sinceUTC = lastSettlement
+        ? new Date(lastSettlement.settled_at).toISOString().slice(0, 19).replace('T', ' ')
+        : new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
+
+      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'search_read',
+        [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
+          ['date_done', '>=', sinceUTC], ['company_id', '=', 10]]],
+        {fields: ['id', 'name', 'origin', 'partner_id', 'date_done', 'move_ids'],
+         order: 'date_done desc', limit: 50});
+
+      // 3. Get all moves in one batch
+      const allMoveIds = pickings.flatMap(p => p.move_ids || []);
+      let moves = [];
+      if (allMoveIds.length > 0) {
+        moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.move', 'read', [allMoveIds],
+          {fields: ['id', 'product_id', 'quantity', 'picking_id']});
+      }
+
+      // 4. Get PO line costs
+      const poNames = [...new Set(pickings.map(p => p.origin).filter(Boolean))];
+      const poLineCosts = {};
+      if (poNames.length > 0) {
+        const poLines = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'purchase.order.line', 'search_read',
+          [[['order_id.name', 'in', poNames]]],
+          {fields: ['product_id', 'price_unit', 'order_id']});
+        for (const pl of poLines) {
+          const key = `${pl.order_id[1]}_${pl.product_id[0]}`;
+          poLineCosts[key] = pl.price_unit;
+        }
+      }
+
+      // 5. Get receipt confirmations from D1
+      const confirmations = {};
+      if (DB && pickings.length > 0) {
+        try {
+          const pickingIds = pickings.map(p => p.id);
+          const placeholders = pickingIds.map(() => '?').join(',');
+          const rows = await DB.prepare(
+            `SELECT picking_id, confirmed_by, confirmed_at FROM receipt_confirmations WHERE picking_id IN (${placeholders})`
+          ).bind(...pickingIds).all();
+          for (const r of (rows.results || [])) {
+            confirmations[r.picking_id] = {confirmedBy: r.confirmed_by, confirmedAt: r.confirmed_at};
+          }
+        } catch (e) { /* table may not exist yet */ }
+      }
+
+      // 6. Build per-picking delivery detail + aggregate received totals
+      const received = {};
+      const deliveries = pickings.map(p => {
+        const pickingMoves = moves.filter(m => m.picking_id && m.picking_id[0] === p.id);
+        const items = pickingMoves.map(m => {
+          const matId = m.product_id[0];
+          const qty = m.quantity || 0;
+          const costKey = `${p.origin}_${matId}`;
+          const unitCost = poLineCosts[costKey] || FALLBACK_COSTS[matId] || 0;
+          if (!received[matId]) received[matId] = 0;
+          received[matId] += qty;
+          return {
+            materialId: matId,
+            name: RAW_MATERIALS[matId]?.name || m.product_id[1],
+            qty, uom: RAW_MATERIALS[matId]?.uom || '',
+            unitCost,
+          };
+        });
+        const conf = confirmations[p.id] || {};
+        return {
+          pickingId: p.id, pickingName: p.name, poName: p.origin || '',
+          vendorName: p.partner_id ? p.partner_id[1] : 'Unknown',
+          dateDone: p.date_done,
+          confirmedBy: conf.confirmedBy || null,
+          confirmedAt: conf.confirmedAt || null,
+          items,
+        };
+      });
+
+      // 7. Build current stock map
+      const currentStock = {};
+      const allMatIds = new Set([...Object.keys(closingStock), ...Object.keys(received)]);
+      for (const matId of allMatIds) {
+        const mat = RAW_MATERIALS[matId];
+        if (!mat) continue; // Skip non-tracked materials
+        const opening = closingStock[matId] || 0;
+        const rec = received[matId] || 0;
+        currentStock[matId] = {
+          name: mat.name, code: mat.code, uom: mat.uom,
+          opening: Math.round(opening * 10000) / 10000,
+          received: Math.round(rec * 10000) / 10000,
+          current: Math.round((opening + rec) * 10000) / 10000,
+        };
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        lastSettlement: lastSettlement ? {
+          id: lastSettlement.id,
+          settlementDate: lastSettlement.settlement_date,
+          settledAt: lastSettlement.settled_at,
+          settledBy: lastSettlement.settled_by,
+        } : null,
+        deliveries,
+        currentStock,
+        rawMaterials: RAW_MATERIALS,
+      }), {headers: corsHeaders});
+    }
+
+    // ─── SETTLEMENT TRAIL ─────────────────────────────────────────
+    // Returns past settlement periods with inventory data for audit trail
+    if (action === 'settlement-trail') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
+
+      const limit = parseInt(url.searchParams.get('limit') || '20');
+      try {
+        const results = await DB.prepare(
+          "SELECT id, settlement_date, period_start, period_end, settled_by, settled_at, status, inventory_opening, inventory_purchases, inventory_closing, inventory_consumption FROM daily_settlements WHERE status IN ('completed','bootstrap') ORDER BY settled_at DESC LIMIT ?"
+        ).bind(limit).all();
+
+        const settlements = (results.results || []).map(s => {
+          const periodStart = new Date(s.period_start);
+          const periodEnd = new Date(s.period_end);
+          const durationHrs = Math.round((periodEnd - periodStart) / 36000) / 100;
+          return {
+            id: s.id,
+            settlementDate: s.settlement_date,
+            periodStart: s.period_start,
+            periodEnd: s.period_end,
+            settledBy: s.settled_by,
+            settledAt: s.settled_at,
+            status: s.status,
+            duration: durationHrs,
+            opening: JSON.parse(s.inventory_opening || '{}'),
+            purchases: JSON.parse(s.inventory_purchases || '{}'),
+            closing: JSON.parse(s.inventory_closing || '{}'),
+            consumption: JSON.parse(s.inventory_consumption || '{}'),
+          };
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          settlements,
+          rawMaterials: RAW_MATERIALS,
+        }), {headers: corsHeaders});
+      } catch (e) {
+        return new Response(JSON.stringify({success: false, error: e.message}), {headers: corsHeaders});
+      }
+    }
+
+    return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
 
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), {status: 500, headers: corsHeaders});
