@@ -2284,13 +2284,33 @@
         const runner=data.data.runners.find(r=>r.id===id);
         currentRunnerData=runner;
         const hasLast=lastData.lastSettlement;
-        const hasActivity=runner&&(runner.tokens>0||runner.sales>0||runner.upi>0);
+        // Carry-forward: unsold tokens from previous settlement
+        const prevUnsoldTokens=(hasLast&&hasLast.unsold_tokens)?parseFloat(hasLast.unsold_tokens):0;
+        const runnerTokens=runner?runner.tokens:0;
+        const runnerSales=runner?runner.sales:0;
+        const runnerUpi=runner?runner.upi:0;
+        const totalTokens=runnerTokens+prevUnsoldTokens;
+        const hasActivity=(totalTokens>0||runnerSales>0||runnerUpi>0);
         if(hasActivity){
-          // Blind entry: show tokens/sales/UPI as facts, cash input without expected amount
+          // Blind entry: show tokens/sales/UPI as facts + unsold tokens input
           let html='';
-          html+='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(runner.tokens)+'</span></div>';
-          html+='<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runner.sales)+'</span></div>';
-          html+='<div class="row"><span class="label">UPI Collected (QR)</span><span class="value" style="color:var(--blue)">'+fmt(runner.upi)+'</span></div>';
+          if(prevUnsoldTokens>0){
+            html+='<div class="info-box" style="background:rgba(234,179,8,0.08);border-color:var(--yellow);color:var(--yellow);margin-bottom:12px">🎫 Remaining tokens from previous settlement: <strong>'+fmt(prevUnsoldTokens)+'</strong></div>';
+          }
+          html+='<div class="row"><span class="label">Tokens Issued (Chai)</span><span class="value">'+fmt(totalTokens)+'</span></div>';
+          if(prevUnsoldTokens>0){
+            html+='<div style="font-size:11px;color:var(--text2);padding:0 0 4px 12px">'+fmt(prevUnsoldTokens)+' carried + '+fmt(runnerTokens)+' new</div>';
+          }
+          html+='<div class="row"><span class="label">Sales Made (Snacks)</span><span class="value">'+fmt(runnerSales)+'</span></div>';
+          html+='<div class="row"><span class="label">UPI Collected (QR)</span><span class="value" style="color:var(--blue)">'+fmt(runnerUpi)+'</span></div>';
+          // Unsold tokens input (₹ amount)
+          if(totalTokens>0){
+            html+='<div class="unsold-input-box">'+
+              '<label>Unsold Tokens with Runner (₹ amount)</label>'+
+              '<input type="number" id="staffUnsoldTokens" min="0" max="'+totalTokens+'" value="0" step="10" inputmode="numeric">'+
+              '<div class="hint">Enter the ₹ value of tokens runner still has. Max: '+fmt(totalTokens)+'</div>'+
+            '</div>';
+          }
           // Cash collected input — NO expected amount shown
           html+='<div style="margin-top:16px"><div class="wizard-input-group">'+
             '<label style="font-size:14px;font-weight:600;color:var(--text)">Cash Collected from '+selectedRunner.name+'</label>'+
@@ -2301,6 +2321,9 @@
           if(hasLast){const who=hasLast.settled_by===currentUser?'You':hasLast.settled_by;statusBox='<div class="info-box" style="background:rgba(34,197,94,0.1);border-color:var(--green);color:var(--green)">✓ Last settled by <strong>'+who+'</strong> at '+fmtD(new Date(hasLast.settled_at))+'</div>';}
           html+=statusBox;
           html+='<button class="settle-btn" id="staffSettleRunnerBtn" onclick="staffSettleRunner()">✓ Settle Runner</button>';
+          // Store totalTokens for calculation
+          currentRunnerData._totalTokens=totalTokens;
+          currentRunnerData._prevUnsoldTokens=prevUnsoldTokens;
           $('panelContent').innerHTML=html;
         }else{
           if(hasLast){const who=hasLast.settled_by===currentUser?'you':hasLast.settled_by;$('panelContent').innerHTML='<div class="loading-text" style="color:var(--green)">✓ Already settled<br><small style="color:var(--text2)">Settled by '+who+' at '+fmtD(new Date(hasLast.settled_at))+'<br>No new activity since then</small></div>';}
@@ -2312,12 +2335,16 @@
     async function staffSettleRunner(){
       if(!selectedRunner||!currentRunnerData)return;
       const btn=document.getElementById('staffSettleRunnerBtn');
+      const unsoldInput=document.getElementById('staffUnsoldTokens');
       const cashInput=document.getElementById('staffRunnerCash');
+      const unsoldTokens=unsoldInput?parseFloat(unsoldInput.value)||0:0;
       const cashCollected=cashInput?parseFloat(cashInput.value)||0:0;
+      const totalTokens=currentRunnerData._totalTokens||currentRunnerData.tokens;
+      // Validate unsold tokens
+      if(unsoldTokens>totalTokens){if(btn){btn.textContent='Unsold tokens value too high';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
       if(!cashInput||cashInput.value===''){if(btn){btn.textContent='Enter cash amount';setTimeout(()=>{btn.textContent='✓ Settle Runner';},1500);}return;}
-      // Expected cash = full obligation (tokens + sales) - upi - crossPaymentCredit
-      // Tokens are already a completed sale in Odoo — runner owes cash for ALL issued tokens
-      const expectedCash=Math.max(0,(currentRunnerData.tokens+currentRunnerData.sales)-currentRunnerData.upi-(currentRunnerData.crossPaymentCredit||0));
+      // Expected cash = (totalTokens - unsoldTokens + sales) - upi - crossPaymentCredit
+      const expectedCash=Math.max(0,(totalTokens-unsoldTokens+currentRunnerData.sales)-currentRunnerData.upi-(currentRunnerData.crossPaymentCredit||0));
       const variance=cashCollected-expectedCash;
       // If short, warn staff
       if(variance<-5){
@@ -2329,25 +2356,25 @@
       try{
         const now=new Date();
         const notesParts=['Staff blind entry'];
+        if(unsoldTokens>0)notesParts.push('Unsold tokens: '+fmt(unsoldTokens));
+        if(currentRunnerData._prevUnsoldTokens>0)notesParts.push('Carried from prev: '+fmt(currentRunnerData._prevUnsoldTokens));
         if(currentRunnerData.crossPaymentCredit>0)notesParts.push('Cross-payment credit: '+fmt(currentRunnerData.crossPaymentCredit));
         if(variance>0)notesParts.push('Extra cash: +'+fmt(variance));
         if(variance<0)notesParts.push('Short: '+fmt(Math.abs(variance)));
-        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:currentRunnerData.tokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:cashCollected,unsold_tokens:0,notes:notesParts.join('; ')})});
+        const res=await fetch('/api/settlement?action=settle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runner_id:selectedRunner.id,runner_name:selectedRunner.name,settled_by:currentUser,period_start:toLocalISO(currentPeriodStart),period_end:toLocalISO(now),tokens_amount:totalTokens,sales_amount:currentRunnerData.sales,upi_amount:currentRunnerData.upi,cash_settled:cashCollected,unsold_tokens:unsoldTokens,notes:notesParts.join('; ')})});
         const data=await res.json();
         if(data.success){
-          // Show result based on variance
-          let resultHtml='';
           if(variance>=0){
             btn.textContent='✅ Settlement Recorded!';btn.style.background='var(--green)';
           }else{
             btn.textContent='⚠️ Recorded (₹'+Math.abs(variance)+' short)';btn.style.background='var(--yellow)';btn.style.color='#000';
           }
-          // Show tokens-with-runner info if runner had tokens
-          if(currentRunnerData.tokens>0){
+          // Show unsold tokens carry-forward info
+          if(unsoldTokens>0){
             const infoDiv=document.createElement('div');
             infoDiv.className='info-box';
-            infoDiv.style.cssText='background:rgba(59,130,246,0.08);border-color:var(--blue);color:var(--blue);margin-top:12px';
-            infoDiv.innerHTML='🎫 '+selectedRunner.name+' has <strong>'+fmt(currentRunnerData.tokens)+'</strong> in tokens (issued this period)';
+            infoDiv.style.cssText='background:rgba(234,179,8,0.08);border-color:var(--yellow);color:var(--yellow);margin-top:12px';
+            infoDiv.innerHTML='🎫 '+selectedRunner.name+' has <strong>'+fmt(unsoldTokens)+'</strong> in unsold tokens (will carry to next settlement)';
             btn.parentNode.insertBefore(infoDiv,btn.nextSibling);
           }
           setTimeout(()=>{
@@ -2389,17 +2416,28 @@
         const res=await fetch('/api/nch-data?from='+toLocalISO(shiftFrom));
         const data=await res.json();
         if(!data.success)throw new Error(data.error||'Failed to load data');
-        // Classify runners (same logic as owner wizard)
+        // Classify runners (same logic as owner wizard + carry-forward unsold tokens)
         const allRunners=[];const extraFetches=[];
         for(const id of runnerIds){
           const rp=runnerPeriods[id];
           const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
+          const prevUnsold=(rp&&rp.lastSettlement&&rp.lastSettlement.unsold_tokens)?parseFloat(rp.lastSettlement.unsold_tokens):0;
           if(rpFrom>=shiftFrom){
             const runner=data.data.runners.find(x=>x.id===id);
             if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0))allRunners.push(runner);
+            else if(prevUnsold>0){
+              // Runner has no new activity but has carry-forward tokens
+              allRunners.push({id,name:RUNNERS.find(r=>r.id===id)?.name||'Runner '+id,barcode:'',tokens:0,sales:0,upi:0,cashToCollect:0,crossPaymentCredit:0,crossPayments:[]});
+            }
           }else{
             extraFetches.push(fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
-              if(d.success){const runner=d.data.runners.find(x=>x.id===id);if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0))allRunners.push(runner);}
+              if(d.success){
+                const runner=d.data.runners.find(x=>x.id===id);
+                if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0))allRunners.push(runner);
+                else if(prevUnsold>0){
+                  allRunners.push({id,name:RUNNERS.find(r=>r.id===id)?.name||'Runner '+id,barcode:'',tokens:0,sales:0,upi:0,cashToCollect:0,crossPaymentCredit:0,crossPayments:[]});
+                }
+              }
             }).catch(()=>{}));
           }
         }
@@ -2434,14 +2472,21 @@
           misattributed:data.data.misattributedOrders||[],
           crossPayments:data.data.crossPayments||[]
         };
-        staffRunnerInputs=allRunners.map(r=>({
-          runner_id:r.id,runner_name:r.name,
-          tokens:r.tokens,sales:r.sales,upi:r.upi,
-          crossPaymentCredit:r.crossPaymentCredit||0,
-          unsoldTokens:0,
-          cashCalculated:Math.max(0,r.cashToCollect),
-          cashCollected:0,userEdited:false,absent:false
-        }));
+        staffRunnerInputs=allRunners.map(r=>{
+          const rp=runnerPeriods[r.id];
+          const prevUnsold=(rp&&rp.lastSettlement&&rp.lastSettlement.unsold_tokens)?parseFloat(rp.lastSettlement.unsold_tokens):0;
+          const totalTokens=r.tokens+prevUnsold;
+          return {
+            runner_id:r.id,runner_name:r.name,
+            tokens:r.tokens,sales:r.sales,upi:r.upi,
+            prevUnsoldTokens:prevUnsold,
+            totalTokens:totalTokens,
+            crossPaymentCredit:r.crossPaymentCredit||0,
+            unsoldTokens:0,
+            cashCalculated:Math.max(0,(totalTokens+r.sales)-r.upi-(r.crossPaymentCredit||0)),
+            cashCollected:0,userEdited:false,absent:false
+          };
+        });
         renderStaffWizardStep1();
       }catch(e){
         $('wizardContent').innerHTML='<div class="loading-text" style="color:var(--red)">Error: '+e.message+'</div>';
@@ -2496,9 +2541,17 @@
           const ri=staffRunnerInputs[i];
           html+='<div class="wizard-runner-card'+(ri.absent?' absent':'')+'" id="staffWizRunner'+i+'">'+
             '<div class="wrc-header"><span class="wrc-name">'+ri.runner_name+'</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">Tokens Issued</span><span class="wr-val">'+fmt(ri.tokens)+'</span></div>'+
+            (ri.prevUnsoldTokens>0?
+              '<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--yellow)">🎫 Remaining tokens from prev: <strong>'+fmt(ri.prevUnsoldTokens)+'</strong></div>':'')+
+            '<div class="wizard-row"><span class="wr-label">Tokens (Total)</span><span class="wr-val">'+fmt(ri.totalTokens)+'</span></div>'+
+            (ri.prevUnsoldTokens>0?
+              '<div style="font-size:11px;color:var(--text2);padding:0 0 4px 12px">'+fmt(ri.prevUnsoldTokens)+' carried + '+fmt(ri.tokens)+' new</div>':'')+
             '<div class="wizard-row"><span class="wr-label">Sales (Snacks)</span><span class="wr-val">'+fmt(ri.sales)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
+            (ri.totalTokens>0?
+              '<div class="wizard-input-group"><label>Unsold Tokens with Runner (₹)</label>'+
+              '<input type="number" id="staffWizUnsold'+i+'" value="0" min="0" max="'+ri.totalTokens+'" step="10" inputmode="numeric" '+(ri.absent?'disabled':'')+'>'+
+              '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.totalTokens)+'</div></div>':'')+
             '<div class="wizard-input-group"><label style="font-weight:600">Cash Collected from '+ri.runner_name+'</label>'+
             '<input type="number" id="staffWizCash'+i+'" placeholder="₹ Enter cash" min="0" step="10" inputmode="numeric" style="font-size:20px;text-align:center;padding:12px" '+(ri.absent?'disabled':'')+'>'+
             '</div>'+
@@ -2519,9 +2572,11 @@
       ri.absent=cb.checked;
       const card=document.getElementById('staffWizRunner'+idx);
       if(card)card.classList.toggle('absent',ri.absent);
+      const unsoldEl=document.getElementById('staffWizUnsold'+idx);
       const cashEl=document.getElementById('staffWizCash'+idx);
+      if(unsoldEl)unsoldEl.disabled=ri.absent;
       if(cashEl)cashEl.disabled=ri.absent;
-      if(ri.absent){ri.cashCollected=0;ri.unsoldTokens=0;if(cashEl)cashEl.value='';}
+      if(ri.absent){ri.cashCollected=0;ri.unsoldTokens=0;if(cashEl)cashEl.value='';if(unsoldEl)unsoldEl.value=0;}
     }
 
     function goToStaffWizardStep3(){
@@ -2533,11 +2588,12 @@
       for(let i=0;i<staffRunnerInputs.length;i++){
         const ri=staffRunnerInputs[i];
         if(!ri.absent){
+          const unsoldEl=document.getElementById('staffWizUnsold'+i);
           const cashEl=document.getElementById('staffWizCash'+i);
+          if(unsoldEl)ri.unsoldTokens=parseFloat(unsoldEl.value)||0;
           if(cashEl)ri.cashCollected=parseFloat(cashEl.value)||0;
-          ri.unsoldTokens=0; // No unsold tokens — full token amount is cash obligation
-          // Expected = full (tokens + sales) - upi - crossPaymentCredit
-          ri.cashCalculated=Math.max(0,(ri.tokens+ri.sales)-ri.upi-ri.crossPaymentCredit);
+          // Expected = (totalTokens - unsoldTokens + sales) - upi - crossPaymentCredit
+          ri.cashCalculated=Math.max(0,(ri.totalTokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit);
           ri.cashVariance=ri.cashCollected-ri.cashCalculated;
         }
       }
@@ -2606,11 +2662,11 @@
             (runnerCollected>0?'<div style="text-align:center"><div style="font-size:12px;color:var(--text2)">Runner Cash</div><div style="font-size:20px;font-weight:700;font-family:JetBrains Mono,monospace">'+fmt(runnerCollected)+' ('+staffRunnerInputs.filter(r=>!r.absent).length+' runners)</div></div>':'')+
           '</div>'+
           (function(){
-            const runnersWithTokens=staffRunnerInputs.filter(r=>!r.absent&&r.tokens>0);
-            if(runnersWithTokens.length===0)return '';
-            let thtml='<div style="margin-top:12px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:8px;padding:10px 14px;text-align:left">';
-            thtml+='<div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">🎫 Tokens with Runners</div>';
-            for(const r of runnersWithTokens){thtml+='<div style="font-size:13px;color:var(--text2);padding:2px 0">'+r.runner_name+': '+fmt(r.tokens)+'</div>';}
+            const runnersWithUnsold=staffRunnerInputs.filter(r=>!r.absent&&r.unsoldTokens>0);
+            if(runnersWithUnsold.length===0)return '';
+            let thtml='<div style="margin-top:12px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.15);border-radius:8px;padding:10px 14px;text-align:left">';
+            thtml+='<div style="font-size:12px;font-weight:600;color:var(--yellow);margin-bottom:4px">🎫 Unsold Tokens with Runners (carry to next)</div>';
+            for(const r of runnersWithUnsold){thtml+='<div style="font-size:13px;color:var(--text2);padding:2px 0">'+r.runner_name+': '+fmt(r.unsoldTokens)+'</div>';}
             thtml+='</div>';
             return thtml;
           })()+
@@ -2710,7 +2766,7 @@
         },
         runner_checkpoints:staffRunnerInputs.map(ri=>({
           runner_id:ri.runner_id,runner_name:ri.runner_name,
-          tokens_amount:ri.tokens,sales_amount:ri.sales,upi_amount:ri.upi,
+          tokens_amount:ri.totalTokens||ri.tokens,sales_amount:ri.sales,upi_amount:ri.upi,
           cross_payment_credit:ri.crossPaymentCredit,
           unsold_tokens:ri.unsoldTokens,
           cash_calculated:ri.cashCalculated,cash_collected:ri.cashCollected,
