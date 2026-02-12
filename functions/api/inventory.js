@@ -179,11 +179,11 @@ export async function onRequest(context) {
           );
         }
 
-        // Also update the move's quantity and picked status
+        // Mark move as picked + set destination (do NOT write quantity — let Odoo compute from move lines)
         if (item.moveId) {
           await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
             'stock.move', 'write',
-            [[item.moveId], {quantity: item.receivedQty, picked: true, location_dest_id: item.destinationId || LOC.MAIN_STORAGE}]
+            [[item.moveId], {picked: true, location_dest_id: item.destinationId || LOC.MAIN_STORAGE}]
           );
         }
       }
@@ -206,52 +206,52 @@ export async function onRequest(context) {
         }), {headers: corsHeaders});
       }
 
-      // Check if backorder wizard was returned (partial receipt)
+      // Handle wizard responses (partial receipt → backorder, or immediate transfer)
       let backorderCreated = false;
+      let wizardError = null;
+      const wizardContext = {context: {button_validate_picking_ids: [pickingId], skip_backorder: false}};
+
       if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
         if (validateResult.res_model === 'stock.backorder.confirmation') {
-          // Create backorder for remaining items
+          // Partial receipt detected — create backorder for remaining items
           const wizardId = validateResult.res_id;
           try {
-            // In Odoo 19, process() creates backorder for undelivered qty
             await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
               'stock.backorder.confirmation', 'process',
-              [[wizardId]]
+              [[wizardId]], wizardContext
             );
             backorderCreated = true;
           } catch (e) {
-            // Try with context that identifies the picking
+            // Retry: create a fresh wizard with pick_ids explicitly set
             try {
+              const freshWizardId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                'stock.backorder.confirmation', 'create',
+                [{pick_ids: [[4, pickingId, false]]}]
+              );
               await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
                 'stock.backorder.confirmation', 'process',
-                [[wizardId]],
-                {context: {button_validate_picking_ids: [pickingId]}}
+                [[freshWizardId]], wizardContext
               );
               backorderCreated = true;
             } catch (e2) {
-              // Last resort: cancel backorder (just receive what was given, no remainder)
-              try {
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.backorder.confirmation', 'process_cancel_backorder',
-                  [[wizardId]]
-                );
-              } catch (e3) {
-                // Wizard handling failed entirely
-              }
+              // Do NOT fall through to process_cancel_backorder — that discards remaining qty
+              wizardError = `Backorder creation failed: ${e2.message}`;
             }
           }
         } else if (validateResult.res_model === 'stock.immediate.transfer') {
-          // Immediate transfer wizard — process it
+          // Immediate transfer wizard — process to complete
           try {
             await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
               'stock.immediate.transfer', 'process',
-              [[validateResult.res_id]]
+              [[validateResult.res_id]], wizardContext
             );
-          } catch (e) { /* ignore */ }
+          } catch (e) {
+            wizardError = `Immediate transfer failed: ${e.message}`;
+          }
         }
       }
 
-      // Verify picking state
+      // Verify picking state and backorder creation
       const finalState = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'read',
         [[pickingId]],
@@ -260,7 +260,11 @@ export async function onRequest(context) {
 
       const picking = finalState[0] || {};
       const hasDiscrepancy = items.some(item => item.receivedQty !== item.expectedQty);
-      backorderCreated = backorderCreated || (picking.backorder_ids && picking.backorder_ids.length > 0);
+
+      // Check backorder_ids from Odoo (most reliable indicator)
+      if (picking.backorder_ids && picking.backorder_ids.length > 0) {
+        backorderCreated = true;
+      }
 
       // Persist receipt confirmation to D1
       if (DB) {
@@ -280,7 +284,8 @@ export async function onRequest(context) {
         }
       }
 
-      return new Response(JSON.stringify({
+      // Build response
+      const response = {
         success: true,
         message: 'Receipt confirmed',
         confirmedBy: confirmedBy,
@@ -288,8 +293,21 @@ export async function onRequest(context) {
         pickingName: picking.name,
         backorderCreated: backorderCreated,
         hasDiscrepancy: hasDiscrepancy,
-        items: items.map(i => ({product: i.productName, expected: i.expectedQty, received: i.receivedQty}))
-      }), {headers: corsHeaders});
+        items: items.map(i => ({product: i.productName, expected: i.expectedQty, received: i.receivedQty})),
+      };
+
+      // If wizard failed and picking is NOT done, report error
+      if (wizardError && picking.state !== 'done') {
+        response.success = false;
+        response.error = wizardError;
+      }
+
+      // If partial but no backorder and picking IS done, add warning
+      if (hasDiscrepancy && !backorderCreated && picking.state === 'done') {
+        response.warning = 'Picking completed but no backorder was created for remaining items';
+      }
+
+      return new Response(JSON.stringify(response), {headers: corsHeaders});
     }
 
     // ─── GET STOCK ON HAND ───────────────────────────────────────
@@ -545,13 +563,32 @@ export async function onRequest(context) {
         {fields: ['id', 'name', 'origin', 'partner_id', 'date_done', 'move_ids'],
          order: 'date_done desc', limit: 50});
 
-      // 3. Get all moves in one batch
+      // 3. Get all moves + move lines for accurate done quantities
       const allMoveIds = pickings.flatMap(p => p.move_ids || []);
       let moves = [];
       if (allMoveIds.length > 0) {
-        moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        const rawMoves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
           'stock.move', 'read', [allMoveIds],
-          {fields: ['id', 'product_id', 'quantity', 'picking_id']});
+          {fields: ['id', 'product_id', 'quantity', 'picking_id', 'move_line_ids']});
+
+        // Read move lines for authoritative received quantities
+        const allMoveLineIds = rawMoves.flatMap(m => m.move_line_ids || []);
+        const moveLineQtys = {};
+        if (allMoveLineIds.length > 0) {
+          const moveLines = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move.line', 'read', [allMoveLineIds],
+            {fields: ['id', 'move_id', 'quantity']});
+          for (const ml of moveLines) {
+            const moveId = ml.move_id[0];
+            moveLineQtys[moveId] = (moveLineQtys[moveId] || 0) + (ml.quantity || 0);
+          }
+        }
+
+        // Use move line sum as authoritative qty, fallback to move.quantity
+        moves = rawMoves.map(m => ({
+          ...m,
+          quantity: moveLineQtys[m.id] !== undefined ? moveLineQtys[m.id] : m.quantity,
+        }));
       }
 
       // 4. Get PO line costs
