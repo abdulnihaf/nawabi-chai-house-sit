@@ -1631,24 +1631,25 @@ async function fetchGapSalesForProducts(url, db, uid, apiKey, productIds, fromUT
 // SYNC CLOSING STOCK → ODOO INVENTORY (stock.quant)
 // ═══════════════════════════════════════════════════════════════
 async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId) {
-  // Find NCH's internal stock location from incoming picking type
+  // Find NCH's default receiving location (for creating new quants)
   const pickTypes = await odooCall(url, db, uid, apiKey,
     'stock.picking.type', 'search_read',
     [[['code', '=', 'incoming'], ['company_id', '=', companyId]]],
     {fields: ['default_location_dest_id'], limit: 1});
-  const locationId = pickTypes[0]?.default_location_dest_id?.[0];
-  if (!locationId) throw new Error('NCH stock location not found');
+  const defaultLocationId = pickTypes[0]?.default_location_dest_id?.[0];
+  if (!defaultLocationId) throw new Error('NCH stock location not found');
 
   const results = [];
   for (const [productId, targetQty] of Object.entries(closingStock)) {
     try {
       const pid = parseInt(productId);
-      // Get ALL quants for this product, sorted by in_date ASC (oldest first = FIFO)
+      // Search ALL internal locations for this product (storage + kitchen + cold storage)
+      // Excludes wastage/virtual locations. This captures stock across the full shop.
       const quants = await odooCall(url, db, uid, apiKey, 'stock.quant', 'search_read', [[
         ['product_id', '=', pid],
-        ['location_id', '=', locationId],
+        ['location_id.usage', '=', 'internal'],
         ['company_id', '=', companyId]
-      ]], {fields: ['id', 'quantity', 'lot_id', 'in_date'], order: 'in_date asc'});
+      ]], {fields: ['id', 'quantity', 'lot_id', 'in_date', 'location_id'], order: 'in_date asc'});
 
       const totalOnHand = quants.reduce((s, q) => s + q.quantity, 0);
 
@@ -1658,9 +1659,9 @@ async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId
       }
 
       if (quants.length === 0) {
-        // No quants — create one
+        // No quants anywhere — create at default receiving location
         const newId = await odooCall(url, db, uid, apiKey, 'stock.quant', 'create', [{
-          product_id: pid, location_id: locationId,
+          product_id: pid, location_id: defaultLocationId,
           company_id: companyId, inventory_quantity: targetQty,
         }]);
         await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[newId]]);
@@ -1668,7 +1669,7 @@ async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId
         continue;
       }
 
-      // FIFO allocation: oldest consumed first → remaining stock lives in newest lots
+      // FIFO across all locations: oldest consumed first → remaining stock in newest lots
       // Walk from newest to oldest, allocating targetQty
       let remaining = targetQty;
       const adjustments = [];
@@ -1677,7 +1678,7 @@ async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId
         const keep = Math.max(0, Math.min(q.quantity, remaining));
         remaining -= keep;
         if (Math.abs(keep - q.quantity) > 0.001) {
-          adjustments.push({id: q.id, oldQty: q.quantity, newQty: keep});
+          adjustments.push({id: q.id, oldQty: q.quantity, newQty: keep, locationId: q.location_id[0]});
         }
       }
       // If remaining > 0, target exceeds all lots — add surplus to newest
@@ -1687,7 +1688,7 @@ async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId
         if (existing) {
           existing.newQty += remaining;
         } else {
-          adjustments.push({id: newest.id, oldQty: newest.quantity, newQty: newest.quantity + remaining});
+          adjustments.push({id: newest.id, oldQty: newest.quantity, newQty: newest.quantity + remaining, locationId: newest.location_id[0]});
         }
       }
 
