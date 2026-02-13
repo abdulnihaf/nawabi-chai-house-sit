@@ -336,20 +336,13 @@ export async function onRequest(context) {
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
-      // Parallel: fetch sales, purchases, expenses, vessels
-      const [salesData, purchaseData, vessels, expenseData] = await Promise.all([
-        fetchPOSSales(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
+      // Parallel: fetch sales (with channels + complimentary), purchases, expenses, vessels
+      const [revenue, purchaseData, vessels, expenseData] = await Promise.all([
+        fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
         getVessels(DB),
         DB ? DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at < ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all() : {results: []},
       ]);
-
-      // Calculate revenue
-      const revenue = {total: 0, cashCounter: 0, runnerCounter: 0, whatsapp: 0, products: []};
-      for (const item of salesData) {
-        revenue.total += item.amount;
-        revenue.products.push(item);
-      }
 
       // Get opening stock from previous settlement
       let openingStock = {};
@@ -389,6 +382,7 @@ export async function onRequest(context) {
         } : null,
         openingStock,
         revenue,
+        complimentaryProducts: revenue.complimentaryProducts || {},
         purchases: purchaseData,
         counterExpenses,
         salaries: {prorated: periodSalaries, daily: salaryData.reduce((s, x) => s + x.daily, 0), staff: salaryData, periodHours: round(periodHours, 2)},
