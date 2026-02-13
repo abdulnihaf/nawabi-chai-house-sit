@@ -316,79 +316,129 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── TEMPORARY ADMIN FIX: Correct cheese balls purchase qty in Odoo ───
-    if (action === 'admin-fix-purchase') {
+    // ─── TEMPORARY: Create Osmania biscuit receipt in Odoo ───
+    if (action === 'admin-create-receipt') {
       if (context.request.method !== 'POST') return json({error: 'POST required'}, corsHeaders);
       const body = await context.request.json();
       if (body.pin !== '0305') return json({error: 'Unauthorized'}, corsHeaders);
 
-      const mode = body.mode || 'investigate'; // 'investigate' or 'fix'
+      const productId = body.product_id || 1105; // Osmania Biscuit (Loose)
+      const qty = body.qty || 5136;              // 214 packets × 24 pcs
+      const vendorName = body.vendor || 'Rehan Osmania';
+      const priceUnit = body.price_unit || 0;    // per unit cost (optional for PO line)
 
-      // Find today's incoming pickings for NCH (company_id=10)
-      const fromOdoo = '2026-02-12 22:04:18';
-      const toOdoo = '2026-02-14 00:00:00';
+      // Step 1: Find incoming picking type for NCH (company_id=10)
+      const pickingTypes = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking.type', 'search_read',
+        [[['code', '=', 'incoming'], ['company_id', '=', 10]]],
+        {fields: ['id', 'name', 'default_location_src_id', 'default_location_dest_id'], limit: 1});
 
-      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.picking', 'search_read',
-        [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
-          ['date_done', '>=', fromOdoo], ['date_done', '<', toOdoo], ['company_id', '=', 10]]],
-        {fields: ['id', 'name', 'origin', 'move_ids', 'date_done']});
+      if (!pickingTypes || pickingTypes.length === 0) {
+        return json({error: 'No incoming picking type found for company 10'}, corsHeaders);
+      }
+      const pickingType = pickingTypes[0];
 
-      if (!pickings || pickings.length === 0) return json({error: 'No pickings found', fromOdoo, toOdoo}, corsHeaders);
+      // Step 2: Find or create vendor partner
+      let partnerId;
+      const existingPartners = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'res.partner', 'search_read',
+        [[['name', 'ilike', vendorName], ['supplier_rank', '>', 0]]],
+        {fields: ['id', 'name'], limit: 1});
 
-      // Read ALL moves from ALL pickings to see full picture
-      const allMoveIds = pickings.flatMap(p => p.move_ids || []);
-      const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.move', 'read',
-        [allMoveIds], {fields: ['id', 'product_id', 'quantity', 'picking_id']});
-
-      // Group moves by picking
-      const movesByPicking = {};
-      for (const m of moves) {
-        const pickId = m.picking_id[0];
-        if (!movesByPicking[pickId]) movesByPicking[pickId] = [];
-        movesByPicking[pickId].push({id: m.id, product: m.product_id[1], product_id: m.product_id[0], qty: m.quantity});
+      if (existingPartners && existingPartners.length > 0) {
+        partnerId = existingPartners[0].id;
+      } else {
+        partnerId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'res.partner', 'create', [{name: vendorName, supplier_rank: 1, company_type: 'company'}]);
       }
 
-      // Build detailed view
-      const pickingDetails = pickings.map(p => ({
-        id: p.id, name: p.name, origin: p.origin, date_done: p.date_done,
-        moves: movesByPicking[p.id] || []
-      }));
+      // Step 3: Get product UOM
+      const productData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'product.product', 'read', [[productId]], {fields: ['id', 'uom_id', 'uom_po_id', 'standard_price']});
+      if (!productData || productData.length === 0) {
+        return json({error: `Product ${productId} not found`}, corsHeaders);
+      }
+      const product = productData[0];
+      const unitPrice = priceUnit || product.standard_price || 6.65;
 
-      // Find cheese ball moves
-      const cheeseBallMoves = moves.filter(m => m.product_id[0] === 1116);
+      // Step 4: Create purchase.order
+      const poId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'purchase.order', 'create', [{
+          partner_id: partnerId,
+          company_id: 10,
+          currency_id: 20, // INR
+        }]);
 
-      if (mode === 'investigate') {
-        return json({success: true, mode: 'investigate', pickingDetails, cheeseBallMoves: cheeseBallMoves.map(m => ({
-          move_id: m.id, qty: m.quantity, picking: m.picking_id[1], picking_id: m.picking_id[0]
-        }))}, corsHeaders);
+      // Step 5: Create purchase.order.line
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'purchase.order.line', 'create', [{
+          order_id: poId,
+          product_id: productId,
+          product_qty: qty,
+          price_unit: unitPrice,
+          product_uom: product.uom_po_id ? product.uom_po_id[0] : product.uom_id[0],
+        }]);
+
+      // Step 6: Confirm PO → auto-creates receipt picking
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'purchase.order', 'button_confirm', [[poId]]);
+
+      // Step 7: Find the auto-created picking
+      const poData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'purchase.order', 'read', [[poId]], {fields: ['name', 'picking_ids']});
+      const poName = poData[0].name;
+      const pickingIds = poData[0].picking_ids;
+
+      if (!pickingIds || pickingIds.length === 0) {
+        return json({success: true, warning: 'PO created but no picking auto-generated', poId, poName}, corsHeaders);
       }
 
-      // mode === 'fix': remove cheese balls from the specified move
-      const moveIdToFix = body.move_id;
-      if (!moveIdToFix) return json({error: 'Provide move_id to fix'}, corsHeaders);
+      // Step 8: Set quantities on the picking's moves and validate
+      for (const pickId of pickingIds) {
+        const pickData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'read', [[pickId]], {fields: ['move_ids', 'state']});
 
-      const targetMove = cheeseBallMoves.find(m => m.id === moveIdToFix);
-      if (!targetMove) return json({error: 'Move not found', moveIdToFix, cheeseBallMoves}, corsHeaders);
+        if (pickData[0].move_ids && pickData[0].move_ids.length > 0) {
+          const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'read', [pickData[0].move_ids], {fields: ['id', 'product_uom_qty', 'move_line_ids']});
 
-      // Set quantity to 0 (remove the duplicate cheese balls from this picking)
-      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.move', 'write',
-        [[moveIdToFix], {quantity: 0}]);
+          for (const move of moves) {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move', 'write', [[move.id], {quantity: move.product_uom_qty, picked: true}]);
+            if (move.move_line_ids && move.move_line_ids.length > 0) {
+              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+                'stock.move.line', 'write', [move.move_line_ids, {picked: true}]);
+            }
+          }
+        }
 
-      // Also fix PO line if it exists for this picking's PO
-      const picking = pickings.find(p => p.id === targetMove.picking_id[0]);
-      let poFix = null;
-      if (picking && picking.origin) {
-        const poLines = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'purchase.order.line', 'search_read',
-          [[['order_id.name', '=', picking.origin], ['product_id', '=', 1116]]],
-          {fields: ['id', 'product_qty', 'price_unit']});
-        for (const pl of poLines) {
-          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'purchase.order.line', 'write',
-            [[pl.id], {product_qty: 0}]);
-          poFix = {po_line_id: pl.id, old_qty: pl.product_qty, new_qty: 0};
+        // Validate the picking
+        try {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.picking', 'button_validate', [[pickId]]);
+        } catch (valErr) {
+          // If immediate validate creates a wizard, handle it
+          try {
+            const wizardId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.immediate.transfer', 'create', [{pick_ids: [[4, pickId]]}]);
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.immediate.transfer', 'process', [[wizardId]]);
+          } catch (wizErr) {
+            return json({success: true, warning: 'PO created, picking needs manual validation', poId, poName, pickingIds, error: wizErr.message}, corsHeaders);
+          }
         }
       }
 
-      return json({success: true, mode: 'fix', fixed_move: {id: moveIdToFix, old_qty: targetMove.quantity, new_qty: 0}, poFix}, corsHeaders);
+      // Verify final state
+      const finalPicking = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [pickingIds], {fields: ['id', 'name', 'state', 'date_done']});
+
+      return json({
+        success: true,
+        poId, poName, partnerId, vendorName,
+        product: {id: productId, name: product.uom_id[1], qty, unitPrice},
+        pickings: finalPicking.map(p => ({id: p.id, name: p.name, state: p.state, date_done: p.date_done}))
+      }, corsHeaders);
     }
 
     // ─── PREPARE: fetch all data needed for settlement ────────
