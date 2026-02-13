@@ -352,14 +352,10 @@ export async function onRequest(context) {
           'res.partner', 'create', [{name: vendorName, supplier_rank: 1, company_type: 'company'}]);
       }
 
-      // Step 3: Get product UOM
-      const productData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'product.product', 'read', [[productId]], {fields: ['id', 'uom_id', 'uom_po_id', 'standard_price']});
-      if (!productData || productData.length === 0) {
-        return json({error: `Product ${productId} not found`}, corsHeaders);
-      }
-      const product = productData[0];
-      const unitPrice = priceUnit || product.standard_price || 6.65;
+      // Step 3: Product UOM — hardcoded for known RM products (Units = UOM 1)
+      const PRODUCT_UOM = {1095: 11, 1104: 1, 1105: 1, 1106: 1, 1107: 1, 1110: 1, 1113: 1, 1116: 1}; // 11=L, 1=Units
+      const productUomId = PRODUCT_UOM[productId] || 1;
+      const unitPrice = priceUnit || FALLBACK_COSTS[productId] || 0;
 
       // Step 4: Create purchase.order
       const poId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
@@ -376,7 +372,7 @@ export async function onRequest(context) {
           product_id: productId,
           product_qty: qty,
           price_unit: unitPrice,
-          product_uom: product.uom_po_id ? product.uom_po_id[0] : product.uom_id[0],
+          product_uom: productUomId,
         }]);
 
       // Step 6: Confirm PO → auto-creates receipt picking
@@ -436,7 +432,7 @@ export async function onRequest(context) {
       return json({
         success: true,
         poId, poName, partnerId, vendorName,
-        product: {id: productId, name: product.uom_id[1], qty, unitPrice},
+        product: {id: productId, qty, unitPrice},
         pickings: finalPicking.map(p => ({id: p.id, name: p.name, state: p.state, date_done: p.date_done}))
       }, corsHeaders);
     }
