@@ -345,28 +345,23 @@ export async function onRequest(context) {
             'res.partner', 'create', [{name: vendorName, supplier_rank: 1, company_type: 'company'}]);
         }
 
-        // Step 2: Create purchase.order
+        // Step 2: Create purchase.order with inline order lines
         const poId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
           'purchase.order', 'create', [{
             partner_id: partnerId,
             company_id: 10,
             currency_id: 20,
+            order_line: [[0, 0, {
+              product_id: productId,
+              name: vendorName,
+              product_qty: qty,
+              product_uom: productUomId,
+              price_unit: priceUnit,
+              date_planned: now,
+            }]],
           }]);
 
-        // Step 3: Create PO line with all required fields
-        await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'purchase.order.line', 'create', [{
-            order_id: poId,
-            product_id: productId,
-            name: vendorName + ' - ' + productId,
-            product_qty: qty,
-            product_uom: productUomId,
-            price_unit: priceUnit,
-            date_planned: now,
-            taxes_id: [[6, false, []]],
-          }]);
-
-        // Step 4: Confirm PO
+        // Step 3: Confirm PO
         await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
           'purchase.order', 'button_confirm', [[poId]]);
 
