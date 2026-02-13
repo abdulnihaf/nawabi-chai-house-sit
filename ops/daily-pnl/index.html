@@ -1267,10 +1267,13 @@ function addWastageEntry() {
       <option value="">Select item...</option>
       ${itemOptions}
     </select>
-    <select class="input input-sm wastage-state-select" style="flex:0.8">
+    <select class="input input-sm wastage-state-select" style="flex:0.8" onchange="updateWastageVesselUI(this)">
       <option value="">State...</option>
     </select>
-    <input type="number" class="input input-sm qty-input" placeholder="Qty" step="0.1" inputmode="decimal" style="flex:0.5">
+    <div class="wastage-qty-area" style="flex:0.5;display:flex;flex-direction:column;gap:4px">
+      <input type="number" class="input input-sm qty-input" placeholder="Qty" step="0.1" inputmode="decimal">
+    </div>
+    <div class="wastage-vessel-area" style="display:none;flex:1.2;flex-direction:column;gap:4px"></div>
     <input type="text" class="input input-sm reason-input" placeholder="Reason" style="flex:0.8">
     <button class="remove-vessel" onclick="this.closest('.wastage-entry').remove()" title="Remove">✕</button>
   `;
@@ -1292,6 +1295,63 @@ function updateWastageStates(itemSelect) {
     ? states.map(([key, s]) => `<option value="${key}" selected>${s.label}</option>`).join('')
     : '<option value="">Select state...</option>' + states.map(([key, s]) => `<option value="${key}">${s.label}</option>`).join('');
   qtyInput.placeholder = item.uom;
+  // Trigger vessel UI check after state auto-selection
+  updateWastageVesselUI(stateSelect);
+}
+
+function updateWastageVesselUI(stateSelect) {
+  const entry = stateSelect.closest('.wastage-entry');
+  const itemKey = entry.querySelector('.wastage-item-select')?.value;
+  const stateKey = stateSelect.value;
+  const vesselArea = entry.querySelector('.wastage-vessel-area');
+  const qtyArea = entry.querySelector('.wastage-qty-area');
+
+  // Show vessel weighing only for buffalo_milk + boiled
+  if (itemKey === 'buffalo_milk' && stateKey === 'boiled') {
+    const milkVessels = vessels.filter(v => v.liquid_type === 'boiled_milk');
+    if (milkVessels.length > 0) {
+      const vesselOpts = milkVessels.map(v => `<option value="${v.code}" data-tare="${v.empty_weight_kg}">${v.name} (${v.empty_weight_kg} kg)</option>`).join('');
+      vesselArea.style.display = 'flex';
+      vesselArea.innerHTML = `
+        <div style="display:flex;gap:4px;align-items:center">
+          <select class="input input-sm wastage-vessel-select" style="flex:1" onchange="calcWastageVessel(this)">
+            <option value="">No vessel (manual)</option>
+            ${vesselOpts}
+          </select>
+          <input type="number" class="input input-sm wastage-gross-input" placeholder="kg on scale" step="0.01" inputmode="decimal" style="width:90px" onchange="calcWastageVessel(this)">
+          <span class="wastage-net-display" style="font-size:11px;color:var(--text2);white-space:nowrap">—</span>
+        </div>
+      `;
+      return;
+    }
+  }
+  // Hide vessel area for all other combos
+  vesselArea.style.display = 'none';
+  vesselArea.innerHTML = '';
+}
+
+function calcWastageVessel(el) {
+  const entry = el.closest('.wastage-entry');
+  const vesselSelect = entry.querySelector('.wastage-vessel-select');
+  const grossInput = entry.querySelector('.wastage-gross-input');
+  const netDisplay = entry.querySelector('.wastage-net-display');
+  const qtyInput = entry.querySelector('.qty-input');
+  const vesselCode = vesselSelect?.value;
+  const gross = parseFloat(grossInput?.value) || 0;
+
+  if (!vesselCode || gross <= 0) {
+    if (netDisplay) netDisplay.textContent = '—';
+    return;
+  }
+  const tare = parseFloat(vesselSelect.selectedOptions[0]?.dataset.tare || 0);
+  const net = Math.max(0, gross - tare);
+  const litres = net / DENSITY.boiled_milk;
+  if (netDisplay) {
+    netDisplay.textContent = `${litres.toFixed(2)} L`;
+    netDisplay.style.color = litres > 0 ? 'var(--cyan)' : 'var(--red)';
+  }
+  // Auto-fill qty
+  if (qtyInput) qtyInput.value = litres.toFixed(2);
 }
 
 function getWastageItems() {
@@ -1664,10 +1724,11 @@ function renderRawInputTable(rawInput) {
 // INVENTORY REPORT SECTIONS (staff-friendly, post-settlement)
 // ═══════════════════════════════════════════════════════════════
 
-function renderItemsSold(products) {
+function renderItemsSold(products, complimentaryProducts) {
   if (!products || Object.keys(products).length === 0) return '';
+  complimentaryProducts = complimentaryProducts || {};
   const items = Object.entries(products)
-    .map(([pid, p]) => ({pid: parseInt(pid), name: p.name, qty: p.qty, display: PRODUCT_DISPLAY[pid]}))
+    .map(([pid, p]) => ({pid: parseInt(pid), name: p.name, qty: p.qty, display: PRODUCT_DISPLAY[pid], comp: complimentaryProducts[pid]?.qty || 0}))
     .filter(p => p.qty > 0)
     .sort((a, b) => ((a.display?.order || 99) - (b.display?.order || 99)));
   if (items.length === 0) return '';
@@ -1677,9 +1738,10 @@ function renderItemsSold(products) {
   for (const item of items) {
     const icon = item.display?.icon || '📦';
     const name = item.display?.name || item.name;
+    const compBadge = item.comp > 0 ? `<div style="font-size:10px;color:var(--purple);margin-top:2px">(${item.comp} comp)</div>` : '';
     html += `<div style="background:var(--bg2);border-radius:10px;padding:14px 12px;text-align:center">
       <div style="font-size:24px;margin-bottom:4px">${icon}</div>
-      <div style="font-size:22px;font-weight:700;color:var(--golden-amber)">${item.qty}</div>
+      <div style="font-size:22px;font-weight:700;color:var(--golden-amber)">${item.qty}</div>${compBadge}
       <div style="font-size:11px;color:var(--text2);margin-top:2px;line-height:1.3">${name}</div>
     </div>`;
   }
@@ -1771,17 +1833,31 @@ function renderCountCheck(products, inventory, complimentaryProducts, wastageIte
   return html;
 }
 
-function renderBeverageConsumption(products, inventory) {
+function renderBeverageConsumption(products, inventory, complimentaryProducts, wastedRawMaterials) {
   if (!products || !inventory) return '';
+  complimentaryProducts = complimentaryProducts || {};
+  wastedRawMaterials = wastedRawMaterials || {};
   const chaiQty = products['1028']?.qty || 0;
   const coffeeQty = products['1102']?.qty || 0;
   const lemonTeaQty = products['1103']?.qty || 0;
   if (chaiQty === 0 && coffeeQty === 0 && lemonTeaQty === 0) return '';
+  const chaiComp = complimentaryProducts['1028']?.qty || 0;
+  const coffeeComp = complimentaryProducts['1102']?.qty || 0;
+  const lemonTeaComp = complimentaryProducts['1103']?.qty || 0;
   let html = `<div class="section"><div class="section-title"><span class="sec-icon">☕</span> Chai & Coffee — Raw Material Consumed</div>`;
   html += `<div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 14px">`;
-  if (chaiQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Irani Chai: <strong style="color:var(--golden-amber)">${chaiQty}</strong> cups</div>`;
-  if (coffeeQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Coffee: <strong style="color:var(--golden-amber)">${coffeeQty}</strong> cups</div>`;
-  if (lemonTeaQty > 0) html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Lemon Tea: <strong style="color:var(--golden-amber)">${lemonTeaQty}</strong> cups</div>`;
+  if (chaiQty > 0) {
+    const chaiLabel = chaiComp > 0 ? `<strong style="color:var(--golden-amber)">${chaiQty - chaiComp}</strong> paid + <strong style="color:var(--purple)">${chaiComp}</strong> comp` : `<strong style="color:var(--golden-amber)">${chaiQty}</strong> cups`;
+    html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Irani Chai: ${chaiLabel}</div>`;
+  }
+  if (coffeeQty > 0) {
+    const coffeeLabel = coffeeComp > 0 ? `<strong style="color:var(--golden-amber)">${coffeeQty - coffeeComp}</strong> paid + <strong style="color:var(--purple)">${coffeeComp}</strong> comp` : `<strong style="color:var(--golden-amber)">${coffeeQty}</strong> cups`;
+    html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Coffee: ${coffeeLabel}</div>`;
+  }
+  if (lemonTeaQty > 0) {
+    const ltLabel = lemonTeaComp > 0 ? `<strong style="color:var(--golden-amber)">${lemonTeaQty - lemonTeaComp}</strong> paid + <strong style="color:var(--purple)">${lemonTeaComp}</strong> comp` : `<strong style="color:var(--golden-amber)">${lemonTeaQty}</strong> cups`;
+    html += `<div style="background:var(--bg2);padding:8px 14px;border-radius:8px;font-size:13px">Lemon Tea: ${ltLabel}</div>`;
+  }
   html += `</div>`;
   html += `<table class="inv-table">
     <tr><th>Raw Material</th><th style="text-align:right">Total Consumed</th>${chaiQty > 0 ? '<th style="text-align:right">Per Chai Cup</th>' : ''}</tr>`;
@@ -1795,7 +1871,8 @@ function renderBeverageConsumption(products, inventory) {
       if (COFFEE_RECIPE[mat.rmId]) otherShare += coffeeQty * COFFEE_RECIPE[mat.rmId];
       if (LEMON_TEA_RECIPE[mat.rmId]) otherShare += lemonTeaQty * LEMON_TEA_RECIPE[mat.rmId];
       if (mat.rmId === '1097') otherShare += (products['1029']?.qty || 0) * BUN_MASKA_SUGAR; // bun maska sugar
-      const chaiOnly = consumed - otherShare;
+      const wastedAmount = wastedRawMaterials[mat.rmId] || 0;
+      const chaiOnly = consumed - otherShare - wastedAmount;
       const perCup = (chaiOnly / chaiQty) * mat.perCupMult;
       perCupStr = `<td class="num" style="color:var(--golden-amber);font-weight:600">~${Math.round(perCup * 10) / 10} ${mat.perCupUnit}</td>`;
     }
@@ -1843,14 +1920,15 @@ function renderPnlResult(data) {
   </div>`;
 
   // Section A: Items Sold
-  html += renderItemsSold(data.products);
+  html += renderItemsSold(data.products, data.complimentaryProducts);
 
   // Section B: Count Check (with comp and wastage separation)
   const wastageItemsForReport = data.rawInput?.wastage_items || data.wastageItems || [];
   html += renderCountCheck(data.products, data.inventory, data.complimentaryProducts, wastageItemsForReport);
 
   // Section C: Beverage Consumption
-  html += renderBeverageConsumption(data.products, data.inventory);
+  const wastedRawMaterialsForReport = data.inventory?.wastedRawMaterials || {};
+  html += renderBeverageConsumption(data.products, data.inventory, data.complimentaryProducts, wastedRawMaterialsForReport);
 
   // ── Inventory Movement (visible to all) ──
   if (data.inventory) {
@@ -2074,13 +2152,13 @@ async function loadSettlementDetail(id) {
       </div>`;
 
       // Section A: Items Sold
-      html += renderItemsSold(products);
+      html += renderItemsSold(products, complimentaryProducts);
 
       // Section B: Count Check (with comp and wastage separation)
       html += renderCountCheck(products, inventory, complimentaryProducts, storedWastage);
 
       // Section C: Beverage Consumption
-      html += renderBeverageConsumption(products, inventory);
+      html += renderBeverageConsumption(products, inventory, complimentaryProducts, wastedRawMaterials);
 
       // ── Inventory Movement (visible to all) ──
       html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
