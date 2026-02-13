@@ -322,8 +322,9 @@ export async function onRequest(context) {
       const body = await context.request.json();
       if (body.pin !== '0305') return json({error: 'Unauthorized'}, corsHeaders);
 
+      const mode = body.mode || 'investigate'; // 'investigate' or 'fix'
+
       // Find today's incoming pickings for NCH (company_id=10)
-      // Settlement ID=3 settled_at = 2026-02-12T22:04:18.850Z, so the period starts there
       const fromOdoo = '2026-02-12 22:04:18';
       const toOdoo = '2026-02-14 00:00:00';
 
@@ -332,45 +333,62 @@ export async function onRequest(context) {
           ['date_done', '>=', fromOdoo], ['date_done', '<', toOdoo], ['company_id', '=', 10]]],
         {fields: ['id', 'name', 'origin', 'move_ids', 'date_done']});
 
-      if (!pickings || pickings.length === 0) return json({error: 'No pickings found in period', fromOdoo, toOdoo}, corsHeaders);
+      if (!pickings || pickings.length === 0) return json({error: 'No pickings found', fromOdoo, toOdoo}, corsHeaders);
 
+      // Read ALL moves from ALL pickings to see full picture
       const allMoveIds = pickings.flatMap(p => p.move_ids || []);
       const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.move', 'read',
         [allMoveIds], {fields: ['id', 'product_id', 'quantity', 'picking_id']});
 
-      // Find cheese balls (product 1116) moves with qty=40
-      const cheeseBallMoves = moves.filter(m => m.product_id[0] === 1116);
-      const log = {pickings: pickings.map(p => ({id: p.id, name: p.name, origin: p.origin, date_done: p.date_done})), cheeseBallMoves};
-
-      if (cheeseBallMoves.length === 0) return json({error: 'No cheese ball moves found', log}, corsHeaders);
-
-      // Fix each cheese ball move: set quantity to 20
-      const fixes = [];
-      for (const m of cheeseBallMoves) {
-        if (m.quantity === 40) {
-          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.move', 'write',
-            [[m.id], {quantity: 20}]);
-          fixes.push({move_id: m.id, old_qty: 40, new_qty: 20});
-        }
+      // Group moves by picking
+      const movesByPicking = {};
+      for (const m of moves) {
+        const pickId = m.picking_id[0];
+        if (!movesByPicking[pickId]) movesByPicking[pickId] = [];
+        movesByPicking[pickId].push({id: m.id, product: m.product_id[1], product_id: m.product_id[0], qty: m.quantity});
       }
 
-      // Also fix purchase.order.line if exists
-      const poNames = [...new Set(pickings.map(p => p.origin).filter(Boolean))];
-      let poFixes = [];
-      if (poNames.length > 0) {
+      // Build detailed view
+      const pickingDetails = pickings.map(p => ({
+        id: p.id, name: p.name, origin: p.origin, date_done: p.date_done,
+        moves: movesByPicking[p.id] || []
+      }));
+
+      // Find cheese ball moves
+      const cheeseBallMoves = moves.filter(m => m.product_id[0] === 1116);
+
+      if (mode === 'investigate') {
+        return json({success: true, mode: 'investigate', pickingDetails, cheeseBallMoves: cheeseBallMoves.map(m => ({
+          move_id: m.id, qty: m.quantity, picking: m.picking_id[1], picking_id: m.picking_id[0]
+        }))}, corsHeaders);
+      }
+
+      // mode === 'fix': remove cheese balls from the specified move
+      const moveIdToFix = body.move_id;
+      if (!moveIdToFix) return json({error: 'Provide move_id to fix'}, corsHeaders);
+
+      const targetMove = cheeseBallMoves.find(m => m.id === moveIdToFix);
+      if (!targetMove) return json({error: 'Move not found', moveIdToFix, cheeseBallMoves}, corsHeaders);
+
+      // Set quantity to 0 (remove the duplicate cheese balls from this picking)
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'stock.move', 'write',
+        [[moveIdToFix], {quantity: 0}]);
+
+      // Also fix PO line if it exists for this picking's PO
+      const picking = pickings.find(p => p.id === targetMove.picking_id[0]);
+      let poFix = null;
+      if (picking && picking.origin) {
         const poLines = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'purchase.order.line', 'search_read',
-          [[['order_id.name', 'in', poNames], ['product_id', '=', 1116]]],
+          [[['order_id.name', '=', picking.origin], ['product_id', '=', 1116]]],
           {fields: ['id', 'product_qty', 'price_unit']});
         for (const pl of poLines) {
-          if (pl.product_qty === 40) {
-            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'purchase.order.line', 'write',
-              [[pl.id], {product_qty: 20}]);
-            poFixes.push({po_line_id: pl.id, old_qty: 40, new_qty: 20});
-          }
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'purchase.order.line', 'write',
+            [[pl.id], {product_qty: 0}]);
+          poFix = {po_line_id: pl.id, old_qty: pl.product_qty, new_qty: 0};
         }
       }
 
-      return json({success: true, fixes, poFixes, log}, corsHeaders);
+      return json({success: true, mode: 'fix', fixed_move: {id: moveIdToFix, old_qty: targetMove.quantity, new_qty: 0}, poFix}, corsHeaders);
     }
 
     // ─── PREPARE: fetch all data needed for settlement ────────
