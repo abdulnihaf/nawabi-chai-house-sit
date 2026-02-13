@@ -996,7 +996,22 @@ export async function onRequest(context) {
         result = await DB.prepare('SELECT * FROM daily_settlements WHERE settlement_date = ? ORDER BY settled_at DESC LIMIT 1').bind(date).first();
       }
       if (!result) return json({success: false, error: 'Settlement not found'}, corsHeaders);
-      return json({success: true, settlement: result}, corsHeaders);
+
+      // Fetch complimentary data from Odoo for this settlement's period
+      let complimentaryProducts = {};
+      if (result.period_start && result.period_end && result.status === 'completed') {
+        try {
+          const fromUTC = new Date(result.period_start).toISOString().slice(0, 19).replace('T', ' ');
+          const toUTC = new Date(result.period_end).toISOString().slice(0, 19).replace('T', ' ');
+          const salesData = await fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromUTC, toUTC);
+          complimentaryProducts = salesData.complimentaryProducts || {};
+        } catch (e) {
+          // Non-fatal: comp data is supplementary
+          console.error('Failed to fetch complimentary data:', e.message);
+        }
+      }
+
+      return json({success: true, settlement: result, complimentaryProducts}, corsHeaders);
     }
 
     // ─── AMEND: correct a completed settlement ──────────────

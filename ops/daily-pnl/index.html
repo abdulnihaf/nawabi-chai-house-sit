@@ -2026,10 +2026,10 @@ async function loadSettlementDetail(id) {
 
       // Parse all inventory data
       const revenueData = JSON.parse(s.revenue_breakdown || '{}');
-      // Extract complimentary if embedded (new format: {__complimentary: {...}, ...products})
-      const complimentaryProducts = revenueData.__complimentary || {};
-      delete revenueData.__complimentary;
+      delete revenueData.__complimentary; // Clean up embedded key if present
       const products = revenueData;
+      // Use API-provided complimentary data (fetched live from Odoo)
+      const complimentaryProducts = data.complimentaryProducts || {};
       const inventory = {
         opening: JSON.parse(s.inventory_opening || '{}'),
         purchases: JSON.parse(s.inventory_purchases || '{}'),
