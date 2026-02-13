@@ -779,6 +779,15 @@ export async function onRequest(context) {
         JSON.stringify(timestampAdjustments), JSON.stringify(edit_trail || {})
       ).run();
 
+      // ── Step 15b: Sync closing stock to Odoo inventory ──
+      let odooSyncResult = null;
+      try {
+        odooSyncResult = await syncInventoryToOdoo(
+          ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, closingStock, 10);
+      } catch (syncErr) {
+        odooSyncResult = {error: syncErr.message};
+      }
+
       // ── Step 16: WhatsApp summary ──
       const WA_TOKEN = context.env.WA_ACCESS_TOKEN;
       const WA_PHONE_ID = context.env.WA_PHONE_ID || '970365416152029';
@@ -921,6 +930,7 @@ export async function onRequest(context) {
         products: revenue.products,
         complimentaryProducts: revenue.complimentaryProducts || {},
         timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
+        odooSyncResult,
       }, corsHeaders);
     }
 
@@ -1134,11 +1144,21 @@ export async function onRequest(context) {
         parseInt(id)
       ).run();
 
+      // Sync updated closing stock to Odoo inventory
+      let odooSyncResult = null;
+      try {
+        odooSyncResult = await syncInventoryToOdoo(
+          ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, closing, 10);
+      } catch (syncErr) {
+        odooSyncResult = {error: syncErr.message};
+      }
+
       return json({
         success: true,
         message: `Settlement #${id} amended with ${appliedCorrections.length} correction(s)`,
         corrections: appliedCorrections,
         updated: {cogsActual, grossProfit, netProfit, adjustedNetProfit, discrepancyValue},
+        odooSyncResult,
       }, corsHeaders);
     }
 
@@ -1579,6 +1599,53 @@ async function fetchGapSalesForProducts(url, db, uid, apiKey, productIds, fromUT
     result[pid].amount += line.price_subtotal_incl;
   }
   return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SYNC CLOSING STOCK → ODOO INVENTORY (stock.quant)
+// ═══════════════════════════════════════════════════════════════
+async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId) {
+  // Find NCH's internal stock location from incoming picking type
+  const pickTypes = await odooCall(url, db, uid, apiKey,
+    'stock.picking.type', 'search_read',
+    [[['code', '=', 'incoming'], ['company_id', '=', companyId]]],
+    {fields: ['default_location_dest_id'], limit: 1});
+  const locationId = pickTypes[0]?.default_location_dest_id?.[0];
+  if (!locationId) throw new Error('NCH stock location not found');
+
+  const results = [];
+  for (const [productId, targetQty] of Object.entries(closingStock)) {
+    try {
+      const pid = parseInt(productId);
+      // Search existing quant at this location
+      const quants = await odooCall(url, db, uid, apiKey, 'stock.quant', 'search_read', [[
+        ['product_id', '=', pid],
+        ['location_id', '=', locationId],
+        ['company_id', '=', companyId]
+      ]], {fields: ['id', 'quantity']});
+
+      if (quants.length > 0 && Math.abs(quants[0].quantity - targetQty) > 0.001) {
+        // Update existing quant
+        await odooCall(url, db, uid, apiKey, 'stock.quant', 'write', [[quants[0].id], {inventory_quantity: targetQty}]);
+        await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[quants[0].id]]);
+        results.push({productId: pid, from: quants[0].quantity, to: targetQty, action: 'adjusted'});
+      } else if (quants.length === 0) {
+        // Create new quant
+        const newId = await odooCall(url, db, uid, apiKey, 'stock.quant', 'create', [{
+          product_id: pid, location_id: locationId,
+          company_id: companyId, inventory_quantity: targetQty,
+        }]);
+        await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[newId]]);
+        results.push({productId: pid, qty: targetQty, action: 'created'});
+      } else {
+        results.push({productId: pid, qty: targetQty, action: 'unchanged'});
+      }
+    } catch (err) {
+      results.push({productId: parseInt(productId), error: err.message});
+      // Continue with other products — don't fail entire sync
+    }
+  }
+  return results;
 }
 
 // ═══════════════════════════════════════════════════════════════
