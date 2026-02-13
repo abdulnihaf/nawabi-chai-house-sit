@@ -1643,29 +1643,61 @@ async function syncInventoryToOdoo(url, db, uid, apiKey, closingStock, companyId
   for (const [productId, targetQty] of Object.entries(closingStock)) {
     try {
       const pid = parseInt(productId);
-      // Search existing quant at this location
+      // Get ALL quants for this product, sorted by in_date ASC (oldest first = FIFO)
       const quants = await odooCall(url, db, uid, apiKey, 'stock.quant', 'search_read', [[
         ['product_id', '=', pid],
         ['location_id', '=', locationId],
         ['company_id', '=', companyId]
-      ]], {fields: ['id', 'quantity']});
+      ]], {fields: ['id', 'quantity', 'lot_id', 'in_date'], order: 'in_date asc'});
 
-      if (quants.length > 0 && Math.abs(quants[0].quantity - targetQty) > 0.001) {
-        // Update existing quant
-        await odooCall(url, db, uid, apiKey, 'stock.quant', 'write', [[quants[0].id], {inventory_quantity: targetQty}]);
-        await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[quants[0].id]]);
-        results.push({productId: pid, from: quants[0].quantity, to: targetQty, action: 'adjusted'});
-      } else if (quants.length === 0) {
-        // Create new quant
+      const totalOnHand = quants.reduce((s, q) => s + q.quantity, 0);
+
+      if (Math.abs(totalOnHand - targetQty) <= 0.001) {
+        results.push({productId: pid, qty: targetQty, action: 'unchanged'});
+        continue;
+      }
+
+      if (quants.length === 0) {
+        // No quants — create one
         const newId = await odooCall(url, db, uid, apiKey, 'stock.quant', 'create', [{
           product_id: pid, location_id: locationId,
           company_id: companyId, inventory_quantity: targetQty,
         }]);
         await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[newId]]);
         results.push({productId: pid, qty: targetQty, action: 'created'});
-      } else {
-        results.push({productId: pid, qty: targetQty, action: 'unchanged'});
+        continue;
       }
+
+      // FIFO allocation: oldest consumed first → remaining stock lives in newest lots
+      // Walk from newest to oldest, allocating targetQty
+      let remaining = targetQty;
+      const adjustments = [];
+      for (let i = quants.length - 1; i >= 0; i--) {
+        const q = quants[i];
+        const keep = Math.max(0, Math.min(q.quantity, remaining));
+        remaining -= keep;
+        if (Math.abs(keep - q.quantity) > 0.001) {
+          adjustments.push({id: q.id, oldQty: q.quantity, newQty: keep});
+        }
+      }
+      // If remaining > 0, target exceeds all lots — add surplus to newest
+      if (remaining > 0.001) {
+        const newest = quants[quants.length - 1];
+        const existing = adjustments.find(a => a.id === newest.id);
+        if (existing) {
+          existing.newQty += remaining;
+        } else {
+          adjustments.push({id: newest.id, oldQty: newest.quantity, newQty: newest.quantity + remaining});
+        }
+      }
+
+      // Apply each adjustment to Odoo
+      for (const adj of adjustments) {
+        await odooCall(url, db, uid, apiKey, 'stock.quant', 'write', [[adj.id], {inventory_quantity: adj.newQty}]);
+        await odooCall(url, db, uid, apiKey, 'stock.quant', 'action_apply_inventory', [[adj.id]]);
+      }
+
+      results.push({productId: pid, from: totalOnHand, to: targetQty, lotsAdjusted: adjustments.length, action: 'adjusted'});
     } catch (err) {
       results.push({productId: parseInt(productId), error: err.message});
       // Continue with other products — don't fail entire sync
