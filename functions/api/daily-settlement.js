@@ -316,29 +316,6 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── TEMPORARY: Check/cleanup orphaned POs from failed API attempts ───
-    if (action === 'admin-cleanup-pos') {
-      if (context.request.method !== 'POST') return json({error: 'POST required'}, corsHeaders);
-      const body = await context.request.json();
-      if (body.pin !== '0305') return json({error: 'Unauthorized'}, corsHeaders);
-
-      // Find recent POs for company 10 in draft state (orphaned from failed attempts)
-      const pos = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'purchase.order', 'search_read',
-        [[['company_id', '=', 10], ['state', '=', 'draft']]],
-        {fields: ['id', 'name', 'partner_id', 'date_order', 'state', 'order_line'], order: 'id desc', limit: 10});
-
-      if (body.mode === 'delete' && body.po_ids) {
-        for (const poId of body.po_ids) {
-          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'purchase.order', 'unlink', [[poId]]);
-        }
-        return json({success: true, deleted: body.po_ids}, corsHeaders);
-      }
-
-      return json({success: true, draft_pos: pos}, corsHeaders);
-    }
-
     // ─── PREPARE: fetch all data needed for settlement ────────
     if (action === 'prepare') {
       const now = istNow();
