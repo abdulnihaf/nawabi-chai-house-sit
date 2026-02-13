@@ -1973,6 +1973,9 @@ function renderInventoryTable(inv) {
 
 function renderInventoryMovement(inv, wastedRawMaterials) {
   wastedRawMaterials = wastedRawMaterials || {};
+  // Only discrete countable items have meaningful "Missing" (fixed 1:1 ratio with POS sales)
+  // Variable-consumption items (milk, sugar, tea etc.) show consumption only — difference is recipe deviation, not loss
+  const COUNTABLE_IDS = new Set(COUNT_CHECK_ITEMS.map(i => i.rmId));
   const allMats = new Set([
     ...Object.keys(inv.opening || {}),
     ...Object.keys(inv.closing || {}),
@@ -1995,13 +1998,19 @@ function renderInventoryMovement(inv, wastedRawMaterials) {
     const wasted = wastedRawMaterials[matId] || 0;
     if (opening < 0.0001 && purchased < 0.0001 && closing < 0.0001) continue;
 
-    // Missing = consumed - expected - wasted (old "discrepancy" minus wastage)
-    const discrepancy = consumed - expected;
-    const missing = discrepancy - wasted;
-    const missingRounded = Math.round(missing * 10000) / 10000;
+    const isCountable = COUNTABLE_IDS.has(matId);
+    // Missing only meaningful for discrete countable items (fixed ratio: 1 bun = 1 bun maska)
+    // For variable-consumption items (milk, sugar, tea), consumed vs expected is recipe deviation, not loss
+    let missingRounded = 0;
+    if (isCountable) {
+      const discrepancy = consumed - expected;
+      const missing = discrepancy - wasted;
+      missingRounded = Math.round(missing * 10000) / 10000;
+    }
 
     const wastedStr = wasted > 0 ? `<span style="color:var(--orange)">${fmtQty(wasted, uom)}</span>` : '—';
-    const missingStr = Math.abs(missingRounded) < 0.0001 ? '—'
+    const missingStr = !isCountable ? '—'
+      : Math.abs(missingRounded) < 0.0001 ? '—'
       : missingRounded > 0 ? `<span style="color:var(--red)">${fmtQty(missingRounded, uom)}</span>`
       : `<span style="color:var(--yellow)">+${fmtQty(Math.abs(missingRounded), uom)}</span>`;
 
