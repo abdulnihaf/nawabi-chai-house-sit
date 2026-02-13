@@ -316,112 +316,27 @@ export async function onRequest(context) {
       }, corsHeaders);
     }
 
-    // ─── TEMPORARY: Create Purchase Order + Receive in Odoo ───
-    if (action === 'admin-create-receipt') {
+    // ─── TEMPORARY: Check/cleanup orphaned POs from failed API attempts ───
+    if (action === 'admin-cleanup-pos') {
       if (context.request.method !== 'POST') return json({error: 'POST required'}, corsHeaders);
       const body = await context.request.json();
       if (body.pin !== '0305') return json({error: 'Unauthorized'}, corsHeaders);
 
-      const productId = body.product_id || 1105; // Osmania Biscuit (Loose)
-      const qty = body.qty || 5136;              // 214 packets × 24 pcs
-      const vendorName = body.vendor || 'Rehan Osmania';
-      const priceUnit = body.price_unit || FALLBACK_COSTS[productId] || 0;
-      const PRODUCT_UOM = {1095: 11, 1104: 1, 1105: 1, 1106: 1, 1107: 1, 1110: 1, 1113: 1, 1116: 1};
-      const productUomId = PRODUCT_UOM[productId] || 1;
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      // Find recent POs for company 10 in draft state (orphaned from failed attempts)
+      const pos = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'purchase.order', 'search_read',
+        [[['company_id', '=', 10], ['state', '=', 'draft']]],
+        {fields: ['id', 'name', 'partner_id', 'date_order', 'state', 'order_line'], order: 'id desc', limit: 10});
 
-      try {
-        // Step 1: Find or create vendor
-        let partnerId;
-        const existingPartners = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'res.partner', 'search_read',
-          [[['name', 'ilike', vendorName], ['supplier_rank', '>', 0]]],
-          {fields: ['id', 'name'], limit: 1});
-
-        if (existingPartners && existingPartners.length > 0) {
-          partnerId = existingPartners[0].id;
-        } else {
-          partnerId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'res.partner', 'create', [{name: vendorName, supplier_rank: 1, company_type: 'company'}]);
+      if (body.mode === 'delete' && body.po_ids) {
+        for (const poId of body.po_ids) {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'purchase.order', 'unlink', [[poId]]);
         }
-
-        // Step 2: Create purchase.order with inline order lines
-        const poId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'purchase.order', 'create', [{
-            partner_id: partnerId,
-            company_id: 10,
-            currency_id: 20,
-            order_line: [[0, 0, {
-              product_id: productId,
-              name: vendorName,
-              product_qty: qty,
-              product_uom: productUomId,
-              price_unit: priceUnit,
-              date_planned: now,
-            }]],
-          }]);
-
-        // Step 3: Confirm PO
-        await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'purchase.order', 'button_confirm', [[poId]]);
-
-        // Step 5: Get PO details + auto-created picking
-        const poData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'purchase.order', 'read', [[poId]], {fields: ['name', 'picking_ids', 'state']});
-        const poName = poData[0].name;
-        const pickingIds = poData[0].picking_ids;
-
-        if (!pickingIds || pickingIds.length === 0) {
-          return json({success: true, warning: 'PO created & confirmed but no picking auto-generated', poId, poName}, corsHeaders);
-        }
-
-        // Step 6: Set done qty on picking moves and validate
-        for (const pickId of pickingIds) {
-          const pickData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'stock.picking', 'read', [[pickId]], {fields: ['move_ids', 'state']});
-
-          if (pickData[0].move_ids && pickData[0].move_ids.length > 0) {
-            const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.move', 'read', [pickData[0].move_ids], {fields: ['id', 'product_uom_qty', 'move_line_ids']});
-
-            for (const move of moves) {
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.move', 'write', [[move.id], {quantity: move.product_uom_qty, picked: true}]);
-              if (move.move_line_ids && move.move_line_ids.length > 0) {
-                await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                  'stock.move.line', 'write', [move.move_line_ids, {picked: true}]);
-              }
-            }
-          }
-
-          try {
-            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-              'stock.picking', 'button_validate', [[pickId]]);
-          } catch (valErr) {
-            try {
-              const wizId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.immediate.transfer', 'create', [{pick_ids: [[4, pickId]]}]);
-              await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-                'stock.immediate.transfer', 'process', [[wizId]]);
-            } catch (wizErr) {
-              return json({success: true, warning: 'PO created, picking needs manual validation', poId, poName, pickingIds, error: wizErr.message}, corsHeaders);
-            }
-          }
-        }
-
-        // Step 7: Verify final state
-        const finalPicking = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'stock.picking', 'read', [pickingIds], {fields: ['id', 'name', 'state', 'date_done']});
-
-        return json({
-          success: true,
-          poId, poName, partnerId, vendorName,
-          product: {id: productId, qty, unitPrice: priceUnit},
-          pickings: finalPicking.map(p => ({id: p.id, name: p.name, state: p.state, date_done: p.date_done}))
-        }, corsHeaders);
-      } catch (err) {
-        return json({error: err.message, stack: err.stack}, corsHeaders);
+        return json({success: true, deleted: body.po_ids}, corsHeaders);
       }
+
+      return json({success: true, draft_pos: pos}, corsHeaders);
     }
 
     // ─── PREPARE: fetch all data needed for settlement ────────
