@@ -1211,7 +1211,33 @@ export async function onRequest(context) {
       return json({success: false, error: 'Invalid PIN'}, corsHeaders);
     }
 
-    return json({success: false, error: 'Invalid action. Use: get-config, prepare, submit, amend, history, get-settlement, get-vessels, save-vessel, get-salaries, save-salary, verify-pin'}, corsHeaders);
+    // ─── BACKFILL ODOO INVENTORY ─────────────────────────────
+    // One-time sync: reads latest D1 closing stock → writes to Odoo stock.quant
+    if (action === 'backfill-odoo-inventory') {
+      const pin = url.searchParams.get('pin');
+      if (pin !== '0305') return json({success: false, error: 'Owner PIN required'}, corsHeaders);
+      if (!DB) return json({success: false, error: 'DB not configured'}, corsHeaders);
+
+      const latest = await DB.prepare(
+        "SELECT id, settlement_date, settled_at, inventory_closing FROM daily_settlements WHERE status IN ('completed','bootstrap') ORDER BY settled_at DESC LIMIT 1"
+      ).first();
+      if (!latest) return json({success: false, error: 'No settlement found'}, corsHeaders);
+
+      const closingStock = JSON.parse(latest.inventory_closing || '{}');
+      const syncResult = await syncInventoryToOdoo(
+        ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, closingStock, 10);
+
+      return json({
+        success: true,
+        message: `Backfilled Odoo inventory from settlement #${latest.id} (${latest.settlement_date})`,
+        settlementId: latest.id,
+        settlementDate: latest.settlement_date,
+        settledAt: latest.settled_at,
+        syncResult,
+      }, corsHeaders);
+    }
+
+    return json({success: false, error: 'Invalid action. Use: get-config, prepare, submit, amend, history, get-settlement, get-vessels, save-vessel, get-salaries, save-salary, verify-pin, backfill-odoo-inventory'}, corsHeaders);
 
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message, stack: error.stack}), {status: 500, headers: corsHeaders});
