@@ -32,12 +32,12 @@ export async function onRequest(context) {
         1101: 0.01966,   // Filter Water (L) — from decoction
       }
     },
-    1102: { // Nawabi Special Coffee (90ml boiled milk + coffee + honey)
+    1102: { // Nawabi Special Coffee (2x chai's boiled milk + coffee + honey)
       name: 'Nawabi Special Coffee', code: 'NCH-NSC', price: 30,
       materials: {
-        1095: 0.08613,   // Buffalo Milk (L)
-        1096: 0.002153,  // SMP (kg)
-        1112: 0.001723,  // Condensed Milk (kg)
+        1095: 0.11484,   // Buffalo Milk (L) — 2x chai's milk (milk poured directly into coffee powder)
+        1096: 0.002871,  // SMP (kg) — scaled proportionally with milk
+        1112: 0.002297,  // Condensed Milk (kg) — scaled proportionally with milk
         1120: 0.002,     // Coffee Powder (kg) — 2g per cup
         1123: 0.005,     // Honey (kg) — 5g per cup
       }
@@ -154,11 +154,13 @@ export async function onRequest(context) {
   const OSMANIA_PER_PACKET = 24;
 
   // Density constants: kg per litre (for vessel weight → volume)
+  // dry_goods: 1.0 = kg/kg (weight IS the quantity, no density conversion)
   const DENSITY = {
     boiled_milk: 1.035,
     tea_decoction: 1.03,
     oil: 0.92,
     raw_milk: 1.032,
+    dry_goods: 1.0,
   };
 
   // ═══════════════════════════════════════════════════════════
@@ -188,6 +190,9 @@ export async function onRequest(context) {
     'water_bottles_kitchen': [1094], 'water_bottles_display': [1094],
     // Niloufer: split by location
     'niloufer_kitchen': [1111], 'niloufer_display': [1111],
+    // Container weighing (alternative to direct kg)
+    'sugar_container': [],      // sugar doesn't affect product sales (slow item)
+    'tea_powder_container': [], // tea powder doesn't affect product sales (slow item)
     // Backward compat: old field names
     'fried_cutlets': [1031], 'fried_samosa': [1115], 'fried_cheese_balls': [1117],
     'osmania_packets': [1030, 1033], 'osmania_loose': [1030, 1033],
@@ -219,9 +224,79 @@ export async function onRequest(context) {
   // These are starting approximations — real values entered after weighing
   const DEFAULT_VESSELS = {
     'KIT-PATILA-1': {name: 'Kitchen Large Patila', liquid_type: 'boiled_milk', location: 'kitchen', empty_weight_kg: 12.9},
+    'KIT-MILK-2': {name: 'Kitchen Milk Vessel 2', liquid_type: 'boiled_milk', location: 'kitchen', empty_weight_kg: 3.498},
     'CTR-MILK-1': {name: 'Counter Milk Vessel (Copper Samawar)', liquid_type: 'boiled_milk', location: 'counter', empty_weight_kg: 3.15},
     'CTR-DEC-1': {name: 'Counter Decoction Vessel (Copper)', liquid_type: 'decoction', location: 'counter', empty_weight_kg: 5.05},
     'KIT-DEC-1': {name: 'Kitchen Decoction Prep Vessel', liquid_type: 'decoction', location: 'kitchen', empty_weight_kg: 6.0},
+    'KIT-DRY-1': {name: 'Sugar/Tea Powder Container', liquid_type: 'dry_goods', location: 'kitchen', empty_weight_kg: 1.7},
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // WASTAGE DECOMPOSITION: item + state → raw material breakdown
+  // Used when staff records wastage in its physical state
+  // ═══════════════════════════════════════════════════════════
+  const WASTAGE_DECOMPOSITION = {
+    buffalo_milk: {
+      label: 'Buffalo Milk', uom: 'L',
+      states: {
+        raw: {label: 'Raw', decomp: {1095: 1}},
+        boiled: {label: 'Boiled', decomp: {1095: 0.957, 1096: 0.02392, 1112: 0.01914}},
+      }
+    },
+    cutlet: {
+      label: 'Cutlet', uom: 'units',
+      states: {
+        frozen: {label: 'Frozen/Raw', decomp: {1106: 1}},
+        fried: {label: 'Fried', decomp: {1106: 1, 1114: 0.03}},
+      }
+    },
+    samosa: {
+      label: 'Samosa', uom: 'units',
+      states: {
+        frozen: {label: 'Frozen/Raw', decomp: {1113: 1}},
+        fried: {label: 'Fried', decomp: {1113: 1, 1114: 0.02}},
+      }
+    },
+    cheese_balls: {
+      label: 'Cheese Balls', uom: 'units',
+      states: {
+        frozen: {label: 'Frozen/Raw', decomp: {1116: 1}},
+        fried: {label: 'Fried', decomp: {1116: 1, 1114: 0.015}},
+      }
+    },
+    buns: {
+      label: 'Buns', uom: 'units',
+      states: {
+        plain: {label: 'Plain', decomp: {1104: 1}},
+        bun_maska: {label: 'Bun Maska (prepared)', decomp: {1104: 1, 1119: 0.05, 1097: 0.004}},
+      }
+    },
+    tea_decoction: {
+      label: 'Tea Decoction', uom: 'L',
+      states: {
+        liquid: {label: 'Liquid', decomp: {1098: 0.005618, 1097: 0.01124, 1101: 0.9831}},
+      }
+    },
+    sugar: {
+      label: 'Sugar', uom: 'kg',
+      states: { raw: {label: 'Raw', decomp: {1097: 1}} }
+    },
+    tea_powder: {
+      label: 'Tea Powder', uom: 'kg',
+      states: { raw: {label: 'Raw', decomp: {1098: 1}} }
+    },
+    oil: {
+      label: 'Oil', uom: 'L',
+      states: { waste: {label: 'Used/Waste', decomp: {1114: 1}} }
+    },
+    condensed_milk: {
+      label: 'Condensed Milk', uom: 'kg',
+      states: { raw: {label: 'Raw', decomp: {1112: 1}} }
+    },
+    smp: {
+      label: 'SMP (Milk Powder)', uom: 'kg',
+      states: { raw: {label: 'Raw', decomp: {1096: 1}} }
+    },
   };
 
   const round = (v, d = 4) => Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
@@ -237,6 +312,7 @@ export async function onRequest(context) {
         rawMaterials: RAW_MATERIALS,
         density: DENSITY,
         defaultVessels: DEFAULT_VESSELS,
+        wastageItems: WASTAGE_DECOMPOSITION,
       }, corsHeaders);
     }
 
@@ -587,9 +663,29 @@ export async function onRequest(context) {
       const materialCosts = await getAllMaterialCosts(DB, settlement_date);
       const getCost = (matId) => materialCosts[String(matId)] || FALLBACK_COSTS[matId] || 0;
 
-      // ── Step 10: Calculate discrepancy per material ──
+      // ── Step 10: Decompose wastage → raw materials, then calculate discrepancy ──
+      // Wastage comes in two formats:
+      //   New: {item, state, qty, reason} → decompose via WASTAGE_DECOMPOSITION
+      //   Old: {material_id, qty, reason} → direct material subtraction (backward compat)
+      const wastedRawMaterials = {}; // matId → total wasted qty
+      for (const w of (wastage_items || [])) {
+        if (w.item && w.state && WASTAGE_DECOMPOSITION[w.item]?.states[w.state]) {
+          // New format: decompose by state
+          const decomp = WASTAGE_DECOMPOSITION[w.item].states[w.state].decomp;
+          for (const [matId, qtyPerUnit] of Object.entries(decomp)) {
+            const key = String(matId);
+            wastedRawMaterials[key] = round((wastedRawMaterials[key] || 0) + (w.qty || 0) * qtyPerUnit, 4);
+          }
+        } else if (w.material_id) {
+          // Old format: direct material_id
+          const key = String(w.material_id);
+          wastedRawMaterials[key] = round((wastedRawMaterials[key] || 0) + (w.qty || 0), 4);
+        }
+      }
+
+      // Calculate discrepancy (= missing) per material
+      // discrepancy = actual_consumption - expected_consumption - wastage
       // IMPORTANT: Iterate over BOTH consumption and expectedConsumption keys
-      // to catch materials expected but not consumed (e.g., not in any stock category)
       const discrepancy = {};
       let discrepancyValue = 0;
       const allDiscMaterialIds = new Set([
@@ -600,10 +696,7 @@ export async function onRequest(context) {
       for (const matId of allDiscMaterialIds) {
         const actual = consumption[matId] || 0;
         const expected = expectedConsumption[matId] || 0;
-        // Subtract recorded wastage
-        const wastedQty = (wastage_items || [])
-          .filter(w => String(w.material_id) === String(matId))
-          .reduce((s, w) => s + (w.qty || 0), 0);
+        const wastedQty = wastedRawMaterials[matId] || 0;
         const disc = round(actual - expected - wastedQty, 4);
         if (Math.abs(disc) > 0.001) {
           const materialCost = getCost(matId);
@@ -629,11 +722,11 @@ export async function onRequest(context) {
       }
       cogsExpected = round(cogsExpected, 2);
 
-      // ── Step 12: Wastage value ──
+      // ── Step 12: Wastage value (from decomposed raw materials) ──
       let wastageValue = 0;
-      for (const w of (wastage_items || [])) {
-        const cost = getCost(w.material_id);
-        wastageValue += (w.qty || 0) * cost;
+      for (const [matId, qty] of Object.entries(wastedRawMaterials)) {
+        const cost = getCost(matId);
+        wastageValue += qty * cost;
       }
       wastageValue = round(wastageValue, 2);
 
@@ -679,7 +772,8 @@ export async function onRequest(context) {
                 ?, ?, ?, ?, ?)`
       ).bind(
         settlement_date, periodStartIST, periodEndIST, settledBy, settledAtISO,
-        revenue.total, revenue.cashCounter, revenue.runnerCounter, revenue.whatsapp, JSON.stringify(revenue.products),
+        revenue.total, revenue.cashCounter, revenue.runnerCounter, revenue.whatsapp,
+        JSON.stringify({...revenue.products, __complimentary: revenue.complimentaryProducts || {}}),
         cogsActual, cogsExpected, grossProfit,
         dailySalaries, counterExpenses, opexTotal,
         netProfit,
@@ -825,11 +919,13 @@ export async function onRequest(context) {
           consumption,
           expected: expectedConsumption,
           discrepancy,
+          wastedRawMaterials,
         },
         period: {start: periodStartIST, end: periodEndIST, hours: round((periodEndUTC - periodStartUTC) / 3600000, 2)},
         warnings: consumptionWarnings,
         runnerTokens: {current: currentTokens, previous: prevRunnerTokens},
         products: revenue.products,
+        complimentaryProducts: revenue.complimentaryProducts || {},
         timestampAdjustments: Object.keys(timestampAdjustments).length > 0 ? timestampAdjustments : null,
       }, corsHeaders);
     }
@@ -1107,8 +1203,20 @@ export async function onRequest(context) {
     if (input.raw_buffalo_milk) add(1095, input.raw_buffalo_milk);
     if (input.raw_milkmaid) add(1112, input.raw_milkmaid);
     if (input.raw_smp) add(1096, input.raw_smp);
-    if (input.raw_sugar) add(1097, input.raw_sugar);
-    if (input.raw_tea_powder) add(1098, input.raw_tea_powder);
+    // Sugar: either direct kg or container weighing (not both)
+    if (input.sugar_container && Array.isArray(input.sugar_container) && input.sugar_container.length > 0) {
+      const netKg = processVesselEntries(input.sugar_container, vesselMap, density.dry_goods);
+      if (netKg > 0) add(1097, netKg);
+    } else if (input.raw_sugar) {
+      add(1097, input.raw_sugar);
+    }
+    // Tea Powder: either direct kg or container weighing (not both)
+    if (input.tea_powder_container && Array.isArray(input.tea_powder_container) && input.tea_powder_container.length > 0) {
+      const netKg = processVesselEntries(input.tea_powder_container, vesselMap, density.dry_goods);
+      if (netKg > 0) add(1098, netKg);
+    } else if (input.raw_tea_powder) {
+      add(1098, input.raw_tea_powder);
+    }
     if (input.butter) add(1119, input.butter);
     if (input.coffee_powder) add(1120, input.coffee_powder);
     if (input.honey) add(1123, input.honey);
@@ -1320,7 +1428,7 @@ async function fetchPOSSalesWithChannels(url, db, uid, apiKey, from, to) {
     {fields: ['id', 'config_id', 'amount_total']});
 
   if (!orders || orders.length === 0) {
-    return {total: 0, cashCounter: 0, runnerCounter: 0, whatsapp: 0, products: {}};
+    return {total: 0, cashCounter: 0, runnerCounter: 0, whatsapp: 0, products: {}, complimentaryProducts: {}};
   }
 
   // Channel breakdown from config_id
@@ -1334,21 +1442,41 @@ async function fetchPOSSalesWithChannels(url, db, uid, apiKey, from, to) {
   }
 
   const orderIds = orders.map(o => o.id);
-  const lines = await odooCall(url, db, uid, apiKey, 'pos.order.line', 'search_read',
-    [[['order_id', 'in', orderIds]]],
-    {fields: ['product_id', 'qty', 'price_subtotal_incl']});
+
+  // Fetch order lines with order_id for complimentary tracking
+  const [lines, compPayments] = await Promise.all([
+    odooCall(url, db, uid, apiKey, 'pos.order.line', 'search_read',
+      [[['order_id', 'in', orderIds]]],
+      {fields: ['product_id', 'qty', 'price_subtotal_incl', 'order_id']}),
+    // Identify complimentary orders (payment method 49)
+    odooCall(url, db, uid, apiKey, 'pos.payment', 'search_read',
+      [[['pos_order_id', 'in', orderIds], ['payment_method_id', '=', 49]]],
+      {fields: ['pos_order_id', 'amount']}),
+  ]);
+
+  // Build set of complimentary order IDs
+  const complimentaryOrderIds = new Set((compPayments || []).map(p => p.pos_order_id[0]));
 
   const products = {};
+  const complimentaryProducts = {};
   let total = 0;
   for (const line of lines) {
     const pid = line.product_id[0];
+    const orderId = line.order_id[0];
     if (!products[pid]) products[pid] = {name: line.product_id[1], qty: 0, amount: 0};
     products[pid].qty += line.qty;
     products[pid].amount += line.price_subtotal_incl;
     total += line.price_subtotal_incl;
+
+    // Track complimentary products separately
+    if (complimentaryOrderIds.has(orderId)) {
+      if (!complimentaryProducts[pid]) complimentaryProducts[pid] = {name: line.product_id[1], qty: 0, amount: 0};
+      complimentaryProducts[pid].qty += line.qty;
+      complimentaryProducts[pid].amount += line.price_subtotal_incl;
+    }
   }
 
-  return {total, cashCounter, runnerCounter, whatsapp, products};
+  return {total, cashCounter, runnerCounter, whatsapp, products, complimentaryProducts};
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -316,7 +316,16 @@
             <div class="field-row">
               <div class="field">
                 <div class="field-label">Sugar <span class="hint">(kg — bags)</span><span class="ts-badge" data-ts-for="raw_sugar"></span></div>
-                <input type="number" class="input input-sm" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
+                <div id="sugar_direct_mode">
+                  <input type="number" class="input input-sm" id="raw_sugar" step="0.1" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
+                </div>
+                <div id="sugar_container_mode" style="display:none">
+                  <input type="number" class="input input-sm" id="sugar_container_weight" step="0.01" min="0" placeholder="Gross weight on scale" inputmode="decimal" onchange="recordTimestamp('raw_sugar');updateDecomp()">
+                  <div class="computed-value" id="sugar_container_net">Net: — kg (tare 1.7 kg)</div>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--text2);cursor:pointer">
+                  <input type="checkbox" id="sugar_use_container" onchange="toggleContainerMode('sugar')"> Weigh in container (KIT-DRY-1)
+                </label>
               </div>
               <div class="field">
                 <div class="field-label">Milkmaid <span class="hint">(kg — cans)</span><span class="ts-badge" data-ts-for="raw_milkmaid"></span></div>
@@ -330,7 +339,16 @@
               </div>
               <div class="field">
                 <div class="field-label">Tea Powder <span class="hint">(kg — unmixed)</span><span class="ts-badge" data-ts-for="raw_tea_powder"></span></div>
-                <input type="number" class="input input-sm" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
+                <div id="tea_powder_direct_mode">
+                  <input type="number" class="input input-sm" id="raw_tea_powder" step="0.01" min="0" placeholder="0" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
+                </div>
+                <div id="tea_powder_container_mode" style="display:none">
+                  <input type="number" class="input input-sm" id="tea_powder_container_weight" step="0.01" min="0" placeholder="Gross weight on scale" inputmode="decimal" onchange="recordTimestamp('raw_tea_powder');updateDecomp()">
+                  <div class="computed-value" id="tea_powder_container_net">Net: — kg (tare 1.7 kg)</div>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--text2);cursor:pointer">
+                  <input type="checkbox" id="tea_powder_use_container" onchange="toggleContainerMode('tea_powder')"> Weigh in container (KIT-DRY-1)
+                </label>
               </div>
             </div>
             <div class="field-row" style="margin-top:12px">
@@ -579,7 +597,7 @@
             </div>
             <div class="field-row" style="margin-top:8px">
               <div class="field"><div class="field-label">Liquid Type</div>
-                <select class="input input-sm" id="vesselType"><option value="boiled_milk">Boiled Milk</option><option value="decoction">Tea Decoction</option><option value="oil">Oil</option><option value="raw_milk">Raw Milk</option></select>
+                <select class="input input-sm" id="vesselType"><option value="boiled_milk">Boiled Milk</option><option value="decoction">Tea Decoction</option><option value="oil">Oil</option><option value="raw_milk">Raw Milk</option><option value="dry_goods">Dry Goods (Sugar/Tea Powder)</option></select>
               </div>
               <div class="field"><div class="field-label">Location</div>
                 <select class="input input-sm" id="vesselLocation"><option value="kitchen">Kitchen</option><option value="counter">Counter</option></select>
@@ -657,6 +675,26 @@ function recordTimestamp(fieldId) {
   saveDraftToLocal();
 }
 
+// ── CONTAINER TOGGLE (sugar/tea powder) ─────────────────
+const CONTAINER_TARE = 1.7; // KIT-DRY-1 empty weight
+function toggleContainerMode(type) {
+  const useContainer = $(`${type}_use_container`).checked;
+  $(`${type}_direct_mode`).style.display = useContainer ? 'none' : '';
+  $(`${type}_container_mode`).style.display = useContainer ? '' : 'none';
+  if (useContainer) {
+    // Attach live update for container net weight display
+    const weightInput = $(`${type}_container_weight`);
+    weightInput.oninput = () => {
+      const gross = parseFloat(weightInput.value) || 0;
+      const net = Math.max(0, gross - CONTAINER_TARE);
+      $(`${type}_container_net`).textContent = `Net: ${net.toFixed(2)} kg (tare ${CONTAINER_TARE} kg)`;
+      recordTimestamp(type === 'sugar' ? 'raw_sugar' : 'raw_tea_powder');
+      updateDecomp();
+    };
+  }
+  updateDecomp();
+}
+
 // ── DRAFT AUTO-SAVE (localStorage) ──────────────────────
 function saveDraftToLocal() {
   const date = settleData?.settlementDate || new Date(Date.now() + 5.5*3600000).toISOString().slice(0,10);
@@ -701,6 +739,21 @@ function restoreDraft(draft) {
   ];
   for (const f of simpleFields) {
     if ($(f) && ri[f]) $(f).value = ri[f];
+  }
+  // Restore container modes if used
+  if (ri.sugar_container && Array.isArray(ri.sugar_container) && ri.sugar_container.length > 0) {
+    $('sugar_use_container').checked = true;
+    toggleContainerMode('sugar');
+    $('sugar_container_weight').value = ri.sugar_container[0].weight_kg;
+    const net = Math.max(0, ri.sugar_container[0].weight_kg - CONTAINER_TARE);
+    $('sugar_container_net').textContent = `Net: ${net.toFixed(2)} kg (tare ${CONTAINER_TARE} kg)`;
+  }
+  if (ri.tea_powder_container && Array.isArray(ri.tea_powder_container) && ri.tea_powder_container.length > 0) {
+    $('tea_powder_use_container').checked = true;
+    toggleContainerMode('tea_powder');
+    $('tea_powder_container_weight').value = ri.tea_powder_container[0].weight_kg;
+    const net = Math.max(0, ri.tea_powder_container[0].weight_kg - CONTAINER_TARE);
+    $('tea_powder_container_net').textContent = `Net: ${net.toFixed(2)} kg (tare ${CONTAINER_TARE} kg)`;
   }
   // Restore runner tokens
   if (draft.runnerTokens) {
@@ -895,8 +948,48 @@ const BEVERAGE_MATERIALS = [
   {rmId:'1097', name:'Sugar', uom:'kg', perCupUnit:'g', perCupMult:1000},
 ];
 
+// State-based wastage items (perishable/prepared items only)
+const WASTAGE_ITEMS = {
+  buffalo_milk: {label:'Buffalo Milk', uom:'L', states:{raw:{label:'Raw'},boiled:{label:'Boiled'}}},
+  cutlet: {label:'Cutlet', uom:'units', states:{frozen:{label:'Frozen/Raw'},fried:{label:'Fried'}}},
+  samosa: {label:'Samosa', uom:'units', states:{frozen:{label:'Frozen/Raw'},fried:{label:'Fried'}}},
+  cheese_balls: {label:'Cheese Balls', uom:'units', states:{frozen:{label:'Frozen/Raw'},fried:{label:'Fried'}}},
+  buns: {label:'Buns', uom:'units', states:{plain:{label:'Plain'},bun_maska:{label:'Bun Maska (prepared)'}}},
+  tea_decoction: {label:'Tea Decoction', uom:'L', states:{liquid:{label:'Liquid'}}},
+  sugar: {label:'Sugar', uom:'kg', states:{raw:{label:'Raw'}}},
+  tea_powder: {label:'Tea Powder', uom:'kg', states:{raw:{label:'Raw'}}},
+  oil: {label:'Oil', uom:'L', states:{waste:{label:'Used/Waste'}}},
+  condensed_milk: {label:'Condensed Milk', uom:'kg', states:{raw:{label:'Raw'}}},
+  smp: {label:'SMP (Milk Powder)', uom:'kg', states:{raw:{label:'Raw'}}},
+};
+
+// Wastage decomposition: maps {item,state} → raw material decomposition (mirrors API)
+const WASTAGE_DECOMPOSITION = {
+  buffalo_milk: {raw:{1095:1}, boiled:{1095:0.957, 1096:0.02392, 1112:0.01914}},
+  cutlet: {frozen:{1106:1}, fried:{1106:1, 1114:0.03}},
+  samosa: {frozen:{1113:1}, fried:{1113:1, 1114:0.02}},
+  cheese_balls: {frozen:{1116:1}, fried:{1116:1, 1114:0.015}},
+  buns: {plain:{1104:1}, bun_maska:{1104:1, 1119:0.05, 1097:0.004}},
+  tea_decoction: {liquid:{1098:0.005618, 1097:0.01124, 1101:0.9831}},
+  sugar: {raw:{1097:1}},
+  tea_powder: {raw:{1098:1}},
+  oil: {waste:{1114:1}},
+  condensed_milk: {raw:{1112:1}},
+  smp: {raw:{1096:1}},
+};
+
+// Count check wastage mapping: rmId → which wastage items contribute units
+// Each entry maps a count-check raw material to the wastage item key that consumes it
+const COUNT_CHECK_WASTAGE_MAP = {
+  '1104': 'buns',         // Buns — wastage of buns (plain or bun_maska) = 1 unit each
+  '1106': 'cutlet',       // Cutlet — wastage of cutlet (frozen or fried) = 1 unit each
+  '1113': 'samosa',       // Samosa — wastage of samosa (frozen or fried) = 1 unit each
+  '1116': 'cheese_balls', // Cheese Balls — wastage of cheese_balls = 1 unit each
+};
+
 // Coffee recipe (per cup) — to subtract from chai per-cup calc
-const COFFEE_RECIPE = {1095:0.08613,1096:0.002153,1112:0.001723};
+// Coffee uses 2x the boiled milk of chai (milk poured directly into coffee powder)
+const COFFEE_RECIPE = {1095:0.11484,1096:0.002871,1112:0.002297};
 // Lemon Tea recipe (per cup) — uses tea powder, sugar, water
 const LEMON_TEA_RECIPE = {1098:0.000449,1097:0.000899};
 // Bun Maska recipe — uses sugar
@@ -909,15 +1002,17 @@ const TEA_SUGAR_BOX_RATIO = {1098:0.4,1097:0.8};
 const FRIED_OIL = {1106:0.03,1113:0.02,1116:0.015};
 const BUN_MASKA_RATIO = {1104:1,1119:0.05,1097:0.004};
 const OSMANIA_PER_PACKET = 24;
-const DENSITY = {boiled_milk:1.035,tea_decoction:1.03,oil:0.92};
+const DENSITY = {boiled_milk:1.035,tea_decoction:1.03,oil:0.92,dry_goods:1.0};
 
 // Default vessels (fallback if DB empty)
 const DEFAULT_VESSELS = [
   {code:'KIT-PATILA-1',name:'Kitchen Large Patila',liquid_type:'boiled_milk',location:'kitchen',empty_weight_kg:12.9},
+  {code:'KIT-MILK-2',name:'Kitchen Milk Vessel 2',liquid_type:'boiled_milk',location:'kitchen',empty_weight_kg:3.498},
   {code:'CTR-MILK-1',name:'Counter Milk Vessel',liquid_type:'boiled_milk',location:'counter',empty_weight_kg:3.15},
   {code:'CTR-DEC-1',name:'Counter Decoction 1',liquid_type:'decoction',location:'counter',empty_weight_kg:5.0},
   {code:'CTR-DEC-2',name:'Counter Decoction 2',liquid_type:'decoction',location:'counter',empty_weight_kg:5.0},
   {code:'KIT-DEC-1',name:'Kitchen Decoction Vessel',liquid_type:'decoction',location:'kitchen',empty_weight_kg:11.0},
+  {code:'KIT-DRY-1',name:'Sugar/Tea Powder Container',liquid_type:'dry_goods',location:'kitchen',empty_weight_kg:1.7},
 ];
 
 // ── PIN AUTHENTICATION ──────────────────────────────────
@@ -1164,24 +1259,49 @@ function addWastageEntry() {
   const container = $('wastageEntries');
   const entry = document.createElement('div');
   entry.className = 'wastage-entry';
+  const itemOptions = Object.entries(WASTAGE_ITEMS).map(([key, item]) =>
+    `<option value="${key}">${item.label}</option>`
+  ).join('');
   entry.innerHTML = `
-    <select class="input input-sm" style="flex:1">
-      ${Object.entries(RAW_MATERIALS).map(([id, m]) => `<option value="${id}">${m.name} (${m.uom})</option>`).join('')}
+    <select class="input input-sm wastage-item-select" style="flex:1" onchange="updateWastageStates(this)">
+      <option value="">Select item...</option>
+      ${itemOptions}
     </select>
-    <input type="number" class="input input-sm qty-input" placeholder="Qty" step="0.1" inputmode="decimal">
-    <input type="text" class="input input-sm reason-input" placeholder="Reason">
+    <select class="input input-sm wastage-state-select" style="flex:0.8">
+      <option value="">State...</option>
+    </select>
+    <input type="number" class="input input-sm qty-input" placeholder="Qty" step="0.1" inputmode="decimal" style="flex:0.5">
+    <input type="text" class="input input-sm reason-input" placeholder="Reason" style="flex:0.8">
     <button class="remove-vessel" onclick="this.closest('.wastage-entry').remove()" title="Remove">✕</button>
   `;
   container.appendChild(entry);
+  // Auto-trigger state population if first item is pre-selected
+  const itemSelect = entry.querySelector('.wastage-item-select');
+  if (itemSelect.value) updateWastageStates(itemSelect);
+}
+
+function updateWastageStates(itemSelect) {
+  const entry = itemSelect.closest('.wastage-entry');
+  const stateSelect = entry.querySelector('.wastage-state-select');
+  const qtyInput = entry.querySelector('.qty-input');
+  const itemKey = itemSelect.value;
+  const item = WASTAGE_ITEMS[itemKey];
+  if (!item) { stateSelect.innerHTML = '<option value="">State...</option>'; return; }
+  const states = Object.entries(item.states);
+  stateSelect.innerHTML = states.length === 1
+    ? states.map(([key, s]) => `<option value="${key}" selected>${s.label}</option>`).join('')
+    : '<option value="">Select state...</option>' + states.map(([key, s]) => `<option value="${key}">${s.label}</option>`).join('');
+  qtyInput.placeholder = item.uom;
 }
 
 function getWastageItems() {
   const items = [];
   $('wastageEntries').querySelectorAll('.wastage-entry').forEach(row => {
-    const materialId = parseInt(row.querySelector('select')?.value);
+    const itemKey = row.querySelector('.wastage-item-select')?.value;
+    const state = row.querySelector('.wastage-state-select')?.value;
     const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
     const reason = row.querySelector('.reason-input')?.value || '';
-    if (materialId && qty > 0) items.push({material_id: materialId, qty, reason});
+    if (itemKey && state && qty > 0) items.push({item: itemKey, state, qty, reason});
   });
   return items;
 }
@@ -1293,7 +1413,29 @@ function calcVesselLitres(containerId, density) {
 // ── COLLECT RAW INPUT ────────────────────────────────────
 
 function collectRawInput() {
-  return {
+  // Sugar: direct or container mode
+  let raw_sugar = 0, sugar_container = undefined;
+  if ($('sugar_use_container')?.checked) {
+    const gross = parseFloat($('sugar_container_weight')?.value) || 0;
+    if (gross > 0) {
+      sugar_container = [{vessel_code: 'KIT-DRY-1', weight_kg: gross}];
+      raw_sugar = Math.max(0, gross - CONTAINER_TARE);
+    }
+  } else {
+    raw_sugar = parseFloat($('raw_sugar')?.value) || 0;
+  }
+  // Tea powder: direct or container mode
+  let raw_tea_powder = 0, tea_powder_container = undefined;
+  if ($('tea_powder_use_container')?.checked) {
+    const gross = parseFloat($('tea_powder_container_weight')?.value) || 0;
+    if (gross > 0) {
+      tea_powder_container = [{vessel_code: 'KIT-DRY-1', weight_kg: gross}];
+      raw_tea_powder = Math.max(0, gross - CONTAINER_TARE);
+    }
+  } else {
+    raw_tea_powder = parseFloat($('raw_tea_powder')?.value) || 0;
+  }
+  const result = {
     // Freezer
     raw_buffalo_milk: parseFloat($('raw_buffalo_milk')?.value) || 0,
     raw_cutlets: parseInt($('raw_cutlets')?.value) || 0,
@@ -1301,10 +1443,10 @@ function collectRawInput() {
     raw_cheese_balls: parseInt($('raw_cheese_balls')?.value) || 0,
     butter: parseFloat($('butter')?.value) || 0,
     // Kitchen
-    raw_sugar: parseFloat($('raw_sugar')?.value) || 0,
+    raw_sugar,
     raw_milkmaid: parseFloat($('raw_milkmaid')?.value) || 0,
     raw_smp: parseFloat($('raw_smp')?.value) || 0,
-    raw_tea_powder: parseFloat($('raw_tea_powder')?.value) || 0,
+    raw_tea_powder,
     tea_sugar_boxes: parseInt($('tea_sugar_boxes')?.value) || 0,
     coffee_powder: parseFloat($('coffee_powder')?.value) || 0,
     honey: parseFloat($('honey')?.value) || 0,
@@ -1333,6 +1475,10 @@ function collectRawInput() {
     boiled_milk_counter: getVesselEntries('boiled_milk_counter'),
     tea_decoction_counter: getVesselEntries('tea_decoction_counter'),
   };
+  // Add container entries if used (API will use these for decomposition)
+  if (sugar_container) result.sugar_container = sugar_container;
+  if (tea_powder_container) result.tea_powder_container = tea_powder_container;
+  return result;
 }
 
 // Collect only non-empty timestamps for fields that have been edited
@@ -1440,6 +1586,8 @@ async function submitSettlement() {
         </div>
       `;
     } else {
+      // Attach local wastage items to data for report rendering
+      data.wastageItems = wastageItems;
       renderPnlResult(data);
     }
     // Scroll to top so staff sees the result
@@ -1476,11 +1624,12 @@ const FIELD_LABELS = {
   fried_cheese_balls_kitchen: ['Fried Cheese Balls (kitchen)', 'pcs'], fried_cheese_balls_display: ['Fried Cheese Balls (display)', 'pcs'],
   boiled_milk_kitchen: ['Boiled Milk (kitchen)', 'vessels'], boiled_milk_counter: ['Boiled Milk (counter)', 'vessels'],
   tea_decoction_kitchen: ['Tea Decoction (kitchen)', 'vessels'], tea_decoction_counter: ['Tea Decoction (counter)', 'vessels'],
+  sugar_container: ['Sugar (container)', 'vessels'], tea_powder_container: ['Tea Powder (container)', 'vessels'],
 };
 
 const RAW_INPUT_GROUPS = [
   {name: 'Freezer', fields: ['raw_buffalo_milk','raw_cutlets','raw_samosa','raw_cheese_balls','butter']},
-  {name: 'Kitchen', fields: ['raw_sugar','raw_milkmaid','raw_smp','raw_tea_powder','tea_sugar_boxes','coffee_powder','honey','lemons','oil','plain_buns','water_bottles_kitchen','niloufer_kitchen','osmania_packets_kitchen','fried_cutlets_kitchen','fried_samosa_kitchen','fried_cheese_balls_kitchen','malai','boiled_milk_kitchen','tea_decoction_kitchen']},
+  {name: 'Kitchen', fields: ['raw_sugar','sugar_container','raw_milkmaid','raw_smp','raw_tea_powder','tea_powder_container','tea_sugar_boxes','coffee_powder','honey','lemons','oil','plain_buns','water_bottles_kitchen','niloufer_kitchen','osmania_packets_kitchen','fried_cutlets_kitchen','fried_samosa_kitchen','fried_cheese_balls_kitchen','malai','boiled_milk_kitchen','tea_decoction_kitchen']},
   {name: 'Display Counter', fields: ['water_bottles_display','niloufer_display','osmania_packets_display','osmania_loose_display','fried_cutlets_display','fried_samosa_display','fried_cheese_balls_display','prepared_bun_maska']},
   {name: 'Tea Counter', fields: ['boiled_milk_counter','tea_decoction_counter']},
 ];
@@ -1538,44 +1687,85 @@ function renderItemsSold(products) {
   return html;
 }
 
-function renderCountCheck(products, inventory) {
+function renderCountCheck(products, inventory, complimentaryProducts, wastageItems) {
   if (!products || !inventory) return '';
-  let html = `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Count Check — Missing Items</div>`;
+  complimentaryProducts = complimentaryProducts || {};
+  wastageItems = wastageItems || [];
+
+  // Pre-compute wasted units per count-check raw material from wastage items
+  const wastedUnits = {};
+  for (const w of wastageItems) {
+    if (w.item && w.state) {
+      // New format: {item, state, qty}
+      const wastageKey = COUNT_CHECK_WASTAGE_MAP ? Object.entries(COUNT_CHECK_WASTAGE_MAP).find(([rmId, itemKey]) => itemKey === w.item) : null;
+      if (wastageKey) {
+        wastedUnits[wastageKey[0]] = (wastedUnits[wastageKey[0]] || 0) + (w.qty || 0);
+      }
+    } else if (w.material_id) {
+      // Old format: {material_id, qty} — direct raw material
+      wastedUnits[String(w.material_id)] = (wastedUnits[String(w.material_id)] || 0) + (w.qty || 0);
+    }
+  }
+
+  // Check if any comp items exist
+  const hasComp = Object.keys(complimentaryProducts).length > 0;
+
+  let html = `<div class="section"><div class="section-title"><span class="sec-icon">📋</span> Count Check — Inventory Tracking</div>`;
   html += `<div style="overflow-x:auto;margin-top:8px"><table class="inv-table">
-    <tr><th>Item</th><th style="text-align:right">Opening</th><th style="text-align:right">Bought</th><th style="text-align:right">Sold</th><th style="text-align:right">Should Be</th><th style="text-align:right">Counted</th><th style="text-align:right">Missing</th></tr>`;
-  let totalMissing = 0;
+    <tr><th>Item</th><th style="text-align:right">Opening</th><th style="text-align:right">Bought</th><th style="text-align:right">Sold</th>${hasComp ? '<th style="text-align:right">Comp</th>' : ''}<th style="text-align:right">Should Be</th><th style="text-align:right">Counted</th><th style="text-align:right">Wasted</th><th style="text-align:right">Missing</th></tr>`;
+
+  let totalWasted = 0, totalMissing = 0;
   for (const item of COUNT_CHECK_ITEMS) {
     const opening = inventory.opening?.[item.rmId] || 0;
     const purchased = inventory.purchases?.[item.rmId]?.qty || inventory.purchases?.[item.rmId] || 0;
     const closing = inventory.closing?.[item.rmId] || 0;
-    // Calculate total sold from POS products
+    // Sold = only paid orders
     let sold = 0;
     for (const src of item.sources) {
       const p = products[String(src.pid)];
       if (p) sold += p.qty * src.mult;
     }
-    const shouldBe = Math.round((opening + purchased - sold) * 100) / 100;
-    const missing = Math.round((shouldBe - closing) * 100) / 100;
+    // Comp = complimentary orders for same products
+    let comp = 0;
+    for (const src of item.sources) {
+      const cp = complimentaryProducts[String(src.pid)];
+      if (cp) comp += cp.qty * src.mult;
+    }
+    // Sold should exclude comp (API products already includes comp, so subtract)
+    const paidSold = Math.max(0, sold - comp);
+    const shouldBe = Math.round((opening + purchased - paidSold - comp) * 100) / 100;
+    const wasted = wastedUnits[item.rmId] || 0;
+    const missing = Math.round((shouldBe - closing - wasted) * 100) / 100;
+    totalWasted += wasted;
     totalMissing += Math.max(0, missing);
+
     const rowStyle = missing > 0 ? 'background:rgba(239,68,68,0.08)' : missing < 0 ? 'background:rgba(234,179,8,0.08)' : '';
-    const missingStr = missing === 0 ? '<span style="color:var(--green);font-weight:600">✓ 0</span>'
-      : missing > 0 ? `<span style="color:var(--red);font-weight:700">−${missing}</span>`
+    const missingStr = missing === 0 ? '<span style="color:var(--green);font-weight:600">0</span>'
+      : missing > 0 ? `<span style="color:var(--red);font-weight:700">${missing}</span>`
       : `<span style="color:var(--yellow);font-weight:600">+${Math.abs(missing)}</span>`;
+    const wastedStr = wasted > 0 ? `<span style="color:var(--orange);font-weight:600">${wasted}</span>` : '—';
+    const compStr = comp > 0 ? `<span style="color:var(--purple);font-weight:600">${comp}</span>` : '—';
+
     html += `<tr style="${rowStyle}">
       <td style="font-weight:500">${item.name}</td>
       <td class="num">${opening}</td>
       <td class="num">${purchased > 0 ? purchased : '—'}</td>
-      <td class="num" style="color:var(--cyan)">${sold}</td>
+      <td class="num" style="color:var(--cyan)">${paidSold}</td>
+      ${hasComp ? `<td class="num">${compStr}</td>` : ''}
       <td class="num">${shouldBe}</td>
       <td class="num">${closing}</td>
+      <td class="num">${wastedStr}</td>
       <td class="num">${missingStr}</td>
     </tr>`;
   }
   html += `</table></div>`;
-  if (totalMissing > 0) {
-    html += `<div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,0.08);border-radius:8px;font-size:13px;color:var(--red)">
-      <strong>${totalMissing} items</strong> consumed but not recorded in POS (staff meals / complimentary / waste)
-    </div>`;
+
+  // Summary badges
+  const summaryParts = [];
+  if (totalWasted > 0) summaryParts.push(`<span class="badge badge-orange">${totalWasted} wasted (recorded)</span>`);
+  if (totalMissing > 0) summaryParts.push(`<span class="badge badge-red">${totalMissing} missing (unaccounted)</span>`);
+  if (summaryParts.length > 0) {
+    html += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${summaryParts.join('')}</div>`;
   }
   html += `</div>`;
   return html;
@@ -1655,8 +1845,9 @@ function renderPnlResult(data) {
   // Section A: Items Sold
   html += renderItemsSold(data.products);
 
-  // Section B: Count Check
-  html += renderCountCheck(data.products, data.inventory);
+  // Section B: Count Check (with comp and wastage separation)
+  const wastageItemsForReport = data.rawInput?.wastage_items || data.wastageItems || [];
+  html += renderCountCheck(data.products, data.inventory, data.complimentaryProducts, wastageItemsForReport);
 
   // Section C: Beverage Consumption
   html += renderBeverageConsumption(data.products, data.inventory);
@@ -1664,7 +1855,7 @@ function renderPnlResult(data) {
   // ── Inventory Movement (visible to all) ──
   if (data.inventory) {
     html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-    html += renderInventoryMovement(data.inventory);
+    html += renderInventoryMovement(data.inventory, data.inventory?.wastedRawMaterials);
     html += `</div>`;
   }
 
@@ -1702,7 +1893,8 @@ function renderInventoryTable(inv) {
   return html;
 }
 
-function renderInventoryMovement(inv) {
+function renderInventoryMovement(inv, wastedRawMaterials) {
+  wastedRawMaterials = wastedRawMaterials || {};
   const allMats = new Set([
     ...Object.keys(inv.opening || {}),
     ...Object.keys(inv.closing || {}),
@@ -1710,7 +1902,7 @@ function renderInventoryMovement(inv) {
   ]);
 
   let html = `<div style="overflow-x:auto"><table class="inv-table">
-    <tr><th>Material</th><th style="text-align:right">Opening</th><th style="text-align:right">Purchased</th><th style="text-align:right">Closing</th><th style="text-align:right">Consumed</th><th style="text-align:right">Expected</th></tr>`;
+    <tr><th>Material</th><th style="text-align:right">Opening</th><th style="text-align:right">Purchased</th><th style="text-align:right">Closing</th><th style="text-align:right">Consumed</th><th style="text-align:right">Expected</th><th style="text-align:right">Wasted</th><th style="text-align:right">Missing</th></tr>`;
 
   const sorted = [...allMats].sort((a, b) => (RAW_MATERIALS[a]?.name || '').localeCompare(RAW_MATERIALS[b]?.name || ''));
   for (const matId of sorted) {
@@ -1722,7 +1914,18 @@ function renderInventoryMovement(inv) {
     const closing = inv.closing?.[matId] || 0;
     const consumed = inv.consumption?.[matId] || 0;
     const expected = inv.expected?.[matId] || 0;
+    const wasted = wastedRawMaterials[matId] || 0;
     if (opening < 0.0001 && purchased < 0.0001 && closing < 0.0001) continue;
+
+    // Missing = consumed - expected - wasted (old "discrepancy" minus wastage)
+    const discrepancy = consumed - expected;
+    const missing = discrepancy - wasted;
+    const missingRounded = Math.round(missing * 10000) / 10000;
+
+    const wastedStr = wasted > 0 ? `<span style="color:var(--orange)">${fmtQty(wasted, uom)}</span>` : '—';
+    const missingStr = Math.abs(missingRounded) < 0.0001 ? '—'
+      : missingRounded > 0 ? `<span style="color:var(--red)">${fmtQty(missingRounded, uom)}</span>`
+      : `<span style="color:var(--yellow)">+${fmtQty(Math.abs(missingRounded), uom)}</span>`;
 
     html += `<tr>
       <td>${mat.name}</td>
@@ -1731,6 +1934,8 @@ function renderInventoryMovement(inv) {
       <td class="num">${fmtQty(closing, uom)}</td>
       <td class="num">${consumed > 0 ? fmtQty(consumed, uom) : '—'}</td>
       <td class="num">${expected > 0 ? fmtQty(expected, uom) : '—'}</td>
+      <td class="num">${wastedStr}</td>
+      <td class="num">${missingStr}</td>
     </tr>`;
   }
   html += '</table></div>';
@@ -1820,7 +2025,11 @@ async function loadSettlementDetail(id) {
       }
 
       // Parse all inventory data
-      const products = JSON.parse(s.revenue_breakdown || '{}');
+      const revenueData = JSON.parse(s.revenue_breakdown || '{}');
+      // Extract complimentary if embedded (new format: {__complimentary: {...}, ...products})
+      const complimentaryProducts = revenueData.__complimentary || {};
+      delete revenueData.__complimentary;
+      const products = revenueData;
       const inventory = {
         opening: JSON.parse(s.inventory_opening || '{}'),
         purchases: JSON.parse(s.inventory_purchases || '{}'),
@@ -1828,6 +2037,21 @@ async function loadSettlementDetail(id) {
         consumption: JSON.parse(s.inventory_consumption || '{}'),
         expected: JSON.parse(s.inventory_expected || '{}'),
       };
+
+      // Parse wastage items and compute wastedRawMaterials from stored data
+      const storedWastage = JSON.parse(s.wastage_items || '[]');
+      const wastedRawMaterials = {};
+      for (const w of storedWastage) {
+        if (w.item && w.state && WASTAGE_DECOMPOSITION[w.item]?.[w.state]) {
+          // New format: decompose via state
+          for (const [matId, qtyPerUnit] of Object.entries(WASTAGE_DECOMPOSITION[w.item][w.state])) {
+            wastedRawMaterials[matId] = (wastedRawMaterials[matId] || 0) + (w.qty || 0) * qtyPerUnit;
+          }
+        } else if (w.material_id) {
+          // Old format: direct raw material
+          wastedRawMaterials[String(w.material_id)] = (wastedRawMaterials[String(w.material_id)] || 0) + (w.qty || 0);
+        }
+      }
 
       // ── Print header (hidden on screen, visible in PDF) ──
       const periodStrFull = s.period_start && s.period_end
@@ -1852,15 +2076,15 @@ async function loadSettlementDetail(id) {
       // Section A: Items Sold
       html += renderItemsSold(products);
 
-      // Section B: Count Check
-      html += renderCountCheck(products, inventory);
+      // Section B: Count Check (with comp and wastage separation)
+      html += renderCountCheck(products, inventory, complimentaryProducts, storedWastage);
 
       // Section C: Beverage Consumption
       html += renderBeverageConsumption(products, inventory);
 
       // ── Inventory Movement (visible to all) ──
       html += `<div class="section"><div class="section-title"><span class="sec-icon">📦</span> Inventory Movement <span style="font-size:11px;background:rgba(168,85,247,0.15);color:var(--purple);padding:2px 8px;border-radius:4px;margin-left:8px">DECOMPOSED</span></div>`;
-      html += renderInventoryMovement(inventory);
+      html += renderInventoryMovement(inventory, wastedRawMaterials);
       html += `</div>`;
 
       // Runner tokens
