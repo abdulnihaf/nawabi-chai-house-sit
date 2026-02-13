@@ -1212,7 +1212,7 @@ export async function onRequest(context) {
     }
 
     // ─── BACKFILL ODOO INVENTORY ─────────────────────────────
-    // One-time sync: reads latest D1 closing stock → writes to Odoo stock.quant
+    // One-time sync: closing stock + receipts since settlement → Odoo stock.quant
     if (action === 'backfill-odoo-inventory') {
       const pin = url.searchParams.get('pin');
       if (pin !== '0305') return json({success: false, error: 'Owner PIN required'}, corsHeaders);
@@ -1224,15 +1224,43 @@ export async function onRequest(context) {
       if (!latest) return json({success: false, error: 'No settlement found'}, corsHeaders);
 
       const closingStock = JSON.parse(latest.inventory_closing || '{}');
+
+      // Add receipts confirmed after the settlement (so Odoo = closing + received since)
+      const sinceUTC = new Date(latest.settled_at).toISOString().slice(0, 19).replace('T', ' ');
+      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'search_read',
+        [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
+          ['date_done', '>=', sinceUTC], ['company_id', '=', 10]]],
+        {fields: ['id', 'move_ids'], limit: 50});
+
+      const received = {};
+      const allMoveIds = pickings.flatMap(p => p.move_ids || []);
+      if (allMoveIds.length > 0) {
+        const moves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.move', 'read', [allMoveIds],
+          {fields: ['product_id', 'quantity']});
+        for (const m of moves) {
+          const pid = String(m.product_id[0]);
+          received[pid] = (received[pid] || 0) + (m.quantity || 0);
+        }
+      }
+
+      // Target = closing + received since settlement
+      const target = {...closingStock};
+      for (const [pid, qty] of Object.entries(received)) {
+        target[pid] = (target[pid] || 0) + qty;
+      }
+
       const syncResult = await syncInventoryToOdoo(
-        ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, closingStock, 10);
+        ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, target, 10);
 
       return json({
         success: true,
-        message: `Backfilled Odoo inventory from settlement #${latest.id} (${latest.settlement_date})`,
+        message: `Backfilled Odoo inventory from settlement #${latest.id} (${latest.settlement_date}) + ${Object.keys(received).length} received products since`,
         settlementId: latest.id,
         settlementDate: latest.settlement_date,
         settledAt: latest.settled_at,
+        receivedSince: received,
         syncResult,
       }, corsHeaders);
     }
