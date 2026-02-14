@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Token Settlement</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:24px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
+    .pin-input input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(249,115,22,0.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,0.1)}
+    .pin-error{color:var(--red);font-size:13px;margin-top:8px;display:none}
+    .pin-success{display:none;align-items:center;gap:8px;justify-content:center;color:var(--green);font-weight:600;margin-top:16px}
+    .pin-success.show{display:flex}
+    .dashboard{display:none;min-height:100vh}
+    .dashboard.show{display:block}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:20px;display:flex;align-items:center;gap:8px}
+    .header h1::before{content:'';width:4px;height:24px;background:var(--orange);border-radius:2px}
+    .user-badge{display:flex;align-items:center;gap:12px}
+    .user-badge .dot{width:8px;height:8px;background:var(--green);border-radius:50%}
+    .user-badge .name{font-weight:600}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+    .logout-btn:hover{background:var(--border)}
+    .content{padding:24px;max-width:700px;margin:0 auto}
+    .status-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
+    .status-card h3{font-size:16px;margin-bottom:4px}
+    .status-card .period{font-size:13px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:4px}
+    .status-card .elapsed{font-size:12px;color:var(--orange)}
+    .weight-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
+    .weight-section h3{font-size:16px;margin-bottom:16px}
+    .weight-row{display:flex;gap:12px;align-items:flex-end}
+    .weight-field{flex:1}
+    .weight-field label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
+    .weight-field input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:24px;padding:12px;font-family:'JetBrains Mono',monospace;text-align:center}
+    .weight-field input:focus{outline:none;border-color:var(--orange)}
+    .token-estimate{background:var(--bg2);border-radius:10px;padding:16px;text-align:center;min-width:140px}
+    .token-estimate .count{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--orange)}
+    .token-estimate .label{font-size:11px;color:var(--text2);margin-top:4px}
+    .btn{width:100%;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:16px}
+    .btn:hover{transform:translateY(-1px)}
+    .btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+    .btn-preview{background:var(--blue);color:#fff}
+    .btn-preview:hover{background:#2563eb}
+    .btn-settle{background:var(--green);color:#fff}
+    .btn-settle:hover{background:#16a34a}
+    .btn-bootstrap{background:var(--orange);color:#fff}
+    .btn-bootstrap:hover{background:#ea580c}
+    .preview-card{background:var(--card);border:2px solid var(--orange);border-radius:16px;padding:24px;margin-bottom:24px;display:none}
+    .preview-card.show{display:block}
+    .preview-card h3{font-size:16px;margin-bottom:16px}
+    .breakdown-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+    .breakdown-table th{text-align:left;color:var(--text2);font-weight:500;padding:8px 0;border-bottom:2px solid var(--border)}
+    .breakdown-table th:not(:first-child){text-align:right}
+    .breakdown-table td{padding:8px 0;border-bottom:1px solid var(--border)}
+    .breakdown-table td:not(:first-child){text-align:right;font-family:'JetBrains Mono',monospace;font-weight:500}
+    .breakdown-table tr.total-row td{border-top:2px solid var(--border);font-weight:700;padding-top:12px}
+    .breakdown-table tr.spacer td{border-bottom:none;padding:4px 0}
+    .result-row{display:flex;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-radius:10px;margin-bottom:8px}
+    .result-row .label{color:var(--text2);font-size:14px}
+    .result-row .value{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:16px}
+    .discrepancy-box{border-radius:10px;padding:16px;text-align:center;margin:16px 0}
+    .discrepancy-box .disc-value{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .discrepancy-box .disc-label{font-size:12px;margin-top:4px}
+    .disc-green{background:rgba(34,197,94,0.1);border:1px solid var(--green);color:var(--green)}
+    .disc-yellow{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);color:var(--yellow)}
+    .disc-red{background:rgba(239,68,68,0.1);border:1px solid var(--red);color:var(--red)}
+    .info-row{display:flex;gap:12px;margin-top:12px}
+    .info-chip{flex:1;background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text2);text-align:center}
+    .info-chip .chip-val{font-size:16px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text);margin-bottom:2px}
+    .notes-field{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px;font-family:'Plus Jakarta Sans',sans-serif;margin-top:12px;resize:vertical;min-height:60px}
+    .notes-field:focus{outline:none;border-color:var(--orange)}
+    .history-section{margin-top:32px}
+    .history-section h3{font-size:16px;color:var(--text2);margin-bottom:16px}
+    .history-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+    .history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .history-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .history-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .history-badge.green{background:rgba(34,197,94,0.15);color:var(--green)}
+    .history-badge.yellow{background:rgba(234,179,8,0.15);color:var(--yellow)}
+    .history-badge.red{background:rgba(239,68,68,0.15);color:var(--red)}
+    .history-detail{font-size:12px;color:var(--text2);line-height:1.6}
+    .history-detail span{font-family:'JetBrains Mono',monospace;color:var(--text);font-weight:500}
+    .loading{text-align:center;color:var(--text2);padding:40px}
+    .bootstrap-card{background:var(--card);border:2px dashed var(--orange);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px}
+    .bootstrap-card .icon{font-size:48px;margin-bottom:16px}
+    .bootstrap-card h3{font-size:20px;margin-bottom:8px}
+    .bootstrap-card p{color:var(--text2);font-size:14px;margin-bottom:20px}
+    .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:13px;margin-bottom:16px}
+    .back-link:hover{color:var(--text)}
+    @media(max-width:500px){
+      .weight-row{flex-direction:column}
+      .token-estimate{min-width:auto}
+      .header{padding:12px 16px}
+      .content{padding:16px}
+      .info-row{flex-direction:column}
+    }
+  </style>
+</head>
+<body>
+  <!-- PIN Screen -->
+  <div class="pin-screen" id="pinScreen">
+    <div class="pin-box">
+      <div class="icon">&#9878;&#65039;</div>
+      <h2>Token Settlement</h2>
+      <p>Enter your PIN to continue</p>
+      <div class="pin-input" id="pinInput">
+        <input type="tel" maxlength="1" inputmode="numeric" autocomplete="off">
+        <input type="tel" maxlength="1" inputmode="numeric" autocomplete="off">
+        <input type="tel" maxlength="1" inputmode="numeric" autocomplete="off">
+        <input type="tel" maxlength="1" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="pin-error" id="pinError">Invalid PIN</div>
+      <div class="pin-success" id="pinSuccess">
+        <span>&#10003;</span> Welcome, <span id="pinUser"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+    <div class="header">
+      <h1>Token Settlement</h1>
+      <div class="user-badge">
+        <div class="dot"></div>
+        <span class="name" id="userName"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="content">
+      <a href="/ops/" class="back-link">&larr; Back to Operations</a>
+
+      <!-- Bootstrap (no prior settlement) -->
+      <div class="bootstrap-card" id="bootstrapCard" style="display:none">
+        <div class="icon">&#128230;</div>
+        <h3>Start Token Tracking</h3>
+        <p>Empty the token box and press below to begin. This records the starting timestamp &mdash; all future settlements measure from here.</p>
+        <button class="btn btn-bootstrap" onclick="bootstrap()">Start Token Tracking</button>
+      </div>
+
+      <!-- Active tracking -->
+      <div id="activeSection" style="display:none">
+        <!-- Period status -->
+        <div class="status-card" id="statusCard">
+          <h3>Current Period</h3>
+          <div class="period" id="periodText">Loading...</div>
+          <div class="elapsed" id="elapsedText"></div>
+        </div>
+
+        <!-- Weight input -->
+        <div class="weight-section">
+          <h3>Weigh Token Box</h3>
+          <div class="weight-row">
+            <div class="weight-field">
+              <label>Gross weight (kg)</label>
+              <input type="number" id="weightInput" step="0.001" min="0.338" placeholder="0.000" oninput="updateEstimate()">
+            </div>
+            <div class="token-estimate">
+              <div class="count" id="estimateCount">-</div>
+              <div class="label">tokens (est.)</div>
+            </div>
+          </div>
+          <button class="btn btn-preview" id="previewBtn" onclick="previewSettlement()" disabled>Preview Settlement</button>
+        </div>
+
+        <!-- Preview result -->
+        <div class="preview-card" id="previewCard">
+          <h3>Settlement Preview</h3>
+          <div id="previewContent"></div>
+          <textarea class="notes-field" id="notesInput" placeholder="Optional notes..."></textarea>
+          <button class="btn btn-settle" id="settleBtn" onclick="settle()">Settle &amp; Empty Box</button>
+        </div>
+
+        <!-- History -->
+        <div class="history-section">
+          <h3>Settlement History</h3>
+          <div id="historyList"><div class="loading">Loading history...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = '/api/token-settlement';
+const BOX_TARE = 0.338;
+const TOKEN_WEIGHT = 0.00110;
+let currentUser = null;
+let lastSettlement = null;
+let previewData = null;
+
+// ── PIN ──
+const pinInputs = document.querySelectorAll('#pinInput input');
+pinInputs.forEach((inp, i) => {
+  inp.addEventListener('input', () => {
+    if (inp.value) {
+      inp.classList.add('filled');
+      if (i < 3) pinInputs[i + 1].focus();
+      if (i === 3) checkPin();
+    }
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !inp.value && i > 0) {
+      pinInputs[i - 1].focus();
+      pinInputs[i - 1].value = '';
+      pinInputs[i - 1].classList.remove('filled');
+    }
+  });
+});
+pinInputs[0].focus();
+
+async function checkPin() {
+  const pin = Array.from(pinInputs).map(i => i.value).join('');
+  if (pin.length !== 4) return;
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${pin}`);
+    const data = await res.json();
+    if (data.success) {
+      currentUser = data.user;
+      document.getElementById('pinUser').textContent = data.user;
+      document.getElementById('pinSuccess').classList.add('show');
+      document.getElementById('pinError').style.display = 'none';
+      setTimeout(() => {
+        document.getElementById('pinScreen').classList.add('hidden');
+        document.getElementById('dashboard').classList.add('show');
+        document.getElementById('userName').textContent = data.user;
+        loadStatus();
+      }, 600);
+    } else {
+      document.getElementById('pinError').style.display = 'block';
+      pinInputs.forEach(i => { i.value = ''; i.classList.remove('filled'); });
+      pinInputs[0].focus();
+    }
+  } catch (e) {
+    document.getElementById('pinError').textContent = 'Connection error';
+    document.getElementById('pinError').style.display = 'block';
+  }
+}
+
+// ── Status ──
+async function loadStatus() {
+  try {
+    const res = await fetch(`${API}?action=get-status`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    if (!data.lastSettlement) {
+      document.getElementById('bootstrapCard').style.display = 'block';
+      document.getElementById('activeSection').style.display = 'none';
+    } else {
+      lastSettlement = data.lastSettlement;
+      document.getElementById('bootstrapCard').style.display = 'none';
+      document.getElementById('activeSection').style.display = 'block';
+      updatePeriodDisplay();
+      loadHistory();
+    }
+  } catch (e) {
+    console.error('loadStatus error:', e);
+  }
+}
+
+function updatePeriodDisplay() {
+  if (!lastSettlement) return;
+  const since = new Date(lastSettlement.settled_at);
+  const now = new Date();
+  const diffMs = now - since;
+  const hours = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+
+  const istStr = since.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true});
+  document.getElementById('periodText').textContent = `Since ${istStr}`;
+  document.getElementById('elapsedText').textContent = `${hours}h ${mins}m ago`;
+}
+
+// ── Bootstrap ──
+async function bootstrap() {
+  try {
+    const res = await fetch(`${API}?action=bootstrap`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({settled_by: currentUser})
+    });
+    const data = await res.json();
+    if (data.success) {
+      lastSettlement = {settled_at: data.settled_at, is_bootstrap: 1};
+      document.getElementById('bootstrapCard').style.display = 'none';
+      document.getElementById('activeSection').style.display = 'block';
+      updatePeriodDisplay();
+      loadHistory();
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Weight estimate ──
+function updateEstimate() {
+  const w = parseFloat(document.getElementById('weightInput').value);
+  const btn = document.getElementById('previewBtn');
+  if (!w || w < BOX_TARE) {
+    document.getElementById('estimateCount').textContent = '-';
+    btn.disabled = true;
+    return;
+  }
+  const count = Math.round((w - BOX_TARE) / TOKEN_WEIGHT);
+  document.getElementById('estimateCount').textContent = '~' + count;
+  btn.disabled = false;
+  // Hide previous preview if weight changes
+  document.getElementById('previewCard').classList.remove('show');
+  previewData = null;
+}
+
+// ── Preview ──
+async function previewSettlement() {
+  const btn = document.getElementById('previewBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching Odoo data...';
+
+  try {
+    const periodStart = lastSettlement.settled_at;
+    const periodEnd = new Date().toISOString();
+    const res = await fetch(`${API}?action=get-beverage-data&from=${encodeURIComponent(periodStart)}&to=${encodeURIComponent(periodEnd)}`);
+    const data = await res.json();
+    if (!data.success) { alert(data.error); return; }
+
+    const w = parseFloat(document.getElementById('weightInput').value);
+    const tokenCount = Math.round((w - BOX_TARE) / TOKEN_WEIGHT);
+    const discrepancy = tokenCount - data.expected;
+
+    previewData = {counter: data.counter, runner: data.runner, tokenIssue: data.tokenIssue, expected: data.expected, runnerUnsold: data.runnerUnsold, tokenCount, discrepancy, grossWeight: w};
+    renderPreview(previewData);
+    document.getElementById('previewCard').classList.add('show');
+  } catch (e) {
+    alert('Error fetching data: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Preview Settlement';
+  }
+}
+
+function renderPreview(d) {
+  const discAbs = Math.abs(d.discrepancy);
+  let discClass, discSign;
+  if (discAbs <= 2) { discClass = 'disc-green'; }
+  else if (discAbs <= 5) { discClass = 'disc-yellow'; }
+  else { discClass = 'disc-red'; }
+  discSign = d.discrepancy > 0 ? '+' : d.discrepancy < 0 ? '' : '';
+
+  document.getElementById('previewContent').innerHTML = `
+    <table class="breakdown-table">
+      <tr><th>Source</th><th>Chai</th><th>Coffee</th><th>Lemon</th><th>Total</th></tr>
+      <tr><td>Counter</td><td>${d.counter.chai}</td><td>${d.counter.coffee}</td><td>${d.counter.lemon_tea}</td><td>${d.counter.total}</td></tr>
+      <tr><td>Runner</td><td>${d.runner.chai}</td><td>${d.runner.coffee}</td><td>${d.runner.lemon_tea}</td><td>${d.runner.total}</td></tr>
+      <tr class="total-row"><td>Expected</td><td>${d.counter.chai + d.runner.chai}</td><td>${d.counter.coffee + d.runner.coffee}</td><td>${d.counter.lemon_tea + d.runner.lemon_tea}</td><td>${d.expected}</td></tr>
+    </table>
+    <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
+    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight.toFixed(3)} kg</span></div>
+    <div class="discrepancy-box ${discClass}">
+      <div class="disc-value">${discSign}${d.discrepancy}</div>
+      <div class="disc-label">Discrepancy (tokens ${'\u2212'} expected)</div>
+    </div>
+    <div class="info-row">
+      <div class="info-chip"><div class="chip-val">${d.tokenIssue.total}</div>Token Issue (to runners)</div>
+      <div class="info-chip"><div class="chip-val">${d.runnerUnsold}</div>Runner Unsold</div>
+    </div>
+  `;
+}
+
+// ── Settle ──
+async function settle() {
+  if (!previewData) return;
+  const btn = document.getElementById('settleBtn');
+  btn.disabled = true;
+  btn.textContent = 'Settling...';
+
+  try {
+    const notes = document.getElementById('notesInput').value.trim();
+    const res = await fetch(`${API}?action=settle`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({settled_by: currentUser, gross_weight_kg: previewData.grossWeight, notes})
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('previewCard').classList.remove('show');
+      document.getElementById('weightInput').value = '';
+      document.getElementById('estimateCount').textContent = '-';
+      document.getElementById('notesInput').value = '';
+      document.getElementById('previewBtn').disabled = true;
+      previewData = null;
+      // Reload status and history
+      loadStatus();
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Settle & Empty Box';
+  }
+}
+
+// ── History ──
+async function loadHistory() {
+  try {
+    const res = await fetch(`${API}?action=history`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    const list = document.getElementById('historyList');
+    if (!data.settlements.length) {
+      list.innerHTML = '<div class="loading">No settlements yet</div>';
+      return;
+    }
+
+    list.innerHTML = data.settlements.map(s => {
+      const discAbs = Math.abs(s.discrepancy || 0);
+      let badgeClass, badgeText;
+      if (discAbs <= 2) { badgeClass = 'green'; badgeText = discAbs === 0 ? 'Exact' : '\u00B1' + discAbs; }
+      else if (discAbs <= 5) { badgeClass = 'yellow'; badgeText = (s.discrepancy > 0 ? '+' : '') + s.discrepancy; }
+      else { badgeClass = 'red'; badgeText = (s.discrepancy > 0 ? '+' : '') + s.discrepancy; }
+
+      const dt = new Date(s.settled_at);
+      const dateStr = dt.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true});
+
+      return `<div class="history-item">
+        <div class="history-header">
+          <span class="history-date">${dateStr} &middot; ${s.settled_by}</span>
+          <span class="history-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="history-detail">
+          Weight: <span>${(s.gross_weight_kg || 0).toFixed(3)} kg</span> &rarr; <span>${s.token_count} tokens</span> &middot;
+          Expected: <span>${s.expected_tokens}</span> &middot;
+          Chai <span>${s.odoo_chai}</span> Coffee <span>${s.odoo_coffee}</span> Lemon <span>${s.odoo_lemon_tea}</span>
+          ${s.notes ? '<br>' + s.notes : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.error('loadHistory error:', e);
+  }
+}
+
+function logout() {
+  currentUser = null;
+  lastSettlement = null;
+  previewData = null;
+  document.getElementById('dashboard').classList.remove('show');
+  document.getElementById('pinScreen').classList.remove('hidden');
+  document.getElementById('pinSuccess').classList.remove('show');
+  document.getElementById('previewCard').classList.remove('show');
+  pinInputs.forEach(i => { i.value = ''; i.classList.remove('filled'); });
+  pinInputs[0].focus();
+}
+</script>
+</body>
+</html>
