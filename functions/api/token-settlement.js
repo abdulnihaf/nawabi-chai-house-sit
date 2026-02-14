@@ -45,13 +45,14 @@ export async function onRequest(context) {
     return data.result || [];
   }
 
+  const RUNNER_IDS = [64, 65, 66, 67, 68];
+  const RUNNER_NAMES = {64: 'FAROOQ', 65: 'AMIN', 66: 'Runner 03', 67: 'Runner 04', 68: 'Runner 05'};
+
   // ── Fetch beverage data for a period (POS 27 only) ──
   async function fetchBeverageData(periodStart, periodEnd) {
-    // Convert IST to UTC for Odoo
-    const fromUTC = new Date(new Date(periodStart).getTime() - 5.5 * 60 * 60 * 1000);
-    const toUTC = new Date(new Date(periodEnd).getTime() - 5.5 * 60 * 60 * 1000);
-    const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
-    const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
+    // Both D1 timestamps and Odoo date_order are stored in UTC — no conversion needed
+    const fromOdoo = new Date(periodStart).toISOString().slice(0, 19).replace('T', ' ');
+    const toOdoo = new Date(periodEnd).toISOString().slice(0, 19).replace('T', ' ');
 
     // 1. POS 27 orders only
     const orders = await odooCall('pos.order', 'search_read',
@@ -133,23 +134,117 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, ...data}), {headers: corsHeaders});
     }
 
+    // ── get-runner-context (per-runner Token Issue data from Odoo + last settlement) ──
+    if (action === 'get-runner-context') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+
+      // 1. Get last runner settlement per runner from D1
+      const lastSettlements = {};
+      for (const rid of RUNNER_IDS) {
+        const row = await DB.prepare('SELECT settled_at, unsold_tokens FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1').bind(rid).first();
+        lastSettlements[rid] = row ? {settledAt: row.settled_at, unsold: Math.round(row.unsold_tokens || 0)} : null;
+      }
+
+      // 2. Find earliest settlement time across all runners
+      let earliestTime = null;
+      for (const rid of RUNNER_IDS) {
+        if (lastSettlements[rid]) {
+          if (!earliestTime || lastSettlements[rid].settledAt < earliestTime) earliestTime = lastSettlements[rid].settledAt;
+        }
+      }
+      if (!earliestTime) earliestTime = '2026-01-01T00:00:00.000Z';
+
+      // 3. Query Odoo: Token Issue orders at POS 27 since earliest time, with runner partner_id
+      const fromOdoo = new Date(earliestTime).toISOString().slice(0, 19).replace('T', ' ');
+      const orders = await odooCall('pos.order', 'search_read',
+        [['config_id', '=', POS_CASH_COUNTER], ['date_order', '>=', fromOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']], ['partner_id', 'in', RUNNER_IDS]],
+        ['id', 'date_order', 'partner_id', 'payment_ids']
+      );
+
+      // 4. Filter to Token Issue orders only
+      const allPaymentIds = orders.flatMap(o => o.payment_ids);
+      const tokenIssueOrderIds = new Set();
+      if (allPaymentIds.length) {
+        const payments = await odooCall('pos.payment', 'search_read',
+          [['id', 'in', allPaymentIds]],
+          ['id', 'pos_order_id', 'payment_method_id']
+        );
+        for (const p of payments) {
+          if (p.payment_method_id[0] === PM_TOKEN_ISSUE) tokenIssueOrderIds.add(p.pos_order_id[0]);
+        }
+      }
+      const tokenIssueOrders = orders.filter(o => tokenIssueOrderIds.has(o.id));
+
+      // 5. Get beverage lines for these orders
+      const orderIds = tokenIssueOrders.map(o => o.id);
+      let bevLines = [];
+      if (orderIds.length) {
+        bevLines = await odooCall('pos.order.line', 'search_read',
+          [['order_id', 'in', orderIds], ['product_id', 'in', BEVERAGE_IDS]],
+          ['order_id', 'product_id', 'qty']
+        );
+      }
+
+      // Build order-to-runner map
+      const orderRunnerMap = {};
+      for (const o of tokenIssueOrders) orderRunnerMap[o.id] = {runnerId: o.partner_id[0], dateOrder: o.date_order};
+
+      // 6. Calculate per-runner issued since their last settlement
+      const runners = {};
+      for (const rid of RUNNER_IDS) {
+        const lastSett = lastSettlements[rid];
+        const sinceOdoo = lastSett ? new Date(lastSett.settledAt).toISOString().slice(0, 19).replace('T', ' ') : fromOdoo;
+        let issuedSince = 0;
+        for (const line of bevLines) {
+          const info = orderRunnerMap[line.order_id[0]];
+          if (info && info.runnerId === rid && info.dateOrder >= sinceOdoo) issuedSince += Math.round(line.qty);
+        }
+        const lastUnsold = lastSett ? lastSett.unsold : 0;
+        runners[rid] = {
+          name: RUNNER_NAMES[rid],
+          lastSettledAt: lastSett ? lastSett.settledAt : null,
+          lastUnsold,
+          issuedSince,
+          maxUnsold: lastUnsold + issuedSince
+        };
+      }
+
+      return new Response(JSON.stringify({success: true, runners}), {headers: corsHeaders});
+    }
+
+    // ── reset (delete all token box settlements for fresh start) ──
+    if (action === 'reset' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+      const body = await context.request.json();
+      if (!body.settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
+      await DB.prepare('DELETE FROM token_box_settlements').run();
+      return new Response(JSON.stringify({success: true, message: 'Token tracking reset. Bootstrap again to start fresh.'}), {headers: corsHeaders});
+    }
+
     // ── bootstrap ──
     if (action === 'bootstrap' && context.request.method === 'POST') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by} = body;
+      const {settled_by, unsold_tokens, unsold_detail} = body;
 
       const existing = await DB.prepare('SELECT id FROM token_box_settlements LIMIT 1').first();
-      if (existing) return new Response(JSON.stringify({success: false, error: 'Already bootstrapped. Use settle action.'}), {headers: corsHeaders});
+      if (existing) return new Response(JSON.stringify({success: false, error: 'Already bootstrapped. Use reset first, then bootstrap.'}), {headers: corsHeaders});
+
+      const runnerUnsold = unsold_tokens || 0;
+      let notesStr = 'Bootstrap — token tracking started';
+      if (unsold_detail && Object.keys(unsold_detail).length) {
+        const parts = Object.entries(unsold_detail).filter(([, v]) => v > 0).map(([name, qty]) => `${name}=${qty}`);
+        if (parts.length) notesStr += ' | Unsold: ' + parts.join(', ');
+      }
 
       const now = new Date().toISOString();
       await DB.prepare(`
         INSERT INTO token_box_settlements (settled_at, settled_by, period_start, period_end, is_bootstrap, runner_unsold_qty, carry_forward_qty, notes)
-        VALUES (?, ?, ?, ?, 1, 0, 0, 'Bootstrap — token tracking started')
-      `).bind(now, settled_by, now, now).run();
+        VALUES (?, ?, ?, ?, 1, ?, 0, ?)
+      `).bind(now, settled_by, now, now, runnerUnsold, notesStr).run();
 
-      return new Response(JSON.stringify({success: true, message: 'Token tracking started', settled_at: now}), {headers: corsHeaders});
+      return new Response(JSON.stringify({success: true, message: 'Token tracking started', settled_at: now, runnerUnsold}), {headers: corsHeaders});
     }
 
     // ── settle ──

@@ -52,11 +52,16 @@
     .runner-unsold h4{font-size:13px;color:var(--text2);margin-bottom:10px}
     .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
     .runner-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
-    .runner-item .rname{font-size:12px;color:var(--text2);margin-bottom:6px}
+    .runner-item .rname{font-size:12px;color:var(--text2);margin-bottom:4px}
+    .runner-item .rcontext{font-size:10px;color:var(--yellow);margin-bottom:4px;font-family:'JetBrains Mono',monospace}
+    .runner-item .rmax{font-size:10px;color:var(--text2);margin-top:3px}
     .runner-item input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:18px;padding:8px;font-family:'JetBrains Mono',monospace;text-align:center}
     .runner-item input:focus{outline:none;border-color:var(--orange)}
+    .runner-item input.over-max{border-color:var(--red);background:rgba(239,68,68,0.1)}
     .unsold-total{margin-top:10px;font-size:13px;color:var(--text2);text-align:right}
     .unsold-total span{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--orange)}
+    .reset-btn{background:none;border:1px solid var(--red);color:var(--red);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;margin-top:12px}
+    .reset-btn:hover{background:rgba(239,68,68,0.1)}
     .btn{width:100%;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:16px}
     .btn:hover{transform:translateY(-1px)}
     .btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
@@ -160,8 +165,16 @@
       <div class="bootstrap-card" id="bootstrapCard" style="display:none">
         <div class="icon">&#128230;</div>
         <h3>Start Token Tracking</h3>
-        <p>Empty the token box and press below to begin. This records the starting timestamp &mdash; all future settlements measure from here.</p>
-        <button class="btn btn-bootstrap" onclick="bootstrap()">Start Token Tracking</button>
+        <p>Empty the token box, then enter how many unsold tokens each runner currently has. The system will show Odoo data to help you verify.</p>
+        <div id="bootstrapRunnerSection" style="display:none">
+          <div class="runner-unsold" style="margin-top:16px">
+            <h4>Unsold tokens with runners right now</h4>
+            <div class="runner-grid" id="bootstrapRunnerGrid"></div>
+            <div class="unsold-total">Total unsold: <span id="bootstrapUnsoldTotal">0</span></div>
+          </div>
+        </div>
+        <button class="btn btn-preview" id="loadContextBtn" onclick="loadRunnerContext('bootstrap')" style="margin-top:16px">Load Runner Data from Odoo</button>
+        <button class="btn btn-bootstrap" id="bootstrapBtn" onclick="bootstrap()" style="display:none">Start Token Tracking</button>
       </div>
 
       <!-- Active tracking -->
@@ -172,6 +185,7 @@
           <div class="period" id="periodText">Loading...</div>
           <div class="elapsed" id="elapsedText"></div>
           <div class="carry-info" id="carryInfo" style="display:none"></div>
+          <button class="reset-btn" onclick="resetTokenTracking()">Reset &amp; Re-bootstrap</button>
         </div>
 
         <!-- Weight input -->
@@ -191,6 +205,7 @@
           <!-- Runner unsold tokens -->
           <div class="runner-unsold">
             <h4>Unsold tokens with runners</h4>
+            <button class="reset-btn" style="border-color:var(--blue);color:var(--blue);margin-bottom:10px" onclick="loadRunnerContext('settle')">Load Runner Context from Odoo</button>
             <div class="runner-grid" id="runnerGrid"></div>
             <div class="unsold-total">Total unsold: <span id="unsoldTotal">0</span></div>
           </div>
@@ -230,6 +245,7 @@ const RUNNERS = [
 let currentUser = null;
 let lastSettlement = null;
 let previewData = null;
+let runnerContext = null; // per-runner token issuance context from Odoo
 
 // ── PIN ──
 const pinInputs = document.querySelectorAll('#pinInput input');
@@ -281,33 +297,111 @@ async function checkPin() {
 }
 
 // ── Runner grid ──
-function initRunnerGrid() {
-  const grid = document.getElementById('runnerGrid');
-  grid.innerHTML = RUNNERS.map(r => `
+function buildRunnerGrid(containerId, prefix) {
+  const grid = document.getElementById(containerId);
+  grid.innerHTML = RUNNERS.map(r => {
+    const ctx = runnerContext ? runnerContext[r.id] : null;
+    const contextHtml = ctx ? `<div class="rcontext">issued: ${ctx.issuedSince} | prev unsold: ${ctx.lastUnsold}</div>` : '';
+    const maxHtml = ctx ? `<div class="rmax">max possible: ${ctx.maxUnsold}</div>` : '';
+    return `
     <div class="runner-item">
       <div class="rname">${r.name}</div>
-      <input type="number" id="unsold_${r.id}" value="0" min="0" inputmode="numeric" oninput="updateUnsoldTotal()">
-    </div>
-  `).join('');
+      ${contextHtml}
+      <input type="number" id="${prefix}_${r.id}" value="0" min="0" inputmode="numeric"
+        ${ctx ? `max="${ctx.maxUnsold}"` : ''}
+        oninput="updateUnsoldTotal('${prefix}')">
+      ${maxHtml}
+    </div>`;
+  }).join('');
 }
 
-function getUnsoldTokens() {
+function initRunnerGrid() {
+  buildRunnerGrid('runnerGrid', 'unsold');
+}
+
+function getUnsoldTokens(prefix) {
+  prefix = prefix || 'unsold';
   let total = 0;
   const detail = {};
   for (const r of RUNNERS) {
-    const val = parseInt(document.getElementById(`unsold_${r.id}`).value) || 0;
+    const el = document.getElementById(`${prefix}_${r.id}`);
+    if (!el) continue;
+    const val = parseInt(el.value) || 0;
     if (val > 0) detail[r.name] = val;
     total += val;
+    // Validate against max
+    const ctx = runnerContext ? runnerContext[r.id] : null;
+    if (ctx && val > ctx.maxUnsold) {
+      el.classList.add('over-max');
+    } else {
+      el.classList.remove('over-max');
+    }
   }
   return {total, detail};
 }
 
-function updateUnsoldTotal() {
-  const {total} = getUnsoldTokens();
-  document.getElementById('unsoldTotal').textContent = total;
-  // Hide preview if inputs change
-  document.getElementById('previewCard').classList.remove('show');
-  previewData = null;
+function updateUnsoldTotal(prefix) {
+  prefix = prefix || 'unsold';
+  const {total} = getUnsoldTokens(prefix);
+  const el = prefix === 'boot' ? document.getElementById('bootstrapUnsoldTotal') : document.getElementById('unsoldTotal');
+  if (el) el.textContent = total;
+  if (prefix === 'unsold') {
+    document.getElementById('previewCard').classList.remove('show');
+    previewData = null;
+  }
+}
+
+// ── Load runner context from Odoo ──
+async function loadRunnerContext(target) {
+  const btn = target === 'bootstrap' ? document.getElementById('loadContextBtn') : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading from Odoo...'; }
+  try {
+    const res = await fetch(`${API}?action=get-runner-context`);
+    const data = await res.json();
+    if (!data.success) { alert(data.error); return; }
+    runnerContext = data.runners;
+
+    if (target === 'bootstrap') {
+      buildRunnerGrid('bootstrapRunnerGrid', 'boot');
+      document.getElementById('bootstrapRunnerSection').style.display = 'block';
+      document.getElementById('bootstrapBtn').style.display = 'block';
+      if (btn) btn.style.display = 'none';
+    } else {
+      // Refresh settlement runner grid with context
+      buildRunnerGrid('runnerGrid', 'unsold');
+    }
+  } catch (e) {
+    alert('Error loading runner data: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Load Runner Data from Odoo'; }
+  }
+}
+
+// ── Reset ──
+async function resetTokenTracking() {
+  if (!confirm('This will delete all token settlement records and let you re-bootstrap. Are you sure?')) return;
+  try {
+    const res = await fetch(`${API}?action=reset`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({settled_by: currentUser})
+    });
+    const data = await res.json();
+    if (data.success) {
+      lastSettlement = null;
+      runnerContext = null;
+      document.getElementById('activeSection').style.display = 'none';
+      document.getElementById('bootstrapCard').style.display = 'block';
+      // Reset bootstrap UI
+      document.getElementById('bootstrapRunnerSection').style.display = 'none';
+      document.getElementById('bootstrapBtn').style.display = 'none';
+      document.getElementById('loadContextBtn').style.display = 'block';
+      document.getElementById('historyList').innerHTML = '<div class="loading">No settlements yet</div>';
+    } else {
+      alert(data.error);
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 // ── Status ──
@@ -356,16 +450,21 @@ function updatePeriodDisplay() {
 
 // ── Bootstrap ──
 async function bootstrap() {
+  const {total, detail} = getUnsoldTokens('boot');
+  const btn = document.getElementById('bootstrapBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
   try {
     const res = await fetch(`${API}?action=bootstrap`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({settled_by: currentUser})
+      body: JSON.stringify({settled_by: currentUser, unsold_tokens: total, unsold_detail: detail})
     });
     const data = await res.json();
     if (data.success) {
-      lastSettlement = {settled_at: data.settled_at, is_bootstrap: 1, runner_unsold_qty: 0};
+      lastSettlement = {settled_at: data.settled_at, is_bootstrap: 1, runner_unsold_qty: data.runnerUnsold || 0};
       document.getElementById('bootstrapCard').style.display = 'none';
       document.getElementById('activeSection').style.display = 'block';
+      initRunnerGrid();
       updatePeriodDisplay();
       loadHistory();
     } else {
@@ -373,6 +472,9 @@ async function bootstrap() {
     }
   } catch (e) {
     alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Start Token Tracking';
   }
 }
 
@@ -552,6 +654,7 @@ function logout() {
   currentUser = null;
   lastSettlement = null;
   previewData = null;
+  runnerContext = null;
   document.getElementById('dashboard').classList.remove('show');
   document.getElementById('pinScreen').classList.remove('hidden');
   document.getElementById('pinSuccess').classList.remove('show');
