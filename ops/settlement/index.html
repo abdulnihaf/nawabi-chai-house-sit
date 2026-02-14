@@ -1532,23 +1532,35 @@
         for(const id of runnerIds){
           const rp=runnerPeriods[id];
           const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
+          const prevUnsold=(rp&&rp.lastSettlement&&rp.lastSettlement.unsold_tokens)?parseFloat(rp.lastSettlement.unsold_tokens):0;
           if(rpFrom>=shiftFrom){
             // Runner's period starts at or after counter period — main nch-data covers it
             const runner=data.data.runners.find(x=>x.id===id);
             if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+              runner._prevUnsold=prevUnsold;
               allRunners.push(runner);
+            }else if(prevUnsold>0){
+              // Runner has no new activity but has carry-forward tokens from prev settlement
+              const rInfo=RUNNERS.find(r=>r.id===id);
+              allRunners.push({id,name:rInfo?.name||'Runner '+id,barcode:rInfo?.barcode||'',tokens:0,sales:0,upi:0,cashToCollect:0,crossPaymentCredit:0,crossPayments:[],_prevUnsold:prevUnsold});
             }
           }else{
             // Runner's period is earlier — needs separate fetch
             extraFetches.push(
-              fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
-                if(d.success){
-                  const runner=d.data.runners.find(x=>x.id===id);
-                  if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
-                    allRunners.push(runner);
+              (function(runnerId,runnerPrevUnsold){
+                return fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
+                  if(d.success){
+                    const runner=d.data.runners.find(x=>x.id===runnerId);
+                    if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+                      runner._prevUnsold=runnerPrevUnsold;
+                      allRunners.push(runner);
+                    }else if(runnerPrevUnsold>0){
+                      const rInfo=RUNNERS.find(r=>r.id===runnerId);
+                      allRunners.push({id:runnerId,name:rInfo?.name||'Runner '+runnerId,barcode:rInfo?.barcode||'',tokens:0,sales:0,upi:0,cashToCollect:0,crossPaymentCredit:0,crossPayments:[],_prevUnsold:runnerPrevUnsold});
+                    }
                   }
-                }
-              }).catch(()=>{/* skip runner on API error */})
+                }).catch(()=>{/* skip runner on API error */});
+              })(id,prevUnsold)
             );
           }
         }
@@ -1586,23 +1598,44 @@
           settledRunners:[]
         };
 
+        // Discrepancy cash: unattributed orders (runner_ledger_no_runner, token_issue_no_runner)
+        // These create cash obligations that no runner is charged for — add to expected
+        const discrepancyList=data.data.discrepancies||[];
+        let discrepancyCashAdd=0;
+        const discrepancyDetails=[];
+        for(const d of discrepancyList){
+          if(d.type==='runner_ledger_no_runner'||d.type==='token_issue_no_runner'){
+            discrepancyCashAdd+=(d.amount||0);
+            discrepancyDetails.push({type:d.type,amount:d.amount,order:d.order,label:d.message});
+          }
+        }
+        wizardData.discrepancyCashAdd=discrepancyCashAdd;
+        wizardData.discrepancyDetails=discrepancyDetails;
+
         // Active runners = all unsettled runners (for step 2 display)
         wizardData.activeRunners=allRunners;
 
-        // Init runner inputs for ALL runners with activity
-        wizardRunnerInputs=allRunners.map(r=>({
-          runner_id:r.id,
-          runner_name:r.name,
-          tokens:r.tokens,
-          sales:r.sales,
-          upi:r.upi,
-          crossPaymentCredit:r.crossPaymentCredit||0,
-          unsoldTokens:0,
-          cashCalculated:Math.max(0,r.cashToCollect),
-          cashCollected:Math.max(0,r.cashToCollect),
-          userEdited:false,
-          absent:false
-        }));
+        // Init runner inputs for ALL runners with activity (including carry-forward tokens)
+        wizardRunnerInputs=allRunners.map(r=>{
+          const prevUnsold=r._prevUnsold||0;
+          const totalTokens=r.tokens+prevUnsold;
+          const cashCalc=Math.max(0,(totalTokens+r.sales)-r.upi-(r.crossPaymentCredit||0));
+          return {
+            runner_id:r.id,
+            runner_name:r.name,
+            tokens:r.tokens,
+            sales:r.sales,
+            upi:r.upi,
+            prevUnsoldTokens:prevUnsold,
+            totalTokens:totalTokens,
+            crossPaymentCredit:r.crossPaymentCredit||0,
+            unsoldTokens:0,
+            cashCalculated:cashCalc,
+            cashCollected:cashCalc,
+            userEdited:false,
+            absent:false
+          };
+        });
 
         renderWizardStep1();
       }catch(e){
@@ -1697,7 +1730,7 @@
       }else{
         for(let i=0;i<wizardRunnerInputs.length;i++){
           const ri=wizardRunnerInputs[i];
-          const cashCalc=(ri.tokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit;
+          const cashCalc=(ri.totalTokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit;
           const clampedCalc=Math.max(0,cashCalc);
           ri.cashCalculated=clampedCalc;
           if(!ri.userEdited) ri.cashCollected=clampedCalc;
@@ -1714,14 +1747,18 @@
 
           html+='<div class="wizard-runner-card'+(ri.absent?' absent':'')+'" id="wizRunner'+i+'">'+
             '<div class="wrc-header"><span class="wrc-name">'+ri.runner_name+'</span><span class="wrc-badge">Unsettled — collect cash</span></div>'+
-            '<div class="wizard-row"><span class="wr-label">Tokens Issued</span><span class="wr-val">'+fmt(ri.tokens)+'</span></div>'+
+            (ri.prevUnsoldTokens>0?
+              '<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:var(--yellow)">🎫 Remaining tokens from prev: <strong>'+fmt(ri.prevUnsoldTokens)+'</strong></div>':'')+
+            '<div class="wizard-row"><span class="wr-label">Tokens'+(ri.prevUnsoldTokens>0?' (Total)':' Issued')+'</span><span class="wr-val">'+fmt(ri.totalTokens)+'</span></div>'+
+            (ri.prevUnsoldTokens>0?
+              '<div style="font-size:11px;color:var(--text2);padding:0 0 4px 12px">'+fmt(ri.prevUnsoldTokens)+' carried + '+fmt(ri.tokens)+' new</div>':'')+
             '<div class="wizard-row"><span class="wr-label">Sales (Snacks)</span><span class="wr-val">'+fmt(ri.sales)+'</span></div>'+
             '<div class="wizard-row"><span class="wr-label">UPI Collected (QR)</span><span class="wr-val" style="color:var(--blue)">'+fmt(ri.upi)+'</span></div>'+
             cpHtml+
-            (ri.tokens>0?
+            (ri.totalTokens>0?
               '<div class="wizard-input-group"><label>Unsold tokens (₹)</label>'+
-              '<input type="number" id="wizUnsold'+i+'" value="'+ri.unsoldTokens+'" min="0" max="'+ri.tokens+'" step="10" inputmode="numeric" oninput="updateRunnerCalc('+i+')" '+(ri.absent?'disabled':'')+'>'+
-              '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.tokens)+'</div></div>':'')+
+              '<input type="number" id="wizUnsold'+i+'" value="'+ri.unsoldTokens+'" min="0" max="'+ri.totalTokens+'" step="10" inputmode="numeric" oninput="updateRunnerCalc('+i+')" '+(ri.absent?'disabled':'')+'>'+
+              '<div style="font-size:11px;color:var(--text2);margin-top:4px">Max: '+fmt(ri.totalTokens)+'</div></div>':'')+
             '<div class="wrc-calc" id="wizCalc'+i+'">Cash to collect: '+fmt(clampedCalc)+'</div>'+
             overCollectNote+
             (cashCalc>=0?
@@ -1745,10 +1782,10 @@
       const ri=wizardRunnerInputs[idx];
       const unsoldInput=document.getElementById('wizUnsold'+idx);
       let unsold=parseFloat(unsoldInput?.value)||0;
-      if(unsold>ri.tokens){unsold=ri.tokens;if(unsoldInput)unsoldInput.value=unsold;}
+      if(unsold>ri.totalTokens){unsold=ri.totalTokens;if(unsoldInput)unsoldInput.value=unsold;}
       if(unsold<0){unsold=0;if(unsoldInput)unsoldInput.value=0;}
       ri.unsoldTokens=unsold;
-      const cashCalc=(ri.tokens-unsold+ri.sales)-ri.upi-ri.crossPaymentCredit;
+      const cashCalc=(ri.totalTokens-unsold+ri.sales)-ri.upi-ri.crossPaymentCredit;
       const clamped=Math.max(0,cashCalc);
       ri.cashCalculated=clamped;
       const calcEl=document.getElementById('wizCalc'+idx);
@@ -1821,7 +1858,7 @@
             const actualEl=document.getElementById('wizActual'+i);
             if(unsoldEl) ri.unsoldTokens=parseFloat(unsoldEl.value)||0;
             if(actualEl) ri.cashCollected=parseFloat(actualEl.value)||0;
-            ri.cashCalculated=(ri.tokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit;
+            ri.cashCalculated=(ri.totalTokens-ri.unsoldTokens+ri.sales)-ri.upi-ri.crossPaymentCredit;
             ri.cashCalculated=Math.max(0,ri.cashCalculated);
             ri.cashVariance=ri.cashCollected-ri.cashCalculated;
           }
@@ -1829,10 +1866,11 @@
       }
       wizardStep=3;updateWizardSteps();
 
-      // === SILENT UPI VARIANCE RESOLUTION ===
+      // === BIDIRECTIONAL VARIANCE RESOLUTION ===
       const v=wizardData.verification;
-      let unresolvedCounterQR=Math.max(0,(v.cashCounter?.variance)||0);
-      let unresolvedRCQR=Math.max(0,(v.runnerCounter?.variance)||0);
+      const counterQRVar=(v.cashCounter?.variance)||0;  // + = Odoo > Razorpay, - = Razorpay > Odoo
+      const rcQRVar=(v.runnerCounter?.variance)||0;
+      const discAdd=wizardData.discrepancyCashAdd||0;
       const resolutions=[];
 
       // Drawer variance (drawer entered vs expected drawer)
@@ -1844,38 +1882,67 @@
 
       // Total physical = drawer + newly collected from runners
       const totalPhysical=wizardDrawerCashEntered+runnerCollectedTotal;
-      // Total expected = drawer expected + runner expected
-      const totalExpected=wizardData.expectedDrawer+runnerExpectedTotal;
+      // Total expected = drawer expected + runner expected + discrepancy cash (unattributed orders)
+      const totalExpected=wizardData.expectedDrawer+runnerExpectedTotal+discAdd;
       const rawVariance=totalPhysical-totalExpected;
 
-      // Phase 1: Positive variance → Counter QR
-      let remainingExcess=Math.max(0,rawVariance);
-      if(remainingExcess>0&&unresolvedCounterQR>0){
-        const resolved=Math.min(remainingExcess,unresolvedCounterQR);
-        resolutions.push({source:'counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Counter QR): '+fmt(resolved)});
-        unresolvedCounterQR-=resolved;remainingExcess-=resolved;
-      }
-      // Phase 2: Remaining → Runner Counter QR
-      if(remainingExcess>0&&unresolvedRCQR>0){
-        const resolved=Math.min(remainingExcess,unresolvedRCQR);
-        resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Runner Counter QR): '+fmt(resolved)});
-        unresolvedRCQR-=resolved;remainingExcess-=resolved;
-      }
-      // Phase 3: Carry-forward from previous shift shortage
-      // If the previous shift was short (prevVariance < 0) and current has excess,
-      // the excess is recovering that shortage — not truly extra cash.
-      if(remainingExcess>0&&wizardData.prevVariance<0){
-        const shortage=Math.abs(wizardData.prevVariance);
-        const recovered=Math.min(remainingExcess,shortage);
-        resolutions.push({source:'prev_shift_carryforward',amount:recovered,resolved_by:'shortage_recovery',explanation:'Recovering '+fmt(recovered)+' shortage from '+(wizardData.lastShiftCashier||'previous')+' shift (was '+fmt(shortage)+' short)'});
-        remainingExcess-=recovered;
-      }
-      // Phase 4: Still remaining = unexplained
-      if(remainingExcess>0){
-        resolutions.push({source:'unexplained',amount:remainingExcess,resolved_by:'none',explanation:fmt(remainingExcess)+' unexplained extra cash'});
+      if(rawVariance>1){
+        // EXCESS CASH — resolve in order of likelihood
+        let remainingExcess=rawVariance;
+
+        // Phase E1: Counter QR (Odoo > Razorpay → cash recorded as UPI → excess cash)
+        if(remainingExcess>0&&counterQRVar>0){
+          const resolved=Math.min(remainingExcess,counterQRVar);
+          resolutions.push({source:'counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Counter QR): '+fmt(resolved)});
+          remainingExcess-=resolved;
+        }
+        // Phase E2: Runner Counter QR (same logic)
+        if(remainingExcess>0&&rcQRVar>0){
+          const resolved=Math.min(remainingExcess,rcQRVar);
+          resolutions.push({source:'runner_counter_qr_variance',amount:resolved,resolved_by:'physical_excess',explanation:'Cash payment recorded as UPI in Odoo (Runner Counter QR): '+fmt(resolved)});
+          remainingExcess-=resolved;
+        }
+        // Phase E3: Previous shift shortage recovery
+        if(remainingExcess>0&&wizardData.prevVariance<0){
+          const shortage=Math.abs(wizardData.prevVariance);
+          const recovered=Math.min(remainingExcess,shortage);
+          resolutions.push({source:'prev_shift_carryforward',amount:recovered,resolved_by:'shortage_recovery',explanation:'Recovering '+fmt(recovered)+' shortage from '+(wizardData.lastShiftCashier||'previous')+' shift (was '+fmt(shortage)+' short)'});
+          remainingExcess-=recovered;
+        }
+        // Phase E4: Unexplained excess
+        if(remainingExcess>0){
+          resolutions.push({source:'unexplained',amount:remainingExcess,resolved_by:'none',explanation:fmt(remainingExcess)+' unexplained extra cash'});
+        }
+      }else if(rawVariance<-1){
+        // CASH SHORT — resolve in order of likelihood
+        let remainingShortage=Math.abs(rawVariance);
+
+        // Phase S1: Counter QR (Razorpay > Odoo → UPI received but not recorded → less cash expected)
+        if(remainingShortage>0&&counterQRVar<0){
+          const explained=Math.min(remainingShortage,Math.abs(counterQRVar));
+          resolutions.push({source:'counter_qr_upi_excess',amount:-explained,resolved_by:'upi_not_recorded',explanation:fmt(explained)+' paid via Counter UPI but not recorded in Odoo — cash correctly short'});
+          remainingShortage-=explained;
+        }
+        // Phase S2: Runner Counter QR (same logic)
+        if(remainingShortage>0&&rcQRVar<0){
+          const explained=Math.min(remainingShortage,Math.abs(rcQRVar));
+          resolutions.push({source:'runner_counter_qr_upi_excess',amount:-explained,resolved_by:'upi_not_recorded',explanation:fmt(explained)+' paid via Runner Counter UPI but not recorded in Odoo — cash correctly short'});
+          remainingShortage-=explained;
+        }
+        // Phase S3: Previous shift overage recovery
+        if(remainingShortage>0&&wizardData.prevVariance>0){
+          const overage=wizardData.prevVariance;
+          const recovered=Math.min(remainingShortage,overage);
+          resolutions.push({source:'prev_shift_overage',amount:-recovered,resolved_by:'overage_correction',explanation:fmt(recovered)+' offset from '+(wizardData.lastShiftCashier||'previous')+' shift overage (had '+fmt(overage)+' extra)'});
+          remainingShortage-=recovered;
+        }
+        // Phase S4: Unexplained shortage
+        if(remainingShortage>0){
+          resolutions.push({source:'unexplained_shortage',amount:-remainingShortage,resolved_by:'none',explanation:fmt(remainingShortage)+' unexplained cash shortage'});
+        }
       }
 
-      const varianceResolved=resolutions.filter(r=>r.source!=='unexplained').reduce((s,r)=>s+r.amount,0);
+      const varianceResolved=resolutions.filter(r=>r.source!=='unexplained'&&r.source!=='unexplained_shortage').reduce((s,r)=>s+r.amount,0);
       const varianceUnresolved=rawVariance-varianceResolved;
       const absentObligation=wizardRunnerInputs.filter(r=>r.absent).reduce((s,r)=>s+r.cashCalculated,0);
 
@@ -1894,6 +1961,7 @@
         total_physical_cash:totalPhysical,
         expected_cash:totalExpected,
         raw_variance:rawVariance,
+        discrepancy_cash_addition:discAdd,
         variance_resolved:varianceResolved,
         variance_unresolved:varianceUnresolved,
         discrepancy_resolutions:resolutions
@@ -1915,6 +1983,13 @@
       for(const ri of wizardRunnerInputs){
         if(ri.absent) continue;
         html+='<div class="wizard-row"><span class="wr-label">+ '+ri.runner_name+' expected</span><span class="wr-val">+'+fmt(ri.cashCalculated)+'</span></div>';
+      }
+      if(discAdd>0){
+        const discOrders=wizardData.discrepancyDetails||[];
+        html+='<div class="wizard-row" style="border-top:1px dashed var(--border);padding-top:4px;margin-top:4px"><span class="wr-label" style="color:var(--orange)">+ Unattributed cash ('+discOrders.length+' order'+(discOrders.length>1?'s':'')+')</span><span class="wr-val" style="color:var(--orange)">+'+fmt(discAdd)+'</span></div>';
+        for(const d of discOrders){
+          html+='<div style="font-size:11px;color:var(--text2);padding:2px 0 2px 16px">└ '+d.order+': '+fmt(d.amount)+' — '+(d.type==='runner_ledger_no_runner'?'Runner Ledger no runner':'Token Issue no runner')+'</div>';
+        }
       }
       html+='<div class="wizard-row total"><span class="wr-label">Expected total</span><span class="wr-val">'+fmt(totalExpected)+'</span></div>';
       html+='</div>';
