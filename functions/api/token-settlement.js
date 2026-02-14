@@ -1,12 +1,12 @@
 // NCH Token Box Settlement — Cloudflare Worker
 // Weighs physical beverage tokens against Odoo POS sales to detect discrepancies
 //
-// Logic: ALL beverages sold at POS 27 (Cash Counter) only. Each sale = 1 physical token.
-// Direct sales (Cash/UPI/Card/Comp) → token drops in box immediately.
-// Token Issue (PM 48) → tokens go to runner → delivered to customer → dropped in box later.
-// At settlement, runners may have unsold tokens (manual input).
+// Logic: ALL beverages sold at POS 27 (Cash Counter) only.
+// Pink tokens (in box): Cash (37), UPI (38), Card (39) → dropped immediately.
+//                        Token Issue (48) → runner delivers, customer drops later.
+// NOT in box: Complimentary (49) → uses different colored token, excluded from count.
 // Carry-forward: previous unsold tokens appear in box next period but aren't in Odoo for that period.
-// Formula: expected = carry_forward + odoo_period_beverages - current_unsold
+// Formula: expected = carry_forward + (odoo_beverages - comp_beverages) - current_unsold
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json'};
@@ -28,6 +28,7 @@ export async function onRequest(context) {
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
   const PM_TOKEN_ISSUE = 48;
+  const PM_COMP = 49;
   const POS_CASH_COUNTER = 27;
 
   // ── Odoo JSON-RPC helper ──
@@ -61,14 +62,14 @@ export async function onRequest(context) {
     );
 
     if (!orders.length) {
-      return {total: 0, chai: 0, coffee: 0, lemon_tea: 0, tokenIssueQty: 0};
+      return {total: 0, chai: 0, coffee: 0, lemon_tea: 0, tokenIssueQty: 0, compQty: 0};
     }
 
     const orderIds = orders.map(o => o.id);
     const orderMap = {};
-    for (const o of orders) orderMap[o.id] = {hasTokenIssue: false};
+    for (const o of orders) orderMap[o.id] = {hasTokenIssue: false, isComp: false};
 
-    // 2. Payments — only to flag Token Issue orders (informational)
+    // 2. Payments — flag Token Issue (PM 48) and Complimentary (PM 49)
     const allPaymentIds = orders.flatMap(o => o.payment_ids);
     if (allPaymentIds.length) {
       const payments = await odooCall('pos.payment', 'search_read',
@@ -77,9 +78,9 @@ export async function onRequest(context) {
       );
       for (const p of payments) {
         const orderId = p.pos_order_id[0];
-        if (p.payment_method_id[0] === PM_TOKEN_ISSUE && orderMap[orderId]) {
-          orderMap[orderId].hasTokenIssue = true;
-        }
+        if (!orderMap[orderId]) continue;
+        if (p.payment_method_id[0] === PM_TOKEN_ISSUE) orderMap[orderId].hasTokenIssue = true;
+        if (p.payment_method_id[0] === PM_COMP) orderMap[orderId].isComp = true;
       }
     }
 
@@ -89,24 +90,31 @@ export async function onRequest(context) {
       ['order_id', 'product_id', 'qty']
     );
 
-    let chai = 0, coffee = 0, lemon_tea = 0, total = 0, tokenIssueQty = 0;
+    let chai = 0, coffee = 0, lemon_tea = 0, total = 0, tokenIssueQty = 0, compQty = 0;
     for (const line of lines) {
       const orderId = line.order_id[0];
       const productKey = BEVERAGE_NAMES[line.product_id[0]];
       const qty = Math.round(line.qty);
       if (!productKey) continue;
 
+      // Count all beverages for breakdown display
       if (productKey === 'chai') chai += qty;
       else if (productKey === 'coffee') coffee += qty;
       else if (productKey === 'lemon_tea') lemon_tea += qty;
-      total += qty;
 
-      if (orderMap[orderId] && orderMap[orderId].hasTokenIssue) {
-        tokenIssueQty += qty;
+      if (orderMap[orderId] && orderMap[orderId].isComp) {
+        // Complimentary — different token, NOT in box
+        compQty += qty;
+      } else {
+        // Pink token — goes in box (Cash/UPI/Card/Token Issue)
+        total += qty;
+        if (orderMap[orderId] && orderMap[orderId].hasTokenIssue) {
+          tokenIssueQty += qty;
+        }
       }
     }
 
-    return {total, chai, coffee, lemon_tea, tokenIssueQty};
+    return {total, chai, coffee, lemon_tea, tokenIssueQty, compQty};
   }
 
   try {
@@ -315,7 +323,7 @@ export async function onRequest(context) {
           periodStart, periodEnd,
           grossWeight: gross_weight_kg, tokenCount,
           odooTotal: bev.total, chai: bev.chai, coffee: bev.coffee, lemonTea: bev.lemon_tea,
-          tokenIssueQty: bev.tokenIssueQty,
+          tokenIssueQty: bev.tokenIssueQty, compQty: bev.compQty,
           carryForward, currentUnsold, expected, discrepancy
         }
       }), {headers: corsHeaders});

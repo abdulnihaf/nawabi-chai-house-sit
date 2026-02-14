@@ -517,7 +517,7 @@ async function previewSettlement() {
 
     previewData = {
       odooTotal: data.total, chai: data.chai, coffee: data.coffee, lemonTea: data.lemon_tea,
-      tokenIssueQty: data.tokenIssueQty,
+      tokenIssueQty: data.tokenIssueQty, compQty: data.compQty || 0,
       carryForward, unsoldTokens, unsoldDetail,
       expected, tokenCount, discrepancy, grossWeight: w
     };
@@ -539,18 +539,20 @@ function renderPreview(d) {
   else discClass = 'disc-red';
   const discSign = d.discrepancy > 0 ? '+' : '';
 
+  const allBev = d.odooTotal + d.compQty;
   document.getElementById('previewContent').innerHTML = `
     <table class="breakdown-table">
       <tr><th>Product</th><th>Chai</th><th>Coffee</th><th>Lemon Tea</th><th>Total</th></tr>
-      <tr><td>Beverages Sold (POS)</td><td>${d.chai}</td><td>${d.coffee}</td><td>${d.lemonTea}</td><td>${d.odooTotal}</td></tr>
+      <tr><td>All Beverages (POS)</td><td>${d.chai}</td><td>${d.coffee}</td><td>${d.lemonTea}</td><td>${allBev}</td></tr>
     </table>
     <div class="info-row" style="margin-bottom:16px">
-      <div class="info-chip"><div class="chip-val">${d.tokenIssueQty}</div>Token Issue (to runners)</div>
-      <div class="info-chip"><div class="chip-val">${d.odooTotal - d.tokenIssueQty}</div>Direct sales</div>
+      <div class="info-chip"><div class="chip-val">${d.odooTotal - d.tokenIssueQty}</div>Direct (Cash/UPI/Card)</div>
+      <div class="info-chip"><div class="chip-val">${d.tokenIssueQty}</div>Token Issue (runners)</div>
+      <div class="info-chip" style="opacity:0.6"><div class="chip-val">${d.compQty}</div>Comp (not in box)</div>
     </div>
     <div class="formula-box">
       <div class="formula-line"><span class="formula-label">Carry-forward (prev unsold)</span><span class="formula-val">${d.carryForward}</span></div>
-      <div class="formula-line"><span class="formula-label">+ Period beverages (Odoo)</span><span class="formula-val">${d.odooTotal}</span></div>
+      <div class="formula-line"><span class="formula-label">+ Pink token beverages</span><span class="formula-val">${d.odooTotal}</span></div>
       <div class="formula-line"><span class="formula-label">&minus; Unsold with runners now</span><span class="formula-val">${d.unsoldTokens}</span></div>
       <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
     </div>
