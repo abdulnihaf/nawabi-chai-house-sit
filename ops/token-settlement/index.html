@@ -37,8 +37,9 @@
     .status-card h3{font-size:16px;margin-bottom:4px}
     .status-card .period{font-size:13px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:4px}
     .status-card .elapsed{font-size:12px;color:var(--orange)}
-    .weight-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
-    .weight-section h3{font-size:16px;margin-bottom:16px}
+    .status-card .carry-info{font-size:12px;color:var(--yellow);margin-top:6px}
+    .section-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
+    .section-card h3{font-size:16px;margin-bottom:16px}
     .weight-row{display:flex;gap:12px;align-items:flex-end}
     .weight-field{flex:1}
     .weight-field label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
@@ -47,6 +48,15 @@
     .token-estimate{background:var(--bg2);border-radius:10px;padding:16px;text-align:center;min-width:140px}
     .token-estimate .count{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--orange)}
     .token-estimate .label{font-size:11px;color:var(--text2);margin-top:4px}
+    .runner-unsold{margin-top:20px}
+    .runner-unsold h4{font-size:13px;color:var(--text2);margin-bottom:10px}
+    .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+    .runner-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+    .runner-item .rname{font-size:12px;color:var(--text2);margin-bottom:6px}
+    .runner-item input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:18px;padding:8px;font-family:'JetBrains Mono',monospace;text-align:center}
+    .runner-item input:focus{outline:none;border-color:var(--orange)}
+    .unsold-total{margin-top:10px;font-size:13px;color:var(--text2);text-align:right}
+    .unsold-total span{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--orange)}
     .btn{width:100%;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:16px}
     .btn:hover{transform:translateY(-1px)}
     .btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
@@ -65,7 +75,11 @@
     .breakdown-table td{padding:8px 0;border-bottom:1px solid var(--border)}
     .breakdown-table td:not(:first-child){text-align:right;font-family:'JetBrains Mono',monospace;font-weight:500}
     .breakdown-table tr.total-row td{border-top:2px solid var(--border);font-weight:700;padding-top:12px}
-    .breakdown-table tr.spacer td{border-bottom:none;padding:4px 0}
+    .formula-box{background:var(--bg2);border-radius:10px;padding:16px;margin:16px 0;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:2}
+    .formula-box .formula-line{display:flex;justify-content:space-between;padding:2px 0}
+    .formula-box .formula-line.total{border-top:2px solid var(--border);margin-top:6px;padding-top:8px;font-weight:700;font-size:15px}
+    .formula-box .formula-label{color:var(--text2)}
+    .formula-box .formula-val{font-weight:600}
     .result-row{display:flex;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-radius:10px;margin-bottom:8px}
     .result-row .label{color:var(--text2);font-size:14px}
     .result-row .value{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:16px}
@@ -91,6 +105,7 @@
     .history-badge.red{background:rgba(239,68,68,0.15);color:var(--red)}
     .history-detail{font-size:12px;color:var(--text2);line-height:1.6}
     .history-detail span{font-family:'JetBrains Mono',monospace;color:var(--text);font-weight:500}
+    .history-formula{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
     .loading{text-align:center;color:var(--text2);padding:40px}
     .bootstrap-card{background:var(--card);border:2px dashed var(--orange);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px}
     .bootstrap-card .icon{font-size:48px;margin-bottom:16px}
@@ -104,6 +119,7 @@
       .header{padding:12px 16px}
       .content{padding:16px}
       .info-row{flex-direction:column}
+      .runner-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
     }
   </style>
 </head>
@@ -140,7 +156,7 @@
     <div class="content">
       <a href="/ops/" class="back-link">&larr; Back to Operations</a>
 
-      <!-- Bootstrap (no prior settlement) -->
+      <!-- Bootstrap -->
       <div class="bootstrap-card" id="bootstrapCard" style="display:none">
         <div class="icon">&#128230;</div>
         <h3>Start Token Tracking</h3>
@@ -155,10 +171,11 @@
           <h3>Current Period</h3>
           <div class="period" id="periodText">Loading...</div>
           <div class="elapsed" id="elapsedText"></div>
+          <div class="carry-info" id="carryInfo" style="display:none"></div>
         </div>
 
         <!-- Weight input -->
-        <div class="weight-section">
+        <div class="section-card">
           <h3>Weigh Token Box</h3>
           <div class="weight-row">
             <div class="weight-field">
@@ -170,6 +187,14 @@
               <div class="label">tokens (est.)</div>
             </div>
           </div>
+
+          <!-- Runner unsold tokens -->
+          <div class="runner-unsold">
+            <h4>Unsold tokens with runners</h4>
+            <div class="runner-grid" id="runnerGrid"></div>
+            <div class="unsold-total">Total unsold: <span id="unsoldTotal">0</span></div>
+          </div>
+
           <button class="btn btn-preview" id="previewBtn" onclick="previewSettlement()" disabled>Preview Settlement</button>
         </div>
 
@@ -194,6 +219,14 @@
 const API = '/api/token-settlement';
 const BOX_TARE = 0.338;
 const TOKEN_WEIGHT = 0.00110;
+const RUNNERS = [
+  {id: 64, name: 'FAROOQ'},
+  {id: 65, name: 'AMIN'},
+  {id: 66, name: 'Runner 03'},
+  {id: 67, name: 'Runner 04'},
+  {id: 68, name: 'Runner 05'}
+];
+
 let currentUser = null;
 let lastSettlement = null;
 let previewData = null;
@@ -233,6 +266,7 @@ async function checkPin() {
         document.getElementById('pinScreen').classList.add('hidden');
         document.getElementById('dashboard').classList.add('show');
         document.getElementById('userName').textContent = data.user;
+        initRunnerGrid();
         loadStatus();
       }, 600);
     } else {
@@ -244,6 +278,36 @@ async function checkPin() {
     document.getElementById('pinError').textContent = 'Connection error';
     document.getElementById('pinError').style.display = 'block';
   }
+}
+
+// ── Runner grid ──
+function initRunnerGrid() {
+  const grid = document.getElementById('runnerGrid');
+  grid.innerHTML = RUNNERS.map(r => `
+    <div class="runner-item">
+      <div class="rname">${r.name}</div>
+      <input type="number" id="unsold_${r.id}" value="0" min="0" inputmode="numeric" oninput="updateUnsoldTotal()">
+    </div>
+  `).join('');
+}
+
+function getUnsoldTokens() {
+  let total = 0;
+  const detail = {};
+  for (const r of RUNNERS) {
+    const val = parseInt(document.getElementById(`unsold_${r.id}`).value) || 0;
+    if (val > 0) detail[r.name] = val;
+    total += val;
+  }
+  return {total, detail};
+}
+
+function updateUnsoldTotal() {
+  const {total} = getUnsoldTokens();
+  document.getElementById('unsoldTotal').textContent = total;
+  // Hide preview if inputs change
+  document.getElementById('previewCard').classList.remove('show');
+  previewData = null;
 }
 
 // ── Status ──
@@ -279,6 +343,15 @@ function updatePeriodDisplay() {
   const istStr = since.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true});
   document.getElementById('periodText').textContent = `Since ${istStr}`;
   document.getElementById('elapsedText').textContent = `${hours}h ${mins}m ago`;
+
+  const carry = lastSettlement.runner_unsold_qty || 0;
+  const carryEl = document.getElementById('carryInfo');
+  if (carry > 0) {
+    carryEl.textContent = `Carry-forward: ${carry} unsold tokens from previous period`;
+    carryEl.style.display = 'block';
+  } else {
+    carryEl.style.display = 'none';
+  }
 }
 
 // ── Bootstrap ──
@@ -290,7 +363,7 @@ async function bootstrap() {
     });
     const data = await res.json();
     if (data.success) {
-      lastSettlement = {settled_at: data.settled_at, is_bootstrap: 1};
+      lastSettlement = {settled_at: data.settled_at, is_bootstrap: 1, runner_unsold_qty: 0};
       document.getElementById('bootstrapCard').style.display = 'none';
       document.getElementById('activeSection').style.display = 'block';
       updatePeriodDisplay();
@@ -335,9 +408,17 @@ async function previewSettlement() {
 
     const w = parseFloat(document.getElementById('weightInput').value);
     const tokenCount = Math.round((w - BOX_TARE) / TOKEN_WEIGHT);
-    const discrepancy = tokenCount - data.expected;
+    const carryForward = lastSettlement.runner_unsold_qty || 0;
+    const {total: unsoldTokens, detail: unsoldDetail} = getUnsoldTokens();
+    const expected = carryForward + data.total - unsoldTokens;
+    const discrepancy = tokenCount - expected;
 
-    previewData = {counter: data.counter, runner: data.runner, tokenIssue: data.tokenIssue, expected: data.expected, runnerUnsold: data.runnerUnsold, tokenCount, discrepancy, grossWeight: w};
+    previewData = {
+      odooTotal: data.total, chai: data.chai, coffee: data.coffee, lemonTea: data.lemon_tea,
+      tokenIssueQty: data.tokenIssueQty,
+      carryForward, unsoldTokens, unsoldDetail,
+      expected, tokenCount, discrepancy, grossWeight: w
+    };
     renderPreview(previewData);
     document.getElementById('previewCard').classList.add('show');
   } catch (e) {
@@ -350,28 +431,32 @@ async function previewSettlement() {
 
 function renderPreview(d) {
   const discAbs = Math.abs(d.discrepancy);
-  let discClass, discSign;
-  if (discAbs <= 2) { discClass = 'disc-green'; }
-  else if (discAbs <= 5) { discClass = 'disc-yellow'; }
-  else { discClass = 'disc-red'; }
-  discSign = d.discrepancy > 0 ? '+' : d.discrepancy < 0 ? '' : '';
+  let discClass;
+  if (discAbs <= 2) discClass = 'disc-green';
+  else if (discAbs <= 5) discClass = 'disc-yellow';
+  else discClass = 'disc-red';
+  const discSign = d.discrepancy > 0 ? '+' : '';
 
   document.getElementById('previewContent').innerHTML = `
     <table class="breakdown-table">
-      <tr><th>Source</th><th>Chai</th><th>Coffee</th><th>Lemon</th><th>Total</th></tr>
-      <tr><td>Counter</td><td>${d.counter.chai}</td><td>${d.counter.coffee}</td><td>${d.counter.lemon_tea}</td><td>${d.counter.total}</td></tr>
-      <tr><td>Runner</td><td>${d.runner.chai}</td><td>${d.runner.coffee}</td><td>${d.runner.lemon_tea}</td><td>${d.runner.total}</td></tr>
-      <tr class="total-row"><td>Expected</td><td>${d.counter.chai + d.runner.chai}</td><td>${d.counter.coffee + d.runner.coffee}</td><td>${d.counter.lemon_tea + d.runner.lemon_tea}</td><td>${d.expected}</td></tr>
+      <tr><th>Product</th><th>Chai</th><th>Coffee</th><th>Lemon Tea</th><th>Total</th></tr>
+      <tr><td>Beverages Sold (POS)</td><td>${d.chai}</td><td>${d.coffee}</td><td>${d.lemonTea}</td><td>${d.odooTotal}</td></tr>
     </table>
+    <div class="info-row" style="margin-bottom:16px">
+      <div class="info-chip"><div class="chip-val">${d.tokenIssueQty}</div>Token Issue (to runners)</div>
+      <div class="info-chip"><div class="chip-val">${d.odooTotal - d.tokenIssueQty}</div>Direct sales</div>
+    </div>
+    <div class="formula-box">
+      <div class="formula-line"><span class="formula-label">Carry-forward (prev unsold)</span><span class="formula-val">${d.carryForward}</span></div>
+      <div class="formula-line"><span class="formula-label">+ Period beverages (Odoo)</span><span class="formula-val">${d.odooTotal}</span></div>
+      <div class="formula-line"><span class="formula-label">&minus; Unsold with runners now</span><span class="formula-val">${d.unsoldTokens}</span></div>
+      <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
+    </div>
     <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
     <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight.toFixed(3)} kg</span></div>
     <div class="discrepancy-box ${discClass}">
       <div class="disc-value">${discSign}${d.discrepancy}</div>
-      <div class="disc-label">Discrepancy (tokens ${'\u2212'} expected)</div>
-    </div>
-    <div class="info-row">
-      <div class="info-chip"><div class="chip-val">${d.tokenIssue.total}</div>Token Issue (to runners)</div>
-      <div class="info-chip"><div class="chip-val">${d.runnerUnsold}</div>Runner Unsold</div>
+      <div class="disc-label">Discrepancy (physical &minus; expected)</div>
     </div>
   `;
 }
@@ -387,7 +472,13 @@ async function settle() {
     const notes = document.getElementById('notesInput').value.trim();
     const res = await fetch(`${API}?action=settle`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({settled_by: currentUser, gross_weight_kg: previewData.grossWeight, notes})
+      body: JSON.stringify({
+        settled_by: currentUser,
+        gross_weight_kg: previewData.grossWeight,
+        unsold_tokens: previewData.unsoldTokens,
+        unsold_detail: previewData.unsoldDetail,
+        notes
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -397,7 +488,9 @@ async function settle() {
       document.getElementById('notesInput').value = '';
       document.getElementById('previewBtn').disabled = true;
       previewData = null;
-      // Reload status and history
+      // Reset runner inputs
+      RUNNERS.forEach(r => { document.getElementById(`unsold_${r.id}`).value = 0; });
+      document.getElementById('unsoldTotal').textContent = '0';
       loadStatus();
     } else {
       alert(data.error);
@@ -432,6 +525,8 @@ async function loadHistory() {
 
       const dt = new Date(s.settled_at);
       const dateStr = dt.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true});
+      const carry = s.carry_forward_qty || 0;
+      const unsold = s.runner_unsold_qty || 0;
 
       return `<div class="history-item">
         <div class="history-header">
@@ -440,9 +535,11 @@ async function loadHistory() {
         </div>
         <div class="history-detail">
           Weight: <span>${(s.gross_weight_kg || 0).toFixed(3)} kg</span> &rarr; <span>${s.token_count} tokens</span> &middot;
-          Expected: <span>${s.expected_tokens}</span> &middot;
           Chai <span>${s.odoo_chai}</span> Coffee <span>${s.odoo_coffee}</span> Lemon <span>${s.odoo_lemon_tea}</span>
           ${s.notes ? '<br>' + s.notes : ''}
+        </div>
+        <div class="history-formula">
+          ${carry} carry + ${s.odoo_total_beverages} sold &minus; ${unsold} unsold = ${s.expected_tokens} expected
         </div>
       </div>`;
     }).join('');

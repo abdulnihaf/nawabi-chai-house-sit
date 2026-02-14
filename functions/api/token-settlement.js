@@ -1,5 +1,12 @@
 // NCH Token Box Settlement — Cloudflare Worker
 // Weighs physical beverage tokens against Odoo POS sales to detect discrepancies
+//
+// Logic: ALL beverages sold at POS 27 (Cash Counter) only. Each sale = 1 physical token.
+// Direct sales (Cash/UPI/Card/Comp) → token drops in box immediately.
+// Token Issue (PM 48) → tokens go to runner → delivered to customer → dropped in box later.
+// At settlement, runners may have unsold tokens (manual input).
+// Carry-forward: previous unsold tokens appear in box next period but aren't in Odoo for that period.
+// Formula: expected = carry_forward + odoo_period_beverages - current_unsold
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json'};
@@ -20,8 +27,8 @@ export async function onRequest(context) {
   const TOKEN_WEIGHT_KG = 0.00110;
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
-  const PM = {CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMP: 49};
-  const POS = {CASH_COUNTER: 27, RUNNER_COUNTER: 28};
+  const PM_TOKEN_ISSUE = 48;
+  const POS_CASH_COUNTER = 27;
 
   // ── Odoo JSON-RPC helper ──
   async function odooCall(model, method, domain, fields, kwargs) {
@@ -38,31 +45,29 @@ export async function onRequest(context) {
     return data.result || [];
   }
 
-  // ── Fetch beverage breakdown for a period ──
-  async function fetchBeverageBreakdown(periodStart, periodEnd) {
+  // ── Fetch beverage data for a period (POS 27 only) ──
+  async function fetchBeverageData(periodStart, periodEnd) {
     // Convert IST to UTC for Odoo
     const fromUTC = new Date(new Date(periodStart).getTime() - 5.5 * 60 * 60 * 1000);
     const toUTC = new Date(new Date(periodEnd).getTime() - 5.5 * 60 * 60 * 1000);
     const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
     const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
 
-    // 1. Fetch all POS orders in period (both counters)
+    // 1. POS 27 orders only
     const orders = await odooCall('pos.order', 'search_read',
-      [['config_id', 'in', [POS.CASH_COUNTER, POS.RUNNER_COUNTER]], ['date_order', '>=', fromOdoo], ['date_order', '<=', toOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]],
-      ['id', 'name', 'config_id', 'payment_ids']
+      [['config_id', '=', POS_CASH_COUNTER], ['date_order', '>=', fromOdoo], ['date_order', '<=', toOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]],
+      ['id', 'payment_ids']
     );
 
     if (!orders.length) {
-      return {counter: {chai: 0, coffee: 0, lemon_tea: 0, total: 0}, runner: {chai: 0, coffee: 0, lemon_tea: 0, total: 0}, tokenIssue: {chai: 0, coffee: 0, lemon_tea: 0, total: 0}, expected: 0, runnerUnsold: 0};
+      return {total: 0, chai: 0, coffee: 0, lemon_tea: 0, tokenIssueQty: 0};
     }
 
     const orderIds = orders.map(o => o.id);
     const orderMap = {};
-    for (const o of orders) {
-      orderMap[o.id] = {configId: o.config_id[0], paymentIds: o.payment_ids, hasTokenIssue: false};
-    }
+    for (const o of orders) orderMap[o.id] = {hasTokenIssue: false};
 
-    // 2. Fetch payments for these orders — identify Token Issue orders
+    // 2. Payments — only to flag Token Issue orders (informational)
     const allPaymentIds = orders.flatMap(o => o.payment_ids);
     if (allPaymentIds.length) {
       const payments = await odooCall('pos.payment', 'search_read',
@@ -71,48 +76,36 @@ export async function onRequest(context) {
       );
       for (const p of payments) {
         const orderId = p.pos_order_id[0];
-        if (p.payment_method_id[0] === PM.TOKEN_ISSUE && orderMap[orderId]) {
+        if (p.payment_method_id[0] === PM_TOKEN_ISSUE && orderMap[orderId]) {
           orderMap[orderId].hasTokenIssue = true;
         }
       }
     }
 
-    // 3. Fetch beverage order lines
+    // 3. Beverage lines
     const lines = await odooCall('pos.order.line', 'search_read',
       [['order_id', 'in', orderIds], ['product_id', 'in', BEVERAGE_IDS]],
       ['order_id', 'product_id', 'qty']
     );
 
-    // Categorize
-    const counter = {chai: 0, coffee: 0, lemon_tea: 0, total: 0};
-    const runner = {chai: 0, coffee: 0, lemon_tea: 0, total: 0};
-    const tokenIssue = {chai: 0, coffee: 0, lemon_tea: 0, total: 0};
-
+    let chai = 0, coffee = 0, lemon_tea = 0, total = 0, tokenIssueQty = 0;
     for (const line of lines) {
       const orderId = line.order_id[0];
       const productKey = BEVERAGE_NAMES[line.product_id[0]];
       const qty = Math.round(line.qty);
-      const order = orderMap[orderId];
-      if (!order || !productKey) continue;
+      if (!productKey) continue;
 
-      if (order.configId === POS.CASH_COUNTER && order.hasTokenIssue) {
-        tokenIssue[productKey] += qty;
-        tokenIssue.total += qty;
-      } else if (order.configId === POS.CASH_COUNTER) {
-        counter[productKey] += qty;
-        counter.total += qty;
-      } else if (order.configId === POS.RUNNER_COUNTER) {
-        runner[productKey] += qty;
-        runner.total += qty;
+      if (productKey === 'chai') chai += qty;
+      else if (productKey === 'coffee') coffee += qty;
+      else if (productKey === 'lemon_tea') lemon_tea += qty;
+      total += qty;
+
+      if (orderMap[orderId] && orderMap[orderId].hasTokenIssue) {
+        tokenIssueQty += qty;
       }
     }
 
-    // Expected tokens in box = counter + runner (excludes token issue — those are issuance, not drops)
-    const expected = counter.total + runner.total;
-    // Runner unsold = tokens still with runners (issued but not redeemed in this period)
-    const runnerUnsold = Math.max(0, tokenIssue.total - runner.total);
-
-    return {counter, runner, tokenIssue, expected, runnerUnsold};
+    return {total, chai, coffee, lemon_tea, tokenIssueQty};
   }
 
   try {
@@ -130,14 +123,14 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, lastSettlement: last || null}), {headers: corsHeaders});
     }
 
-    // ── get-beverage-data ──
+    // ── get-beverage-data (preview) ──
     if (action === 'get-beverage-data') {
       const from = url.searchParams.get('from');
       const to = url.searchParams.get('to');
       if (!from || !to) return new Response(JSON.stringify({success: false, error: 'from and to required'}), {headers: corsHeaders});
 
-      const breakdown = await fetchBeverageBreakdown(from, to);
-      return new Response(JSON.stringify({success: true, ...breakdown}), {headers: corsHeaders});
+      const data = await fetchBeverageData(from, to);
+      return new Response(JSON.stringify({success: true, ...data}), {headers: corsHeaders});
     }
 
     // ── bootstrap ──
@@ -147,14 +140,13 @@ export async function onRequest(context) {
       const body = await context.request.json();
       const {settled_by} = body;
 
-      // Prevent re-bootstrap
       const existing = await DB.prepare('SELECT id FROM token_box_settlements LIMIT 1').first();
       if (existing) return new Response(JSON.stringify({success: false, error: 'Already bootstrapped. Use settle action.'}), {headers: corsHeaders});
 
       const now = new Date().toISOString();
       await DB.prepare(`
-        INSERT INTO token_box_settlements (settled_at, settled_by, period_start, period_end, is_bootstrap, notes)
-        VALUES (?, ?, ?, ?, 1, 'Bootstrap — token tracking started')
+        INSERT INTO token_box_settlements (settled_at, settled_by, period_start, period_end, is_bootstrap, runner_unsold_qty, carry_forward_qty, notes)
+        VALUES (?, ?, ?, ?, 1, 0, 0, 'Bootstrap — token tracking started')
       `).bind(now, settled_by, now, now).run();
 
       return new Response(JSON.stringify({success: true, message: 'Token tracking started', settled_at: now}), {headers: corsHeaders});
@@ -165,7 +157,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, gross_weight_kg, notes} = body;
+      const {settled_by, gross_weight_kg, unsold_tokens, unsold_detail, notes} = body;
 
       if (!settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
       if (gross_weight_kg === undefined || gross_weight_kg === null) return new Response(JSON.stringify({success: false, error: 'Weight required'}), {headers: corsHeaders});
@@ -179,34 +171,47 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({success: false, error: 'You already settled recently. Wait a few minutes.'}), {headers: corsHeaders});
       }
 
-      // Get last settlement for period_start
-      const last = await DB.prepare('SELECT settled_at FROM token_box_settlements ORDER BY settled_at DESC LIMIT 1').first();
+      // Get last settlement for period_start + carry-forward
+      const last = await DB.prepare('SELECT settled_at, runner_unsold_qty FROM token_box_settlements ORDER BY settled_at DESC LIMIT 1').first();
       if (!last) return new Response(JSON.stringify({success: false, error: 'No prior settlement. Bootstrap first.'}), {headers: corsHeaders});
 
       const periodStart = last.settled_at;
       const periodEnd = new Date().toISOString();
+      const carryForward = last.runner_unsold_qty || 0;
 
-      // Calculate token count from weight
+      // Token count from weight
       const tokenCount = Math.round((gross_weight_kg - BOX_TARE_KG) / TOKEN_WEIGHT_KG);
 
-      // Fetch Odoo beverage data
-      const breakdown = await fetchBeverageBreakdown(periodStart, periodEnd);
-      const discrepancy = tokenCount - breakdown.expected;
+      // Odoo beverage data
+      const bev = await fetchBeverageData(periodStart, periodEnd);
+
+      // THE FORMULA: expected = carry_forward + odoo_total - current_unsold
+      const currentUnsold = unsold_tokens || 0;
+      const expected = carryForward + bev.total - currentUnsold;
+      const discrepancy = tokenCount - expected;
+
+      // Build notes: include per-runner unsold detail if provided
+      let fullNotes = '';
+      if (unsold_detail && Object.keys(unsold_detail).length) {
+        const parts = Object.entries(unsold_detail).filter(([, v]) => v > 0).map(([name, qty]) => `${name}=${qty}`);
+        if (parts.length) fullNotes = 'Unsold: ' + parts.join(', ');
+      }
+      if (notes) fullNotes = fullNotes ? fullNotes + ' | ' + notes : notes;
 
       await DB.prepare(`
         INSERT INTO token_box_settlements (
           settled_at, settled_by, period_start, period_end,
           gross_weight_kg, box_tare_kg, token_weight_kg, token_count,
           odoo_total_beverages, odoo_chai, odoo_coffee, odoo_lemon_tea,
-          token_issue_qty, runner_delivered_qty, runner_unsold_qty,
+          token_issue_qty, runner_unsold_qty, carry_forward_qty,
           expected_tokens, discrepancy, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         periodEnd, settled_by, periodStart, periodEnd,
         gross_weight_kg, BOX_TARE_KG, TOKEN_WEIGHT_KG, tokenCount,
-        breakdown.expected, breakdown.counter.chai + breakdown.runner.chai, breakdown.counter.coffee + breakdown.runner.coffee, breakdown.counter.lemon_tea + breakdown.runner.lemon_tea,
-        breakdown.tokenIssue.total, breakdown.runner.total, breakdown.runnerUnsold,
-        breakdown.expected, discrepancy, notes || ''
+        bev.total, bev.chai, bev.coffee, bev.lemon_tea,
+        bev.tokenIssueQty, currentUnsold, carryForward,
+        expected, discrepancy, fullNotes
       ).run();
 
       return new Response(JSON.stringify({
@@ -214,9 +219,9 @@ export async function onRequest(context) {
         result: {
           periodStart, periodEnd,
           grossWeight: gross_weight_kg, tokenCount,
-          counter: breakdown.counter, runner: breakdown.runner, tokenIssue: breakdown.tokenIssue,
-          expected: breakdown.expected, runnerUnsold: breakdown.runnerUnsold,
-          discrepancy
+          odooTotal: bev.total, chai: bev.chai, coffee: bev.coffee, lemonTea: bev.lemon_tea,
+          tokenIssueQty: bev.tokenIssueQty,
+          carryForward, currentUnsold, expected, discrepancy
         }
       }), {headers: corsHeaders});
     }

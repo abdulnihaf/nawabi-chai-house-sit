@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS token_box_settlements (
   token_issue_qty INTEGER DEFAULT 0,
   runner_delivered_qty INTEGER DEFAULT 0,
   runner_unsold_qty INTEGER DEFAULT 0,
+  carry_forward_qty INTEGER DEFAULT 0,
   expected_tokens INTEGER,
   discrepancy INTEGER,
   notes TEXT DEFAULT ''
