@@ -685,7 +685,8 @@ async function loadHistory() {
           ${carry} carry + ${s.odoo_total_beverages} sold &minus; ${unsold} unsold = ${s.expected_tokens} expected
         </div>
         <div class="history-actions">
-          <button class="history-dl" onclick="downloadHistoryPDF(historyData[${idx}])">PDF Report</button>
+          <button class="history-dl" onclick="downloadHistoryPDF(historyData[${idx}], 'full')">Full Report</button>
+          <button class="history-dl" onclick="downloadHistoryPDF(historyData[${idx}], 'simple')">Tea Master</button>
         </div>
       </div>`;
     }).join('');
@@ -960,20 +961,21 @@ function downloadPDF(type) {
   doc.save(`NCH_Token_${type === 'simple' ? 'TeaMaster' : 'Full'}_${dateStr}.pdf`);
 }
 
-function downloadHistoryPDF(s) {
+function downloadHistoryPDF(s, type) {
   // Reconstruct data from D1 settlement record
+  const allBev = (s.odoo_chai || 0) + (s.odoo_coffee || 0) + (s.odoo_lemon_tea || 0);
   const d = {
     periodStart: s.period_start, periodEnd: s.period_end,
     grossWeight: s.gross_weight_kg, tokenCount: s.token_count,
     odooTotal: s.odoo_total_beverages, chai: s.odoo_chai, coffee: s.odoo_coffee, lemonTea: s.odoo_lemon_tea,
-    tokenIssueQty: s.token_issue_qty, compQty: 0,
+    tokenIssueQty: s.token_issue_qty, compQty: Math.max(0, allBev - s.odoo_total_beverages),
     carryForward: s.carry_forward_qty || 0, currentUnsold: s.runner_unsold_qty || 0,
     expected: s.expected_tokens, discrepancy: s.discrepancy,
     settledBy: s.settled_by
   };
-  const doc = generateFullPDF(d);
+  const doc = type === 'simple' ? generateTeaMasterPDF(d) : generateFullPDF(d);
   const dateStr = new Date(s.settled_at).toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'}).replace(' ', '');
-  doc.save(`NCH_Token_Full_${dateStr}.pdf`);
+  doc.save(`NCH_Token_${type === 'simple' ? 'TeaMaster' : 'Full'}_${dateStr}.pdf`);
 }
 
 async function autoSendTeaMasterReport(d) {
