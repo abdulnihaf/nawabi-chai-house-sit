@@ -296,29 +296,22 @@
     .wizard-resolution-item .wri-icon{flex-shrink:0}
     .wizard-resolution-item .wri-text{flex:1;color:var(--text2);line-height:1.4}
     .vt-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
-    .vt-card h3{font-size:15px;margin-bottom:14px;color:var(--text2)}
-    .vt-section{border-left:3px solid var(--border);padding:12px 14px;margin-bottom:12px;background:var(--bg2);border-radius:0 10px 10px 0}
-    .vt-section.short{border-left-color:var(--red)}
-    .vt-section.over{border-left-color:var(--green)}
-    .vt-section.system{border-left-color:var(--orange)}
-    .vt-section.upi{border-left-color:var(--blue)}
-    .vt-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-    .vt-section-head .vt-who{font-weight:600;font-size:14px}
-    .vt-section-head .vt-amt{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px}
-    .vt-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px;color:var(--text2)}
-    .vt-row .vt-v{font-family:'JetBrains Mono',monospace}
-    .vt-row.vt-sep{border-top:1px dashed rgba(45,58,79,0.6);margin-top:4px;padding-top:6px}
-    .vt-row.vt-result{font-weight:600;color:var(--text);font-size:14px}
-    .vt-tag{font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600}
-    .vt-tag.cashier{background:rgba(168,85,247,0.2);color:var(--purple)}
-    .vt-tag.runner{background:rgba(59,130,246,0.2);color:var(--blue)}
-    .vt-tag.system-tag{background:rgba(249,115,22,0.2);color:var(--orange)}
-    .vt-tag.upi-tag{background:rgba(59,130,246,0.2);color:var(--blue)}
-    .vt-summary{border-top:2px solid var(--border);margin-top:8px;padding-top:12px}
-    .vt-sum-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px}
-    .vt-sum-row .vt-sum-label{display:flex;align-items:center;gap:8px}
-    .vt-sum-row .vt-sum-val{font-family:'JetBrains Mono',monospace;font-weight:600}
-    .vt-sum-row.vt-sum-total{border-top:2px solid var(--border);margin-top:6px;padding-top:8px;font-size:15px;font-weight:700}
+    .vt-card h3{font-size:15px;margin-bottom:14px}
+    .vt-bar{display:flex;height:24px;border-radius:8px;overflow:hidden;margin-bottom:14px;gap:2px}
+    .vt-bar-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;min-width:28px;border-radius:6px}
+    .vt-source{padding:12px;margin-bottom:8px;background:var(--bg2);border-radius:10px;border-left:3px solid var(--border)}
+    .vt-source.short{border-left-color:var(--red)}
+    .vt-source.over{border-left-color:var(--green)}
+    .vt-source.sys{border-left-color:var(--orange)}
+    .vt-source-head{display:flex;justify-content:space-between;align-items:center}
+    .vt-source-who{font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px}
+    .vt-source-amt{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px}
+    .vt-source-detail{font-size:13px;color:var(--text2);margin-top:5px;line-height:1.5}
+    .vt-tag{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+    .vt-tag.you{background:rgba(168,85,247,0.15);color:var(--purple)}
+    .vt-tag.runner-tag{background:rgba(59,130,246,0.15);color:var(--blue)}
+    .vt-tag.sys-tag{background:rgba(249,115,22,0.15);color:var(--orange)}
+    .vt-note{font-size:12px;color:var(--text2);padding:8px 12px;background:var(--bg2);border-radius:8px;margin-top:4px}
     .shift-card{border-color:var(--green)}
     .shift-card:hover{background:rgba(34,197,94,0.1)!important;border-color:var(--green)!important}
     .shift-card.selected{background:rgba(34,197,94,0.15);border-color:var(--green)}
@@ -2019,111 +2012,80 @@
       html+='<div class="wizard-row total"><span class="wr-label">Expected total</span><span class="wr-val">'+fmt(totalExpected)+'</span></div>';
       html+='</div>';
 
-      // === VARIANCE TRAIL — breakdown of where shortage/excess comes from ===
+      // === VARIANCE TRAIL — plain language breakdown ===
       if(Math.abs(rawVariance)>5){
-        const cb=wizardData.counterBalance;
         const vtSources=[];
 
-        // 1. Drawer variance
-        const dvExpected=wizardData.expectedDrawer;
-        const dvActual=wizardDrawerCashEntered;
-        const dvVar=dvActual-dvExpected;
-        if(Math.abs(dvVar)>5){
-          vtSources.push({
-            who:currentUser+' (Drawer)',type:'cashier',amount:dvVar,
-            rows:[
-              {l:'Petty cash remaining',v:fmt(Math.max(0,(cb.pettyCash||0)-(cb.totalExpenses||0))),note:'('+fmt(cb.pettyCash||0)+' start'+(cb.totalExpenses>0?' − '+fmt(cb.totalExpenses)+' expenses':'')+ ')'},
-              {l:'Counter cash settled',v:fmt(cb.counterCash||0)},
-              {l:'Unsettled counter cash',v:fmt(wizardData.unsettledCounterCash||0)},
-              {l:'Runner cash settled',v:fmt(cb.runnerCash||0)},
-              {l:'Expected in drawer',v:fmt(dvExpected),cls:'vt-sep'},
-              {l:'Actual in drawer',v:fmt(dvActual),result:true,diff:dvVar}
-            ]
+        // 1. Drawer — "you counted X but should have been Y"
+        const dvAmt=wizardDrawerCashEntered-wizardData.expectedDrawer;
+        if(Math.abs(dvAmt)>5){
+          vtSources.push({icon:'🏪',who:'Your Drawer',tag:'you',tagLabel:'your responsibility',
+            amount:dvAmt,
+            detail:dvAmt<0
+              ?'Should have '+fmt(wizardData.expectedDrawer)+' in the drawer — you counted '+fmt(wizardDrawerCashEntered)
+              :'Expected '+fmt(wizardData.expectedDrawer)+' in the drawer — you counted '+fmt(wizardDrawerCashEntered)+' (extra)'
           });
         }
 
-        // 2. Per-runner variance
+        // 2. Runners — "he owed X, gave you Y"
         for(const ri of wizardRunnerInputs){
           if(ri.absent) continue;
-          const rVar=ri.cashCollected-ri.cashCalculated;
-          if(Math.abs(rVar)>5){
-            const rRows=[
-              {l:'Tokens + Sales',v:fmt(ri.totalTokens+ri.sales),note:'('+fmt(ri.totalTokens)+' tokens + '+fmt(ri.sales)+' sales)'},
-              {l:'UPI collected',v:'-'+fmt(ri.upi)}
-            ];
-            if(ri.crossPaymentCredit>0) rRows.push({l:'Cross-payment credit',v:'-'+fmt(ri.crossPaymentCredit)});
-            rRows.push({l:'Expected cash',v:fmt(ri.cashCalculated),cls:'vt-sep'});
-            rRows.push({l:'Actual collected',v:fmt(ri.cashCollected),result:true,diff:rVar});
-            vtSources.push({who:ri.runner_name,type:'runner',amount:rVar,rows:rRows});
+          const rv=ri.cashCollected-ri.cashCalculated;
+          if(Math.abs(rv)>5){
+            vtSources.push({icon:'🏃',who:ri.runner_name,tag:'runner-tag',tagLabel:'runner',
+              amount:rv,
+              detail:rv<0
+                ?'Owed '+fmt(ri.cashCalculated)+' cash — handed you '+fmt(ri.cashCollected)
+                :'Owed '+fmt(ri.cashCalculated)+' — handed you '+fmt(ri.cashCollected)+' (gave extra)'
+            });
           }
         }
 
-        // 3. POS errors (unattributed orders)
+        // 3. Orders with no runner assigned — cash never collected
         if(discAdd>0){
           const discOrders=wizardData.discrepancyDetails||[];
-          const posRows=[];
-          for(const d of discOrders){
-            posRows.push({l:'└ '+d.order+': '+fmt(d.amount),v:(d.type==='runner_ledger_no_runner'?'Runner Ledger no runner':'Token Issue no runner')});
-          }
-          vtSources.push({who:'POS Errors',type:'system',amount:-discAdd,rows:[{l:discOrders.length+' unattributed order'+(discOrders.length>1?'s':''),v:fmt(discAdd)}].concat(posRows)});
+          vtSources.push({icon:'⚠️',who:'Orders with no runner',tag:'sys-tag',tagLabel:'pos issue',
+            amount:-discAdd,
+            detail:discOrders.length+' order'+(discOrders.length>1?'s':'')+' worth '+fmt(discAdd)+' placed in POS but no runner was assigned — this cash was never collected'
+          });
         }
 
-        // 4. UPI reconciliation (counter QR)
-        if(Math.abs(counterQRVar)>5||Math.abs(rcQRVar)>5){
-          const upiRows=[];
-          if(Math.abs(counterQRVar)>5){
-            const cqOdoo=wizardData.mainCounter?.upi||0;
-            const cqRzp=wizardData.verification?.cashCounter?.razorpay||0;
-            upiRows.push({l:'Counter QR: Odoo '+fmt(cqOdoo)+' vs Razorpay '+fmt(cqRzp),v:(counterQRVar>0?'+':'')+fmt(counterQRVar)});
-          }
-          if(Math.abs(rcQRVar)>5){
-            const rcOdoo=wizardData.runnerCounter?.upi||0;
-            const rcRzp=wizardData.verification?.runnerCounter?.razorpay||0;
-            upiRows.push({l:'Runner QR: Odoo '+fmt(rcOdoo)+' vs Razorpay '+fmt(rcRzp),v:(rcQRVar>0?'+':'')+fmt(rcQRVar)});
-          }
-          const upiTotal=counterQRVar+rcQRVar;
-          vtSources.push({who:'UPI Mismatch',type:'upi',amount:upiTotal,rows:upiRows});
-        }
+        if(vtSources.length>0){
+          const shortOrExcess=rawVariance<0?'shortage':'excess';
+          html+='<div class="vt-card"><h3>Where the '+fmt(Math.abs(rawVariance))+' '+shortOrExcess+' comes from</h3>';
 
-        // Build HTML
-        const shortOrExcess=rawVariance<0?'shortage':'excess';
-        html+='<div class="vt-card"><h3>📊 Variance Trail — Where the '+fmt(Math.abs(rawVariance))+' '+shortOrExcess+' comes from</h3>';
-
-        // Source sections
-        for(const src of vtSources){
-          const cls=src.amount<-5?'short':src.amount>5?'over':(src.type==='system'?'system':'upi');
-          html+='<div class="vt-section '+cls+'">';
-          const tagCls=src.type==='cashier'?'cashier':src.type==='runner'?'runner':src.type==='system'?'system-tag':'upi-tag';
-          html+='<div class="vt-section-head"><span class="vt-who">'+src.who+'</span><span class="vt-amt" style="color:'+(src.amount<0?'var(--red)':'var(--green)') +'">'+(src.amount>0?'+':'')+fmt(src.amount)+'</span></div>';
-          for(const r of src.rows){
-            if(r.result){
-              html+='<div class="vt-row vt-sep vt-result"><span>'+r.l+'</span><span class="vt-v">'+r.v+' → <span style="color:'+(r.diff<0?'var(--red)':'var(--green)') +'">'+(r.diff>0?'+':'')+fmt(r.diff)+'</span></span></div>';
-            }else{
-              html+='<div class="vt-row'+(r.cls?' '+r.cls:'')+'"><span>'+r.l+(r.note?'<br><span style="font-size:11px;color:var(--text2)">'+r.note+'</span>':'')+'</span><span class="vt-v">'+r.v+'</span></div>';
+          // Proportional bar — shows who is responsible for how much
+          const totalAbs=vtSources.reduce((s,src)=>s+Math.abs(src.amount),0);
+          if(totalAbs>0&&vtSources.length>1){
+            const barColors={you:'var(--purple)','runner-tag':'var(--blue)','sys-tag':'var(--orange)'};
+            html+='<div class="vt-bar">';
+            for(const src of vtSources){
+              const pct=Math.round(Math.abs(src.amount)/totalAbs*100);
+              html+='<div class="vt-bar-seg" style="flex:'+Math.abs(src.amount)+';background:'+barColors[src.tag]+'">'+pct+'%</div>';
             }
+            html+='</div>';
           }
+
+          // Source cards — one per responsibility
+          for(const src of vtSources){
+            const cls=src.amount<-5?'short':src.amount>5?'over':'sys';
+            html+='<div class="vt-source '+cls+'">';
+            html+='<div class="vt-source-head"><span class="vt-source-who">'+src.icon+' '+src.who+' <span class="vt-tag '+src.tag+'">'+src.tagLabel+'</span></span>';
+            html+='<span class="vt-source-amt" style="color:'+(src.amount<0?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(src.amount))+' '+(src.amount<0?'short':'extra')+'</span></div>';
+            html+='<div class="vt-source-detail">'+src.detail+'</div>';
+            html+='</div>';
+          }
+
+          // Auto-resolved footnote
+          if(Math.abs(varianceResolved)>0){
+            html+='<div class="vt-note">✅ '+fmt(Math.abs(varianceResolved))+' auto-resolved: ';
+            const resolvedItems=resolutions.filter(r=>r.source!=='unexplained'&&r.source!=='unexplained_shortage');
+            for(const r of resolvedItems) html+=r.explanation+'. ';
+            html+='</div>';
+          }
+
           html+='</div>';
         }
-
-        // Summary table
-        html+='<div class="vt-summary">';
-        for(const src of vtSources){
-          const tagCls=src.type==='cashier'?'cashier':src.type==='runner'?'runner':src.type==='system'?'system-tag':'upi-tag';
-          const tagLabel=src.type==='cashier'?'cashier':src.type==='runner'?'runner':src.type==='system'?'system':'upi';
-          html+='<div class="vt-sum-row"><span class="vt-sum-label">'+src.who+' <span class="vt-tag '+tagCls+'">'+tagLabel+'</span></span><span class="vt-sum-val" style="color:'+(src.amount<0?'var(--red)':'var(--green)') +'">'+(src.amount>0?'+':'')+fmt(src.amount)+'</span></div>';
-        }
-        // Accounted vs rawVariance — show gap if sources don't sum perfectly
-        const sourcesTotal=vtSources.reduce((s,src)=>s+src.amount,0);
-        const gap=rawVariance-sourcesTotal;
-        if(Math.abs(gap)>5){
-          html+='<div class="vt-sum-row"><span class="vt-sum-label">Other / rounding</span><span class="vt-sum-val" style="color:var(--yellow)">'+(gap>0?'+':'')+fmt(gap)+'</span></div>';
-        }
-        html+='<div class="vt-sum-row vt-sum-total"><span>Total</span><span class="vt-sum-val" style="color:'+(rawVariance<0?'var(--red)':'var(--green)')+ '">'+(rawVariance>0?'+':'')+fmt(rawVariance)+'</span></div>';
-        if(Math.abs(varianceResolved)>0){
-          html+='<div class="vt-sum-row"><span style="color:var(--text2)">Auto-resolved</span><span class="vt-sum-val" style="color:var(--green)">'+(varianceResolved>0?'+':'')+fmt(varianceResolved)+'</span></div>';
-          html+='<div class="vt-sum-row"><span style="color:var(--text2)">Unresolved</span><span class="vt-sum-val" style="color:'+(varianceUnresolved<0?'var(--red)':'var(--yellow)') +'">'+(varianceUnresolved>0?'+':'')+fmt(varianceUnresolved)+'</span></div>';
-        }
-        html+='</div></div>';
       }
 
       // Final status — simplified for cashier
@@ -2308,73 +2270,67 @@
             v2Html+='</div>';
           }
 
-          // Variance Trail for history cards (from saved DB data)
+          // Variance Trail for history cards — plain language
           const hRawVar=s.final_variance||0;
           if(Math.abs(hRawVar)>5){
             const hDrawerVar=(s.drawer_cash_entered||0)-(s.expected_drawer||0);
             const hCps=(s.checkpoints||[]).filter(c=>c.status!=='absent');
-            const hCounterQR=s.counter_qr_variance||0;
-            const hRunnerQR=s.runner_counter_qr_variance||0;
+            const hRunnerExpTotal=hCps.reduce((sum,c)=>sum+(c.cash_calculated||0),0);
+            const hDiscAdd=Math.max(0,(s.total_cash_expected||0)-(s.expected_drawer||0)-hRunnerExpTotal);
             const hSources=[];
 
             // Drawer
             if(Math.abs(hDrawerVar)>5){
-              hSources.push({who:s.cashier_name+' (Drawer)',type:'cashier',amount:hDrawerVar,
-                rows:[
-                  {l:'Petty cash remaining',v:fmt(Math.max(0,(s.petty_cash_start||0)-(s.expenses_total||0))),note:'('+fmt(s.petty_cash_start||0)+' start'+(s.expenses_total>0?' − '+fmt(s.expenses_total)+' exp':'')+ ')'},
-                  {l:'Counter cash settled',v:fmt(s.counter_cash_settled||0)},
-                  {l:'Unsettled counter cash',v:fmt(s.unsettled_counter_cash||0)},
-                  {l:'Runner cash settled',v:fmt(s.runner_cash_settled||0)},
-                  {l:'Expected in drawer',v:fmt(s.expected_drawer||0),cls:'vt-sep'},
-                  {l:'Actual in drawer',v:fmt(s.drawer_cash_entered||0),result:true,diff:hDrawerVar}
-                ]});
+              hSources.push({icon:'🏪',who:s.cashier_name+' (Drawer)',tag:'you',tagLabel:'cashier',
+                amount:hDrawerVar,
+                detail:hDrawerVar<0
+                  ?'Should have '+fmt(s.expected_drawer||0)+' → counted '+fmt(s.drawer_cash_entered||0)
+                  :'Expected '+fmt(s.expected_drawer||0)+' → counted '+fmt(s.drawer_cash_entered||0)
+              });
             }
             // Per runner
             for(const cp of hCps){
               const cpVar=cp.cash_variance||0;
               if(Math.abs(cpVar)>5){
-                const cpRows=[
-                  {l:'Tokens + Sales',v:fmt((cp.tokens_amount||0)+(cp.sales_amount||0)),note:'('+fmt(cp.tokens_amount||0)+' tokens + '+fmt(cp.sales_amount||0)+' sales)'},
-                  {l:'UPI collected',v:'-'+fmt(cp.upi_amount||0)}
-                ];
-                if(cp.cross_payment_credit>0) cpRows.push({l:'Cross-payment credit',v:'-'+fmt(cp.cross_payment_credit)});
-                cpRows.push({l:'Expected cash',v:fmt(cp.cash_calculated||0),cls:'vt-sep'});
-                cpRows.push({l:'Actual collected',v:fmt(cp.cash_collected||0),result:true,diff:cpVar});
-                hSources.push({who:cp.runner_name,type:'runner',amount:cpVar,rows:cpRows});
+                hSources.push({icon:'🏃',who:cp.runner_name,tag:'runner-tag',tagLabel:'runner',
+                  amount:cpVar,
+                  detail:cpVar<0
+                    ?'Owed '+fmt(cp.cash_calculated||0)+' → gave '+fmt(cp.cash_collected||0)
+                    :'Owed '+fmt(cp.cash_calculated||0)+' → gave '+fmt(cp.cash_collected||0)+' (extra)'
+                });
               }
             }
-            // UPI mismatch
-            if(Math.abs(hCounterQR)>5||Math.abs(hRunnerQR)>5){
-              const uRows=[];
-              if(Math.abs(hCounterQR)>5) uRows.push({l:'Counter QR: Odoo '+fmt(s.counter_qr_odoo||0)+' vs Razorpay '+fmt(s.counter_qr_razorpay||0),v:(hCounterQR>0?'+':'')+fmt(hCounterQR)});
-              if(Math.abs(hRunnerQR)>5) uRows.push({l:'Runner QR: Odoo '+fmt(s.runner_counter_qr_odoo||0)+' vs Razorpay '+fmt(s.runner_counter_qr_razorpay||0),v:(hRunnerQR>0?'+':'')+fmt(hRunnerQR)});
-              hSources.push({who:'UPI Mismatch',type:'upi',amount:hCounterQR+hRunnerQR,rows:uRows});
+            // Unassigned orders
+            if(hDiscAdd>5){
+              hSources.push({icon:'⚠️',who:'Orders with no runner',tag:'sys-tag',tagLabel:'pos issue',
+                amount:-hDiscAdd,detail:fmt(hDiscAdd)+' in orders with no runner assigned'
+              });
             }
 
             if(hSources.length>0){
               const hShortOrExcess=hRawVar<0?'shortage':'excess';
               v2Html+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
-              v2Html+='<div style="font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:600">📊 Where the '+fmt(Math.abs(hRawVar))+' '+hShortOrExcess+' came from</div>';
-              for(const src of hSources){
-                const scls=src.amount<-5?'short':src.amount>5?'over':(src.type==='system'?'system':'upi');
-                v2Html+='<div class="vt-section '+scls+'" style="margin-bottom:6px;padding:8px 10px">';
-                const tagCls=src.type==='cashier'?'cashier':src.type==='runner'?'runner':src.type==='system'?'system-tag':'upi-tag';
-                const tagLabel=src.type==='cashier'?'cashier':src.type==='runner'?'runner':src.type==='system'?'system':'upi';
-                v2Html+='<div class="vt-section-head"><span class="vt-who" style="font-size:13px">'+src.who+' <span class="vt-tag '+tagCls+'">'+tagLabel+'</span></span><span class="vt-amt" style="font-size:14px;color:'+(src.amount<0?'var(--red)':'var(--green)')+ '">'+(src.amount>0?'+':'')+fmt(src.amount)+'</span></div>';
-                for(const r of src.rows){
-                  if(r.result){
-                    v2Html+='<div class="vt-row vt-sep vt-result" style="font-size:12px"><span>'+r.l+'</span><span class="vt-v">'+r.v+' → <span style="color:'+(r.diff<0?'var(--red)':'var(--green)') +'">'+(r.diff>0?'+':'')+fmt(r.diff)+'</span></span></div>';
-                  }else{
-                    v2Html+='<div class="vt-row'+(r.cls?' '+r.cls:'')+'" style="font-size:12px"><span>'+r.l+(r.note?'<br><span style="font-size:10px;color:var(--text2)">'+r.note+'</span>':'')+'</span><span class="vt-v">'+r.v+'</span></div>';
-                  }
+              v2Html+='<div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600">Where the '+fmt(Math.abs(hRawVar))+' '+hShortOrExcess+' came from</div>';
+
+              // Proportional bar
+              const hTotalAbs=hSources.reduce((s,src)=>s+Math.abs(src.amount),0);
+              if(hTotalAbs>0&&hSources.length>1){
+                const hBarColors={you:'var(--purple)','runner-tag':'var(--blue)','sys-tag':'var(--orange)'};
+                v2Html+='<div class="vt-bar" style="height:20px;margin-bottom:10px">';
+                for(const src of hSources){
+                  const pct=Math.round(Math.abs(src.amount)/hTotalAbs*100);
+                  v2Html+='<div class="vt-bar-seg" style="flex:'+Math.abs(src.amount)+';background:'+(hBarColors[src.tag]||'var(--border)')+'">'+pct+'%</div>';
                 }
                 v2Html+='</div>';
               }
-              // Summary line
-              const hSourcesTotal=hSources.reduce((acc,src)=>acc+src.amount,0);
-              const hGap=hRawVar-hSourcesTotal;
-              if(Math.abs(hGap)>5){
-                v2Html+='<div style="font-size:11px;color:var(--yellow);padding:2px 0">Other / rounding: '+(hGap>0?'+':'')+fmt(hGap)+'</div>';
+
+              // Source rows
+              for(const src of hSources){
+                v2Html+='<div class="vt-source '+(src.amount<-5?'short':src.amount>5?'over':'sys')+'" style="padding:10px;margin-bottom:6px">';
+                v2Html+='<div class="vt-source-head"><span class="vt-source-who" style="font-size:13px">'+src.icon+' '+src.who+' <span class="vt-tag '+src.tag+'">'+src.tagLabel+'</span></span>';
+                v2Html+='<span class="vt-source-amt" style="font-size:14px;color:'+(src.amount<0?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(src.amount))+' '+(src.amount<0?'short':'extra')+'</span></div>';
+                v2Html+='<div class="vt-source-detail" style="font-size:12px">'+src.detail+'</div>';
+                v2Html+='</div>';
               }
               v2Html+='</div>';
             }
