@@ -329,6 +329,48 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // ── send-report (WhatsApp PDF) ──
+    if (action === 'send-report' && context.request.method === 'POST') {
+      const WA_TOKEN = context.env.WA_ACCESS_TOKEN;
+      const WA_PHONE_ID = '970365416152029'; // NCH
+      if (!WA_TOKEN) return new Response(JSON.stringify({success: false, error: 'WhatsApp not configured'}), {headers: corsHeaders});
+
+      const body = await context.request.json();
+      const {pdf_base64, file_name, caption, phones} = body;
+      if (!pdf_base64 || !phones?.length) return new Response(JSON.stringify({success: false, error: 'pdf_base64 and phones required'}), {headers: corsHeaders});
+
+      // Upload PDF to WhatsApp Media API
+      const pdfBytes = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
+      const blob = new Blob([pdfBytes], {type: 'application/pdf'});
+      const formData = new FormData();
+      formData.append('file', blob, file_name || 'report.pdf');
+      formData.append('type', 'application/pdf');
+      formData.append('messaging_product', 'whatsapp');
+
+      const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${WA_PHONE_ID}/media`, {
+        method: 'POST', headers: {'Authorization': `Bearer ${WA_TOKEN}`}, body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.id) return new Response(JSON.stringify({success: false, error: 'Media upload failed', detail: uploadData}), {headers: corsHeaders});
+
+      // Send document to each phone number
+      const results = [];
+      for (const phone of phones) {
+        const sendRes = await fetch(`https://graph.facebook.com/v21.0/${WA_PHONE_ID}/messages`, {
+          method: 'POST',
+          headers: {'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            messaging_product: 'whatsapp', to: phone, type: 'document',
+            document: {id: uploadData.id, filename: file_name || 'report.pdf', caption: caption || ''}
+          })
+        });
+        const sendData = await sendRes.json();
+        results.push({phone, ok: !!sendData.messages});
+      }
+
+      return new Response(JSON.stringify({success: true, results}), {headers: corsHeaders});
+    }
+
     // ── history ──
     if (action === 'history') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
