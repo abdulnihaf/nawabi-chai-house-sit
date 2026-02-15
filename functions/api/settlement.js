@@ -88,7 +88,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes} = body;
+      const {runner_id, runner_name, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes, handover_to} = body;
 
       const runner = RUNNERS[runner_id];
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
@@ -108,11 +108,12 @@ export async function onRequest(context) {
 
       const settledAt = new Date().toISOString();
       await DB.prepare(`
-        INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes, handover_to)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         String(runner_id), runner_name || runner.name, settledAt, settled_by,
-        period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, unsold_tokens || 0, notes || ''
+        period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, unsold_tokens || 0, notes || '',
+        handover_to || ''
       ).run();
 
       // Trigger background audit — runs async, user gets immediate response
@@ -442,7 +443,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, period_start, period_end, counter, runner_checkpoints, reconciliation, counter_balance, drawer_cash_entered, upi_verification} = body;
+      const {settled_by, period_start, period_end, counter, runner_checkpoints, reconciliation, counter_balance, drawer_cash_entered, upi_verification, handover_to} = body;
 
       // 1. Validate settled_by
       const validUsers = Object.values(PINS);
@@ -469,8 +470,8 @@ export async function onRequest(context) {
           runner_counter_qr_odoo, runner_counter_qr_razorpay, runner_counter_qr_variance,
           total_cash_physical, total_cash_expected, final_variance,
           variance_resolved, variance_unresolved,
-          discrepancy_resolutions, runner_count, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          discrepancy_resolutions, runner_count, notes, handover_to
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         settled_by, settledAt, period_start, period_end,
         cb.petty_cash_start || 0, cb.counter_cash_settled || 0, cb.unsettled_counter_cash || 0,
@@ -487,7 +488,7 @@ export async function onRequest(context) {
         reconciliation.total_physical_cash || 0, reconciliation.expected_cash || 0, reconciliation.raw_variance || 0,
         reconciliation.variance_resolved || 0, reconciliation.variance_unresolved || 0,
         JSON.stringify(reconciliation.discrepancy_resolutions || []),
-        (runner_checkpoints || []).length, ''
+        (runner_checkpoints || []).length, '', handover_to || ''
       ).run();
 
       const shiftId = shiftResult.meta?.last_row_id;
@@ -522,15 +523,15 @@ export async function onRequest(context) {
               runner_id, runner_name, settled_at, settled_by,
               period_start, period_end,
               tokens_amount, sales_amount, upi_amount,
-              cash_settled, unsold_tokens, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              cash_settled, unsold_tokens, notes, handover_to
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
             String(rc.runner_id), rc.runner_name,
             settledAt, settled_by,
             period_start, period_end,
             rc.tokens_amount || 0, rc.sales_amount || 0, rc.upi_amount || 0,
             rc.cash_collected || 0, rc.unsold_tokens || 0,
-            notesParts.join('; ')
+            notesParts.join('; '), handover_to || ''
           ).run();
         }
       }
@@ -541,8 +542,8 @@ export async function onRequest(context) {
           runner_id, runner_name, settled_at, settled_by,
           period_start, period_end,
           tokens_amount, sales_amount, upi_amount,
-          cash_settled, unsold_tokens, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          cash_settled, unsold_tokens, notes, handover_to
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         'counter', 'Cash Counter',
         settledAt, settled_by,
@@ -550,7 +551,8 @@ export async function onRequest(context) {
         0, (counter.cash_expected || 0) + (counter.upi || 0) + (counter.card || 0),
         (counter.upi || 0) + (counter.card || 0),
         counter.cash_expected || 0, 0,
-        `Shift wizard v3: counter_cash=${counter.cash_expected || 0}, drawer=${drawer_cash_entered || 0}, expected_drawer=${cb.expected_drawer || 0}, variance=${reconciliation.variance_unresolved || 0}`
+        `Shift wizard v3: counter_cash=${counter.cash_expected || 0}, drawer=${drawer_cash_entered || 0}, expected_drawer=${cb.expected_drawer || 0}, variance=${reconciliation.variance_unresolved || 0}`,
+        handover_to || ''
       ).run();
 
       // 6. WhatsApp alert if significant unresolved variance
@@ -562,7 +564,7 @@ export async function onRequest(context) {
           .join('\n');
         const absentRunners = checkpoints.filter(r => r.status === 'absent').map(r => r.runner_name).join(', ');
 
-        const msg = `🏁 *NCH Shift Settlement*\n\n⚠️ Unresolved Variance: ₹${Math.abs(reconciliation.variance_unresolved).toFixed(0)} ${dir}\n\nCashier: ${settled_by}\nCounter cash: ₹${counter.cash_entered} (expected ₹${counter.cash_expected})\n${runnerSummary ? 'Runners:\n' + runnerSummary : 'No runners'}${absentRunners ? '\nAbsent: ' + absentRunners : ''}\n\nTotal physical: ₹${reconciliation.total_physical_cash}\nExpected: ₹${reconciliation.expected_cash}\nResolved: ₹${reconciliation.variance_resolved || 0}`;
+        const msg = `🏁 *NCH Shift Settlement*\n\n⚠️ Unresolved Variance: ₹${Math.abs(reconciliation.variance_unresolved).toFixed(0)} ${dir}\n\nCashier: ${settled_by}${handover_to ? '\nHandover to: ' + handover_to : ''}\nCounter cash: ₹${counter.cash_entered} (expected ₹${counter.cash_expected})\n${runnerSummary ? 'Runners:\n' + runnerSummary : 'No runners'}${absentRunners ? '\nAbsent: ' + absentRunners : ''}\n\nTotal physical: ₹${reconciliation.total_physical_cash}\nExpected: ₹${reconciliation.expected_cash}\nResolved: ₹${reconciliation.variance_resolved || 0}`;
         context.waitUntil(Promise.all(ALERT_RECIPIENTS.map(to =>
           sendWhatsAppAlert(WA_PHONE_ID, WA_TOKEN, to, msg)
         )).catch(e => console.error('Shift alert error:', e.message)));

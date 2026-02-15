@@ -423,6 +423,7 @@
     const COLLECTORS=['Naveen','Nihaf'];
     let currentUser=null,currentPin=null,selectedRunner=null,currentRunnerData=null,currentPeriodStart=null,currentCounterData=null,currentCounterTotal=0,currentLiveCounterCash=0;
     const OWNER_PINS=['0305','3754'];
+    const CASHIERS=['Md Kesmat','Jafar','Nafees','Tanveer'];
     let isStaffSimpleUI=true;
     let staffMisattributed=[];
     let staffShiftDataCache={data:null,from:null,timestamp:0};
@@ -2015,6 +2016,17 @@
         html+='</div>';
       }
 
+      // Handover dropdown
+      const handoverOpts=CASHIERS.filter(c=>c!==currentUser).map(c=>'<option value="'+c+'">'+c+'</option>').join('');
+      html+='<div class="wizard-card" style="border-color:var(--blue)">'+
+        '<div style="font-size:14px;font-weight:600;margin-bottom:8px">Handing over to</div>'+
+        '<select id="wizHandoverTo" style="width:100%;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit">'+
+          '<option value="">— Select next cashier —</option>'+
+          handoverOpts+
+          '<option value="'+currentUser+'">'+currentUser+' (continuing)</option>'+
+        '</select>'+
+      '</div>';
+
       html+='<div class="wizard-nav">'+
         '<button class="wn-back" onclick="'+(wizardData.unsettledRunners.length>0?'goToWizardStep2()':'renderWizardStep1()')+'">← Back</button>'+
         '<button class="wn-submit" id="wizSubmitBtn" onclick="submitShiftWizard()">✅ Confirm & End Shift</button>'+
@@ -2026,6 +2038,9 @@
     async function submitShiftWizard(){
       const btn=document.getElementById('wizSubmitBtn');
       if(!btn)return;
+      const handoverEl=document.getElementById('wizHandoverTo');
+      const handoverTo=handoverEl?handoverEl.value:'';
+      if(!handoverTo){alert('Please select who you are handing over to.');return;}
       btn.disabled=true;btn.textContent='Recording settlement...';
 
       const mc=wizardData.mainCounter;
@@ -2036,6 +2051,7 @@
 
       const payload={
         settled_by:currentUser,
+        handover_to:handoverTo,
         period_start:wizardData.periodStart,
         period_end:toLocalISO(now),
         counter_balance:{

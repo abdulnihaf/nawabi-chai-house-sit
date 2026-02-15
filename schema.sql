@@ -13,7 +13,8 @@ CREATE TABLE settlements (
   upi_amount REAL DEFAULT 0,
   cash_settled REAL NOT NULL,
   unsold_tokens REAL DEFAULT 0,
-  notes TEXT DEFAULT ''
+  notes TEXT DEFAULT '',
+  handover_to TEXT DEFAULT ''
 );
 
 CREATE INDEX idx_runner_id ON settlements(runner_id);
@@ -138,7 +139,8 @@ CREATE TABLE cashier_shifts (
   discrepancy_resolutions TEXT DEFAULT '[]',
   -- Metadata
   runner_count INTEGER DEFAULT 0,
-  notes TEXT DEFAULT ''
+  notes TEXT DEFAULT '',
+  handover_to TEXT DEFAULT ''
 );
 
 CREATE INDEX idx_cs_settled_at ON cashier_shifts(settled_at);
