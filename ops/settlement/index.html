@@ -2084,6 +2084,18 @@
             html+='</div>';
           }
 
+          // Carry-forward from previous shift
+          const pv=wizardData.prevVariance||0;
+          if(Math.abs(pv)>5){
+            const pvName=wizardData.lastShiftCashier||'Previous cashier';
+            const pvShort=pv<0;
+            html+='<div class="vt-note" style="border-left:3px solid var(--yellow);background:rgba(234,179,8,0.08)">';
+            html+='⏳ <strong>'+pvName+'</strong>\'s previous shift ended <strong style="color:'+(pvShort?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(pv))+' '+(pvShort?'short':'over')+'</strong>';
+            if(pvShort) html+=' — that shortage was already in the drawer when you started';
+            else html+=' — that extra cash was in the drawer when you started';
+            html+='</div>';
+          }
+
           html+='</div>';
         }
       }
@@ -2332,6 +2344,18 @@
                 v2Html+='<div class="vt-source-detail" style="font-size:12px">'+src.detail+'</div>';
                 v2Html+='</div>';
               }
+
+              // Carry-forward from previous shift
+              const hPrev=si<data.shifts.length-1?data.shifts[si+1]:null;
+              if(hPrev&&Math.abs(hPrev.variance_unresolved||0)>5){
+                const hpv=hPrev.variance_unresolved;
+                const hpvShort=hpv<0;
+                v2Html+='<div class="vt-note" style="border-left:3px solid var(--yellow);background:rgba(234,179,8,0.08);padding:8px 10px;font-size:12px;margin-top:2px">';
+                v2Html+='⏳ <strong>'+hPrev.cashier_name+'</strong>\'s previous shift ended <strong style="color:'+(hpvShort?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(hpv))+' '+(hpvShort?'short':'over')+'</strong>';
+                v2Html+=hpvShort?' — that shortage was in the drawer when this shift started':' — extra cash was in the drawer when this shift started';
+                v2Html+='</div>';
+              }
+
               v2Html+='</div>';
             }
           }
@@ -2348,12 +2372,33 @@
           v2Html+='</div>';
         }
 
+        // Pending discrepancies ledger — all shifts with unresolved variance
+        const unresolvedShifts=data.shifts.filter(sh=>Math.abs(sh.variance_unresolved||0)>5);
+        let ledgerHtml='';
+        if(unresolvedShifts.length>0){
+          const netPending=unresolvedShifts.reduce((sum,sh)=>sum+(sh.variance_unresolved||0),0);
+          ledgerHtml+='<div style="background:var(--bg2);border:1px solid var(--yellow);border-radius:12px;padding:14px;margin-bottom:16px">';
+          ledgerHtml+='<div style="font-size:13px;font-weight:600;color:var(--yellow);margin-bottom:8px">⏳ Pending Discrepancies — '+unresolvedShifts.length+' shift'+(unresolvedShifts.length>1?'s':'')+' unresolved</div>';
+          for(const us of unresolvedShifts){
+            const ud=new Date(us.settled_at);
+            const uShort=us.variance_unresolved<0;
+            ledgerHtml+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(45,58,79,0.4)">';
+            ledgerHtml+='<span style="color:var(--text2)">'+fmtD(ud)+' — '+us.cashier_name+'</span>';
+            ledgerHtml+='<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:'+(uShort?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(us.variance_unresolved))+' '+(uShort?'short':'over')+'</span>';
+            ledgerHtml+='</div>';
+          }
+          ledgerHtml+='<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-top:8px;padding-top:8px;border-top:2px solid var(--border)">';
+          ledgerHtml+='<span>Net pending</span>';
+          ledgerHtml+='<span style="font-family:JetBrains Mono,monospace;color:'+(netPending<0?'var(--red)':'var(--green)')+'">'+fmt(Math.abs(netPending))+' '+(netPending<0?'short':'over')+'</span>';
+          ledgerHtml+='</div></div>';
+        }
+
         // Prepend v2 cards before existing history content
         const existingH3=panel.querySelector('h3');
         if(existingH3){
           const marker=document.createElement('div');
           marker.id='v2ShiftCards';
-          marker.innerHTML=v2Html;
+          marker.innerHTML=ledgerHtml+v2Html;
           const existingMarker=document.getElementById('v2ShiftCards');
           if(existingMarker) existingMarker.remove();
           const subtitle=panel.querySelector('.subtitle');
