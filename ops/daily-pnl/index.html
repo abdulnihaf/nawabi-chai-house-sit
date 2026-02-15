@@ -697,6 +697,7 @@ function toggleContainerMode(type) {
 
 // ── DRAFT AUTO-SAVE (localStorage) ──────────────────────
 function saveDraftToLocal() {
+  if (_restoringDraft) return; // Don't overwrite draft while restoring
   const date = settleData?.settlementDate || new Date(Date.now() + 5.5*3600000).toISOString().slice(0,10);
   try {
     const draft = {
@@ -704,6 +705,7 @@ function saveDraftToLocal() {
       timestamps: {...fieldTimestamps},
       trail: JSON.parse(JSON.stringify(editTrail)),
       runnerTokens: collectRunnerTokens(),
+      wastageItems: getWastageItems(),
       notes: $('settlementNotes')?.value || '',
       savedAt: new Date().toISOString(),
     };
@@ -723,8 +725,10 @@ function clearDraftFromLocal(date) {
   localStorage.removeItem(`nch_draft_${date}`);
 }
 
+let _restoringDraft = false;
 function restoreDraft(draft) {
   if (!draft || !draft.rawInput) return;
+  _restoringDraft = true;
   const ri = draft.rawInput;
   // Restore simple fields
   const simpleFields = [
@@ -762,6 +766,22 @@ function restoreDraft(draft) {
       if (el && val) el.value = val;
     }
   }
+  // Restore wastage entries
+  if (draft.wastageItems && draft.wastageItems.length > 0) {
+    $('wastageEntries').innerHTML = '';
+    for (const w of draft.wastageItems) {
+      addWastageEntry();
+      const entry = $('wastageEntries').lastElementChild;
+      const itemSelect = entry.querySelector('.wastage-item-select');
+      itemSelect.value = w.item;
+      updateWastageStates(itemSelect);
+      const stateSelect = entry.querySelector('.wastage-state-select');
+      stateSelect.value = w.state;
+      updateWastageVesselUI(stateSelect);
+      entry.querySelector('.qty-input').value = w.qty;
+      entry.querySelector('.reason-input').value = w.reason || '';
+    }
+  }
   // Restore notes
   if (draft.notes && $('settlementNotes')) $('settlementNotes').value = draft.notes;
   // Restore timestamps and trail
@@ -769,6 +789,7 @@ function restoreDraft(draft) {
   if (draft.trail) Object.assign(editTrail, draft.trail);
   // Update decomp preview
   updateDecomp();
+  _restoringDraft = false;
 }
 
 function collectEditTrail() {
@@ -1275,9 +1296,12 @@ function addWastageEntry() {
     </div>
     <div class="wastage-vessel-area" style="display:none;flex:1.2;flex-direction:column;gap:4px"></div>
     <input type="text" class="input input-sm reason-input" placeholder="Reason" style="flex:0.8">
-    <button class="remove-vessel" onclick="this.closest('.wastage-entry').remove()" title="Remove">✕</button>
+    <button class="remove-vessel" onclick="this.closest('.wastage-entry').remove();saveDraftToLocal()" title="Remove">✕</button>
   `;
   container.appendChild(entry);
+  // Auto-save draft when wastage fields change
+  entry.querySelector('.qty-input').addEventListener('change', saveDraftToLocal);
+  entry.querySelector('.reason-input').addEventListener('change', saveDraftToLocal);
   // Auto-trigger state population if first item is pre-selected
   const itemSelect = entry.querySelector('.wastage-item-select');
   if (itemSelect.value) updateWastageStates(itemSelect);
@@ -1297,6 +1321,7 @@ function updateWastageStates(itemSelect) {
   qtyInput.placeholder = item.uom;
   // Trigger vessel UI check after state auto-selection
   updateWastageVesselUI(stateSelect);
+  saveDraftToLocal();
 }
 
 function updateWastageVesselUI(stateSelect) {
@@ -1328,6 +1353,7 @@ function updateWastageVesselUI(stateSelect) {
   // Hide vessel area for all other combos
   vesselArea.style.display = 'none';
   vesselArea.innerHTML = '';
+  saveDraftToLocal();
 }
 
 function calcWastageVessel(el) {
@@ -1352,6 +1378,7 @@ function calcWastageVessel(el) {
   }
   // Auto-fill qty
   if (qtyInput) qtyInput.value = litres.toFixed(2);
+  saveDraftToLocal();
 }
 
 function getWastageItems() {
