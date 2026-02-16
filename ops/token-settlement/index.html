@@ -64,11 +64,20 @@
     .reset-btn:hover{background:rgba(239,68,68,0.1)}
     .btn{width:100%;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:16px}
     .btn:hover{transform:translateY(-1px)}
-    .btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+    .btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none;pointer-events:none}
     .btn-preview{background:var(--blue);color:#fff}
     .btn-preview:hover{background:#2563eb}
     .btn-settle{background:var(--green);color:#fff}
     .btn-settle:hover{background:#16a34a}
+    .btn.loading{pointer-events:none;opacity:0.8}
+    .btn .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .success-banner{background:rgba(34,197,94,0.15);border:1px solid var(--green);border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;animation:fadeIn 0.3s ease}
+    .success-banner .check{font-size:28px;margin-bottom:4px}
+    .success-banner .msg{font-size:15px;font-weight:600;color:var(--green)}
+    .success-banner .sub{font-size:12px;color:var(--text2);margin-top:4px}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+    .btn-done{background:var(--green);color:#fff;pointer-events:none;opacity:0.9}
     .btn-bootstrap{background:var(--orange);color:#fff}
     .btn-bootstrap:hover{background:#ea580c}
     .preview-card{background:var(--card);border:2px solid var(--orange);border-radius:16px;padding:24px;margin-bottom:24px;display:none}
@@ -219,8 +228,8 @@
 
           <!-- Runner unsold tokens -->
           <div class="runner-unsold">
-            <h4>Unsold tokens with runners</h4>
-            <button class="reset-btn" style="border-color:var(--blue);color:var(--blue);margin-bottom:10px" onclick="loadRunnerContext('settle')">Load Runner Context from Odoo</button>
+            <h4>Unsold tokens with runners <span style="font-weight:400;color:var(--text2)">(enter 0 if none)</span></h4>
+            <button class="reset-btn" style="border-color:var(--blue);color:var(--blue);margin-bottom:10px" onclick="loadRunnerContext('settle')">Load from Odoo (optional)</button>
             <div class="runner-grid" id="runnerGrid"></div>
             <div class="unsold-total">Total unsold: <span id="unsoldTotal">0</span></div>
           </div>
@@ -383,8 +392,16 @@ function updateUnsoldTotal(prefix) {
 
 // ── Load runner context from Odoo ──
 async function loadRunnerContext(target) {
-  const btn = target === 'bootstrap' ? document.getElementById('loadContextBtn') : null;
-  if (btn) { btn.disabled = true; btn.textContent = 'Loading from Odoo...'; }
+  // Find the button that was clicked
+  let btn;
+  if (target === 'bootstrap') {
+    btn = document.getElementById('loadContextBtn');
+  } else {
+    // Find the settle runner context button
+    btn = document.querySelector('.runner-unsold .reset-btn');
+  }
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:6px"></span>Loading...'; }
   try {
     const res = await fetch(`${API}?action=get-runner-context`);
     const data = await res.json();
@@ -397,13 +414,14 @@ async function loadRunnerContext(target) {
       document.getElementById('bootstrapBtn').style.display = 'block';
       if (btn) btn.style.display = 'none';
     } else {
-      // Refresh settlement runner grid with context
       buildRunnerGrid('runnerGrid', 'unsold');
+      if (btn) { btn.innerHTML = '&#10003; Loaded'; btn.style.borderColor = 'var(--green)'; btn.style.color = 'var(--green)'; }
     }
   } catch (e) {
     alert('Error loading runner data: ' + e.message);
+    if (btn) { btn.textContent = origText; }
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Load Runner Data from Odoo'; }
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -483,7 +501,8 @@ async function bootstrap() {
   const {total, detail} = getUnsoldTokens('boot');
   const btn = document.getElementById('bootstrapBtn');
   btn.disabled = true;
-  btn.textContent = 'Starting...';
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spinner"></span>Starting...';
   try {
     const res = await fetch(`${API}?action=bootstrap`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -504,6 +523,7 @@ async function bootstrap() {
     alert('Error: ' + e.message);
   } finally {
     btn.disabled = false;
+    btn.classList.remove('loading');
     btn.textContent = 'Start Token Tracking';
   }
 }
@@ -526,10 +546,14 @@ function updateEstimate() {
 }
 
 // ── Preview ──
+let previewing = false;
 async function previewSettlement() {
+  if (previewing) return;
+  previewing = true;
   const btn = document.getElementById('previewBtn');
   btn.disabled = true;
-  btn.textContent = 'Fetching Odoo data...';
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spinner"></span>Fetching Odoo data...';
 
   try {
     const periodStart = lastSettlement.settled_at;
@@ -552,11 +576,19 @@ async function previewSettlement() {
       expected, tokenCount, discrepancy, grossWeight: w
     };
     renderPreview(previewData);
+    // Reset settle button for new preview
+    const settleBtn = document.getElementById('settleBtn');
+    settleBtn.disabled = false;
+    settleBtn.classList.remove('loading','btn-done');
+    settleBtn.textContent = 'Settle & Empty Box';
     document.getElementById('previewCard').classList.add('show');
+    setTimeout(() => document.getElementById('previewCard').scrollIntoView({behavior:'smooth',block:'start'}), 100);
   } catch (e) {
     alert('Error fetching data: ' + e.message);
   } finally {
+    previewing = false;
     btn.disabled = false;
+    btn.classList.remove('loading');
     btn.textContent = 'Preview Settlement';
   }
 }
@@ -596,11 +628,14 @@ function renderPreview(d) {
 }
 
 // ── Settle ──
+let settling = false;
 async function settle() {
-  if (!previewData) return;
+  if (!previewData || settling) return;
+  settling = true;
   const btn = document.getElementById('settleBtn');
   btn.disabled = true;
-  btn.textContent = 'Settling...';
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spinner"></span>Settling...';
 
   try {
     const notes = document.getElementById('notesInput').value.trim();
@@ -622,26 +657,39 @@ async function settle() {
       document.getElementById('notesInput').value = '';
       document.getElementById('previewBtn').disabled = true;
 
-      // Show settlement report with all data
+      // Show success banner + settlement report
       lastSettleResult = data.result;
       lastSettleResult.settledBy = currentUser;
       showSettlementReport(data.result);
+
+      // Mark button as done (don't revert to "Settle & Empty Box")
+      btn.classList.remove('loading');
+      btn.classList.add('btn-done');
+      btn.innerHTML = '&#10003; Settlement Recorded';
 
       previewData = null;
       RUNNERS.forEach(r => { document.getElementById(`unsold_${r.id}`).value = 0; });
       document.getElementById('unsoldTotal').textContent = '0';
       loadStatus();
 
+      // Scroll to the report
+      setTimeout(() => document.getElementById('reportSection').scrollIntoView({behavior:'smooth',block:'start'}), 150);
+
       // Auto-send tea master PDF via WhatsApp
       autoSendTeaMasterReport(data.result);
     } else {
       alert(data.error);
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.textContent = 'Settle & Empty Box';
     }
   } catch (e) {
     alert('Error: ' + e.message);
-  } finally {
     btn.disabled = false;
+    btn.classList.remove('loading');
     btn.textContent = 'Settle & Empty Box';
+  } finally {
+    settling = false;
   }
 }
 
@@ -706,8 +754,10 @@ function showSettlementReport(d) {
   else { discClass = 'disc-red'; discText = `${d.discrepancy > 0 ? '+' : ''}${d.discrepancy} (needs investigation)`; }
 
   document.getElementById('reportContent').innerHTML = `
-    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;font-family:'JetBrains Mono',monospace">
-      ${fromIST} → ${toIST}
+    <div class="success-banner">
+      <div class="check">&#10003;</div>
+      <div class="msg">Settlement Recorded Successfully</div>
+      <div class="sub">${d.tokenCount} tokens &middot; ${fromIST} → ${toIST}</div>
     </div>
     <table class="breakdown-table">
       <tr><th>Product</th><th>Chai</th><th>Coffee</th><th>Lemon Tea</th><th>Total</th></tr>
