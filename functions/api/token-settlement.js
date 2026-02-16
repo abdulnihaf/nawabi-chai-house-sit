@@ -23,8 +23,8 @@ export async function onRequest(context) {
 
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
 
-  const BOX_TARE_KG = 0.338;
-  const TOKEN_WEIGHT_KG = 0.00110;
+  const BOX_TARE_G = 339;    // grams (SF-400 scale)
+  const TOKEN_WEIGHT_G = 1;  // 1 gram per token
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
   const PM_TOKEN_ISSUE = 48;
@@ -264,7 +264,7 @@ export async function onRequest(context) {
 
       if (!settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
       if (gross_weight_kg === undefined || gross_weight_kg === null) return new Response(JSON.stringify({success: false, error: 'Weight required'}), {headers: corsHeaders});
-      if (gross_weight_kg < BOX_TARE_KG) return new Response(JSON.stringify({success: false, error: `Weight ${gross_weight_kg} kg is less than empty box (${BOX_TARE_KG} kg)`}), {headers: corsHeaders});
+      if (gross_weight_kg < BOX_TARE_G) return new Response(JSON.stringify({success: false, error: `Weight ${gross_weight_kg}g is less than empty box (${BOX_TARE_G}g)`}), {headers: corsHeaders});
 
       // Duplicate prevention (5 min window)
       const recentDup = await DB.prepare(
@@ -283,7 +283,7 @@ export async function onRequest(context) {
       const carryForward = last.runner_unsold_qty || 0;
 
       // Token count from weight
-      const tokenCount = Math.round((gross_weight_kg - BOX_TARE_KG) / TOKEN_WEIGHT_KG);
+      const tokenCount = Math.round((gross_weight_kg - BOX_TARE_G) / TOKEN_WEIGHT_G);
 
       // Odoo beverage data
       const bev = await fetchBeverageData(periodStart, periodEnd);
@@ -311,7 +311,7 @@ export async function onRequest(context) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         periodEnd, settled_by, periodStart, periodEnd,
-        gross_weight_kg, BOX_TARE_KG, TOKEN_WEIGHT_KG, tokenCount,
+        gross_weight_kg, BOX_TARE_G, TOKEN_WEIGHT_G, tokenCount,
         bev.total, bev.chai, bev.coffee, bev.lemon_tea,
         bev.tokenIssueQty, currentUnsold, carryForward,
         expected, discrepancy, fullNotes

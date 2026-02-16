@@ -208,8 +208,8 @@
           <h3>Weigh Token Box</h3>
           <div class="weight-row">
             <div class="weight-field">
-              <label>Gross weight (kg)</label>
-              <input type="number" id="weightInput" step="0.001" min="0.338" placeholder="0.000" oninput="updateEstimate()">
+              <label>Gross weight (g)</label>
+              <input type="number" id="weightInput" step="1" min="339" placeholder="0" oninput="updateEstimate()">
             </div>
             <div class="token-estimate">
               <div class="count" id="estimateCount">-</div>
@@ -260,8 +260,8 @@
 <script>
 const API = '/api/token-settlement';
 const WA_PHONES = ['917010426808', '919591170162']; // Nihaf, Mujeeb
-const BOX_TARE = 0.338;
-const TOKEN_WEIGHT = 0.00110;
+const BOX_TARE = 339;    // grams (SF-400 scale)
+const TOKEN_WEIGHT = 1;  // 1 gram per token
 const RUNNERS = [
   {id: 64, name: 'FAROOQ'},
   {id: 65, name: 'AMIN'},
@@ -587,7 +587,7 @@ function renderPreview(d) {
       <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
     </div>
     <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
-    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight.toFixed(3)} kg</span></div>
+    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight} g</span></div>
     <div class="discrepancy-box ${discClass}">
       <div class="disc-value">${discSign}${d.discrepancy}</div>
       <div class="disc-label">Discrepancy (physical &minus; expected)</div>
@@ -677,7 +677,7 @@ async function loadHistory() {
           <span class="history-badge ${badgeClass}">${badgeText}</span>
         </div>
         <div class="history-detail">
-          Weight: <span>${(s.gross_weight_kg || 0).toFixed(3)} kg</span> &rarr; <span>${s.token_count} tokens</span> &middot;
+          Weight: <span>${(s.gross_weight_kg||0) < 50 ? (s.gross_weight_kg||0).toFixed(3)+' kg' : (s.gross_weight_kg||0)+' g'}</span> &rarr; <span>${s.token_count} tokens</span> &middot;
           Chai <span>${s.odoo_chai}</span> Coffee <span>${s.odoo_coffee}</span> Lemon <span>${s.odoo_lemon_tea}</span>
           ${s.notes ? '<br>' + s.notes : ''}
         </div>
@@ -725,7 +725,7 @@ function showSettlementReport(d) {
       <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
     </div>
     <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
-    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight.toFixed(3)} kg</span></div>
+    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight} g</span></div>
     <div class="discrepancy-box ${discClass}">
       <div class="disc-value">${d.discrepancy > 0 ? '+' : ''}${d.discrepancy}</div>
       <div class="disc-label">${discText}</div>
@@ -811,7 +811,7 @@ function generateTeaMasterPDF(d) {
   doc.text('Tokens in Box', M + 5, y + 10);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Box Weight: ${d.grossWeight.toFixed(3)} kg`, M + 5, y + 18);
+  doc.text(`Box Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}`, M + 5, y + 18);
   doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
   doc.text(`${d.tokenCount} tokens`, M + CW - 5, y + 20, {align: 'right'});
   y += 38;
@@ -929,7 +929,7 @@ function generateFullPDF(d) {
   doc.setFillColor(248, 248, 248);
   doc.roundedRect(M, y, CW, 18, 3, 3, 'F');
   doc.setFontSize(11); doc.setFont('helvetica', 'normal');
-  doc.text(`Box Weight: ${d.grossWeight.toFixed(3)} kg`, M + 5, y + 7);
+  doc.text(`Box Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}`, M + 5, y + 7);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
   doc.text(`${d.tokenCount} tokens`, M + CW - 5, y + 12, {align: 'right'});
   y += 26;
