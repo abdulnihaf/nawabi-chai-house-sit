@@ -24,7 +24,7 @@ export async function onRequest(context) {
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
 
   const BOX_TARE_G = 339;    // grams (SF-400 scale)
-  const TOKEN_WEIGHT_G = 1;  // 1 gram per token
+  const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
   const PM_TOKEN_ISSUE = 48;
