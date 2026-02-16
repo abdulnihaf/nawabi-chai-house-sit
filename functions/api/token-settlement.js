@@ -260,10 +260,13 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, gross_weight_kg, unsold_tokens, unsold_detail, notes} = body;
+      const {settled_by, gross_weight_kg: rawWeight, unsold_tokens, unsold_detail, notes} = body;
 
       if (!settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
-      if (gross_weight_kg === undefined || gross_weight_kg === null) return new Response(JSON.stringify({success: false, error: 'Weight required'}), {headers: corsHeaders});
+      if (rawWeight === undefined || rawWeight === null) return new Response(JSON.stringify({success: false, error: 'Weight required'}), {headers: corsHeaders});
+
+      // Auto-detect unit: values < 50 are kg (old frontend cache), convert to grams
+      const gross_weight_kg = rawWeight < 50 ? Math.round(rawWeight * 1000) : rawWeight;
       if (gross_weight_kg < BOX_TARE_G) return new Response(JSON.stringify({success: false, error: `Weight ${gross_weight_kg}g is less than empty box (${BOX_TARE_G}g)`}), {headers: corsHeaders});
 
       // Duplicate prevention (5 min window)
