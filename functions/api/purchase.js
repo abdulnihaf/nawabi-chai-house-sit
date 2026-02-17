@@ -32,9 +32,9 @@ export async function onRequest(context) {
       const vendors = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'res.partner', 'search_read',
         [[['supplier_rank', '>', 0], ['company_id', 'in', [10, false]]]],
-        {fields: ['id', 'name', 'phone', 'mobile'], order: 'name asc'}
+        {fields: ['id', 'name', 'phone'], order: 'name asc'}
       );
-      const list = vendors.map(v => ({id: v.id, name: v.name, phone: v.phone || v.mobile || ''}));
+      const list = vendors.map(v => ({id: v.id, name: v.name, phone: v.phone || ''}));
       return new Response(JSON.stringify({success: true, vendors: list}), {headers: corsHeaders});
     }
 

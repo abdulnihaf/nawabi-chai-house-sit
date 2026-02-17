@@ -826,6 +826,7 @@ async function submitCancel() {
   const pin = pins.map(p => p.value).join('');
   if (pin.length !== 4 || !cancelPickingId) return;
 
+  const pickingIdToCancel = cancelPickingId;
   showLoading('Cancelling delivery...');
   closeCancelModal();
 
@@ -833,14 +834,14 @@ async function submitCancel() {
     const res = await fetch(`${API_BASE}?action=cancel-receipt`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({pickingId: cancelPickingId, pin}),
+      body: JSON.stringify({pickingId: pickingIdToCancel, pin}),
     });
     const data = await res.json();
     if (!data.success) {
       if (data.error.includes('Only Nihaf')) {
         // Reopen modal with error
         hideLoading();
-        openCancelModal(cancelPickingId);
+        openCancelModal(pickingIdToCancel);
         document.getElementById('cancelError').style.display = 'block';
         return;
       }
@@ -849,13 +850,12 @@ async function submitCancel() {
 
     showToast(`Cancelled ${data.pickingName || 'delivery'}`);
     // Remove from list
-    currentReceipts = currentReceipts.filter(r => r.pickingId !== cancelPickingId);
+    currentReceipts = currentReceipts.filter(r => r.pickingId !== pickingIdToCancel);
     renderDeliveryList();
   } catch (e) {
     showToast(`Error: ${e.message}`);
   }
   hideLoading();
-  cancelPickingId = null;
 }
 </script>
 </body>
