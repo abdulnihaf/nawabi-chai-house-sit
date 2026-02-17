@@ -52,15 +52,37 @@
     .vendor-header .vh-name{font-size:17px;font-weight:700}
     .vendor-header .vh-sub{color:var(--text2);font-size:12px}
 
-    .product-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
-    .product-row.has-qty{border-color:var(--green);background:rgba(34,197,94,.04)}
-    .product-row .pr-name{font-size:14px;font-weight:600}
-    .product-row .pr-code{color:var(--text2);font-size:11px;margin-top:1px}
-    .product-row .pr-inputs{display:flex;align-items:center;gap:8px}
-    .product-row .pr-inputs input{width:64px;height:40px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;text-align:center;font-family:'JetBrains Mono',monospace}
-    .product-row .pr-inputs input:focus{outline:none;border-color:var(--brown)}
-    .product-row .pr-uom{color:var(--text2);font-size:12px;min-width:28px}
-    .price-input{width:72px !important}
+    .section-label{color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px;padding:0 4px}
+    .product-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;transition:all .15s}
+    .product-card.added{border-color:var(--green);background:rgba(34,197,94,.04)}
+    .pc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+    .pc-name{font-size:15px;font-weight:700}
+    .pc-uom{color:var(--text2);font-size:11px;background:var(--bg);padding:3px 8px;border-radius:6px}
+    .pc-last{color:var(--text2);font-size:12px;margin-bottom:12px}
+    .pc-inputs{display:flex;align-items:center;gap:8px}
+    .pc-inputs input{height:44px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:16px;text-align:center;font-family:'JetBrains Mono',monospace;padding:0 8px}
+    .pc-inputs input:focus{outline:none;border-color:var(--brown)}
+    .pc-qty-input{width:72px}
+    .pc-price-input{flex:1;min-width:70px}
+    .pc-x{color:var(--text2);font-size:14px}
+    .pc-add-btn{height:44px;padding:0 18px;background:var(--brown);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+    .pc-add-btn:active{transform:scale(.96)}
+    .pc-added{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .pc-added-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+    .pc-check{color:var(--green);font-weight:700;font-size:18px;flex-shrink:0}
+    .pc-added-text{font-size:14px;line-height:1.4}
+    .pc-remove-btn{background:var(--red-dim);color:var(--red);border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
+    .pc-remove-btn:active{transform:scale(.96)}
+    .add-other-btn{width:100%;padding:14px;background:var(--bg2);border:2px dashed var(--border);border-radius:12px;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin:8px 0 0}
+    .add-other-btn:active{border-color:var(--brown);color:var(--text)}
+    .other-panel{margin-top:10px;display:none}
+    .other-panel.open{display:block}
+    .other-product{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+    .other-product:active{border-color:var(--brown)}
+    .other-product .op-name{font-size:14px;font-weight:600}
+    .other-product .op-code{color:var(--text2);font-size:11px}
+    .other-product .op-add{color:var(--brown);font-weight:700;font-size:22px}
+    .no-vendor-items{text-align:center;padding:24px;color:var(--text2);font-size:14px}
 
     .running-total{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:16px 0 24px;margin-top:8px}
     .running-total .total-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px}
@@ -155,7 +177,8 @@
 <!-- Screen 3: Add Items -->
 <div class="screen" id="itemsScreen">
   <div class="vendor-header" id="vendorHeader"></div>
-  <div id="productList"></div>
+  <div id="vendorProducts"></div>
+  <div id="addOtherWrap"></div>
   <div class="running-total" id="runningTotal">
     <div class="total-card">
       <div class="total-items" id="totalItems">No items added</div>
@@ -247,7 +270,6 @@ async function verifyPin() {
 
 // ─── VENDORS ─────────────────────────────────────────────────
 async function loadVendors() {
-  if (vendors.length > 0) return;
   showLoading('Loading vendors...');
   try {
     const res = await fetch(`${API}?action=vendors`);
@@ -289,15 +311,13 @@ async function selectVendor(id) {
 
   showLoading('Loading products...');
   try {
-    // Load products and last prices in parallel
+    // Load products and last prices fresh every time (picks up new products/vendors)
     const [prodRes, priceRes] = await Promise.all([
-      products.length > 0 ? Promise.resolve(null) : fetch(`${API}?action=products`).then(r => r.json()),
+      fetch(`${API}?action=products`).then(r => r.json()),
       fetch(`${API}?action=last-prices&vendor_id=${id}`).then(r => r.json()),
     ]);
-    if (prodRes) {
-      if (!prodRes.success) throw new Error(prodRes.error);
-      products = prodRes.products;
-    }
+    if (!prodRes.success) throw new Error(prodRes.error);
+    products = prodRes.products;
     if (priceRes.success) lastPrices = priceRes.prices || {};
     else lastPrices = {};
 
@@ -315,49 +335,152 @@ function renderItemsScreen() {
     <div class="vh-icon">🏪</div>
     <div>
       <div class="vh-name">${selectedVendor.name}</div>
-      <div class="vh-sub">Add items and quantities</div>
+      <div class="vh-sub">Add items to order</div>
     </div>
   `;
 
-  document.getElementById('productList').innerHTML = products.map(p => {
-    const savedQty = itemQtys[p.id]?.qty || '';
-    const savedPrice = itemQtys[p.id]?.price || lastPrices[p.id] || '';
-    const hasQty = savedQty > 0;
-    return `
-      <div class="product-row ${hasQty ? 'has-qty' : ''}" id="prow${p.id}">
-        <div>
-          <div class="pr-name">${p.name}</div>
-          <div class="pr-code mono">${p.code} • ${p.uom}</div>
-        </div>
-        <div class="pr-inputs">
-          <input type="number" inputmode="decimal" placeholder="Qty" value="${savedQty}"
-                 id="qty_${p.id}" onfocus="this.select()"
-                 oninput="updateItem(${p.id})">
-          <span class="pr-uom">${p.uom}</span>
-          <input type="number" inputmode="decimal" placeholder="₹" value="${savedPrice}"
-                 id="price_${p.id}" class="price-input" onfocus="this.select()"
-                 oninput="updateItem(${p.id})">
-        </div>
-      </div>
-    `;
-  }).join('');
+  // Filter to vendor's products (those with lastPrices history)
+  const vendorProductIds = new Set(Object.keys(lastPrices).map(Number));
+  const vendorProducts = products.filter(p => vendorProductIds.has(p.id));
 
+  let html = '';
+  if (vendorProducts.length > 0) {
+    html += '<div class="section-label">This vendor\'s products</div>';
+    vendorProducts.forEach(p => {
+      html += itemQtys[p.id] ? renderAddedCard(p) : renderInputCard(p);
+    });
+  } else {
+    html += '<div class="no-vendor-items">No purchase history for this vendor.<br>Use "Add Item" below to build the order.</div>';
+  }
+
+  // Also render any "other" items that were already added
+  const addedOtherIds = Object.keys(itemQtys).map(Number).filter(id => !vendorProductIds.has(id));
+  if (addedOtherIds.length > 0) {
+    addedOtherIds.forEach(id => {
+      const p = products.find(pr => pr.id === id);
+      if (p) html += renderAddedCard(p);
+    });
+  }
+
+  document.getElementById('vendorProducts').innerHTML = html;
+
+  document.getElementById('addOtherWrap').innerHTML = `
+    <button class="add-other-btn" onclick="toggleOtherProducts()">+ Add Other Item</button>
+    <div class="other-panel" id="otherPanel">
+      <input type="text" class="search-bar" id="otherSearch" placeholder="Search all products..." oninput="filterOtherProducts()">
+      <div id="otherProductsList"></div>
+    </div>
+  `;
+
+  otherPanelOpen = false;
   updateRunningTotal();
 }
 
-function updateItem(productId) {
-  const qty = parseFloat(document.getElementById(`qty_${productId}`).value) || 0;
-  const price = parseFloat(document.getElementById(`price_${productId}`).value) || 0;
-  const row = document.getElementById(`prow${productId}`);
+function renderInputCard(p) {
+  const price = lastPrices[p.id] || '';
+  return `
+    <div class="product-card" id="pcard${p.id}">
+      <div class="pc-top">
+        <span class="pc-name">${p.name}</span>
+        <span class="pc-uom">${p.uom}</span>
+      </div>
+      ${price ? `<div class="pc-last">Last price: ₹${price}</div>` : '<div class="pc-last">No price history</div>'}
+      <div class="pc-inputs">
+        <input type="number" inputmode="decimal" placeholder="Qty" class="pc-qty-input" id="qty_${p.id}" onfocus="this.select()">
+        <span class="pc-x">×</span>
+        <input type="number" inputmode="decimal" placeholder="₹" class="pc-price-input" id="price_${p.id}" value="${price}" onfocus="this.select()">
+        <button class="pc-add-btn" onclick="addItem(${p.id})">Add</button>
+      </div>
+    </div>
+  `;
+}
 
-  if (qty > 0) {
-    itemQtys[productId] = {qty, price};
-    row.classList.add('has-qty');
-  } else {
-    delete itemQtys[productId];
-    row.classList.remove('has-qty');
-  }
+function renderAddedCard(p) {
+  const v = itemQtys[p.id];
+  const total = v.qty * v.price;
+  return `
+    <div class="product-card added" id="pcard${p.id}">
+      <div class="pc-added">
+        <div class="pc-added-info">
+          <span class="pc-check">✓</span>
+          <span class="pc-added-text"><b>${p.name}</b><br>${v.qty} ${p.uom} × ₹${v.price} = <b>₹${total.toLocaleString('en-IN')}</b></span>
+        </div>
+        <button class="pc-remove-btn" onclick="removeItem(${p.id})">Remove</button>
+      </div>
+    </div>
+  `;
+}
+
+function addItem(productId) {
+  const qtyEl = document.getElementById(`qty_${productId}`);
+  const priceEl = document.getElementById(`price_${productId}`);
+  const qty = parseFloat(qtyEl.value) || 0;
+  const price = parseFloat(priceEl.value) || 0;
+
+  if (qty <= 0) { showToast('Enter quantity'); qtyEl.focus(); return; }
+  if (price <= 0) { showToast('Enter price'); priceEl.focus(); return; }
+
+  itemQtys[productId] = {qty, price};
+  const p = products.find(pr => pr.id === productId);
+  if (p) document.getElementById(`pcard${productId}`).outerHTML = renderAddedCard(p);
   updateRunningTotal();
+}
+
+function removeItem(productId) {
+  delete itemQtys[productId];
+  const p = products.find(pr => pr.id === productId);
+  if (p) document.getElementById(`pcard${productId}`).outerHTML = renderInputCard(p);
+  updateRunningTotal();
+}
+
+let otherPanelOpen = false;
+
+function toggleOtherProducts() {
+  otherPanelOpen = !otherPanelOpen;
+  const panel = document.getElementById('otherPanel');
+  panel.classList.toggle('open', otherPanelOpen);
+  if (otherPanelOpen) {
+    renderOtherProducts(getOtherProducts());
+    setTimeout(() => document.getElementById('otherSearch').focus(), 100);
+  }
+}
+
+function getOtherProducts() {
+  const vendorProductIds = new Set(Object.keys(lastPrices).map(Number));
+  return products.filter(p => !vendorProductIds.has(p.id) && !itemQtys[p.id]);
+}
+
+function filterOtherProducts() {
+  const q = document.getElementById('otherSearch').value.toLowerCase();
+  const filtered = getOtherProducts().filter(p =>
+    p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+  );
+  renderOtherProducts(filtered);
+}
+
+function renderOtherProducts(list) {
+  document.getElementById('otherProductsList').innerHTML = list.length === 0
+    ? '<div class="no-vendor-items">No matching products</div>'
+    : list.map(p => `
+      <div class="other-product" onclick="selectOtherProduct(${p.id})">
+        <div>
+          <div class="op-name">${p.name}</div>
+          <div class="op-code mono">${p.code} • ${p.uom}</div>
+        </div>
+        <span class="op-add">+</span>
+      </div>
+    `).join('');
+}
+
+function selectOtherProduct(productId) {
+  const p = products.find(pr => pr.id === productId);
+  if (!p) return;
+  const container = document.getElementById('vendorProducts');
+  container.insertAdjacentHTML('beforeend', renderInputCard(p));
+  filterOtherProducts();
+  const card = document.getElementById(`pcard${productId}`);
+  card.scrollIntoView({behavior: 'smooth', block: 'center'});
+  setTimeout(() => document.getElementById(`qty_${productId}`).focus(), 300);
 }
 
 function updateRunningTotal() {
@@ -445,11 +568,6 @@ async function confirmPO() {
 
 // ─── SUCCESS SCREEN ──────────────────────────────────────────
 function renderSuccess(poName) {
-  const linesSummary = Object.entries(itemQtys).map(([pid, v]) => {
-    const prod = products.find(p => p.id === parseInt(pid));
-    return `${prod ? prod.name : pid}: ${v.qty} × ₹${v.price}`;
-  }).join('<br>');
-
   document.getElementById('successScreen').innerHTML = `
     <div class="success-wrap">
       <div class="checkmark">✅</div>
@@ -463,14 +581,14 @@ function renderSuccess(poName) {
   `;
 }
 
-function startNewOrder() {
+async function startNewOrder() {
   selectedVendor = null;
   itemQtys = {};
   lastPrices = {};
   showScreen('vendorScreen');
   document.getElementById('backBtn').style.display = 'block';
   document.getElementById('vendorSearch').value = '';
-  renderVendors(vendors);
+  await loadVendors(); // fresh vendor list
 }
 
 // ─── NAVIGATION ──────────────────────────────────────────────
