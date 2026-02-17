@@ -763,64 +763,6 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
-    // ─── TEMPORARY: Fix receipt date (move before settlement) ────
-    // For receipts validated after settlement but physically received before
-    if (action === 'fix-receipt-date' && context.request.method === 'POST') {
-      const body = await context.request.json();
-      const {pin} = body;
-
-      const fixBy = PINS[pin];
-      if (fixBy !== 'Nihaf') {
-        return new Response(JSON.stringify({success: false, error: 'Unauthorized'}), {headers: corsHeaders});
-      }
-
-      // Get last settlement timestamp
-      let settledAt = null;
-      if (DB) {
-        const settlement = await DB.prepare(
-          "SELECT settled_at FROM daily_settlements WHERE status IN ('completed','bootstrap') ORDER BY settled_at DESC LIMIT 1"
-        ).first();
-        if (settlement) settledAt = settlement.settled_at;
-      }
-      if (!settledAt) {
-        return new Response(JSON.stringify({success: false, error: 'No settlement found'}), {headers: corsHeaders});
-      }
-
-      const sinceUTC = new Date(settledAt).toISOString().slice(0, 19).replace('T', ' ');
-
-      // Find done receipts from Vetha after settlement
-      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'stock.picking', 'search_read',
-        [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
-          ['date_done', '>=', sinceUTC], ['company_id', '=', 10],
-          ['partner_id.name', 'ilike', 'vetha']]],
-        {fields: ['id', 'name', 'date_done', 'partner_id', 'move_ids'], limit: 5});
-
-      if (pickings.length === 0) {
-        return new Response(JSON.stringify({success: false, error: 'No Vetha receipts found after settlement'}), {headers: corsHeaders});
-      }
-
-      // Set date_done to 1 hour before settlement
-      const beforeSettlement = new Date(new Date(settledAt).getTime() - 3600000)
-        .toISOString().slice(0, 19).replace('T', ' ');
-
-      const results = [];
-      for (const p of pickings) {
-        await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-          'stock.picking', 'write', [[p.id], {date_done: beforeSettlement}]);
-
-        // Also backdate the stock.move records
-        if (p.move_ids && p.move_ids.length > 0) {
-          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-            'stock.move', 'write', [p.move_ids, {date: beforeSettlement}]);
-        }
-
-        results.push({id: p.id, name: p.name, oldDate: p.date_done, newDate: beforeSettlement});
-      }
-
-      return new Response(JSON.stringify({success: true, fixed: results, settledAt, beforeSettlement}), {headers: corsHeaders});
-    }
-
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
 
   } catch (error) {

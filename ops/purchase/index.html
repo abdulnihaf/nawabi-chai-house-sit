@@ -58,13 +58,9 @@
     .pc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
     .pc-name{font-size:15px;font-weight:700}
     .pc-uom{color:var(--text2);font-size:11px;background:var(--bg);padding:3px 8px;border-radius:6px}
-    .pc-last{color:var(--text2);font-size:12px;margin-bottom:12px}
-    .pc-inputs{display:flex;align-items:center;gap:8px}
-    .pc-inputs input{height:44px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:16px;text-align:center;font-family:'JetBrains Mono',monospace;padding:0 8px}
+    .pc-inputs{display:flex;align-items:center;gap:10px;margin-top:10px}
+    .pc-inputs input{height:44px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:16px;text-align:center;font-family:'JetBrains Mono',monospace;padding:0 12px}
     .pc-inputs input:focus{outline:none;border-color:var(--brown)}
-    .pc-qty-input{width:72px}
-    .pc-price-input{flex:1;min-width:70px}
-    .pc-x{color:var(--text2);font-size:14px}
     .pc-add-btn{height:44px;padding:0 18px;background:var(--brown);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
     .pc-add-btn:active{transform:scale(.96)}
     .pc-added{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -86,8 +82,8 @@
 
     .running-total{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:16px 0 24px;margin-top:8px}
     .running-total .total-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px}
-    .running-total .total-items{color:var(--text2);font-size:13px;margin-bottom:10px}
-    .running-total .total-amount{font-size:22px;font-weight:700;margin-bottom:14px}
+    .running-total .total-items{color:var(--text2);font-size:13px;margin-bottom:6px}
+    .running-total .total-amount{font-size:13px;color:var(--text2);margin-bottom:14px}
     .review-btn{width:100%;padding:16px;background:var(--brown);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
     .review-btn:active{transform:scale(.98)}
     .review-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
@@ -98,9 +94,7 @@
     .review-line{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
     .review-line:last-child{border-bottom:none}
     .review-line .rl-product{flex:1}
-    .review-line .rl-qty{color:var(--text2);min-width:60px;text-align:center}
-    .review-line .rl-price{min-width:50px;text-align:right}
-    .review-line .rl-total{min-width:70px;text-align:right;font-weight:600}
+    .review-line .rl-qty{color:var(--text2);text-align:right}
     .review-grand{display:flex;justify-content:space-between;padding:14px 0 0;font-size:18px;font-weight:700;border-top:2px solid var(--border);margin-top:4px}
     .confirm-po-btn{width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}
     .confirm-po-btn:active{transform:scale(.98)}
@@ -377,18 +371,14 @@ function renderItemsScreen() {
 }
 
 function renderInputCard(p) {
-  const price = lastPrices[p.id] || '';
   return `
     <div class="product-card" id="pcard${p.id}">
       <div class="pc-top">
         <span class="pc-name">${p.name}</span>
         <span class="pc-uom">${p.uom}</span>
       </div>
-      ${price ? `<div class="pc-last">Last price: ₹${price}</div>` : '<div class="pc-last">No price history</div>'}
       <div class="pc-inputs">
-        <input type="number" inputmode="decimal" placeholder="Qty" class="pc-qty-input" id="qty_${p.id}" onfocus="this.select()">
-        <span class="pc-x">×</span>
-        <input type="number" inputmode="decimal" placeholder="₹" class="pc-price-input" id="price_${p.id}" value="${price}" onfocus="this.select()">
+        <input type="number" inputmode="decimal" placeholder="Qty" class="pc-qty-input" id="qty_${p.id}" onfocus="this.select()" style="flex:1">
         <button class="pc-add-btn" onclick="addItem(${p.id})">Add</button>
       </div>
     </div>
@@ -397,13 +387,12 @@ function renderInputCard(p) {
 
 function renderAddedCard(p) {
   const v = itemQtys[p.id];
-  const total = v.qty * v.price;
   return `
     <div class="product-card added" id="pcard${p.id}">
       <div class="pc-added">
         <div class="pc-added-info">
           <span class="pc-check">✓</span>
-          <span class="pc-added-text"><b>${p.name}</b><br>${v.qty} ${p.uom} × ₹${v.price} = <b>₹${total.toLocaleString('en-IN')}</b></span>
+          <span class="pc-added-text"><b>${p.name}</b> — ${v.qty} ${p.uom}</span>
         </div>
         <button class="pc-remove-btn" onclick="removeItem(${p.id})">Remove</button>
       </div>
@@ -413,13 +402,12 @@ function renderAddedCard(p) {
 
 function addItem(productId) {
   const qtyEl = document.getElementById(`qty_${productId}`);
-  const priceEl = document.getElementById(`price_${productId}`);
   const qty = parseFloat(qtyEl.value) || 0;
-  const price = parseFloat(priceEl.value) || 0;
 
   if (qty <= 0) { showToast('Enter quantity'); qtyEl.focus(); return; }
-  if (price <= 0) { showToast('Enter price'); priceEl.focus(); return; }
 
+  // Price stored silently from last PO data (for Odoo PO creation)
+  const price = lastPrices[productId] || 0;
   itemQtys[productId] = {qty, price};
   const p = products.find(pr => pr.id === productId);
   if (p) document.getElementById(`pcard${productId}`).outerHTML = renderAddedCard(p);
@@ -486,11 +474,13 @@ function selectOtherProduct(productId) {
 function updateRunningTotal() {
   const entries = Object.entries(itemQtys);
   const count = entries.length;
-  const total = entries.reduce((sum, [, v]) => sum + (v.qty * v.price), 0);
 
   document.getElementById('totalItems').textContent = count === 0
     ? 'No items added' : `${count} item${count > 1 ? 's' : ''} added`;
-  document.getElementById('totalAmount').textContent = `₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
+  document.getElementById('totalAmount').textContent = count === 0 ? '' : entries.map(([pid, v]) => {
+    const p = products.find(pr => pr.id === parseInt(pid));
+    return p ? `${p.name}: ${v.qty}` : '';
+  }).filter(Boolean).join(', ');
   document.getElementById('reviewBtn').disabled = count === 0;
 }
 
@@ -500,18 +490,13 @@ function goToReview() {
   if (entries.length === 0) return;
 
   let linesHtml = '';
-  let grandTotal = 0;
   for (const [pid, v] of entries) {
     const prod = products.find(p => p.id === parseInt(pid));
     if (!prod) continue;
-    const lineTotal = v.qty * v.price;
-    grandTotal += lineTotal;
     linesHtml += `
       <div class="review-line">
         <span class="rl-product">${prod.name}</span>
         <span class="rl-qty mono">${v.qty} ${prod.uom}</span>
-        <span class="rl-price mono">₹${v.price}</span>
-        <span class="rl-total mono">₹${lineTotal.toLocaleString('en-IN')}</span>
       </div>
     `;
   }
@@ -520,8 +505,7 @@ function goToReview() {
     <h3>${selectedVendor.name} — ${new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'})}</h3>
     ${linesHtml}
     <div class="review-grand">
-      <span>Total</span>
-      <span class="mono">₹${grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+      <span>${entries.length} item${entries.length > 1 ? 's' : ''}</span>
     </div>
   `;
 
