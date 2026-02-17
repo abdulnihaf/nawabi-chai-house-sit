@@ -720,6 +720,49 @@ export async function onRequest(context) {
       }
     }
 
+    // ─── CANCEL RECEIPT (PO cancellation) ────────────────────────
+    // Cancels a pending receipt (stock.picking) in Odoo — restricted to Nihaf
+    if (action === 'cancel-receipt' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      const {pickingId, pin} = body;
+
+      if (!pickingId) return new Response(JSON.stringify({success: false, error: 'Missing pickingId'}), {headers: corsHeaders});
+
+      const cancelledBy = PINS[pin];
+      if (cancelledBy !== 'Nihaf') {
+        return new Response(JSON.stringify({success: false, error: 'Only Nihaf can cancel receipts'}), {headers: corsHeaders});
+      }
+
+      // Verify picking exists and is in cancellable state
+      const pickingData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [[pickingId]],
+        {fields: ['id', 'name', 'state', 'origin', 'partner_id']}
+      );
+      if (!pickingData || pickingData.length === 0) {
+        return new Response(JSON.stringify({success: false, error: 'Picking not found'}), {headers: corsHeaders});
+      }
+
+      const picking = pickingData[0];
+      if (picking.state === 'done') {
+        return new Response(JSON.stringify({success: false, error: 'Cannot cancel — already received'}), {headers: corsHeaders});
+      }
+      if (picking.state === 'cancel') {
+        return new Response(JSON.stringify({success: false, error: 'Already cancelled'}), {headers: corsHeaders});
+      }
+
+      // Cancel the picking
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'action_cancel', [[pickingId]]
+      );
+
+      return new Response(JSON.stringify({
+        success: true, message: 'Receipt cancelled',
+        pickingName: picking.name, poName: picking.origin || '',
+        vendorName: picking.partner_id ? picking.partner_id[1] : 'Unknown',
+        cancelledBy,
+      }), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
 
   } catch (error) {

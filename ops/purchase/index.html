@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH - Purchase Orders</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--red-dim:rgba(239,68,68,.12);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);--purple:#a855f7;--yellow:#eab308;--yellow-dim:rgba(234,179,8,.12);--orange:#f97316;--orange-dim:rgba(249,115,22,.12);--brown:#AC7E54;--brown-dim:rgba(172,126,84,.15)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ─── HEADER ─────────────────────────── */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1 .accent{width:4px;height:22px;background:var(--brown);border-radius:2px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .back-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;display:none}
+    .back-btn:active{background:var(--border)}
+    .user-badge{background:var(--brown-dim);color:var(--brown);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;display:none}
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    .screen.active{display:block}
+
+    /* ─── PIN SCREEN ──────────────────────── */
+    .pin-wrap{text-align:center;padding:40px 20px}
+    .pin-wrap .icon{font-size:48px;margin-bottom:20px}
+    .pin-wrap h2{font-size:22px;margin-bottom:8px}
+    .pin-wrap p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-inputs{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-inputs input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace}
+    .pin-inputs input:focus{outline:none;border-color:var(--brown)}
+    .pin-error{color:var(--red);font-size:13px;display:none}
+
+    /* ─── VENDOR SCREEN ───────────────────── */
+    .search-bar{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;width:100%;color:var(--text);font-size:15px;font-family:inherit;margin-bottom:16px}
+    .search-bar:focus{outline:none;border-color:var(--brown)}
+    .search-bar::placeholder{color:var(--text2)}
+    .vendor-list{display:grid;gap:10px}
+    .vendor-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:16px 20px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:14px}
+    .vendor-card:active{transform:scale(.98);border-color:var(--brown)}
+    .vendor-card .v-icon{width:42px;height:42px;background:var(--brown-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .vendor-card .v-name{font-size:16px;font-weight:600}
+    .vendor-card .v-phone{color:var(--text2);font-size:12px;margin-top:2px}
+    .vendor-card .v-arrow{margin-left:auto;color:var(--text2);font-size:20px}
+
+    /* ─── ITEMS SCREEN ────────────────────── */
+    .vendor-header{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+    .vendor-header .vh-icon{width:36px;height:36px;background:var(--brown-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .vendor-header .vh-name{font-size:17px;font-weight:700}
+    .vendor-header .vh-sub{color:var(--text2);font-size:12px}
+
+    .product-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+    .product-row.has-qty{border-color:var(--green);background:rgba(34,197,94,.04)}
+    .product-row .pr-name{font-size:14px;font-weight:600}
+    .product-row .pr-code{color:var(--text2);font-size:11px;margin-top:1px}
+    .product-row .pr-inputs{display:flex;align-items:center;gap:8px}
+    .product-row .pr-inputs input{width:64px;height:40px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;text-align:center;font-family:'JetBrains Mono',monospace}
+    .product-row .pr-inputs input:focus{outline:none;border-color:var(--brown)}
+    .product-row .pr-uom{color:var(--text2);font-size:12px;min-width:28px}
+    .price-input{width:72px !important}
+
+    .running-total{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:16px 0 24px;margin-top:8px}
+    .running-total .total-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px}
+    .running-total .total-items{color:var(--text2);font-size:13px;margin-bottom:10px}
+    .running-total .total-amount{font-size:22px;font-weight:700;margin-bottom:14px}
+    .review-btn{width:100%;padding:16px;background:var(--brown);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+    .review-btn:active{transform:scale(.98)}
+    .review-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none}
+
+    /* ─── REVIEW SCREEN ───────────────────── */
+    .review-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
+    .review-card h3{font-size:16px;margin-bottom:14px;color:var(--text2);font-weight:500}
+    .review-line{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+    .review-line:last-child{border-bottom:none}
+    .review-line .rl-product{flex:1}
+    .review-line .rl-qty{color:var(--text2);min-width:60px;text-align:center}
+    .review-line .rl-price{min-width:50px;text-align:right}
+    .review-line .rl-total{min-width:70px;text-align:right;font-weight:600}
+    .review-grand{display:flex;justify-content:space-between;padding:14px 0 0;font-size:18px;font-weight:700;border-top:2px solid var(--border);margin-top:4px}
+    .confirm-po-btn{width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}
+    .confirm-po-btn:active{transform:scale(.98)}
+    .confirm-po-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed}
+    .confirm-po-btn.loading{background:var(--yellow);cursor:wait}
+    .edit-link{display:block;text-align:center;color:var(--text2);font-size:14px;margin-top:14px;cursor:pointer;padding:8px}
+    .edit-link:active{color:var(--text)}
+
+    /* ─── SUCCESS SCREEN ──────────────────── */
+    .success-wrap{text-align:center;padding:60px 20px}
+    .success-wrap .checkmark{width:80px;height:80px;background:var(--green-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 24px;animation:pop .3s ease}
+    @keyframes pop{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+    .success-wrap h2{font-size:24px;margin-bottom:8px}
+    .success-wrap p{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:6px}
+    .success-wrap .po-name{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--green);margin:16px 0}
+    .success-wrap .new-btn{display:inline-block;margin-top:24px;padding:14px 32px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+    .success-wrap .new-btn:active{background:var(--border)}
+
+    /* ─── LOADING ──────────────────────────── */
+    .loading-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,26,.8);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+    .loading-overlay.show{display:flex}
+    .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--brown);border-radius:50%;animation:spin .8s linear infinite}
+    .loading-overlay p{color:var(--text2);font-size:14px}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+    /* ─── TOAST ────────────────────────────── */
+    .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <p id="loadingText">Loading...</p>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Header -->
+<div class="header">
+  <h1><span class="accent"></span>Purchase Order</h1>
+  <div class="header-right">
+    <span class="user-badge" id="userBadge"></span>
+    <button class="back-btn" id="backBtn" onclick="goBack()">← Back</button>
+  </div>
+</div>
+
+<!-- Screen 1: PIN Entry -->
+<div class="screen active" id="pinScreen">
+  <div class="pin-wrap">
+    <div class="icon">🔐</div>
+    <h2>Create Purchase Order</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-inputs" id="pinInputs">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+    </div>
+    <div class="pin-error" id="pinError">Invalid PIN. Only Zoya and Nihaf can create POs.</div>
+  </div>
+</div>
+
+<!-- Screen 2: Select Vendor -->
+<div class="screen" id="vendorScreen">
+  <input type="text" class="search-bar" id="vendorSearch" placeholder="Search vendors..." oninput="filterVendors()">
+  <div class="vendor-list" id="vendorList"></div>
+</div>
+
+<!-- Screen 3: Add Items -->
+<div class="screen" id="itemsScreen">
+  <div class="vendor-header" id="vendorHeader"></div>
+  <div id="productList"></div>
+  <div class="running-total" id="runningTotal">
+    <div class="total-card">
+      <div class="total-items" id="totalItems">No items added</div>
+      <div class="total-amount" id="totalAmount">₹0</div>
+      <button class="review-btn" id="reviewBtn" onclick="goToReview()" disabled>Review Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 4: Review & Confirm -->
+<div class="screen" id="reviewScreen">
+  <div class="review-card" id="reviewCard"></div>
+  <button class="confirm-po-btn" id="confirmPoBtn" onclick="confirmPO()">Confirm & Create PO</button>
+  <div class="edit-link" onclick="goBack()">← Back to Edit</div>
+</div>
+
+<!-- Screen 5: Success -->
+<div class="screen" id="successScreen"></div>
+
+<script>
+const API = '/api/purchase';
+let currentUser = null;
+let currentPin = null;
+let vendors = [];
+let products = [];
+let selectedVendor = null;
+let lastPrices = {};
+// itemQtys[productId] = {qty, price}
+let itemQtys = {};
+
+// ─── INIT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setupPinInputs();
+  setTimeout(() => document.querySelector('#pinInputs input').focus(), 100);
+});
+
+// ─── PIN ─────────────────────────────────────────────────────
+function setupPinInputs() {
+  const pins = Array.from(document.querySelectorAll('#pinInputs input'));
+  pins.forEach((input, i) => {
+    input.addEventListener('input', () => {
+      if (input.value.length === 1) {
+        input.style.borderColor = 'var(--green)';
+        input.style.background = 'rgba(34,197,94,.1)';
+        if (i < 3) pins[i + 1].focus();
+        if (i === 3) verifyPin();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        pins[i - 1].focus();
+        pins[i - 1].value = '';
+        pins[i - 1].style.borderColor = 'var(--border)';
+        pins[i - 1].style.background = 'var(--bg2)';
+      }
+    });
+  });
+}
+
+async function verifyPin() {
+  const pins = Array.from(document.querySelectorAll('#pinInputs input'));
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+
+  showLoading('Verifying...');
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${pin}`);
+    const data = await res.json();
+    if (!data.success) throw new Error('invalid');
+    currentUser = data.user;
+    currentPin = pin;
+    document.getElementById('userBadge').textContent = currentUser;
+    document.getElementById('userBadge').style.display = 'block';
+    await loadVendors();
+    showScreen('vendorScreen');
+    document.getElementById('backBtn').style.display = 'block';
+  } catch (e) {
+    document.getElementById('pinError').style.display = 'block';
+    const wrap = document.getElementById('pinInputs');
+    wrap.style.animation = 'shake 0.4s ease';
+    setTimeout(() => {
+      wrap.style.animation = '';
+      pins.forEach(p => { p.value = ''; p.style.borderColor = 'var(--border)'; p.style.background = 'var(--bg2)'; });
+      pins[0].focus();
+    }, 500);
+  }
+  hideLoading();
+}
+
+// ─── VENDORS ─────────────────────────────────────────────────
+async function loadVendors() {
+  if (vendors.length > 0) return;
+  showLoading('Loading vendors...');
+  try {
+    const res = await fetch(`${API}?action=vendors`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    vendors = data.vendors;
+    renderVendors(vendors);
+  } catch (e) {
+    showToast('Failed to load vendors');
+  }
+  hideLoading();
+}
+
+function renderVendors(list) {
+  document.getElementById('vendorList').innerHTML = list.map(v => `
+    <div class="vendor-card" onclick="selectVendor(${v.id})">
+      <div class="v-icon">🏪</div>
+      <div>
+        <div class="v-name">${v.name}</div>
+        ${v.phone ? `<div class="v-phone">${v.phone}</div>` : ''}
+      </div>
+      <span class="v-arrow">›</span>
+    </div>
+  `).join('');
+}
+
+function filterVendors() {
+  const q = document.getElementById('vendorSearch').value.toLowerCase();
+  const filtered = vendors.filter(v => v.name.toLowerCase().includes(q));
+  renderVendors(filtered);
+}
+
+async function selectVendor(id) {
+  selectedVendor = vendors.find(v => v.id === id);
+  if (!selectedVendor) return;
+
+  // Reset items
+  itemQtys = {};
+
+  showLoading('Loading products...');
+  try {
+    // Load products and last prices in parallel
+    const [prodRes, priceRes] = await Promise.all([
+      products.length > 0 ? Promise.resolve(null) : fetch(`${API}?action=products`).then(r => r.json()),
+      fetch(`${API}?action=last-prices&vendor_id=${id}`).then(r => r.json()),
+    ]);
+    if (prodRes) {
+      if (!prodRes.success) throw new Error(prodRes.error);
+      products = prodRes.products;
+    }
+    if (priceRes.success) lastPrices = priceRes.prices || {};
+    else lastPrices = {};
+
+    renderItemsScreen();
+    showScreen('itemsScreen');
+  } catch (e) {
+    showToast('Failed to load products');
+  }
+  hideLoading();
+}
+
+// ─── ITEMS SCREEN ────────────────────────────────────────────
+function renderItemsScreen() {
+  document.getElementById('vendorHeader').innerHTML = `
+    <div class="vh-icon">🏪</div>
+    <div>
+      <div class="vh-name">${selectedVendor.name}</div>
+      <div class="vh-sub">Add items and quantities</div>
+    </div>
+  `;
+
+  document.getElementById('productList').innerHTML = products.map(p => {
+    const savedQty = itemQtys[p.id]?.qty || '';
+    const savedPrice = itemQtys[p.id]?.price || lastPrices[p.id] || '';
+    const hasQty = savedQty > 0;
+    return `
+      <div class="product-row ${hasQty ? 'has-qty' : ''}" id="prow${p.id}">
+        <div>
+          <div class="pr-name">${p.name}</div>
+          <div class="pr-code mono">${p.code} • ${p.uom}</div>
+        </div>
+        <div class="pr-inputs">
+          <input type="number" inputmode="decimal" placeholder="Qty" value="${savedQty}"
+                 id="qty_${p.id}" onfocus="this.select()"
+                 oninput="updateItem(${p.id})">
+          <span class="pr-uom">${p.uom}</span>
+          <input type="number" inputmode="decimal" placeholder="₹" value="${savedPrice}"
+                 id="price_${p.id}" class="price-input" onfocus="this.select()"
+                 oninput="updateItem(${p.id})">
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  updateRunningTotal();
+}
+
+function updateItem(productId) {
+  const qty = parseFloat(document.getElementById(`qty_${productId}`).value) || 0;
+  const price = parseFloat(document.getElementById(`price_${productId}`).value) || 0;
+  const row = document.getElementById(`prow${productId}`);
+
+  if (qty > 0) {
+    itemQtys[productId] = {qty, price};
+    row.classList.add('has-qty');
+  } else {
+    delete itemQtys[productId];
+    row.classList.remove('has-qty');
+  }
+  updateRunningTotal();
+}
+
+function updateRunningTotal() {
+  const entries = Object.entries(itemQtys);
+  const count = entries.length;
+  const total = entries.reduce((sum, [, v]) => sum + (v.qty * v.price), 0);
+
+  document.getElementById('totalItems').textContent = count === 0
+    ? 'No items added' : `${count} item${count > 1 ? 's' : ''} added`;
+  document.getElementById('totalAmount').textContent = `₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
+  document.getElementById('reviewBtn').disabled = count === 0;
+}
+
+// ─── REVIEW SCREEN ───────────────────────────────────────────
+function goToReview() {
+  const entries = Object.entries(itemQtys);
+  if (entries.length === 0) return;
+
+  let linesHtml = '';
+  let grandTotal = 0;
+  for (const [pid, v] of entries) {
+    const prod = products.find(p => p.id === parseInt(pid));
+    if (!prod) continue;
+    const lineTotal = v.qty * v.price;
+    grandTotal += lineTotal;
+    linesHtml += `
+      <div class="review-line">
+        <span class="rl-product">${prod.name}</span>
+        <span class="rl-qty mono">${v.qty} ${prod.uom}</span>
+        <span class="rl-price mono">₹${v.price}</span>
+        <span class="rl-total mono">₹${lineTotal.toLocaleString('en-IN')}</span>
+      </div>
+    `;
+  }
+
+  document.getElementById('reviewCard').innerHTML = `
+    <h3>${selectedVendor.name} — ${new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'})}</h3>
+    ${linesHtml}
+    <div class="review-grand">
+      <span>Total</span>
+      <span class="mono">₹${grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+    </div>
+  `;
+
+  document.getElementById('confirmPoBtn').disabled = false;
+  document.getElementById('confirmPoBtn').classList.remove('loading');
+  document.getElementById('confirmPoBtn').textContent = 'Confirm & Create PO';
+  showScreen('reviewScreen');
+}
+
+// ─── CONFIRM PO ──────────────────────────────────────────────
+async function confirmPO() {
+  const btn = document.getElementById('confirmPoBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'Creating PO...';
+
+  const lines = Object.entries(itemQtys).map(([pid, v]) => {
+    const prod = products.find(p => p.id === parseInt(pid));
+    return {product_id: parseInt(pid), qty: v.qty, price_unit: v.price, name: prod ? prod.name : 'Product'};
+  });
+
+  showLoading('Creating purchase order in Odoo...');
+  try {
+    const res = await fetch(`${API}?action=create-po`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pin: currentPin, vendor_id: selectedVendor.id, lines}),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    renderSuccess(data.po_name);
+    showScreen('successScreen');
+    document.getElementById('backBtn').style.display = 'none';
+  } catch (e) {
+    showToast(`Error: ${e.message}`);
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.textContent = 'Confirm & Create PO';
+  }
+  hideLoading();
+}
+
+// ─── SUCCESS SCREEN ──────────────────────────────────────────
+function renderSuccess(poName) {
+  const linesSummary = Object.entries(itemQtys).map(([pid, v]) => {
+    const prod = products.find(p => p.id === parseInt(pid));
+    return `${prod ? prod.name : pid}: ${v.qty} × ₹${v.price}`;
+  }).join('<br>');
+
+  document.getElementById('successScreen').innerHTML = `
+    <div class="success-wrap">
+      <div class="checkmark">✅</div>
+      <h2>PO Created!</h2>
+      <div class="po-name">${poName}</div>
+      <p>${selectedVendor.name}</p>
+      <p style="font-size:13px;color:var(--text2)">Created by ${currentUser} at ${new Date().toLocaleTimeString('en-IN')}</p>
+      <p style="color:var(--green);font-size:13px;margin-top:12px">This order will appear in the Receive page</p>
+      <button class="new-btn" onclick="startNewOrder()">Create Another Order</button>
+    </div>
+  `;
+}
+
+function startNewOrder() {
+  selectedVendor = null;
+  itemQtys = {};
+  lastPrices = {};
+  showScreen('vendorScreen');
+  document.getElementById('backBtn').style.display = 'block';
+  document.getElementById('vendorSearch').value = '';
+  renderVendors(vendors);
+}
+
+// ─── NAVIGATION ──────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goBack() {
+  const active = getActiveScreen();
+  if (active === 'vendorScreen') {
+    // Back to PIN? Just go to ops hub
+    window.location.href = '/ops/';
+    return;
+  }
+  if (active === 'itemsScreen') {
+    showScreen('vendorScreen');
+    return;
+  }
+  if (active === 'reviewScreen') {
+    showScreen('itemsScreen');
+    return;
+  }
+}
+
+function getActiveScreen() {
+  for (const id of ['pinScreen', 'vendorScreen', 'itemsScreen', 'reviewScreen', 'successScreen']) {
+    if (document.getElementById(id).classList.contains('active')) return id;
+  }
+  return 'pinScreen';
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Loading...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

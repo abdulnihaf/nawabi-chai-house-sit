@@ -45,6 +45,25 @@
     .delivery-card .item-chip .qty{color:var(--text);font-weight:600}
     .delivery-card .arrow{position:absolute;right:20px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:22px}
     .delivery-card .note-badge{background:var(--yellow-dim);color:var(--yellow);font-size:11px;padding:3px 8px;border-radius:6px;margin-left:8px}
+    .delivery-card .card-actions{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .delivery-card .receive-action{flex:1;padding:10px;background:var(--green-dim);border:1px solid rgba(34,197,94,.3);border-radius:8px;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;text-align:center;font-family:inherit}
+    .delivery-card .receive-action:active{opacity:.8}
+    .delivery-card .cancel-action{padding:10px 14px;background:var(--red-dim);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:var(--red);font-size:13px;font-weight:600;cursor:pointer;text-align:center;font-family:inherit}
+    .delivery-card .cancel-action:active{opacity:.8}
+
+    /* Cancel confirmation modal */
+    .cancel-modal{display:none;position:fixed;inset:0;background:rgba(10,15,26,.85);z-index:250;align-items:center;justify-content:center;padding:20px}
+    .cancel-modal.show{display:flex}
+    .cancel-modal-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center}
+    .cancel-modal-box h3{font-size:18px;margin-bottom:8px}
+    .cancel-modal-box .cm-detail{color:var(--text2);font-size:14px;margin-bottom:20px;line-height:1.5}
+    .cancel-modal-box .cm-pin-label{color:var(--text2);font-size:12px;margin-bottom:10px}
+    .cancel-modal-box .cm-pins{display:flex;gap:10px;justify-content:center;margin-bottom:16px}
+    .cancel-modal-box .cm-pins input{width:44px;height:52px;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;text-align:center;font-family:'JetBrains Mono',monospace}
+    .cancel-modal-box .cm-pins input:focus{outline:none;border-color:var(--red)}
+    .cancel-modal-box .cm-error{color:var(--red);font-size:12px;display:none;margin-bottom:10px}
+    .cancel-modal-box .cm-cancel-btn{padding:10px 24px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:14px;cursor:pointer;font-family:inherit}
+    .cancel-modal-box .cm-cancel-btn:active{background:var(--border)}
 
     .empty-state{text-align:center;padding:60px 20px}
     .empty-state .icon{font-size:64px;margin-bottom:16px;opacity:.6}
@@ -184,6 +203,23 @@
 
 <!-- Screen 4: Success -->
 <div class="screen" id="successScreen"></div>
+
+<!-- Cancel Confirmation Modal -->
+<div class="cancel-modal" id="cancelModal">
+  <div class="cancel-modal-box">
+    <h3>Cancel Delivery?</h3>
+    <div class="cm-detail" id="cancelDetail"></div>
+    <div class="cm-pin-label">Enter Nihaf's PIN to cancel</div>
+    <div class="cm-pins" id="cancelPins">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+      <input type="password" maxlength="1" inputmode="numeric">
+    </div>
+    <div class="cm-error" id="cancelError">Only Nihaf can cancel. Invalid PIN.</div>
+    <button class="cm-cancel-btn" onclick="closeCancelModal()">Dismiss</button>
+  </div>
+</div>
 
 <script>
 const API_BASE = '/api/inventory';
@@ -350,18 +386,21 @@ function renderDeliveryList() {
     const dateStr = r.scheduledDate ? formatDate(r.scheduledDate) : 'Today';
     const noteTag = r.note ? `<span class="note-badge">📝 Note</span>` : '';
     return `
-      <div class="delivery-card" onclick="openReceipt(${r.pickingId})">
-        <div class="vendor" style="display:flex;align-items:center;gap:12px">
+      <div class="delivery-card">
+        <div class="vendor" style="display:flex;align-items:center;gap:12px" onclick="openReceipt(${r.pickingId})">
           <div class="vendor-icon">🚛</div>
           <div class="vendor-info">
             <div style="font-size:17px;font-weight:700">${r.vendorName}${noteTag}</div>
             <div class="meta">${r.poName} • ${dateStr} • ${r.itemCount} item${r.itemCount > 1 ? 's' : ''}</div>
           </div>
         </div>
-        <div class="items-preview">
+        <div class="items-preview" onclick="openReceipt(${r.pickingId})">
           ${r.items.map(i => `<span class="item-chip"><span class="qty">${i.expectedQty}</span> ${i.uom} ${shortName(i.productName)}</span>`).join('')}
         </div>
-        <span class="arrow">›</span>
+        <div class="card-actions">
+          <button class="receive-action" onclick="openReceipt(${r.pickingId})">📦 Receive</button>
+          <button class="cancel-action" onclick="event.stopPropagation();openCancelModal(${r.pickingId})">✕ Cancel</button>
+        </div>
       </div>`;
   }).join('');
 }
@@ -735,6 +774,88 @@ function formatDate(dateStr) {
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   if (ist.toDateString() === yesterday.toDateString()) return 'Yesterday';
   return ist.toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+}
+
+// ─── CANCEL PO FLOW ─────────────────────────────────────────
+let cancelPickingId = null;
+
+function openCancelModal(pickingId) {
+  cancelPickingId = pickingId;
+  const receipt = currentReceipts.find(r => r.pickingId === pickingId);
+  if (!receipt) return;
+
+  document.getElementById('cancelDetail').innerHTML =
+    `<strong>${receipt.vendorName}</strong><br>${receipt.poName} • ${receipt.itemCount} item${receipt.itemCount > 1 ? 's' : ''}`;
+  document.getElementById('cancelError').style.display = 'none';
+
+  // Clear and setup cancel PIN inputs
+  const pins = Array.from(document.querySelectorAll('#cancelPins input'));
+  pins.forEach(p => { p.value = ''; p.style.borderColor = 'var(--border)'; p.style.background = 'var(--bg2)'; });
+
+  // Setup PIN auto-advance for cancel modal
+  pins.forEach((input, i) => {
+    input.oninput = () => {
+      if (input.value.length === 1) {
+        input.style.borderColor = 'var(--red)';
+        input.style.background = 'rgba(239,68,68,.1)';
+        if (i < 3) pins[i + 1].focus();
+        if (i === 3) submitCancel();
+      }
+    };
+    input.onkeydown = (e) => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        pins[i - 1].focus();
+        pins[i - 1].value = '';
+        pins[i - 1].style.borderColor = 'var(--border)';
+        pins[i - 1].style.background = 'var(--bg2)';
+      }
+    };
+  });
+
+  document.getElementById('cancelModal').classList.add('show');
+  setTimeout(() => pins[0].focus(), 100);
+}
+
+function closeCancelModal() {
+  document.getElementById('cancelModal').classList.remove('show');
+  cancelPickingId = null;
+}
+
+async function submitCancel() {
+  const pins = Array.from(document.querySelectorAll('#cancelPins input'));
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4 || !cancelPickingId) return;
+
+  showLoading('Cancelling delivery...');
+  closeCancelModal();
+
+  try {
+    const res = await fetch(`${API_BASE}?action=cancel-receipt`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pickingId: cancelPickingId, pin}),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      if (data.error.includes('Only Nihaf')) {
+        // Reopen modal with error
+        hideLoading();
+        openCancelModal(cancelPickingId);
+        document.getElementById('cancelError').style.display = 'block';
+        return;
+      }
+      throw new Error(data.error);
+    }
+
+    showToast(`Cancelled ${data.pickingName || 'delivery'}`);
+    // Remove from list
+    currentReceipts = currentReceipts.filter(r => r.pickingId !== cancelPickingId);
+    renderDeliveryList();
+  } catch (e) {
+    showToast(`Error: ${e.message}`);
+  }
+  hideLoading();
+  cancelPickingId = null;
 }
 </script>
 </body>
