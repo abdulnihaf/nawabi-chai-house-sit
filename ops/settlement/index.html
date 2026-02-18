@@ -1551,8 +1551,28 @@
           const rp=runnerPeriods[id];
           const rpFrom=rp.periodStart?new Date(rp.periodStart):baseline;
           const prevUnsold=(rp&&rp.lastSettlement&&rp.lastSettlement.unsold_tokens)?parseFloat(rp.lastSettlement.unsold_tokens):0;
-          if(rpFrom>=shiftFrom){
-            // Runner's period starts at or after counter period — main nch-data covers it
+          if(rpFrom>shiftFrom){
+            // Runner was settled MID-SHIFT — their period starts AFTER shift start.
+            // Must fetch data from runner's own period, not the full shift, to avoid
+            // re-counting orders that were already settled in the mid-shift settlement.
+            extraFetches.push(
+              (function(runnerId,runnerPrevUnsold){
+                return fetch('/api/nch-data?from='+toLocalISO(rpFrom)).then(r=>r.json()).then(d=>{
+                  if(d.success){
+                    const runner=d.data.runners.find(x=>x.id===runnerId);
+                    if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
+                      runner._prevUnsold=runnerPrevUnsold;
+                      allRunners.push(runner);
+                    }else if(runnerPrevUnsold>0){
+                      const rInfo=RUNNERS.find(r=>r.id===runnerId);
+                      allRunners.push({id:runnerId,name:rInfo?.name||'Runner '+runnerId,barcode:rInfo?.barcode||'',tokens:0,sales:0,upi:0,cashToCollect:0,crossPaymentCredit:0,crossPayments:[],_prevUnsold:runnerPrevUnsold});
+                    }
+                  }
+                }).catch(()=>{/* skip runner on API error */});
+              })(id,prevUnsold)
+            );
+          }else if(rpFrom>=shiftFrom){
+            // Runner's period matches counter period — main nch-data covers it
             const runner=data.data.runners.find(x=>x.id===id);
             if(runner&&(runner.tokens>0||runner.sales>0||runner.upi>0)){
               runner._prevUnsold=prevUnsold;

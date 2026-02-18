@@ -512,27 +512,36 @@ export async function onRequest(context) {
         ).run();
 
         // Legacy settlements table: for period continuity (get-last-settlement)
+        // Guard: skip if runner was already settled mid-shift (e.g. staff blind entry)
+        // to prevent duplicate settlement records inflating cash totals
         if (rc.status === 'present') {
-          const notesParts = [`Shift wizard: calc=${rc.cash_calculated}, collected=${rc.cash_collected}`];
-          if (rc.unsold_tokens > 0) notesParts.push(`unsold=${rc.unsold_tokens}`);
-          if (rc.cross_payment_credit > 0) notesParts.push(`crossCredit=${rc.cross_payment_credit}`);
-          if (rc.cash_variance !== 0) notesParts.push(`variance=${rc.cash_variance}`);
+          const existingMidShift = await DB.prepare(
+            'SELECT id FROM settlements WHERE runner_id = ? AND settled_at > ? AND settled_at < ? LIMIT 1'
+          ).bind(String(rc.runner_id), period_start, settledAt).first();
 
-          await DB.prepare(`
-            INSERT INTO settlements (
-              runner_id, runner_name, settled_at, settled_by,
+          if (!existingMidShift) {
+            const notesParts = [`Shift wizard: calc=${rc.cash_calculated}, collected=${rc.cash_collected}`];
+            if (rc.unsold_tokens > 0) notesParts.push(`unsold=${rc.unsold_tokens}`);
+            if (rc.cross_payment_credit > 0) notesParts.push(`crossCredit=${rc.cross_payment_credit}`);
+            if (rc.cash_variance !== 0) notesParts.push(`variance=${rc.cash_variance}`);
+
+            await DB.prepare(`
+              INSERT INTO settlements (
+                runner_id, runner_name, settled_at, settled_by,
+                period_start, period_end,
+                tokens_amount, sales_amount, upi_amount,
+                cash_settled, unsold_tokens, notes, handover_to
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              String(rc.runner_id), rc.runner_name,
+              settledAt, settled_by,
               period_start, period_end,
-              tokens_amount, sales_amount, upi_amount,
-              cash_settled, unsold_tokens, notes, handover_to
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(
-            String(rc.runner_id), rc.runner_name,
-            settledAt, settled_by,
-            period_start, period_end,
-            rc.tokens_amount || 0, rc.sales_amount || 0, rc.upi_amount || 0,
-            rc.cash_collected || 0, rc.unsold_tokens || 0,
-            notesParts.join('; '), handover_to || ''
-          ).run();
+              rc.tokens_amount || 0, rc.sales_amount || 0, rc.upi_amount || 0,
+              rc.cash_collected || 0, rc.unsold_tokens || 0,
+              notesParts.join('; '), handover_to || ''
+            ).run();
+          }
+          // If existingMidShift found, skip — runner was already settled during this shift
         }
       }
 
