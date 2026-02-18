@@ -223,7 +223,8 @@ export async function onRequest(context) {
       for (const check of checks) {
         // Duplicate prevention: skip if same check alerted in last 30 minutes
         if (DB) {
-          const recent = await DB.prepare("SELECT id FROM audit_logs WHERE check_type = ? AND created_at > datetime('now', '-30 minutes') LIMIT 1").bind(check.type).first();
+          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const recent = await DB.prepare("SELECT id FROM audit_logs WHERE check_type = ? AND created_at > ? LIMIT 1").bind(check.type, thirtyMinAgo).first();
           if (recent) continue;
         }
 

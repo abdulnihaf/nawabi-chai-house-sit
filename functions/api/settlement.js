@@ -94,9 +94,11 @@ export async function onRequest(context) {
       if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
 
       // Duplicate prevention: same person + same runner within 5 minutes
+      // Use ISO timestamp (not SQLite datetime) to match stored format
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const recentDup = await DB.prepare(
-        `SELECT id, settled_at, settled_by FROM settlements WHERE runner_id = ? AND settled_by = ? AND settled_at > datetime('now', '-5 minutes') ORDER BY settled_at DESC LIMIT 1`
-      ).bind(String(runner_id), settled_by).first();
+        `SELECT id, settled_at, settled_by FROM settlements WHERE runner_id = ? AND settled_by = ? AND settled_at > ? ORDER BY settled_at DESC LIMIT 1`
+      ).bind(String(runner_id), settled_by, fiveMinAgo).first();
 
       if (recentDup) {
         const timeStr = recentDup.settled_at.slice(11, 16);
@@ -300,10 +302,11 @@ export async function onRequest(context) {
       // Discrepancy = expected - accounted (positive = cash missing)
       const discrepancy = expected - accounted;
 
-      // Duplicate prevention
+      // Duplicate prevention — use ISO timestamp (not SQLite datetime) to match stored format
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const recentDup = await DB.prepare(
-        "SELECT id FROM cash_collections WHERE collected_by = ? AND collected_at > datetime('now', '-5 minutes') LIMIT 1"
-      ).bind(collected_by).first();
+        "SELECT id FROM cash_collections WHERE collected_by = ? AND collected_at > ? LIMIT 1"
+      ).bind(collected_by, fiveMinAgo).first();
       if (recentDup) {
         return new Response(JSON.stringify({success: false, error: 'You already collected cash recently. Wait a few minutes.'}), {headers: corsHeaders});
       }

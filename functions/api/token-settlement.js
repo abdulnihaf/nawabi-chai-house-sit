@@ -269,10 +269,11 @@ export async function onRequest(context) {
       const gross_weight_kg = rawWeight < 50 ? Math.round(rawWeight * 1000) : rawWeight;
       if (gross_weight_kg < BOX_TARE_G) return new Response(JSON.stringify({success: false, error: `Weight ${gross_weight_kg}g is less than empty box (${BOX_TARE_G}g)`}), {headers: corsHeaders});
 
-      // Duplicate prevention (5 min window)
+      // Duplicate prevention (5 min window) — use ISO timestamp to match stored format
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const recentDup = await DB.prepare(
-        "SELECT id, settled_at FROM token_box_settlements WHERE settled_by = ? AND is_bootstrap = 0 AND settled_at > datetime('now', '-5 minutes') LIMIT 1"
-      ).bind(settled_by).first();
+        "SELECT id, settled_at FROM token_box_settlements WHERE settled_by = ? AND is_bootstrap = 0 AND settled_at > ? LIMIT 1"
+      ).bind(settled_by, fiveMinAgo).first();
       if (recentDup) {
         return new Response(JSON.stringify({success: false, error: 'You already settled recently. Wait a few minutes.'}), {headers: corsHeaders});
       }
