@@ -556,12 +556,22 @@ export async function onRequest(context) {
         ? new Date(lastSettlement.settled_at).toISOString().slice(0, 19).replace('T', ' ')
         : new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
 
-      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+      let allPickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'search_read',
         [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
           ['date_done', '>=', sinceUTC], ['company_id', '=', 10]]],
         {fields: ['id', 'name', 'origin', 'partner_id', 'date_done', 'move_ids'],
          order: 'date_done desc', limit: 50});
+
+      // 2b. Exclude deleted receipts
+      let deletedPickingIds = new Set();
+      if (DB && allPickings.length > 0) {
+        try {
+          const delRows = await DB.prepare('SELECT picking_id FROM receipt_deletions').all();
+          for (const r of (delRows.results || [])) deletedPickingIds.add(r.picking_id);
+        } catch (e) { /* table may not exist */ }
+      }
+      const pickings = allPickings.filter(p => !deletedPickingIds.has(p.id));
 
       // 3. Get all moves + move lines for accurate done quantities
       const allMoveIds = pickings.flatMap(p => p.move_ids || []);
@@ -718,6 +728,168 @@ export async function onRequest(context) {
       } catch (e) {
         return new Response(JSON.stringify({success: false, error: e.message}), {headers: corsHeaders});
       }
+    }
+
+    // ─── DELETE RECEIPT (reverse a completed receipt) ────────────
+    // Creates a return picking in Odoo to reverse stock, records deletion in D1
+    // Restricted to Zoya and Nihaf
+    if (action === 'delete-receipt' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      const {pickingId, pin} = body;
+
+      if (!pickingId) return new Response(JSON.stringify({success: false, error: 'Missing pickingId'}), {headers: corsHeaders});
+
+      const deletedBy = PINS[pin];
+      if (!deletedBy || (deletedBy !== 'Zoya' && deletedBy !== 'Nihaf')) {
+        return new Response(JSON.stringify({success: false, error: 'Only Zoya or Nihaf can delete receipts'}), {headers: corsHeaders});
+      }
+
+      // 1. Read original picking
+      const pickingData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [[pickingId]],
+        {fields: ['id', 'name', 'state', 'origin', 'partner_id', 'picking_type_id', 'location_id', 'location_dest_id', 'move_ids']}
+      );
+      if (!pickingData || pickingData.length === 0) {
+        return new Response(JSON.stringify({success: false, error: 'Receipt not found'}), {headers: corsHeaders});
+      }
+      const picking = pickingData[0];
+      if (picking.state !== 'done') {
+        return new Response(JSON.stringify({success: false, error: 'Can only delete completed receipts'}), {headers: corsHeaders});
+      }
+
+      // 2. Check if already deleted
+      if (DB) {
+        const existing = await DB.prepare('SELECT id FROM receipt_deletions WHERE picking_id = ? LIMIT 1').bind(pickingId).first();
+        if (existing) {
+          return new Response(JSON.stringify({success: false, error: 'This receipt has already been deleted'}), {headers: corsHeaders});
+        }
+      }
+
+      // 3. Read original moves
+      const originalMoves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.move', 'read', [picking.move_ids],
+        {fields: ['id', 'product_id', 'product_uom', 'quantity', 'move_line_ids']}
+      );
+
+      // 4. Get return picking type
+      const pickType = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking.type', 'read', [[picking.picking_type_id[0]]],
+        {fields: ['return_picking_type_id']}
+      );
+      const returnTypeId = (pickType[0] && pickType[0].return_picking_type_id)
+        ? pickType[0].return_picking_type_id[0]
+        : picking.picking_type_id[0];
+
+      // 5. Create return picking (reversed locations)
+      const returnPickingId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'create', [{
+          picking_type_id: returnTypeId,
+          location_id: picking.location_dest_id[0],
+          location_dest_id: picking.location_id[0],
+          origin: `Return: ${picking.name} (deleted by ${deletedBy})`,
+          partner_id: picking.partner_id ? picking.partner_id[0] : false,
+          company_id: 10,
+        }]
+      );
+
+      // 6. Create return moves + handle lot tracking
+      for (const move of originalMoves) {
+        const moveId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.move', 'create', [{
+            picking_id: returnPickingId,
+            product_id: move.product_id[0],
+            product_uom: move.product_uom[0],
+            product_uom_qty: move.quantity,
+            location_id: picking.location_dest_id[0],
+            location_dest_id: picking.location_id[0],
+            company_id: 10,
+            origin_returned_move_id: move.id,
+          }]
+        );
+
+        // Copy lot info from original move lines
+        if (move.move_line_ids && move.move_line_ids.length > 0) {
+          const origLines = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move.line', 'read', [move.move_line_ids], {fields: ['lot_id', 'quantity']});
+          const newMoveData = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'read', [[moveId]], {fields: ['move_line_ids']});
+          if (newMoveData[0]?.move_line_ids?.length > 0 && origLines[0]?.lot_id?.[0]) {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move.line', 'write',
+              [newMoveData[0].move_line_ids, {lot_id: origLines[0].lot_id[0], quantity: move.quantity, picked: true}]);
+          }
+        }
+      }
+
+      // 7. Confirm → Assign → Set quantities → Validate
+      await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'action_confirm', [[returnPickingId]]);
+      try {
+        await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.picking', 'action_assign', [[returnPickingId]]);
+      } catch (e) { /* may fail if already assigned */ }
+
+      // Set picked + quantity on all return moves
+      const returnPicking = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [[returnPickingId]], {fields: ['move_ids']});
+      if (returnPicking[0]?.move_ids?.length > 0) {
+        const returnMoves = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'stock.move', 'read', [returnPicking[0].move_ids], {fields: ['id', 'product_uom_qty', 'move_line_ids']});
+        for (const rm of returnMoves) {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            'stock.move', 'write', [[rm.id], {quantity: rm.product_uom_qty, picked: true}]);
+          if (rm.move_line_ids?.length > 0) {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              'stock.move.line', 'write', [rm.move_line_ids, {picked: true}]);
+          }
+        }
+      }
+
+      const validateResult = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'button_validate', [[returnPickingId]]);
+
+      // Handle wizards (immediate transfer / backorder)
+      if (validateResult && typeof validateResult === 'object' && validateResult.res_model) {
+        try {
+          await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+            validateResult.res_model, 'process', [[validateResult.res_id]]);
+        } catch (e) {
+          try {
+            await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+              validateResult.res_model, 'process_cancel_backorder', [[validateResult.res_id]]);
+          } catch (e2) { /* continue */ }
+        }
+      }
+
+      // 8. Read final state
+      const finalReturn = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+        'stock.picking', 'read', [[returnPickingId]], {fields: ['state', 'name']});
+
+      // 9. Record deletion in D1
+      if (DB) {
+        try {
+          await DB.prepare(
+            'INSERT INTO receipt_deletions (picking_id, picking_name, po_name, vendor_name, deleted_by, deleted_at, return_picking_id, return_picking_name) VALUES (?,?,?,?,?,?,?,?)'
+          ).bind(
+            pickingId, picking.name, picking.origin || '',
+            picking.partner_id ? picking.partner_id[1] : '',
+            deletedBy, new Date().toISOString(),
+            returnPickingId, finalReturn[0]?.name || ''
+          ).run();
+        } catch (dbErr) { /* non-fatal */ }
+        try {
+          await DB.prepare('DELETE FROM receipt_confirmations WHERE picking_id = ?').bind(pickingId).run();
+        } catch (dbErr) { /* non-fatal */ }
+      }
+
+      return new Response(JSON.stringify({
+        success: true, message: 'Receipt deleted — stock reversed in Odoo',
+        deletedBy,
+        originalPicking: picking.name,
+        returnPicking: finalReturn[0]?.name || '',
+        returnState: finalReturn[0]?.state || 'unknown',
+        items: originalMoves.map(m => ({product: m.product_id[1], qty: m.quantity})),
+      }), {headers: corsHeaders});
     }
 
     // ─── CANCEL RECEIPT (PO cancellation) ────────────────────────

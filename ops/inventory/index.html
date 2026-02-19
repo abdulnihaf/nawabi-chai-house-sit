@@ -105,6 +105,25 @@
     .loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
     .loading-overlay p{color:var(--text2);font-size:14px}
 
+    /* ─── DELETE BUTTON ───────────────────── */
+    .del-delete-btn{background:var(--red-dim);border:1px solid rgba(239,68,68,.3);color:var(--red);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:600;margin-top:10px;display:inline-flex;align-items:center;gap:4px}
+    .del-delete-btn:active{opacity:.7}
+
+    /* ─── PIN MODAL ──────────────────────── */
+    .pin-modal{display:none;position:fixed;inset:0;background:rgba(10,15,26,.85);z-index:400;align-items:center;justify-content:center}
+    .pin-modal.show{display:flex}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:min(340px,90vw);text-align:center}
+    .pin-box h3{font-size:16px;margin-bottom:4px}
+    .pin-box .sub{color:var(--text2);font-size:12px;margin-bottom:20px}
+    .pin-box input{width:100%;padding:14px;font-size:24px;letter-spacing:12px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'JetBrains Mono',monospace;outline:none}
+    .pin-box input:focus{border-color:var(--blue)}
+    .pin-box .pin-error{color:var(--red);font-size:12px;margin-top:8px;min-height:18px}
+    .pin-box .pin-actions{display:flex;gap:10px;margin-top:16px}
+    .pin-box .pin-actions button{flex:1;padding:12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none}
+    .pin-box .btn-cancel{background:var(--bg2);color:var(--text2)}
+    .pin-box .btn-confirm{background:var(--red);color:#fff}
+    .pin-box .btn-confirm:disabled{opacity:.4}
+
     /* ─── AUTO-REFRESH INDICATOR ──────────── */
     .auto-refresh{position:fixed;bottom:16px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;z-index:50}
     .auto-refresh .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
@@ -143,6 +162,19 @@
 
 <div class="tab-content" id="trailTab">
   <div id="trailList"></div>
+</div>
+
+<div class="pin-modal" id="pinModal">
+  <div class="pin-box">
+    <h3>Delete Receipt</h3>
+    <div class="sub" id="pinSub">Enter PIN to confirm deletion</div>
+    <input type="password" inputmode="numeric" maxlength="4" id="pinInput" placeholder="····" autocomplete="off">
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-actions">
+      <button class="btn-cancel" onclick="closePin()">Cancel</button>
+      <button class="btn-confirm" id="pinConfirmBtn" onclick="confirmDelete()" disabled>Delete</button>
+    </div>
+  </div>
 </div>
 
 <div class="auto-refresh" id="autoRefresh"><span class="dot"></span>Auto-refresh 60s</div>
@@ -319,8 +351,21 @@ function renderLiveStock() {
                 <span class="cost">@ ₹${fmtNum(i.unitCost)}</span>
               </span>`).join('')}
           </div>
+          <button class="del-delete-btn" data-picking-id="${del.pickingId}" data-vendor="${shortVendor(del.vendorName)}" data-name="${del.pickingName}">✕ Delete Receipt</button>
         </div>`;
     }).join('');
+
+    // Attach delete button handlers
+    document.querySelectorAll('.del-delete-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openDeletePin(
+          parseInt(this.dataset.pickingId),
+          this.dataset.vendor,
+          this.dataset.name
+        );
+      });
+    });
   }
 }
 
@@ -457,6 +502,66 @@ function shortVendor(name) {
   const parts = name.split(',');
   const vendor = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).trim();
   return vendor.charAt(0).toUpperCase() + vendor.slice(1);
+}
+
+// ─── DELETE RECEIPT ───────────────────────────────────────────
+let pendingDeletePickingId = null;
+
+function openDeletePin(pickingId, vendor, pickingName) {
+  pendingDeletePickingId = pickingId;
+  document.getElementById('pinSub').textContent = `${vendor} — ${pickingName}`;
+  document.getElementById('pinInput').value = '';
+  document.getElementById('pinError').textContent = '';
+  document.getElementById('pinConfirmBtn').disabled = true;
+  document.getElementById('pinModal').classList.add('show');
+  setTimeout(() => document.getElementById('pinInput').focus(), 100);
+}
+
+document.getElementById('pinInput').addEventListener('input', function() {
+  document.getElementById('pinConfirmBtn').disabled = this.value.length !== 4;
+  document.getElementById('pinError').textContent = '';
+});
+document.getElementById('pinInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && this.value.length === 4) confirmDelete();
+});
+
+function closePin() {
+  document.getElementById('pinModal').classList.remove('show');
+  pendingDeletePickingId = null;
+}
+
+async function confirmDelete() {
+  const pin = document.getElementById('pinInput').value;
+  if (!pin || pin.length !== 4 || !pendingDeletePickingId) return;
+
+  const btn = document.getElementById('pinConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+
+  try {
+    const res = await fetch(`${API}?action=delete-receipt`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pickingId: pendingDeletePickingId, pin}),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      document.getElementById('pinError').textContent = data.error;
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      return;
+    }
+
+    // Success — close modal and refresh
+    closePin();
+    alert(`Receipt deleted by ${data.deletedBy}\nReturn: ${data.returnPicking}\nItems: ${data.items.map(i => i.product + ' (' + i.qty + ')').join(', ')}`);
+    await loadLiveStatus();
+  } catch (e) {
+    document.getElementById('pinError').textContent = 'Network error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Delete';
+  }
 }
 </script>
 </body>

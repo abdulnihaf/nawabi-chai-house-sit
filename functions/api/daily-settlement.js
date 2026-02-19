@@ -336,10 +336,14 @@ export async function onRequest(context) {
       const fromOdoo = periodStartUTC.toISOString().slice(0, 19).replace('T', ' ');
       const toOdoo = periodEndUTC.toISOString().slice(0, 19).replace('T', ' ');
 
+      // Fetch deleted receipt IDs for exclusion
+      let deletedPickingIds = new Set();
+      if (DB) { try { const dr = await DB.prepare('SELECT picking_id FROM receipt_deletions').all(); for (const r of (dr.results || [])) deletedPickingIds.add(r.picking_id); } catch(e){} }
+
       // Parallel: fetch sales (with channels + complimentary), purchases, expenses, vessels
       const [revenue, purchaseData, vessels, expenseData] = await Promise.all([
         fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-        fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
+        fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo, deletedPickingIds),
         getVessels(DB),
         DB ? DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at < ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all() : {results: []},
       ]);
@@ -474,9 +478,12 @@ export async function onRequest(context) {
       const prevRunnerTokens = JSON.parse(previous.runner_tokens || '{}');
 
       // ── Step 3: Fetch Odoo data for the period ──
+      let deletedPickingIds = new Set();
+      try { const dr = await DB.prepare('SELECT picking_id FROM receipt_deletions').all(); for (const r of (dr.results || [])) deletedPickingIds.add(r.picking_id); } catch(e){}
+
       const [salesResult, purchaseData, expenseData] = await Promise.all([
         fetchPOSSalesWithChannels(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-        fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
+        fetchPurchasesReceived(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo, deletedPickingIds),
         DB.prepare('SELECT * FROM counter_expenses WHERE recorded_at >= ? AND recorded_at < ?').bind(periodStartUTC.toISOString(), periodEndUTC.toISOString()).all(),
       ]);
 
@@ -1227,11 +1234,16 @@ export async function onRequest(context) {
 
       // Add receipts confirmed after the settlement (so Odoo = closing + received since)
       const sinceUTC = new Date(latest.settled_at).toISOString().slice(0, 19).replace('T', ' ');
-      const pickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+      let allPickings = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
         'stock.picking', 'search_read',
         [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
           ['date_done', '>=', sinceUTC], ['company_id', '=', 10]]],
         {fields: ['id', 'move_ids'], limit: 50});
+
+      // Exclude deleted receipts
+      let bfDelIds = new Set();
+      try { const dr = await DB.prepare('SELECT picking_id FROM receipt_deletions').all(); for (const r of (dr.results || [])) bfDelIds.add(r.picking_id); } catch(e){}
+      const pickings = allPickings.filter(p => !bfDelIds.has(p.id));
 
       const received = {};
       const allMoveIds = pickings.flatMap(p => p.move_ids || []);
@@ -1565,12 +1577,17 @@ async function fetchPOSSalesWithChannels(url, db, uid, apiKey, from, to) {
 // ═══════════════════════════════════════════════════════════════
 // ODOO: Fetch purchases received in the period
 // ═══════════════════════════════════════════════════════════════
-async function fetchPurchasesReceived(url, db, uid, apiKey, from, to) {
+async function fetchPurchasesReceived(url, db, uid, apiKey, from, to, excludePickingIds) {
   // Get completed incoming pickings for NCH
-  const pickings = await odooCall(url, db, uid, apiKey, 'stock.picking', 'search_read',
+  let pickings = await odooCall(url, db, uid, apiKey, 'stock.picking', 'search_read',
     [[['state', '=', 'done'], ['picking_type_id.code', '=', 'incoming'],
       ['date_done', '>=', from], ['date_done', '<', to], ['company_id', '=', 10]]],
     {fields: ['id', 'origin', 'move_ids']});
+
+  // Filter out deleted receipts
+  if (excludePickingIds && excludePickingIds.size > 0) {
+    pickings = pickings.filter(p => !excludePickingIds.has(p.id));
+  }
 
   if (!pickings || pickings.length === 0) return [];
 
