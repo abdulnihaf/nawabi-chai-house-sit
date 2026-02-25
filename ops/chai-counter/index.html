@@ -20,6 +20,8 @@
       --chai: #D4A44C;
       --coffee: #8B6914;
       --lemon: #84CC16;
+      --haleem: #ea580c;
+      --haleem-mutton: #dc2626;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
@@ -228,6 +230,72 @@
       color: var(--chai);
     }
 
+    /* ── Section Divider ── */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0 14px;
+    }
+    .section-divider .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .section-divider .label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    /* ── Haleem Cards ── */
+    .haleem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .haleem-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .haleem-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--haleem);
+    }
+    .haleem-card .h-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+    .haleem-card .h-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--haleem);
+      line-height: 1;
+    }
+    .haleem-card.mutton::before { background: var(--haleem-mutton); }
+    .haleem-card.mutton .h-value { color: var(--haleem-mutton); }
+
+    .total-row.haleem-total {
+      background: linear-gradient(135deg, rgba(234,88,12,.12), rgba(234,88,12,.04));
+      border-color: var(--haleem);
+    }
+    .total-row.haleem-total .total-label { color: var(--text); }
+    .total-row.haleem-total .total-value { color: var(--haleem); }
+
     /* ── Last Updated ── */
     .footer {
       text-align: center;
@@ -331,6 +399,40 @@
     <div class="total-row">
       <div class="total-label">☕ Total Beverages</div>
       <div class="total-value" id="totalCount">—</div>
+    </div>
+
+    <div class="section-divider">
+      <div class="line"></div>
+      <div class="label">🍲 Haleem</div>
+      <div class="line"></div>
+    </div>
+
+    <div class="haleem-grid">
+      <div class="haleem-card">
+        <div class="h-name">Quarter (250g)</div>
+        <div class="h-value" id="haleemQuarter">—</div>
+      </div>
+      <div class="haleem-card">
+        <div class="h-name">Half (500g)</div>
+        <div class="h-value" id="haleemHalf">—</div>
+      </div>
+      <div class="haleem-card">
+        <div class="h-name">Full (750g)</div>
+        <div class="h-value" id="haleemFull">—</div>
+      </div>
+      <div class="haleem-card">
+        <div class="h-name">Family (1.5kg)</div>
+        <div class="h-value" id="haleemFamily">—</div>
+      </div>
+      <div class="haleem-card mutton" style="grid-column: span 2;">
+        <div class="h-name">Mutton Haleem (300g)</div>
+        <div class="h-value" id="haleemMutton">—</div>
+      </div>
+    </div>
+
+    <div class="total-row haleem-total">
+      <div class="total-label">🍲 Total Haleem</div>
+      <div class="total-value" id="haleemTotal">—</div>
     </div>
 
     <div class="footer">
@@ -537,33 +639,51 @@
     // ── Update UI ──
     function updateUI(data) {
       let chaiQty = 0, coffeeQty = 0, lemonQty = 0;
+      let hQuarter = 0, hHalf = 0, hFull = 0, hFamily = 0, hMutton = 0;
 
-      // Match by Odoo product ID (reliable) with name fallback
-      // 1028 = [NCH-IC] Irani Chai
-      // 1102 = [NCH-NSC] Nawabi Special Coffee
-      // 1103 = [NCH-LT] Lemon Tea
+      // Beverage IDs: 1028=Chai, 1102=Coffee, 1103=Lemon Tea
+      // Haleem IDs: 1395=Quarter, 1396=Half, 1397=Full, 1398=Family, 1400=Mutton
       if (data.products && data.products.length) {
         data.products.forEach(p => {
           if (p.id === 1028) chaiQty += p.qty;
           else if (p.id === 1102) coffeeQty += p.qty;
           else if (p.id === 1103) lemonQty += p.qty;
+          else if (p.id === 1395) hQuarter += p.qty;
+          else if (p.id === 1396) hHalf += p.qty;
+          else if (p.id === 1397) hFull += p.qty;
+          else if (p.id === 1398) hFamily += p.qty;
+          else if (p.id === 1400) hMutton += p.qty;
           else {
-            // Fallback: name-based for any new beverage products
+            // Fallback: name-based matching
             const name = (p.name || '').toLowerCase();
             if (name.includes('irani chai')) chaiQty += p.qty;
             else if (name.includes('coffee')) coffeeQty += p.qty;
             else if (name.includes('lemon tea')) lemonQty += p.qty;
+            else if (name.includes('haleem') && name.includes('quarter')) hQuarter += p.qty;
+            else if (name.includes('haleem') && name.includes('half')) hHalf += p.qty;
+            else if (name.includes('haleem') && name.includes('full')) hFull += p.qty;
+            else if (name.includes('haleem') && name.includes('family')) hFamily += p.qty;
+            else if (name.includes('haleem') && name.includes('mutton')) hMutton += p.qty;
           }
         });
       }
 
-      const total = chaiQty + coffeeQty + lemonQty;
+      const bevTotal = chaiQty + coffeeQty + lemonQty;
+      const haleemTotal = hQuarter + hHalf + hFull + hFamily + hMutton;
 
-      // Animate count changes
+      // Beverages
       animateCount('chaiCount', chaiQty);
       animateCount('coffeeCount', coffeeQty);
       animateCount('lemonCount', lemonQty);
-      animateCount('totalCount', total);
+      animateCount('totalCount', bevTotal);
+
+      // Haleem
+      animateCount('haleemQuarter', hQuarter);
+      animateCount('haleemHalf', hHalf);
+      animateCount('haleemFull', hFull);
+      animateCount('haleemFamily', hFamily);
+      animateCount('haleemMutton', hMutton);
+      animateCount('haleemTotal', haleemTotal);
 
       // Last updated
       const now = new Date();
