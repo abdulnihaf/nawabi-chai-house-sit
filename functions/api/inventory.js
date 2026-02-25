@@ -935,6 +935,55 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // ─── TEMP: Create Haleem products in Odoo POS ──────────────
+    if (action === 'create-haleem' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      const createdBy = PINS[body.pin];
+      if (createdBy !== 'Nihaf') {
+        return new Response(JSON.stringify({success: false, error: 'Restricted'}), {headers: corsHeaders});
+      }
+
+      const POS_CATEG_SNACKS = 47;
+      const COMPANY_ID = 10;
+      const products = [
+        {name: 'Haleem Quarter (250g)', price: 99},
+        {name: 'Haleem Half (500g)', price: 199},
+        {name: 'Haleem Full (750g)', price: 319},
+        {name: 'Haleem Family Pack (1.5kg)', price: 599},
+      ];
+
+      const created = [];
+      for (const p of products) {
+        const templateId = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'product.template', 'create', [{
+            name: p.name,
+            list_price: p.price,
+            type: 'consu',
+            sale_ok: true,
+            available_in_pos: true,
+            pos_categ_ids: [[6, 0, [POS_CATEG_SNACKS]]],
+            company_id: COMPANY_ID,
+          }]
+        );
+
+        // Read back the product.product ID
+        const variants = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'product.product', 'search_read',
+          [[['product_tmpl_id', '=', templateId]]],
+          {fields: ['id', 'name', 'list_price'], limit: 1}
+        );
+
+        created.push({
+          templateId,
+          productId: variants[0]?.id,
+          name: p.name,
+          price: p.price,
+        });
+      }
+
+      return new Response(JSON.stringify({success: true, created}), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
 
   } catch (error) {
