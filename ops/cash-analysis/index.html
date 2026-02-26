@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Cash Discrepancy Analysis — Last 10 Days</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', -apple-system, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.5; padding: 20px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 22px; color: #f8fafc; margin-bottom: 4px; }
+  .subtitle { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+  h2 { font-size: 17px; color: #f1f5f9; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #1e293b; }
+  h3 { font-size: 14px; color: #cbd5e1; margin: 16px 0 8px; }
+
+  /* KPI Cards */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: #1e293b; border-radius: 10px; padding: 16px; border: 1px solid #334155; }
+  .kpi .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .kpi .value { font-size: 26px; font-weight: 700; }
+  .kpi .sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+  .green { color: #4ade80; }
+  .red { color: #f87171; }
+  .orange { color: #fb923c; }
+  .blue { color: #60a5fa; }
+  .yellow { color: #fbbf24; }
+  .white { color: #f8fafc; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+  th { background: #1e293b; color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; padding: 8px 10px; text-align: left; border-bottom: 2px solid #334155; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #1e293b; }
+  tr:hover { background: rgba(255,255,255,0.03); }
+  .right { text-align: right; }
+  .mono { font-family: 'SF Mono', monospace; }
+  .total-row { background: #1e293b; font-weight: 700; }
+  .total-row td { border-top: 2px solid #334155; padding: 10px; }
+  .day-header { background: #162032; }
+  .day-header td { color: #60a5fa; font-weight: 600; padding: 10px; font-size: 13px; border-top: 2px solid #2563eb30; }
+
+  /* Sections */
+  .section { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #334155; }
+  .section-title { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+  /* Waterfall */
+  .waterfall { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+  .wf-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #0f172a; border-radius: 8px; }
+  .wf-label { flex: 1; font-size: 13px; }
+  .wf-val { font-family: 'SF Mono', monospace; font-size: 14px; font-weight: 600; min-width: 100px; text-align: right; }
+  .wf-row.result { background: #172554; border: 1px solid #1e40af; }
+  .wf-row.negative { border-left: 3px solid #f87171; }
+  .wf-row.positive { border-left: 3px solid #4ade80; }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  .badge-green { background: #14532d; color: #86efac; }
+  .badge-orange { background: #78350f; color: #fcd34d; }
+  .badge-blue { background: #1e3a5f; color: #93c5fd; }
+
+  /* Summary box */
+  .insight { background: #172554; border: 1px solid #1e40af; border-radius: 8px; padding: 14px 16px; margin: 12px 0; font-size: 13px; color: #bfdbfe; }
+  .insight strong { color: #60a5fa; }
+  .insight.warning { background: #451a03; border-color: #92400e; color: #fed7aa; }
+  .insight.warning strong { color: #fb923c; }
+  .insight.danger { background: #450a0a; border-color: #991b1b; color: #fecaca; }
+  .insight.danger strong { color: #f87171; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>NCH Cash Discrepancy Analysis</h1>
+<p class="subtitle">Period: Feb 16 – Feb 26, 2026 (Last 10 Days) &bull; Generated: Feb 26, 2026</p>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// RAW DATA FROM D1
+// ═══════════════════════════════════════════════════════════
+
+const settlements = [
+  {id:59,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-16T02:16:36.144Z',settled_by:'Md Kesmat',tokens:620,sales:250,upi:465,cash:520,unsold:0},
+  {id:60,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-16T13:26:30.448Z',settled_by:'Md Kesmat',tokens:0,sales:5319,upi:2311,cash:3008,unsold:0},
+  {id:61,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-17T01:17:48.252Z',settled_by:'Jafar',tokens:5490,sales:1922,upi:4178,cash:3680,unsold:0},
+  {id:62,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-17T01:17:48.252Z',settled_by:'Jafar',tokens:1460,sales:450,upi:1030,cash:850,unsold:0},
+  {id:63,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-17T01:17:48.252Z',settled_by:'Jafar',tokens:0,sales:0,upi:0,cash:0,unsold:0},
+  {id:64,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-17T01:53:40.008Z',settled_by:'Md Kesmat',tokens:80,sales:20,upi:80,cash:20,unsold:0},
+  {id:65,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-17T12:05:46.404Z',settled_by:'Md Kesmat',tokens:0,sales:2007,upi:701,cash:1306,unsold:0},
+  {id:67,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-17T22:41:10.850Z',settled_by:'Jafar',tokens:5740,sales:3357,upi:4809,cash:4000,unsold:0},
+  {id:68,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-17T22:41:10.850Z',settled_by:'Jafar',tokens:2860,sales:496,upi:1561,cash:1532,unsold:220},
+  {id:69,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-17T22:41:10.850Z',settled_by:'Jafar',tokens:0,sales:1105,upi:285,cash:820,unsold:0},
+  {id:70,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-18T01:53:35.929Z',settled_by:'Md Kesmat',tokens:620,sales:58,upi:268,cash:590,unsold:0},
+  {id:71,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-18T12:32:30.097Z',settled_by:'Md Kesmat',tokens:210,sales:0,upi:0,cash:0,unsold:0},
+  {id:72,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-18T12:32:30.097Z',settled_by:'Md Kesmat',tokens:0,sales:1925,upi:860,cash:1065,unsold:0},
+  {id:73,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-18T23:17:31.331Z',settled_by:'Jafar',tokens:3665,sales:2070,upi:3114,cash:2530,unsold:0},
+  {id:74,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-19T00:15:18.430Z',settled_by:'Jafar',tokens:5770,sales:1074,upi:3166,cash:3790,unsold:140},
+  {id:75,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-19T00:15:18.430Z',settled_by:'Jafar',tokens:0,sales:120,upi:120,cash:0,unsold:0},
+  {id:76,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-19T02:24:52.241Z',settled_by:'Md Kesmat',tokens:230,sales:20,upi:190,cash:120,unsold:1},
+  {id:77,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-19T11:25:28.219Z',settled_by:'Md Kesmat',tokens:91,sales:20,upi:190,cash:120,unsold:1},
+  {id:78,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-19T11:25:28.219Z',settled_by:'Md Kesmat',tokens:0,sales:930,upi:280,cash:650,unsold:0},
+  {id:79,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-19T18:14:26.674Z',settled_by:'Jafar',tokens:1600,sales:863,upi:1548,cash:880,unsold:0},
+  {id:80,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-19T22:53:29.384Z',settled_by:'Jafar',tokens:5030,sales:2338,upi:4575,cash:2722,unsold:0},
+  {id:81,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-20T00:00:09.814Z',settled_by:'Jafar',tokens:5871,sales:836,upi:3533,cash:3060,unsold:0},
+  {id:82,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-20T00:00:09.814Z',settled_by:'Jafar',tokens:0,sales:1349,upi:428,cash:921,unsold:0},
+  {id:83,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-20T22:05:05.892Z',settled_by:'Md Kesmat',tokens:4800,sales:1988,upi:4233,cash:2000,unsold:0},
+  {id:84,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-20T22:12:07.273Z',settled_by:'Md Kesmat',tokens:5810,sales:576,upi:3270,cash:2910,unsold:0},
+  {id:85,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-20T23:58:52.465Z',settled_by:'Md Kesmat',tokens:4920,sales:1972,upi:4161,cash:2051,unsold:4},
+  {id:86,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-21T00:04:33.246Z',settled_by:'Md Kesmat',tokens:894,sales:28,upi:340,cash:0,unsold:0},
+  {id:87,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-21T00:04:33.246Z',settled_by:'Md Kesmat',tokens:0,sales:801,upi:701,cash:100,unsold:0},
+  {id:88,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-21T19:43:05.115Z',settled_by:'Md Kesmat',tokens:3750,sales:1350,upi:3910,cash:670,unsold:18},
+  {id:89,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-21T22:19:37.747Z',settled_by:'Md Kesmat',tokens:7360,sales:598,upi:4309,cash:3170,unsold:0},
+  {id:90,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-22T00:12:06.502Z',settled_by:'Md Kesmat',tokens:6170,sales:2431,upi:5514,cash:2460,unsold:0},
+  {id:91,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-22T00:19:34.828Z',settled_by:'Md Kesmat',tokens:0,sales:12615,upi:8082,cash:4533,unsold:0},
+  {id:92,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-22T21:35:52.306Z',settled_by:'Tanveer',tokens:4998,sales:2703,upi:6239,cash:2590,unsold:0},
+  {id:93,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-22T23:13:37.751Z',settled_by:'Md Kesmat',tokens:6760,sales:1179,upi:4473,cash:2050,unsold:0},
+  {id:94,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-22T23:57:21.981Z',settled_by:'Md Kesmat',tokens:6840,sales:723,upi:4937,cash:3530,unsold:0},
+  {id:95,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-23T00:02:46.794Z',settled_by:'Md Kesmat',tokens:0,sales:6356,upi:4276,cash:2080,unsold:0},
+  {id:96,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-23T21:40:37.072Z',settled_by:'Md Kesmat',tokens:5250,sales:2579,upi:5946,cash:2630,unsold:0},
+  {id:97,runner_id:'68',runner_name:'NCH Runner 05',settled_at:'2026-02-23T21:48:08.075Z',settled_by:'Md Kesmat',tokens:0,sales:40,upi:0,cash:40,unsold:0},
+  {id:98,runner_id:'65',runner_name:'AMIN',settled_at:'2026-02-23T22:26:06.697Z',settled_by:'Md Kesmat',tokens:3430,sales:964,upi:2248,cash:1040,unsold:0},
+  {id:99,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-23T23:40:38.100Z',settled_by:'Md Kesmat',tokens:6150,sales:658,upi:3652,cash:3420,unsold:0},
+  {id:100,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-24T00:06:21.742Z',settled_by:'Md Kesmat',tokens:0,sales:2917,upi:1937,cash:980,unsold:0},
+  {id:101,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-24T21:26:55.874Z',settled_by:'Md Kesmat',tokens:5750,sales:3285,upi:6042,cash:4800,unsold:0},
+  {id:102,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-24T23:57:28.190Z',settled_by:'Md Kesmat',tokens:7780,sales:1452,upi:4867,cash:4500,unsold:0},
+  {id:103,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-25T00:01:03.100Z',settled_by:'Md Kesmat',tokens:0,sales:2016,upi:1316,cash:700,unsold:0},
+  {id:104,runner_id:'64',runner_name:'FAROOQ',settled_at:'2026-02-25T21:40:05.239Z',settled_by:'Md Kesmat',tokens:6860,sales:12282,upi:11324,cash:7850,unsold:0},
+  {id:105,runner_id:'67',runner_name:'NCH Runner 04',settled_at:'2026-02-25T23:50:23.890Z',settled_by:'Md Kesmat',tokens:6900,sales:770,upi:3401,cash:3850,unsold:0},
+  {id:106,runner_id:'counter',runner_name:'Cash Counter',settled_at:'2026-02-25T23:53:07.012Z',settled_by:'Md Kesmat',tokens:0,sales:1300,upi:620,cash:680,unsold:0},
+];
+
+const expenses = [
+  {date:'2026-02-16',amount:200,reason:'Head chef'},{date:'2026-02-16',amount:15,reason:'Surf excel'},{date:'2026-02-16',amount:70,reason:'Porter'},{date:'2026-02-16',amount:300,reason:'Chicken trail'},{date:'2026-02-16',amount:50,reason:'Lemon'},
+  {date:'2026-02-16',amount:200,reason:'Staff rice'},{date:'2026-02-16',amount:50,reason:'Police'},{date:'2026-02-16',amount:50,reason:'Police'},{date:'2026-02-16',amount:100,reason:'Staff medical'},{date:'2026-02-16',amount:50,reason:'Police'},
+  {date:'2026-02-16',amount:50,reason:'Police'},{date:'2026-02-16',amount:260,reason:'Porter'},{date:'2026-02-16',amount:50,reason:'Police'},{date:'2026-02-16',amount:80,reason:'Cold drinks'},{date:'2026-02-16',amount:50,reason:'T master'},
+  {date:'2026-02-16',amount:105,reason:'Dust bin covers'},
+  {date:'2026-02-17',amount:180,reason:'Head chef'},{date:'2026-02-17',amount:73,reason:'Porter'},{date:'2026-02-17',amount:100,reason:'Police'},{date:'2026-02-17',amount:425,reason:'Buns'},{date:'2026-02-17',amount:600,reason:'Staff chicken/rice'},
+  {date:'2026-02-17',amount:50,reason:'Police'},{date:'2026-02-17',amount:50,reason:'Police'},{date:'2026-02-17',amount:100,reason:'Coffee powder'},{date:'2026-02-17',amount:300,reason:'Police'},
+  {date:'2026-02-18',amount:300,reason:'Head chef'},{date:'2026-02-18',amount:20,reason:'Kinnar'},{date:'2026-02-18',amount:50,reason:'Police'},{date:'2026-02-18',amount:260,reason:'Coffee/lemon'},
+  {date:'2026-02-18',amount:73,reason:'Porter'},{date:'2026-02-18',amount:100,reason:'Police'},{date:'2026-02-18',amount:100,reason:'Police'},{date:'2026-02-18',amount:300,reason:'Staff rice/veg'},
+  {date:'2026-02-18',amount:50,reason:'Police'},{date:'2026-02-18',amount:50,reason:'Police'},{date:'2026-02-18',amount:700,reason:'Sheri staff'},{date:'2026-02-18',amount:50,reason:'Misc'},
+  {date:'2026-02-19',amount:200,reason:'Head chef'},{date:'2026-02-19',amount:80,reason:'Porter'},{date:'2026-02-19',amount:100,reason:'Staff iftari'},{date:'2026-02-19',amount:100,reason:'Police'},
+  {date:'2026-02-19',amount:50,reason:'Police'},{date:'2026-02-19',amount:10,reason:'Pudina'},{date:'2026-02-19',amount:100,reason:'Police driver'},{date:'2026-02-19',amount:100,reason:'Police'},
+  {date:'2026-02-19',amount:50,reason:'Tea master'},{date:'2026-02-19',amount:500,reason:'Staff rice/veg'},
+  {date:'2026-02-20',amount:100,reason:'Iftari'},{date:'2026-02-20',amount:100,reason:'Police'},{date:'2026-02-20',amount:50,reason:'Police'},{date:'2026-02-20',amount:100,reason:'Police'},
+  {date:'2026-02-20',amount:20,reason:'Notebook'},{date:'2026-02-20',amount:100,reason:'Police'},{date:'2026-02-20',amount:140,reason:'Milk maid'},{date:'2026-02-20',amount:500,reason:'Tea powder'},
+  {date:'2026-02-21',amount:50,reason:'Police'},{date:'2026-02-21',amount:150,reason:'Police'},{date:'2026-02-21',amount:50,reason:'Hoysala'},{date:'2026-02-21',amount:10,reason:'Mint'},
+  {date:'2026-02-21',amount:30,reason:'Lemon'},{date:'2026-02-21',amount:100,reason:'Police'},{date:'2026-02-21',amount:50,reason:'Police'},{date:'2026-02-21',amount:500,reason:'Sub inspector'},
+  {date:'2026-02-21',amount:600,reason:'Computer clamp'},
+  {date:'2026-02-22',amount:100,reason:'Police'},{date:'2026-02-22',amount:50,reason:'Police'},{date:'2026-02-22',amount:50,reason:'Police'},
+  {date:'2026-02-22',amount:100,reason:'Lemon'},{date:'2026-02-22',amount:10,reason:'Mint'},{date:'2026-02-22',amount:20,reason:'Ginger'},{date:'2026-02-22',amount:50,reason:'Police'},
+  {date:'2026-02-23',amount:100,reason:'Police'},{date:'2026-02-23',amount:50,reason:'Police'},{date:'2026-02-23',amount:50,reason:'Tea master'},{date:'2026-02-23',amount:50,reason:'Police'},
+  {date:'2026-02-23',amount:100,reason:'Police'},{date:'2026-02-23',amount:70,reason:'Porter'},{date:'2026-02-23',amount:70,reason:'Lemon'},{date:'2026-02-23',amount:20,reason:'Ginger'},
+  {date:'2026-02-23',amount:10,reason:'Mint'},{date:'2026-02-23',amount:10,reason:'Shampoo'},
+  {date:'2026-02-24',amount:100,reason:'Police'},{date:'2026-02-24',amount:100,reason:'Police'},{date:'2026-02-24',amount:60,reason:'Porter buns'},{date:'2026-02-24',amount:260,reason:'Fruit iftari'},
+  {date:'2026-02-24',amount:100,reason:'Police'},{date:'2026-02-24',amount:50,reason:'Tea master'},{date:'2026-02-24',amount:400,reason:'Local bun'},{date:'2026-02-24',amount:20,reason:'Cucumber'},
+  {date:'2026-02-24',amount:70,reason:'Lemon'},{date:'2026-02-24',amount:10,reason:'Green chilli'},{date:'2026-02-24',amount:500,reason:'Staff veg/rice'},{date:'2026-02-24',amount:10,reason:'Mint'},
+  {date:'2026-02-25',amount:50,reason:'Porter bun'},{date:'2026-02-25',amount:50,reason:'Police'},{date:'2026-02-25',amount:100,reason:'Police'},{date:'2026-02-25',amount:50,reason:'Police'},
+  {date:'2026-02-25',amount:100,reason:'Police'},{date:'2026-02-25',amount:260,reason:'Iftari'},{date:'2026-02-25',amount:10,reason:'Mint'},{date:'2026-02-25',amount:50,reason:'Tea master gutka'},
+];
+
+const collections = [
+  {id:12,by:'Nihaf',at:'2026-02-16',amount:2800,petty:386,expected:3186,disc:0,prev_petty:978},
+  {id:13,by:'Nihaf',at:'2026-02-17',amount:5000,petty:986,expected:5986,disc:0,prev_petty:386},
+  {id:14,by:'Nihaf',at:'2026-02-18',amount:5000,petty:3612,expected:8612,disc:0,prev_petty:986},
+  {id:16,by:'Nihaf',at:'2026-02-18',amount:2000,petty:1024,expected:3024,disc:0,prev_petty:3612},
+  {id:17,by:'Nihaf',at:'2026-02-18',amount:4000,petty:154,expected:4154,disc:0,prev_petty:1024},
+  {id:18,by:'Naveen',at:'2026-02-19',amount:4400,petty:234,expected:4634,disc:0,prev_petty:154},
+  {id:19,by:'Naveen',at:'2026-02-20',amount:6500,petty:307,expected:6807,disc:0,prev_petty:234},
+  {id:20,by:'Nihaf',at:'2026-02-20',amount:4260,petty:1079,expected:5339,disc:0,prev_petty:307},
+  {id:21,by:'Naveen',at:'2026-02-21',amount:2050,petty:540,expected:2590,disc:0,prev_petty:1079},
+  {id:22,by:'Nihaf',at:'2026-02-22',amount:8400,petty:1433,expected:14366,disc:4533,prev_petty:540},
+  {id:23,by:'Nihaf',at:'2026-02-22',amount:1020,petty:413,expected:1433,disc:0,prev_petty:1433},
+  {id:24,by:'Nihaf',at:'2026-02-22',amount:9100,petty:1183,expected:10283,disc:0,prev_petty:413},
+  {id:25,by:'Nihaf',at:'2026-02-24',amount:6670,petty:4173,expected:10843,disc:0,prev_petty:1183},
+  {id:26,by:'Naveen',at:'2026-02-24',amount:1900,petty:2599,expected:4499,disc:0,prev_petty:4173},
+  {id:27,by:'Nihaf',at:'2026-02-25',amount:7700,petty:3219,expected:10919,disc:0,prev_petty:2599},
+  {id:28,by:'Nihaf',at:'2026-02-25',amount:15350,petty:80,expected:15430,disc:0,prev_petty:3219},
+  {id:29,by:'Nihaf',at:'2026-02-26',amount:1200,petty:3529,expected:4729,disc:0,prev_petty:80},
+];
+
+// ═══════════════════════════════════════════════════════════
+// PROCESSING
+// ═══════════════════════════════════════════════════════════
+const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const toIST = utc => {
+  const d = new Date(utc);
+  return d.toLocaleDateString('en-IN', {timeZone:'Asia/Kolkata', day:'2-digit', month:'short'}) + ' ' +
+         d.toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:true});
+};
+const dateIST = utc => {
+  const d = new Date(utc);
+  return d.toLocaleDateString('en-IN', {timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit'});
+};
+
+// Runner analysis
+const runnerSettlements = settlements.filter(s => s.runner_id !== 'counter');
+const counterSettlements = settlements.filter(s => s.runner_id === 'counter');
+
+let totalRunnerExpected = 0, totalRunnerReceived = 0;
+const runnerData = {};
+for (const s of runnerSettlements) {
+  const expected = s.tokens + s.sales - s.upi - s.unsold;
+  const variance = s.cash - expected;
+  totalRunnerExpected += expected;
+  totalRunnerReceived += s.cash;
+  if (!runnerData[s.runner_name]) runnerData[s.runner_name] = {expected: 0, received: 0, count: 0, shortages: 0, surpluses: 0};
+  runnerData[s.runner_name].expected += expected;
+  runnerData[s.runner_name].received += s.cash;
+  runnerData[s.runner_name].count++;
+  if (variance < -10) runnerData[s.runner_name].shortages += variance;
+  if (variance > 10) runnerData[s.runner_name].surpluses += variance;
+}
+
+let totalCounterCash = 0;
+for (const s of counterSettlements) totalCounterCash += s.cash;
+
+const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+const totalCollected = collections.reduce((s, c) => s + c.amount, 0);
+const totalPettyLeft = collections[collections.length - 1].petty;
+const totalDiscrepancy = collections.reduce((s, c) => s + c.disc, 0);
+
+// Grand picture
+const totalCashInflow = totalRunnerReceived + totalCounterCash;
+const totalCashOutflow = totalExpenses + totalCollected + totalPettyLeft;
+const runnerVariance = totalRunnerReceived - totalRunnerExpected;
+
+// Expense categories
+const expCats = {};
+for (const e of expenses) {
+  const r = e.reason.toLowerCase();
+  let cat;
+  if (r.includes('police') || r.includes('hoysala') || r.includes('asi') || r.includes('cheta') || r.includes('cheetha') || r.includes('beat') || r.includes('inspector')) cat = 'Police/Law';
+  else if (r.includes('porter')) cat = 'Porter';
+  else if (r.includes('staff') || r.includes('rice') || r.includes('veg') || r.includes('chicken') || r.includes('iftar') || r.includes('iftari') || r.includes('iffter') || r.includes('sheri')) cat = 'Staff Food';
+  else if (r.includes('chef')) cat = 'Head Chef';
+  else if (r.includes('tea master') || r.includes('gutka')) cat = 'Tea Master';
+  else if (r.includes('lemon') || r.includes('mint') || r.includes('ginger') || r.includes('pudina') || r.includes('cucumber') || r.includes('chilli') || r.includes('coffee powder') || r.includes('milk maid') || r.includes('tea powder') || r.includes('bun') || r.includes('surf')) cat = 'Supplies/Ingredients';
+  else cat = 'Other';
+  if (!expCats[cat]) expCats[cat] = 0;
+  expCats[cat] += e.amount;
+}
+
+// Daily aggregation
+const dailyData = {};
+for (const s of settlements) {
+  const d = new Date(s.settled_at);
+  const day = d.toLocaleDateString('en-IN', {timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit'});
+  if (!dailyData[day]) dailyData[day] = {runners: [], counter: [], expenses: 0, collections: []};
+  if (s.runner_id === 'counter') dailyData[day].counter.push(s);
+  else dailyData[day].runners.push(s);
+}
+for (const e of expenses) {
+  const d = new Date(e.date + 'T12:00:00+05:30');
+  const day = d.toLocaleDateString('en-IN', {timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit'});
+  if (dailyData[day]) dailyData[day].expenses += e.amount;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+let html = '';
+
+// ── Section 1: Grand KPIs ──
+html += '<div class="kpi-row">';
+html += `<div class="kpi"><div class="label">Total Cash Expected (Runners)</div><div class="value white">${fmt(totalRunnerExpected)}</div><div class="sub">${runnerSettlements.length} runner settlements</div></div>`;
+html += `<div class="kpi"><div class="label">Total Cash Received (Runners)</div><div class="value ${totalRunnerReceived >= totalRunnerExpected ? 'green' : 'red'}">${fmt(totalRunnerReceived)}</div><div class="sub">Actual cash handed over</div></div>`;
+html += `<div class="kpi"><div class="label">Runner Cash Variance</div><div class="value ${runnerVariance >= 0 ? 'green' : 'red'}">${runnerVariance >= 0 ? '+' : ''}${fmt(runnerVariance)}</div><div class="sub">${runnerVariance >= 0 ? 'Runners gave more' : 'Runners gave less'} than expected</div></div>`;
+html += `<div class="kpi"><div class="label">Counter Direct Cash</div><div class="value blue">${fmt(totalCounterCash)}</div><div class="sub">${counterSettlements.length} counter settlements</div></div>`;
+html += `<div class="kpi"><div class="label">Total Expenses</div><div class="value orange">${fmt(totalExpenses)}</div><div class="sub">${expenses.length} entries</div></div>`;
+html += `<div class="kpi"><div class="label">Total Collected (Nihaf/Naveen)</div><div class="value green">${fmt(totalCollected)}</div><div class="sub">${collections.length} collections + ${fmt(totalPettyLeft)} petty</div></div>`;
+html += '</div>';
+
+// ── Section 2: Cash Flow Waterfall ──
+html += '<div class="section"><div class="section-title">Cash Flow Waterfall (10-Day Summary)</div>';
+html += '<div class="waterfall">';
+html += `<div class="wf-row positive"><span class="wf-label">+ Runner Cash Received (actual)</span><span class="wf-val green">${fmt(totalRunnerReceived)}</span></div>`;
+html += `<div class="wf-row positive"><span class="wf-label">+ Counter Direct Cash</span><span class="wf-val green">${fmt(totalCounterCash)}</span></div>`;
+const startPetty = collections[0].prev_petty;
+html += `<div class="wf-row positive"><span class="wf-label">+ Opening Petty Cash (Feb 16)</span><span class="wf-val blue">${fmt(startPetty)}</span></div>`;
+const totalInflow = totalRunnerReceived + totalCounterCash + startPetty;
+html += `<div class="wf-row result"><span class="wf-label"><strong>= Total Cash Available</strong></span><span class="wf-val white"><strong>${fmt(totalInflow)}</strong></span></div>`;
+html += `<div class="wf-row negative"><span class="wf-label">− Expenses Paid from Counter</span><span class="wf-val red">−${fmt(totalExpenses)}</span></div>`;
+html += `<div class="wf-row negative"><span class="wf-label">− Collected by Nihaf/Naveen</span><span class="wf-val red">−${fmt(totalCollected)}</span></div>`;
+html += `<div class="wf-row negative"><span class="wf-label">− Petty Cash Remaining</span><span class="wf-val orange">−${fmt(totalPettyLeft)}</span></div>`;
+const remainder = totalInflow - totalExpenses - totalCollected - totalPettyLeft;
+html += `<div class="wf-row result"><span class="wf-label"><strong>= Unaccounted Cash</strong></span><span class="wf-val ${Math.abs(remainder) < 50 ? 'green' : 'red'}"><strong>${remainder >= 0 ? '+' : ''}${fmt(remainder)}</strong></span></div>`;
+html += '</div>';
+
+html += `<div class="insight ${Math.abs(remainder) > 500 ? 'danger' : ''}">`;
+html += `<strong>Interpretation:</strong> Over 10 days, <strong>${fmt(totalInflow)}</strong> cash entered the system (runners + counter + opening petty). `;
+html += `After expenses (${fmt(totalExpenses)}), collections (${fmt(totalCollected)}), and remaining petty (${fmt(totalPettyLeft)}), `;
+html += `there is <strong>${fmt(Math.abs(remainder))}</strong> ${remainder >= 0 ? 'extra' : 'missing'} cash. `;
+if (Math.abs(runnerVariance) > 100) {
+  html += `<br><br>The runner-level variance is <strong>${runnerVariance >= 0 ? '+' : ''}${fmt(runnerVariance)}</strong> — `;
+  html += runnerVariance > 0 ? 'runners actually paid more than the system expected (possibly carrying forward from previous periods or rounding up).'
+    : 'runners paid less than expected (cash leakage at runner level).';
+}
+html += '</div>';
+html += '</div>';
+
+// ── Section 3: Per-Runner Breakdown ──
+html += '<div class="section"><div class="section-title">Runner-Level Cash Variance (Who is Short?)</div>';
+html += '<table><tr><th>Runner</th><th class="right">Settlements</th><th class="right">Expected Cash</th><th class="right">Received Cash</th><th class="right">Net Variance</th><th class="right">Total Short</th><th class="right">Total Extra</th></tr>';
+const sortedRunners = Object.entries(runnerData).sort((a, b) => (a[1].received - a[1].expected) - (b[1].received - b[1].expected));
+for (const [name, d] of sortedRunners) {
+  const v = d.received - d.expected;
+  const cls = v >= 0 ? 'green' : 'red';
+  html += `<tr>
+    <td><strong>${name}</strong></td>
+    <td class="right mono">${d.count}</td>
+    <td class="right mono">${fmt(d.expected)}</td>
+    <td class="right mono">${fmt(d.received)}</td>
+    <td class="right mono ${cls}"><strong>${v >= 0 ? '+' : ''}${fmt(v)}</strong></td>
+    <td class="right mono red">${d.shortages < -10 ? fmt(d.shortages) : '—'}</td>
+    <td class="right mono green">${d.surpluses > 10 ? '+' + fmt(d.surpluses) : '—'}</td>
+  </tr>`;
+}
+const totalV = totalRunnerReceived - totalRunnerExpected;
+html += `<tr class="total-row">
+  <td>ALL RUNNERS</td>
+  <td class="right mono">${runnerSettlements.length}</td>
+  <td class="right mono">${fmt(totalRunnerExpected)}</td>
+  <td class="right mono">${fmt(totalRunnerReceived)}</td>
+  <td class="right mono ${totalV >= 0 ? 'green' : 'red'}"><strong>${totalV >= 0 ? '+' : ''}${fmt(totalV)}</strong></td>
+  <td></td><td></td>
+</tr>`;
+html += '</table></div>';
+
+// ── Section 4: Every Runner Settlement Detail ──
+html += '<div class="section"><div class="section-title">Every Runner Settlement (Detailed)</div>';
+html += '<table><tr><th>Date</th><th>Runner</th><th>Settled By</th><th class="right">Tokens</th><th class="right">Sales</th><th class="right">UPI</th><th class="right">Unsold</th><th class="right">Expected</th><th class="right">Received</th><th class="right">Variance</th></tr>';
+
+for (const s of runnerSettlements) {
+  const expected = s.tokens + s.sales - s.upi - s.unsold;
+  const v = s.cash - expected;
+  const cls = Math.abs(v) < 10 ? '' : (v > 0 ? 'green' : 'red');
+  const badge = Math.abs(v) < 10 ? '' : (v > 0 ? '<span class="badge badge-green">EXTRA</span>' : '<span class="badge badge-red">SHORT</span>');
+  html += `<tr>
+    <td style="white-space:nowrap">${toIST(s.settled_at)}</td>
+    <td><strong>${s.runner_name}</strong></td>
+    <td>${s.settled_by}</td>
+    <td class="right mono">${fmt(s.tokens)}</td>
+    <td class="right mono">${fmt(s.sales)}</td>
+    <td class="right mono blue">${fmt(s.upi)}</td>
+    <td class="right mono">${s.unsold > 0 ? fmt(s.unsold) : '—'}</td>
+    <td class="right mono">${fmt(expected)}</td>
+    <td class="right mono">${fmt(s.cash)}</td>
+    <td class="right mono ${cls}"><strong>${v >= 0 ? '+' : ''}${fmt(v)}</strong> ${badge}</td>
+  </tr>`;
+}
+html += '</table>';
+html += '<div class="insight">Formula: <strong>Expected = Tokens + Sales − UPI − Unsold</strong>. Variance = Received − Expected. Negative = runner gave less cash than calculated.</div>';
+html += '</div>';
+
+// ── Section 5: Cashier Shift Drawer Variance ──
+html += '<div class="section"><div class="section-title">Cashier Shift Drawer Variance</div>';
+html += '<p style="color:#94a3b8;font-size:12px;margin-bottom:12px">This shows the drawer cash at end of each shift. Large variances indicate cash not matching the formula (petty + runner settlements + counter sales − expenses).</p>';
+html += '<table><tr><th>Date</th><th>Cashier</th><th class="right">Expected Drawer</th><th class="right">Actual Drawer</th><th class="right">Variance</th></tr>';
+
+const shifts = [
+  {at:'2026-02-16T13:26:30Z',who:'Md Kesmat',exp:3871,act:3610,var:-261},
+  {at:'2026-02-17T01:17:48Z',who:'Jafar',exp:386,act:160,var:-226},
+  {at:'2026-02-17T12:05:46Z',who:'Md Kesmat',exp:2039,act:2035,var:-4},
+  {at:'2026-02-17T22:41:10Z',who:'Jafar',exp:5234,act:268,var:-4966},
+  {at:'2026-02-18T12:32:30Z',who:'Md Kesmat',exp:3974,act:1740,var:-2234},
+  {at:'2026-02-19T00:15:18Z',who:'Jafar',exp:154,act:341,var:187},
+  {at:'2026-02-19T11:25:28Z',who:'Md Kesmat',exp:4514,act:4480,var:-34},
+  {at:'2026-02-20T00:00:09Z',who:'Jafar',exp:3667,act:3710,var:43},
+  {at:'2026-02-21T00:04:33Z',who:'Md Kesmat',exp:2590,act:7223,var:4633},
+  {at:'2026-02-22T00:19:34Z',who:'Md Kesmat',exp:9833,act:9430,var:-403},
+  {at:'2026-02-23T00:02:46Z',who:'Md Kesmat',exp:10283,act:9920,var:-363},
+  {at:'2026-02-24T00:06:21Z',who:'Md Kesmat',exp:10843,act:7550,var:-3293},
+  {at:'2026-02-25T00:01:03Z',who:'Md Kesmat',exp:10919,act:9415,var:-1504},
+  {at:'2026-02-25T23:53:07Z',who:'Md Kesmat',exp:4610,act:16630,var:12020},
+];
+
+let totalShiftExpected = 0, totalShiftActual = 0;
+for (const s of shifts) {
+  totalShiftExpected += s.exp;
+  totalShiftActual += s.act;
+  const cls = Math.abs(s.var) < 50 ? '' : (s.var > 0 ? 'green' : 'red');
+  const badge = Math.abs(s.var) < 50 ? '<span class="badge badge-green">OK</span>' :
+    (Math.abs(s.var) > 1000 ? '<span class="badge badge-red">CRITICAL</span>' : (s.var > 0 ? '<span class="badge badge-orange">EXTRA</span>' : '<span class="badge badge-orange">SHORT</span>'));
+  html += `<tr>
+    <td style="white-space:nowrap">${toIST(s.at)}</td>
+    <td>${s.who}</td>
+    <td class="right mono">${fmt(s.exp)}</td>
+    <td class="right mono">${fmt(s.act)}</td>
+    <td class="right mono ${cls}"><strong>${s.var >= 0 ? '+' : ''}${fmt(s.var)}</strong> ${badge}</td>
+  </tr>`;
+}
+html += '</table>';
+html += `<div class="insight warning"><strong>Note on drawer variances:</strong> Large swings (e.g., Feb 17 −₹4,966 then Feb 21 +₹4,633) typically mean cash was NOT removed from the drawer between shifts. The physical cash accumulates but the formula resets each shift. The drawer variance is NOT a loss — it's a <strong>timing mismatch</strong> between when cash is settled vs when it's counted. The collection system (below) is where actual discrepancy is measured.</div>`;
+html += '</div>';
+
+// ── Section 6: Cash Collections ──
+html += '<div class="section"><div class="section-title">Cash Collections (Nihaf/Naveen)</div>';
+html += '<table><tr><th>Date</th><th>Collected By</th><th class="right">Expected</th><th class="right">Collected</th><th class="right">Petty Left</th><th class="right">Accounted</th><th class="right">Discrepancy</th></tr>';
+let totalExpectedColl = 0, totalAccountedColl = 0;
+for (const c of collections) {
+  const accounted = c.amount + c.petty;
+  const disc = c.expected - accounted;
+  totalExpectedColl += c.expected;
+  totalAccountedColl += accounted;
+  const cls = Math.abs(disc) < 10 ? 'green' : 'red';
+  html += `<tr>
+    <td style="white-space:nowrap">${c.at}</td>
+    <td>${c.by}</td>
+    <td class="right mono">${fmt(c.expected)}</td>
+    <td class="right mono">${fmt(c.amount)}</td>
+    <td class="right mono orange">${fmt(c.petty)}</td>
+    <td class="right mono">${fmt(accounted)}</td>
+    <td class="right mono ${cls}">${disc > 0 ? '−' + fmt(disc) : disc < 0 ? '+' + fmt(Math.abs(disc)) : '✓ 0'}</td>
+  </tr>`;
+}
+const totalCollDisc = totalExpectedColl - totalAccountedColl;
+html += `<tr class="total-row">
+  <td colspan="2">TOTAL (${collections.length} collections)</td>
+  <td class="right mono">${fmt(totalExpectedColl)}</td>
+  <td class="right mono">${fmt(totalCollected)}</td>
+  <td class="right mono orange">${fmt(totalPettyLeft)}</td>
+  <td class="right mono">${fmt(totalCollected + totalPettyLeft)}</td>
+  <td class="right mono ${Math.abs(totalCollDisc) < 50 ? 'green' : 'red'}">${totalCollDisc > 0 ? '−' + fmt(totalCollDisc) : '+' + fmt(Math.abs(totalCollDisc))}</td>
+</tr>`;
+html += '</table>';
+html += `<div class="insight"><strong>Collection Discrepancy:</strong> Expected ${fmt(totalExpectedColl)} at counter over 17 collections. Accounted (collected + petty left): ${fmt(totalCollected + totalPettyLeft)}. Gap: <strong>${fmt(Math.abs(totalCollDisc))}</strong>. This gap comes from the <strong>single ₹4,533 discrepancy on Feb 22</strong> (collection #22).</div>`;
+html += '</div>';
+
+// ── Section 7: Expense Breakdown ──
+html += '<div class="section"><div class="section-title">Expense Breakdown by Category</div>';
+html += '<table><tr><th>Category</th><th class="right">Total (10 Days)</th><th class="right">Daily Average</th><th class="right">Share</th></tr>';
+const sortedCats = Object.entries(expCats).sort((a, b) => b[1] - a[1]);
+for (const [cat, total] of sortedCats) {
+  html += `<tr>
+    <td>${cat}</td>
+    <td class="right mono orange">${fmt(total)}</td>
+    <td class="right mono">${fmt(total / 10)}</td>
+    <td class="right mono">${Math.round(total / totalExpenses * 100)}%</td>
+  </tr>`;
+}
+html += `<tr class="total-row"><td>ALL EXPENSES</td><td class="right mono orange">${fmt(totalExpenses)}</td><td class="right mono">${fmt(totalExpenses / 10)}</td><td class="right">100%</td></tr>`;
+html += '</table></div>';
+
+// ── Section 8: Verdict ──
+html += '<div class="section"><div class="section-title">Final Verdict: Where is the Discrepancy?</div>';
+html += '<div class="waterfall">';
+
+// Runner level
+html += `<div class="wf-row ${runnerVariance >= 0 ? 'positive' : 'negative'}"><span class="wf-label"><strong>1. Runner Level</strong> — Expected ${fmt(totalRunnerExpected)}, Received ${fmt(totalRunnerReceived)}</span><span class="wf-val ${runnerVariance >= 0 ? 'green' : 'red'}">${runnerVariance >= 0 ? '+' : ''}${fmt(runnerVariance)}</span></div>`;
+
+// Collection level
+html += `<div class="wf-row ${totalCollDisc <= 0 ? 'positive' : 'negative'}"><span class="wf-label"><strong>2. Collection Level</strong> — Expected ${fmt(totalExpectedColl)}, Accounted ${fmt(totalCollected + totalPettyLeft)}</span><span class="wf-val ${totalCollDisc <= 0 ? 'green' : 'red'}">${totalCollDisc > 0 ? '−' : '+'}${fmt(Math.abs(totalCollDisc))}</span></div>`;
+
+// Net
+const netGap = runnerVariance - totalCollDisc;
+html += `<div class="wf-row result"><span class="wf-label"><strong>Net System Gap</strong></span><span class="wf-val ${netGap >= 0 ? 'green' : 'red'}"><strong>${netGap >= 0 ? '+' : ''}${fmt(netGap)}</strong></span></div>`;
+html += '</div>';
+
+html += `<div class="insight danger">
+<strong>Summary:</strong><br><br>
+<strong>Runner shortages net out to ${fmt(Math.abs(runnerVariance))} ${runnerVariance >= 0 ? 'extra' : 'short'}.</strong> Some runners consistently give less (NCH Runner 05, AMIN) while FAROOQ and NCH Runner 04 have mixed patterns of short and extra.<br><br>
+<strong>Collection gap: ${fmt(Math.abs(totalCollDisc))} missing</strong> — this is entirely from one incident on Feb 22 (₹4,533 discrepancy marked in the collection record). Every other collection balanced to zero.<br><br>
+<strong>Pattern:</strong> The drawer variances (−₹4,966 on Feb 17, +₹4,633 on Feb 21, −₹3,293 on Feb 24, +₹12,020 on Feb 25) are NOT real losses — they're <strong>timing artifacts</strong> because cash accumulates in the drawer across multiple shifts before being counted. The collection system compensates for this by tracking everything since the last collection.<br><br>
+<strong>Real losses to investigate:</strong><br>
+1. Feb 22 collection #22: ₹4,533 discrepancy (largest single gap)<br>
+2. NCH Runner 05 cumulative shortage pattern<br>
+3. AMIN (single settlement, ₹1,106 short on Feb 23)
+</div>`;
+html += '</div>';
+
+document.querySelector('.container').innerHTML += html;
+</script>
+
+</div>
+</body>
+</html>
