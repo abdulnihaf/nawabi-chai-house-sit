@@ -468,6 +468,245 @@ html += `<div class="insight danger">
 html += '</div>';
 
 document.querySelector('.container').innerHTML += html;
+
+// ═══════════════════════════════════════════════════════════
+// SECTION 9: THREE-WAY RECONCILIATION (Odoo vs Razorpay vs D1)
+// ═══════════════════════════════════════════════════════════
+
+const odooDaily = {
+  '16': {allSales:18456, mc_cash:2958, mc_upi:2298, mc_card:0, mc_tokenIssue:8510, mc_comp:950, mc_total:6206, rc_total:0, rc_upi:0, rc_runnerLedger:3740, runners:[{name:'FAROOQ',tokens:7890,sales:3490,upi:6590,cash:4790},{name:'NCH Runner 05',tokens:620,sales:250,upi:465,cash:405}], rz_counter:2328, rz_runner_counter:0, rz_runners:7055, rz_total:9383, cashToCollect:8153},
+  '17': {allSales:21583, mc_cash:3296, mc_upi:2274, mc_card:0, mc_tokenIssue:9070, mc_comp:4481, mc_total:10051, rc_total:0, rc_upi:0, rc_runnerLedger:2462, runners:[{name:'FAROOQ',tokens:7530,sales:1992,upi:4258,cash:5264},{name:'NCH Runner 05',tokens:1540,sales:470,upi:1160,cash:850}], rz_counter:2499, rz_runner_counter:40, rz_runners:5418, rz_total:7957, cashToCollect:9410},
+  '18': {allSales:17276, mc_cash:3091, mc_upi:1662, mc_card:0, mc_tokenIssue:7730, mc_comp:872, mc_total:5625, rc_total:0, rc_upi:0, rc_runnerLedger:3921, runners:[{name:'FAROOQ',tokens:4260,sales:3367,upi:4847,cash:2780},{name:'NCH Runner 04',tokens:3470,sales:554,upi:1829,cash:2195}], rz_counter:1747, rz_runner_counter:130, rz_runners:6676, rz_total:8553, cashToCollect:8066},
+  '19': {allSales:14974, mc_cash:1680, mc_upi:770, mc_card:0, mc_tokenIssue:9005, mc_comp:435, mc_total:2885, rc_total:0, rc_upi:20, rc_runnerLedger:3064, runners:[{name:'FAROOQ',tokens:3145,sales:1990,upi:2996,cash:2139},{name:'NCH Runner 04',tokens:5860,sales:1094,upi:3356,cash:3578}], rz_counter:970, rz_runner_counter:20, rz_runners:6352, rz_total:7342, cashToCollect:7397},
+  '20': {allSales:19212, mc_cash:1131, mc_upi:868, mc_card:0, mc_tokenIssue:12460, mc_comp:716, mc_total:2715, rc_total:0, rc_upi:0, rc_runnerLedger:4037, runners:[{name:'FAROOQ',tokens:4990,sales:2338,upi:4575,cash:2753},{name:'NCH Runner 04',tokens:5870,sales:836,upi:3533,cash:3173},{name:'NCH Runner 05',tokens:1600,sales:863,upi:1548,cash:915}], rz_counter:998, rz_runner_counter:120, rz_runners:9656, rz_total:10774, cashToCollect:7972},
+  '21': {allSales:24244, mc_cash:542, mc_upi:1724, mc_card:0, mc_tokenIssue:15930, mc_comp:1429, mc_total:3695, rc_total:0, rc_upi:0, rc_runnerLedger:4619, runners:[{name:'FAROOQ',tokens:4800,sales:1988,upi:4233,cash:2555},{name:'NCH Runner 04',tokens:6210,sales:659,upi:3485,cash:3384},{name:'NCH Runner 05',tokens:4920,sales:1972,upi:4161,cash:2731}], rz_counter:2030, rz_runner_counter:100, rz_runners:11879, rz_total:14009, cashToCollect:9212},
+  '22': {allSales:35921, mc_cash:4553, mc_upi:8124, mc_card:0, mc_tokenIssue:17880, mc_comp:882, mc_total:13559, rc_total:0, rc_upi:0, rc_runnerLedger:4482, runners:[{name:'FAROOQ',tokens:3750,sales:1350,upi:3910,cash:1190},{name:'NCH Runner 04',tokens:7960,sales:691,upi:4402,cash:4249},{name:'NCH Runner 05',tokens:6170,sales:2441,upi:5514,cash:3097}], rz_counter:8698, rz_runner_counter:40, rz_runners:13826, rz_total:22564, cashToCollect:13089},
+  '23': {allSales:29042, mc_cash:2040, mc_upi:4204, mc_card:0, mc_tokenIssue:17580, mc_comp:799, mc_total:7043, rc_total:0, rc_upi:18, rc_runnerLedger:4401, runners:[{name:'FAROOQ',tokens:4980,sales:2703,upi:6239,cash:1428},{name:'NCH Runner 04',tokens:5840,sales:547,upi:4629,cash:1758},{name:'NCH Runner 05',tokens:6760,sales:1169,upi:4473,cash:3454}], rz_counter:4656, rz_runner_counter:0, rz_runners:15341, rz_total:19997, cashToCollect:8680},
+  '24': {allSales:23605, mc_cash:1246, mc_upi:1927, mc_card:0, mc_tokenIssue:14830, mc_comp:1361, mc_total:4534, rc_total:0, rc_upi:0, rc_runnerLedger:4241, runners:[{name:'FAROOQ',tokens:5250,sales:2579,upi:5946,cash:1883},{name:'AMIN',tokens:3430,sales:964,upi:2248,cash:2146},{name:'NCH Runner 04',tokens:6150,sales:658,upi:3652,cash:3156},{name:'NCH Runner 05',tokens:0,sales:40,upi:0,cash:40}], rz_counter:2427, rz_runner_counter:120, rz_runners:11846, rz_total:14393, cashToCollect:8471},
+  '25': {allSales:23589, mc_cash:1380, mc_upi:3135, mc_card:0, mc_tokenIssue:13530, mc_comp:807, mc_total:5322, rc_total:0, rc_upi:0, rc_runnerLedger:4737, runners:[{name:'FAROOQ',tokens:5750,sales:3285,upi:6042,cash:2993},{name:'NCH Runner 04',tokens:7780,sales:1452,upi:4867,cash:4365}], rz_counter:3186, rz_runner_counter:0, rz_runners:10909, rz_total:14095, cashToCollect:8738},
+};
+
+let reconHtml = '';
+
+// ── 9A: Revenue Reconciliation (Odoo Sales = Cash + UPI + Card + Comp) ──
+reconHtml += '<div class="section"><div class="section-title">Three-Way Reconciliation: Odoo Sales vs Razorpay vs Cash Settlements</div>';
+reconHtml += '<p style="color:#94a3b8;font-size:12px;margin-bottom:16px">This section independently verifies: (1) Does total Odoo POS revenue = cash portion + digital portion + complimentary? (2) Does Razorpay match Odoo UPI? (3) Does D1 settlement cash match Odoo expected cash?</p>';
+
+// Table: Daily three-way match
+reconHtml += '<h3 style="margin-top:0">Daily Revenue Breakdown (from Odoo POS)</h3>';
+reconHtml += '<table><tr><th>Date</th><th class="right">Odoo Total Sales</th><th class="right">Cash (Counter)</th><th class="right">Token Issue (→Runners)</th><th class="right">Runner Counter</th><th class="right">UPI (Odoo)</th><th class="right">UPI (Razorpay)</th><th class="right">UPI Variance</th><th class="right">Card</th><th class="right">Comp</th></tr>';
+
+let grandOdoo = 0, grandOdooCash = 0, grandOdooUPI = 0, grandRzUPI = 0, grandTokenIssue = 0, grandComp = 0, grandRC = 0;
+for (const [day, d] of Object.entries(odooDaily)) {
+  grandOdoo += d.allSales;
+  grandOdooCash += d.mc_cash;
+  grandOdooUPI += d.mc_upi + d.rc_upi;
+  grandRzUPI += d.rz_total;
+  grandTokenIssue += d.mc_tokenIssue;
+  grandComp += d.mc_comp;
+  grandRC += d.rc_runnerLedger;
+  const upiVar = d.rz_total - (d.mc_upi + d.rc_upi);
+  const upiCls = Math.abs(upiVar) < 50 ? 'green' : (Math.abs(upiVar) < 200 ? 'orange' : 'red');
+  reconHtml += `<tr>
+    <td>Feb ${day}</td>
+    <td class="right mono white"><strong>${fmt(d.allSales)}</strong></td>
+    <td class="right mono">${fmt(d.mc_cash)}</td>
+    <td class="right mono blue">${fmt(d.mc_tokenIssue)}</td>
+    <td class="right mono">${fmt(d.rc_runnerLedger)}</td>
+    <td class="right mono">${fmt(d.mc_upi + d.rc_upi)}</td>
+    <td class="right mono blue">${fmt(d.rz_total)}</td>
+    <td class="right mono ${upiCls}">${upiVar >= 0 ? '+' : ''}${fmt(upiVar)}</td>
+    <td class="right mono">${fmt(d.mc_card)}</td>
+    <td class="right mono">${fmt(d.mc_comp)}</td>
+  </tr>`;
+}
+const grandUPIVar = grandRzUPI - grandOdooUPI;
+reconHtml += `<tr class="total-row">
+  <td>10-DAY TOTAL</td>
+  <td class="right mono white"><strong>${fmt(grandOdoo)}</strong></td>
+  <td class="right mono">${fmt(grandOdooCash)}</td>
+  <td class="right mono blue">${fmt(grandTokenIssue)}</td>
+  <td class="right mono">${fmt(grandRC)}</td>
+  <td class="right mono">${fmt(grandOdooUPI)}</td>
+  <td class="right mono blue">${fmt(grandRzUPI)}</td>
+  <td class="right mono ${Math.abs(grandUPIVar) < 200 ? 'green' : 'red'}">${grandUPIVar >= 0 ? '+' : ''}${fmt(grandUPIVar)}</td>
+  <td class="right mono">₹0</td>
+  <td class="right mono">${fmt(grandComp)}</td>
+</tr>`;
+reconHtml += '</table>';
+reconHtml += `<div class="insight"><strong>Odoo UPI vs Razorpay UPI:</strong> Odoo records ${fmt(grandOdooUPI)} in UPI payments. Razorpay actually received ${fmt(grandRzUPI)}. Variance: <strong>${grandUPIVar >= 0 ? '+' : ''}${fmt(grandUPIVar)}</strong>. ${Math.abs(grandUPIVar) < 500 ? 'This is within acceptable range — minor timing differences between Odoo order time and Razorpay capture time.' : 'Significant gap — investigate which UPI payments are missing from Odoo or Razorpay.'}</div>`;
+reconHtml += '</div>';
+
+// ── 9B: Cash Expected vs Cash Settled (Odoo vs D1) ──
+reconHtml += '<div class="section"><div class="section-title">Cash: Odoo Expected vs D1 Actually Settled (Per Day)</div>';
+reconHtml += '<p style="color:#94a3b8;font-size:12px;margin-bottom:12px">Odoo says X cash should be collected. D1 records what was actually settled. The difference is real cash leakage.</p>';
+
+// Map D1 settlements to days (IST)
+const d1Daily = {};
+for (const s of settlements) {
+  const d = new Date(s.settled_at);
+  const dayNum = d.toLocaleDateString('en-IN', {timeZone:'Asia/Kolkata', day:'2-digit'});
+  if (!d1Daily[dayNum]) d1Daily[dayNum] = {runnerCash: 0, counterCash: 0, runnerExpected: 0};
+  if (s.runner_id === 'counter') {
+    d1Daily[dayNum].counterCash += s.cash;
+  } else {
+    d1Daily[dayNum].runnerCash += s.cash;
+    d1Daily[dayNum].runnerExpected += (s.tokens + s.sales - s.upi - s.unsold);
+  }
+}
+
+reconHtml += '<table><tr><th>Date</th><th class="right">Odoo Total Revenue</th><th class="right">Odoo Cash Expected (Runners)</th><th class="right">D1 Runner Cash Settled</th><th class="right">Runner Gap</th><th class="right">Odoo Counter Cash</th><th class="right">D1 Counter Cash</th><th class="right">Counter Gap</th><th class="right">Total Cash Gap</th></tr>';
+
+let totalOdooRunnerCash = 0, totalD1RunnerCash = 0, totalOdooCounterCash = 0, totalD1CounterCash = 0;
+for (const [day, od] of Object.entries(odooDaily)) {
+  const d1 = d1Daily[day] || {runnerCash: 0, counterCash: 0, runnerExpected: 0};
+  const odooRunnerCash = od.cashToCollect - od.mc_cash; // runner portion of expected cash
+  const odooCounterCash = od.mc_cash;
+  totalOdooRunnerCash += odooRunnerCash;
+  totalD1RunnerCash += d1.runnerCash;
+  totalOdooCounterCash += odooCounterCash;
+  totalD1CounterCash += d1.counterCash;
+
+  const runnerGap = d1.runnerCash - odooRunnerCash;
+  const counterGap = d1.counterCash - odooCounterCash;
+  const totalGap = runnerGap + counterGap;
+  const gapCls = Math.abs(totalGap) < 100 ? 'green' : (totalGap > 0 ? 'green' : 'red');
+
+  reconHtml += `<tr>
+    <td>Feb ${day}</td>
+    <td class="right mono white">${fmt(od.allSales)}</td>
+    <td class="right mono">${fmt(odooRunnerCash)}</td>
+    <td class="right mono">${fmt(d1.runnerCash)}</td>
+    <td class="right mono ${runnerGap >= -50 ? (runnerGap > 50 ? 'green' : '') : 'red'}">${runnerGap >= 0 ? '+' : ''}${fmt(runnerGap)}</td>
+    <td class="right mono">${fmt(odooCounterCash)}</td>
+    <td class="right mono">${fmt(d1.counterCash)}</td>
+    <td class="right mono ${counterGap >= -50 ? (counterGap > 50 ? 'green' : '') : 'red'}">${counterGap >= 0 ? '+' : ''}${fmt(counterGap)}</td>
+    <td class="right mono ${gapCls}"><strong>${totalGap >= 0 ? '+' : ''}${fmt(totalGap)}</strong></td>
+  </tr>`;
+}
+const totalRunGap = totalD1RunnerCash - totalOdooRunnerCash;
+const totalCntGap = totalD1CounterCash - totalOdooCounterCash;
+const totalAllGap = totalRunGap + totalCntGap;
+reconHtml += `<tr class="total-row">
+  <td>10-DAY TOTAL</td>
+  <td class="right mono white">${fmt(grandOdoo)}</td>
+  <td class="right mono">${fmt(totalOdooRunnerCash)}</td>
+  <td class="right mono">${fmt(totalD1RunnerCash)}</td>
+  <td class="right mono ${totalRunGap >= 0 ? 'green' : 'red'}">${totalRunGap >= 0 ? '+' : ''}${fmt(totalRunGap)}</td>
+  <td class="right mono">${fmt(totalOdooCounterCash)}</td>
+  <td class="right mono">${fmt(totalD1CounterCash)}</td>
+  <td class="right mono ${totalCntGap >= 0 ? 'green' : 'red'}">${totalCntGap >= 0 ? '+' : ''}${fmt(totalCntGap)}</td>
+  <td class="right mono ${totalAllGap >= 0 ? 'green' : 'red'}"><strong>${totalAllGap >= 0 ? '+' : ''}${fmt(totalAllGap)}</strong></td>
+</tr>`;
+reconHtml += '</table>';
+
+reconHtml += `<div class="insight ${Math.abs(totalAllGap) > 1000 ? 'warning' : ''}">
+<strong>Key insight:</strong> Odoo says ${fmt(totalOdooRunnerCash + totalOdooCounterCash)} total cash should have been collected across runners + counter. D1 records ${fmt(totalD1RunnerCash + totalD1CounterCash)} actually settled. Net cash gap: <strong>${totalAllGap >= 0 ? '+' : ''}${fmt(totalAllGap)}</strong>.
+${totalAllGap < -500 ? '<br><br>Negative gap = less cash was settled than Odoo expected. This is actual cash leakage — either runners kept cash, or counter cash went unrecorded.' : totalAllGap > 500 ? '<br><br>Positive gap = more cash was settled than Odoo expected. This could be from carry-forward cash from previous unsettled periods, or runners paying cash for orders that had UPI payments (timing mismatch).' : '<br><br>Gap is within acceptable range.'}
+</div>`;
+reconHtml += '</div>';
+
+// ── 9C: Per-Runner Odoo vs D1 (Individual Runner Reconciliation) ──
+reconHtml += '<div class="section"><div class="section-title">Per-Runner: Odoo Expected vs D1 Settled (10-Day Totals)</div>';
+reconHtml += '<p style="color:#94a3b8;font-size:12px;margin-bottom:12px">Odoo knows exactly how much each runner should hand over (tokens + sales − UPI). D1 records what they actually gave. This is the true runner-level accountability.</p>';
+
+// Aggregate per runner from Odoo
+const odooRunnerTotals = {};
+for (const [day, od] of Object.entries(odooDaily)) {
+  for (const r of od.runners) {
+    if (!odooRunnerTotals[r.name]) odooRunnerTotals[r.name] = {tokens: 0, sales: 0, upi: 0, expected: 0, days: 0};
+    odooRunnerTotals[r.name].tokens += r.tokens;
+    odooRunnerTotals[r.name].sales += r.sales;
+    odooRunnerTotals[r.name].upi += r.upi;
+    odooRunnerTotals[r.name].expected += r.cash;
+    odooRunnerTotals[r.name].days++;
+  }
+}
+
+reconHtml += '<table><tr><th>Runner</th><th class="right">Active Days</th><th class="right">Odoo Tokens</th><th class="right">Odoo Sales</th><th class="right">Odoo UPI</th><th class="right">Odoo Expected Cash</th><th class="right">D1 Cash Settled</th><th class="right">Gap</th><th class="right">Gap %</th></tr>';
+
+let gTotalOdooExp = 0, gTotalD1Settled = 0;
+for (const [name, od] of Object.entries(odooRunnerTotals).sort((a,b) => {
+  const gapA = (runnerData[a[0]]?.received || 0) - a[1].expected;
+  const gapB = (runnerData[b[0]]?.received || 0) - b[1].expected;
+  return gapA - gapB;
+})) {
+  const d1 = runnerData[name] || {received: 0};
+  const gap = d1.received - od.expected;
+  const gapPct = od.expected > 0 ? ((gap / od.expected) * 100).toFixed(1) : '0';
+  const cls = Math.abs(gap) < 100 ? '' : (gap > 0 ? 'green' : 'red');
+  gTotalOdooExp += od.expected;
+  gTotalD1Settled += d1.received;
+  reconHtml += `<tr>
+    <td><strong>${name}</strong></td>
+    <td class="right mono">${od.days}</td>
+    <td class="right mono">${fmt(od.tokens)}</td>
+    <td class="right mono">${fmt(od.sales)}</td>
+    <td class="right mono blue">${fmt(od.upi)}</td>
+    <td class="right mono white"><strong>${fmt(od.expected)}</strong></td>
+    <td class="right mono">${fmt(d1.received)}</td>
+    <td class="right mono ${cls}"><strong>${gap >= 0 ? '+' : ''}${fmt(gap)}</strong></td>
+    <td class="right mono ${cls}">${gapPct}%</td>
+  </tr>`;
+}
+const gGap = gTotalD1Settled - gTotalOdooExp;
+reconHtml += `<tr class="total-row">
+  <td>ALL RUNNERS</td><td></td><td></td><td></td><td></td>
+  <td class="right mono white"><strong>${fmt(gTotalOdooExp)}</strong></td>
+  <td class="right mono">${fmt(gTotalD1Settled)}</td>
+  <td class="right mono ${gGap >= 0 ? 'green' : 'red'}"><strong>${gGap >= 0 ? '+' : ''}${fmt(gGap)}</strong></td>
+  <td class="right mono ${gGap >= 0 ? 'green' : 'red'}">${gTotalOdooExp > 0 ? ((gGap / gTotalOdooExp) * 100).toFixed(1) : 0}%</td>
+</tr>`;
+reconHtml += '</table>';
+
+// Build runner-specific insights
+let runnerInsights = '';
+for (const [name, od] of Object.entries(odooRunnerTotals)) {
+  const d1 = runnerData[name] || {received: 0};
+  const gap = d1.received - od.expected;
+  if (gap < -500) {
+    runnerInsights += `<br>• <strong>${name}:</strong> ${fmt(Math.abs(gap))} short over ${od.days} days (Odoo expected ${fmt(od.expected)}, actually gave ${fmt(d1.received)})`;
+  }
+}
+if (runnerInsights) {
+  reconHtml += `<div class="insight danger"><strong>Runners with significant shortages (>₹500):</strong>${runnerInsights}</div>`;
+}
+reconHtml += '</div>';
+
+// ── 9D: Final Three-Way Summary ──
+reconHtml += '<div class="section"><div class="section-title">Final Three-Way Summary</div>';
+reconHtml += '<div class="waterfall">';
+reconHtml += `<div class="wf-row"><span class="wf-label"><strong>A. Odoo POS Total Revenue (10 days)</strong></span><span class="wf-val white"><strong>${fmt(grandOdoo)}</strong></span></div>`;
+reconHtml += `<div class="wf-row"><span class="wf-label">   └ Of which: Cash portion (should be physical cash)</span><span class="wf-val">${fmt(totalOdooRunnerCash + totalOdooCounterCash)}</span></div>`;
+reconHtml += `<div class="wf-row"><span class="wf-label">   └ Of which: UPI/Digital (Odoo says)</span><span class="wf-val">${fmt(grandOdooUPI)}</span></div>`;
+reconHtml += `<div class="wf-row"><span class="wf-label">   └ Of which: Complimentary (no cash)</span><span class="wf-val">${fmt(grandComp)}</span></div>`;
+reconHtml += `<div class="wf-row" style="margin-top:8px"><span class="wf-label"><strong>B. Razorpay Verified UPI Received</strong></span><span class="wf-val blue"><strong>${fmt(grandRzUPI)}</strong></span></div>`;
+const upiCheck = grandRzUPI - grandOdooUPI;
+reconHtml += `<div class="wf-row ${Math.abs(upiCheck) < 500 ? 'positive' : 'negative'}"><span class="wf-label">   └ Razorpay vs Odoo UPI match</span><span class="wf-val ${Math.abs(upiCheck) < 500 ? 'green' : 'red'}">${upiCheck >= 0 ? '+' : ''}${fmt(upiCheck)}</span></div>`;
+reconHtml += `<div class="wf-row" style="margin-top:8px"><span class="wf-label"><strong>C. D1 Total Cash Settled (runners + counter)</strong></span><span class="wf-val"><strong>${fmt(totalD1RunnerCash + totalD1CounterCash)}</strong></span></div>`;
+reconHtml += `<div class="wf-row ${totalAllGap >= -500 ? 'positive' : 'negative'}"><span class="wf-label">   └ D1 Cash vs Odoo Expected Cash match</span><span class="wf-val ${totalAllGap >= 0 ? 'green' : 'red'}">${totalAllGap >= 0 ? '+' : ''}${fmt(totalAllGap)}</span></div>`;
+reconHtml += `<div class="wf-row" style="margin-top:8px"><span class="wf-label"><strong>D. Expenses Deducted</strong></span><span class="wf-val orange">${fmt(totalExpenses)}</span></div>`;
+reconHtml += `<div class="wf-row"><span class="wf-label"><strong>E. Cash Collected by Nihaf/Naveen</strong></span><span class="wf-val green">${fmt(totalCollected)}</span></div>`;
+reconHtml += `<div class="wf-row"><span class="wf-label"><strong>F. Petty Cash Remaining</strong></span><span class="wf-val orange">${fmt(totalPettyLeft)}</span></div>`;
+const accountedCashOut = totalExpenses + totalCollected + totalPettyLeft;
+const cashSettled = totalD1RunnerCash + totalD1CounterCash;
+const startingPetty = collections[0].prev_petty;
+const cashAvail = cashSettled + startingPetty;
+const unaccountedFinal = cashAvail - accountedCashOut;
+reconHtml += `<div class="wf-row result" style="margin-top:8px"><span class="wf-label"><strong>Net Unaccounted Cash = (C + Opening Petty) − (D + E + F)</strong><br><span style="font-size:11px;color:#94a3b8">(${fmt(cashSettled)} + ${fmt(startingPetty)}) − (${fmt(totalExpenses)} + ${fmt(totalCollected)} + ${fmt(totalPettyLeft)})</span></span><span class="wf-val ${Math.abs(unaccountedFinal) < 500 ? 'green' : 'red'}"><strong>${unaccountedFinal >= 0 ? '+' : ''}${fmt(unaccountedFinal)}</strong></span></div>`;
+reconHtml += '</div>';
+
+reconHtml += `<div class="insight ${Math.abs(unaccountedFinal) > 500 ? 'danger' : ''}">
+<strong>Complete Reconciliation:</strong><br><br>
+<strong>1. Revenue verified:</strong> Odoo recorded ${fmt(grandOdoo)} in total POS sales across 10 days.<br><br>
+<strong>2. UPI cross-check:</strong> Razorpay received ${fmt(grandRzUPI)} vs Odoo's ${fmt(grandOdooUPI)} — variance ${grandUPIVar >= 0 ? '+' : ''}${fmt(grandUPIVar)}. ${Math.abs(grandUPIVar) < 1000 ? 'Razorpay is the source of truth here — all UPI money is safely in the bank regardless of Odoo recording. The small variance is timing/rounding.' : 'Significant UPI gap — needs investigation.'}<br><br>
+<strong>3. Cash accountability:</strong> Odoo expected ${fmt(totalOdooRunnerCash + totalOdooCounterCash)} in cash. D1 records ${fmt(cashSettled)} actually settled — a gap of ${totalAllGap >= 0 ? '+' : ''}${fmt(totalAllGap)}.<br><br>
+<strong>4. Cash trail:</strong> Of the ${fmt(cashSettled)} settled cash + ${fmt(startingPetty)} opening petty = ${fmt(cashAvail)} available: ${fmt(totalExpenses)} went to expenses, ${fmt(totalCollected)} collected by you/Naveen, ${fmt(totalPettyLeft)} left as petty. Unaccounted: <strong>${fmt(Math.abs(unaccountedFinal))}</strong>.<br><br>
+<strong>Bottom line:</strong> ${Math.abs(unaccountedFinal) < 200 ? 'Cash trail is clean. All three sources (Odoo, Razorpay, D1) align within acceptable tolerance.' : unaccountedFinal > 0 ? 'More cash was settled than accounted for in collections — possibly some cash collections were not recorded in the system.' : 'Cash shortage of ' + fmt(Math.abs(unaccountedFinal)) + ' — this is the real leakage after all three systems are cross-checked.'}
+</div>`;
+reconHtml += '</div>';
+
+document.querySelector('.container').innerHTML += reconHtml;
 </script>
 
 </div>
