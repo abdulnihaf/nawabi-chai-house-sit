@@ -323,6 +323,51 @@ export async function onRequest(context) {
     }
 
     // ─── VERIFY PIN ──────────────────────────────────────────────
+    // TEMP: find Basheer on test + create in prod
+    if (action === 'temp-basheer') {
+      const pin = url.searchParams.get('pin');
+      if (pin !== '0305') return new Response(JSON.stringify({success: false, error: 'auth'}), {headers: corsHeaders});
+
+      const results = {};
+
+      // 1. Check test.hamzahotel.com
+      for (const testUrl of ['https://test.hamzahotel.com/jsonrpc', 'https://test.hamzahotels.com/jsonrpc']) {
+        try {
+          const payload = {jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',
+            args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
+              [[['name','ilike','basheer']]],
+              {fields:['id','name','pin','barcode','job_title','company_id','department_id']}]}};
+          const res = await fetch(testUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+          const data = await res.json();
+          results[testUrl] = data.result || data.error || 'empty';
+        } catch(e) { results[testUrl] = 'error: ' + e.message; }
+      }
+
+      // 2. Also check prod with broader search
+      try {
+        const payload = {jsonrpc:'2.0',method:'call',id:2,params:{service:'object',method:'execute_kw',
+          args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
+            [[['name','ilike','bash']]],
+            {fields:['id','name','pin','barcode','job_title','company_id']}]}};
+        const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data = await res.json();
+        results['prod_broad'] = data.result || data.error || 'empty';
+      } catch(e) { results['prod_broad'] = 'error: ' + e.message; }
+
+      // 3. Check ALL companies in prod (not just company_id=10)
+      try {
+        const payload = {jsonrpc:'2.0',method:'call',id:3,params:{service:'object',method:'execute_kw',
+          args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
+            [[['name','ilike','basheer']]],
+            {fields:['id','name','pin','barcode','job_title','company_id']}]}};
+        const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data = await res.json();
+        results['prod_all_companies'] = data.result || data.error || 'empty';
+      } catch(e) { results['prod_all_companies'] = 'error: ' + e.message; }
+
+      return new Response(JSON.stringify({success: true, results}), {headers: corsHeaders});
+    }
+
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
       if (PINS[pin]) {
