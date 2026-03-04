@@ -17,7 +17,7 @@ export async function onRequest(context) {
   const LOC = {VENDORS: 1, STOCK: 34, MAIN_STORAGE: 39, COLD_STORAGE: 40, KITCHEN: 41, WASTAGE: 42};
 
   // PIN verification — matches Odoo POS employee PINs
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
 
   // Raw materials reference (matches daily-settlement.js)
   const RAW_MATERIALS = {
@@ -323,76 +323,6 @@ export async function onRequest(context) {
     }
 
     // ─── VERIFY PIN ──────────────────────────────────────────────
-    // TEMP: find Basheer on test + create in prod
-    if (action === 'temp-basheer') {
-      const pin = url.searchParams.get('pin');
-      if (pin !== '0305') return new Response(JSON.stringify({success: false, error: 'auth'}), {headers: corsHeaders});
-
-      const results = {};
-
-      // 1. Check test.hamzahotel.com
-      for (const testUrl of ['https://test.hamzahotel.com/jsonrpc', 'https://test.hamzahotels.com/jsonrpc']) {
-        try {
-          const payload = {jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',
-            args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
-              [[['name','ilike','basheer']]],
-              {fields:['id','name','pin','barcode','job_title','company_id','department_id']}]}};
-          const res = await fetch(testUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-          const data = await res.json();
-          results[testUrl] = data.result || data.error || 'empty';
-        } catch(e) { results[testUrl] = 'error: ' + e.message; }
-      }
-
-      // 2. Also check prod with broader search
-      try {
-        const payload = {jsonrpc:'2.0',method:'call',id:2,params:{service:'object',method:'execute_kw',
-          args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
-            [[['name','ilike','bash']]],
-            {fields:['id','name','pin','barcode','job_title','company_id']}]}};
-        const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        const data = await res.json();
-        results['prod_broad'] = data.result || data.error || 'empty';
-      } catch(e) { results['prod_broad'] = 'error: ' + e.message; }
-
-      // 3. Check ALL companies in prod (not just company_id=10)
-      try {
-        const payload = {jsonrpc:'2.0',method:'call',id:3,params:{service:'object',method:'execute_kw',
-          args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
-            [[['name','ilike','basheer']]],
-            {fields:['id','name','pin','barcode','job_title','company_id']}]}};
-        const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        const data = await res.json();
-        results['prod_all_companies'] = data.result || data.error || 'empty';
-      } catch(e) { results['prod_all_companies'] = 'error: ' + e.message; }
-
-      return new Response(JSON.stringify({success: true, results}), {headers: corsHeaders});
-    }
-
-    // TEMP: Add Basheer to NCH company
-    if (action === 'temp-basheer-add' && context.request.method === 'POST') {
-      const body = await context.request.json();
-      if (body.pin !== '0305') return new Response(JSON.stringify({success: false, error: 'auth'}), {headers: corsHeaders});
-
-      // Add company_id 10 to Basheer's company_ids (multi-company)
-      // Employee ID 72, write company_ids to include both 1 and 10
-      const payload = {jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',
-        args:['main',2,ODOO_API_KEY,'hr.employee','write',
-          [[72], {company_id: 10, barcode: 'NCHEMP15'}]]}};
-      const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const data = await res.json();
-      if (data.error) return new Response(JSON.stringify({success: false, error: data.error}), {headers: corsHeaders});
-
-      // Verify
-      const vPayload = {jsonrpc:'2.0',method:'call',id:2,params:{service:'object',method:'execute_kw',
-        args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
-          [[['id','=',72]]],
-          {fields:['id','name','pin','barcode','company_id','job_title']}]}};
-      const vRes = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(vPayload)});
-      const vData = await vRes.json();
-
-      return new Response(JSON.stringify({success: true, write: data.result, verify: vData.result}), {headers: corsHeaders});
-    }
-
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
       if (PINS[pin]) {

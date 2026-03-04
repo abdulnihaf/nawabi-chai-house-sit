@@ -15,7 +15,7 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '9991': 'Mujib', '4759': 'Jahangir', '1002': 'Rarup', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
 
   // ═══════════════════════════════════════════════════════════
   // POS Product → Raw Material RECIPES (qty per 1 unit sold)

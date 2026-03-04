@@ -21,7 +21,7 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
 
   const BOX_TARE_G = 339;    // grams (SF-400 scale)
   const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token
