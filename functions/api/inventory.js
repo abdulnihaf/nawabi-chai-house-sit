@@ -368,6 +368,31 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, results}), {headers: corsHeaders});
     }
 
+    // TEMP: Add Basheer to NCH company
+    if (action === 'temp-basheer-add' && context.request.method === 'POST') {
+      const body = await context.request.json();
+      if (body.pin !== '0305') return new Response(JSON.stringify({success: false, error: 'auth'}), {headers: corsHeaders});
+
+      // Add company_id 10 to Basheer's company_ids (multi-company)
+      // Employee ID 72, write company_ids to include both 1 and 10
+      const payload = {jsonrpc:'2.0',method:'call',id:1,params:{service:'object',method:'execute_kw',
+        args:['main',2,ODOO_API_KEY,'hr.employee','write',
+          [[72], {company_id: 10, barcode: 'NCHEMP15'}]]}};
+      const res = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data = await res.json();
+      if (data.error) return new Response(JSON.stringify({success: false, error: data.error}), {headers: corsHeaders});
+
+      // Verify
+      const vPayload = {jsonrpc:'2.0',method:'call',id:2,params:{service:'object',method:'execute_kw',
+        args:['main',2,ODOO_API_KEY,'hr.employee','search_read',
+          [[['id','=',72]]],
+          {fields:['id','name','pin','barcode','company_id','job_title']}]}};
+      const vRes = await fetch(ODOO_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(vPayload)});
+      const vData = await vRes.json();
+
+      return new Response(JSON.stringify({success: true, write: data.result, verify: vData.result}), {headers: corsHeaders});
+    }
+
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
       if (PINS[pin]) {
