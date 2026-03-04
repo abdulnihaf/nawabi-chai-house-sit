@@ -323,16 +323,6 @@ export async function onRequest(context) {
     }
 
     // ─── VERIFY PIN ──────────────────────────────────────────────
-    // TEMP: lookup employee
-    if (action === 'lookup-employee') {
-      const name = url.searchParams.get('name') || 'basheer';
-      const emps = await odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
-        'hr.employee', 'search_read',
-        [[['company_id', '=', 10], ['name', 'ilike', name]]],
-        {fields: ['id', 'name', 'pin', 'barcode', 'job_title']});
-      return new Response(JSON.stringify({success: true, employees: emps}), {headers: corsHeaders});
-    }
-
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
       if (PINS[pin]) {
