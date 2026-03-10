@@ -18,18 +18,6 @@ export async function onRequest(context) {
   const PINS = {'0305': 'Nihaf', '2026': 'Zoya', '8523': 'Basheer'};
   const BUSINESS_START = '2026-02-03';
 
-  // DOW factors (from actual data — Sun=0, Mon=1, ..., Sat=6):
-  // Calculated as: DOW avg daily items / overall avg daily items
-  const DOW_FACTORS = {
-    0: 1.08,  // Sun — 1555 / 1127 = 1.38, but adjusted for segment mixing
-    1: 0.78,  // Mon
-    2: 0.74,  // Tue — weakest day
-    3: 0.92,  // Wed
-    4: 0.90,  // Thu
-    5: 0.94,  // Fri
-    6: 1.12,  // Sat
-  };
-
   // ═══════════════════════════════════════════════════════════
   // THEORETICAL RECIPES — reference only, NOT used directly for purchase prediction.
   // These are the lab-condition ratios from daily-settlement.js (e.g., 57.42ml milk per chai cup).
@@ -709,6 +697,18 @@ export async function onRequest(context) {
   //   4. DOW normalization: scale by real DOW factor from data
   //   5. Apply manual multipliers on top
   //
+  // DOW factors (from actual data — Sun=6, Mon=0, ..., Sat=5):
+  // Calculated as: DOW avg daily items / overall avg daily items
+  const DOW_FACTORS = {
+    0: 1.08,  // Sun — 1555 / 1127 = 1.38, but adjusted for segment mixing
+    1: 0.78,  // Mon
+    2: 0.74,  // Tue — weakest day
+    3: 0.92,  // Wed
+    4: 0.90,  // Thu
+    5: 0.94,  // Fri
+    6: 1.12,  // Sat
+  };
+
   function computeWeightedAverage(cacheData, targetDow, targetDate) {
     const DECAY_FACTOR = 0.80; // per week decay — slightly more aggressive (data is only 5 weeks)
     const DOW_BONUS = 2.5; // same day-of-week gets 2.5x weight (with only 2-3 same-DOW points, need strong signal)
