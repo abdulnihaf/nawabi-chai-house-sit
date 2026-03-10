@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Inventory Predictor</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--orange:#f97316;--teal:#14b8a6}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .mono{font-family:'JetBrains Mono',monospace}
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+    .hidden{display:none!important}
+
+    /* PIN Screen */
+    .pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:340px;width:100%}
+    .pin-box h2{font-size:20px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:13px;margin-bottom:24px}
+    .pin-dots{display:flex;gap:12px;justify-content:center;margin-bottom:24px}
+    .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);transition:all .2s}
+    .pin-dot.filled{background:var(--orange);border-color:var(--orange)}
+    .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto}
+    .pin-btn{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:20px;font-weight:600;color:var(--text);cursor:pointer;transition:all .15s}
+    .pin-btn:hover{border-color:var(--orange);background:var(--card)}
+    .pin-btn:active{transform:scale(.95)}
+    .pin-btn.backspace{font-size:14px;color:var(--muted)}
+    .pin-error{color:var(--red);font-size:12px;margin-top:12px;min-height:18px}
+
+    /* Header */
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--orange),var(--yellow));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .user-badge{padding:6px 12px;background:var(--card);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text2)}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s}
+    .btn-primary{background:linear-gradient(135deg,var(--orange),var(--yellow));color:#fff}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(249,115,22,.3)}
+    .btn-sm{padding:6px 12px;font-size:12px}
+    .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2)}
+    .btn-ghost:hover{border-color:var(--text2);color:var(--text)}
+    .btn-danger{background:rgba(239,68,68,.15);border:1px solid var(--red);color:var(--red)}
+
+    /* Tabs */
+    .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:20px}
+    .tab{flex:1;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--text2);transition:all .2s;border:none;background:transparent}
+    .tab.active{background:var(--orange);color:#fff}
+    .tab:hover:not(.active){color:var(--text);background:var(--bg2)}
+
+    /* Controls */
+    .controls{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .control-group{display:flex;flex-direction:column;gap:4px}
+    .control-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    select,input[type="date"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    select:focus,input:focus{outline:none;border-color:var(--orange)}
+    .buffer-btns{display:flex;gap:4px}
+    .buffer-btn{padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace}
+    .buffer-btn.active{border-color:var(--orange);color:var(--orange);background:rgba(249,115,22,.1)}
+
+    /* Period Banner */
+    .period-banner{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+    .period-info .period-name{font-size:14px;font-weight:600;margin-bottom:2px}
+    .period-info .period-detail{font-size:11px;color:var(--text2)}
+    .period-multipliers{display:flex;gap:6px;flex-wrap:wrap}
+    .mult-badge{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(249,115,22,.15);color:var(--orange);font-family:'JetBrains Mono',monospace}
+
+    /* Summary Grid */
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .summary-card .icon{font-size:20px;margin-bottom:8px}
+    .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .summary-card .value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+    .v-green{color:var(--green)}
+    .v-blue{color:var(--blue)}
+    .v-orange{color:var(--orange)}
+    .v-purple{color:var(--purple)}
+    .v-cyan{color:var(--cyan)}
+
+    /* Section */
+    .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;padding-left:12px;border-left:3px solid var(--orange)}
+    .section-title .sec-icon{font-size:18px}
+
+    /* Purchase Table */
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    table{width:100%;border-collapse:collapse;min-width:700px}
+    th{text-align:left;padding:10px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;background:var(--bg2);letter-spacing:.3px}
+    th:last-child{text-align:right}
+    td{padding:10px 12px;font-size:13px;border-top:1px solid var(--border)}
+    td:last-child{text-align:right}
+    td.mono{font-family:'JetBrains Mono',monospace;font-weight:600}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    .status-pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .status-sufficient{background:rgba(16,185,129,.15);color:var(--green)}
+    .status-low{background:rgba(245,158,11,.15);color:var(--yellow)}
+    .status-critical{background:rgba(239,68,68,.15);color:var(--red)}
+
+    /* Product Breakdown */
+    .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+    .product-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px}
+    .product-card .p-name{font-size:13px;font-weight:600;margin-bottom:4px}
+    .product-card .p-qty{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .product-card .p-detail{font-size:10px;color:var(--muted);margin-top:4px}
+    .product-card .p-conf{display:inline-block;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:600;margin-top:4px}
+    .conf-high{background:rgba(16,185,129,.15);color:var(--green)}
+    .conf-medium{background:rgba(245,158,11,.15);color:var(--yellow)}
+    .conf-low{background:rgba(239,68,68,.15);color:var(--red)}
+
+    /* Hourly Forecast */
+    .hourly-timeline{display:flex;gap:3px;align-items:flex-end;height:160px;padding:10px 0;overflow-x:auto}
+    .hour-col{flex:1;min-width:28px;display:flex;flex-direction:column;align-items:center;gap:4px}
+    .hour-bar-wrap{width:100%;height:120px;display:flex;align-items:flex-end;justify-content:center}
+    .hour-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:all .3s;cursor:pointer;position:relative}
+    .hour-bar:hover{opacity:.8}
+    .hour-bar:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:4px 8px;border-radius:4px;font-size:10px;white-space:nowrap;z-index:10;font-family:'JetBrains Mono',monospace}
+    .hour-label{font-size:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+    .hour-bar.inactive{background:rgba(100,116,139,.2)!important}
+
+    /* Product Hour Cards */
+    .product-hour-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+    .phc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .phc-name{font-size:14px;font-weight:600}
+    .phc-total{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .phc-bars{display:flex;gap:2px;align-items:flex-end;height:60px}
+    .phc-bar{flex:1;border-radius:2px 2px 0 0;min-height:1px;transition:all .3s;cursor:pointer;position:relative}
+    .phc-bar:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:3px 6px;border-radius:4px;font-size:9px;white-space:nowrap;z-index:10}
+
+    /* Kitchen Prep */
+    .prep-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px}
+    .prep-time{font-size:13px;font-weight:600;color:var(--orange);margin-bottom:8px;font-family:'JetBrains Mono',monospace}
+    .prep-items{display:flex;flex-direction:column;gap:4px}
+    .prep-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0}
+    .prep-item .prep-name{color:var(--text2)}
+    .prep-item .prep-qty{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text)}
+    .prep-item .prep-note{font-size:10px;color:var(--muted);font-style:italic}
+
+    /* Settings */
+    .settings-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.9);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+    .settings-panel{background:var(--card);border:1px solid var(--border);border-radius:14px;max-width:700px;width:100%;max-height:85vh;overflow-y:auto;padding:24px}
+    .settings-panel h2{font-size:18px;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+    .settings-section{margin-bottom:24px}
+    .settings-section h3{font-size:13px;color:var(--text2);text-transform:uppercase;margin-bottom:12px;letter-spacing:.5px}
+    .form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+    .form-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
+    .form-field label{font-size:10px;color:var(--muted);text-transform:uppercase}
+    .form-field input,.form-field select,.form-field textarea{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px}
+    .form-field textarea{font-family:'Plus Jakarta Sans',sans-serif;resize:vertical;min-height:60px}
+    .mult-list{display:flex;flex-direction:column;gap:6px}
+    .mult-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px}
+    .mult-row .mult-info{flex:1}
+    .mult-row .mult-val{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--orange);margin:0 12px}
+
+    /* Staff Rostering */
+    .staff-legend{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+    .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+    .legend-dot{width:10px;height:10px;border-radius:3px}
+    .staff-hour-details{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:14px}
+    .staff-hour-cell{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;font-size:11px}
+    .staff-hour-cell .shc-time{font-family:'JetBrains Mono',monospace;font-weight:600;margin-bottom:3px}
+    .staff-hour-cell .shc-orders{font-size:10px;color:var(--text2)}
+    .staff-hour-cell .shc-staff{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;margin-top:2px}
+    .staff-hour-cell.level-closed{opacity:.3}
+    .staff-hour-cell.level-quiet{border-color:var(--blue)}
+    .staff-hour-cell.level-moderate{border-color:var(--green)}
+    .staff-hour-cell.level-busy{border-color:var(--orange)}
+    .staff-hour-cell.level-peak{border-color:var(--red)}
+    .shift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+    .shift-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .shift-card .sc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .shift-card .sc-name{font-size:15px;font-weight:700}
+    .shift-card .sc-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)}
+    .shift-card .sc-meta{display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)}
+    .shift-card .sc-roles{display:flex;flex-direction:column;gap:4px}
+    .shift-card .sc-role{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+    .shift-card .sc-role-name{color:var(--text2)}
+    .shift-card .sc-role-count{font-family:'JetBrains Mono',monospace;font-weight:600}
+    .level-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .level-badge.quiet{background:rgba(59,130,246,.15);color:var(--blue)}
+    .level-badge.moderate{background:rgba(16,185,129,.15);color:var(--green)}
+    .level-badge.busy{background:rgba(249,115,22,.15);color:var(--orange)}
+    .level-badge.peak{background:rgba(239,68,68,.15);color:var(--red)}
+
+    /* Collapsible */
+    .collapsible-header{cursor:pointer;display:flex;align-items:center;gap:8px}
+    .collapsible-header .arrow{transition:transform .2s;font-size:10px;color:var(--muted)}
+    .collapsible-header.open .arrow{transform:rotate(90deg)}
+    .collapsible-body{max-height:0;overflow:hidden;transition:max-height .3s}
+    .collapsible-body.open{max-height:4000px}
+
+    /* Loading */
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:50}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
+    .error.show{display:block}
+
+    /* Responsive */
+    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(2,1fr)}.product-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:1fr}.controls{flex-direction:column;align-items:stretch}.product-grid{grid-template-columns:1fr}.tabs{flex-direction:row}.header{flex-direction:column;align-items:flex-start}.form-row{flex-direction:column}}
+  </style>
+</head>
+<body>
+
+<!-- PIN Screen -->
+<div id="pinScreen" class="pin-screen">
+  <div class="pin-box">
+    <h2>Inventory Predictor</h2>
+    <p>Enter your PIN to continue</p>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-btn" onclick="pinKey('1')">1</button>
+      <button class="pin-btn" onclick="pinKey('2')">2</button>
+      <button class="pin-btn" onclick="pinKey('3')">3</button>
+      <button class="pin-btn" onclick="pinKey('4')">4</button>
+      <button class="pin-btn" onclick="pinKey('5')">5</button>
+      <button class="pin-btn" onclick="pinKey('6')">6</button>
+      <button class="pin-btn" onclick="pinKey('7')">7</button>
+      <button class="pin-btn" onclick="pinKey('8')">8</button>
+      <button class="pin-btn" onclick="pinKey('9')">9</button>
+      <button class="pin-btn backspace" onclick="pinKey('back')">&#9003;</button>
+      <button class="pin-btn" onclick="pinKey('0')">0</button>
+      <button class="pin-btn" onclick="pinKey('enter')">&#10003;</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" class="container hidden">
+  <div class="header">
+    <h1>Inventory Predictor</h1>
+    <div class="header-right">
+      <span class="user-badge" id="userBadge"></span>
+      <button class="btn btn-ghost btn-sm" onclick="openSettings()">Settings</button>
+      <button class="btn btn-primary" onclick="generate()">Generate</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('purchase')">Purchase Predictor</button>
+    <button class="tab" onclick="switchTab('kitchen')">Kitchen Forecast</button>
+    <button class="tab" onclick="switchTab('staffing')">Staff Rostering</button>
+    <button class="tab" onclick="switchTab('accuracy')">Accuracy Check</button>
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <!-- TAB 1: Purchase Predictor -->
+  <div id="tab-purchase">
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Predict For</span>
+        <select id="daysSelect">
+          <option value="1">Tomorrow</option>
+          <option value="2">Next 2 Days</option>
+          <option value="3" selected>Next 3 Days</option>
+          <option value="7">Next 7 Days</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Start Date</span>
+        <input type="date" id="startDate">
+      </div>
+      <div class="control-group">
+        <span class="control-label">Safety Buffer</span>
+        <div class="buffer-btns">
+          <button class="buffer-btn" data-val="1.05" onclick="setBuffer(this)">5%</button>
+          <button class="buffer-btn active" data-val="1.10" onclick="setBuffer(this)">10%</button>
+          <button class="buffer-btn" data-val="1.15" onclick="setBuffer(this)">15%</button>
+          <button class="buffer-btn" data-val="1.20" onclick="setBuffer(this)">20%</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="generate()" style="margin-left:auto">Generate Prediction</button>
+    </div>
+
+    <div id="periodBanner" class="period-banner hidden">
+      <div class="period-info">
+        <div class="period-name" id="periodName"></div>
+        <div class="period-detail" id="periodDetail"></div>
+      </div>
+      <div class="period-multipliers" id="periodMults"></div>
+    </div>
+
+    <div class="summary-grid" id="purchaseSummary"></div>
+
+    <div class="section" id="purchaseTableSection" style="display:none">
+      <div class="section-title"><span class="sec-icon">🛒</span> Raw Materials Purchase List</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Material</th><th>UOM</th><th>Predicted Need</th><th>Current Stock</th><th>To Purchase</th><th>Unit Cost</th><th>Status</th><th>Est. Cost</th></tr>
+          </thead>
+          <tbody id="purchaseTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section" id="productSection" style="display:none">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">&#9654;</span>
+        <div class="section-title" style="margin-bottom:0"><span class="sec-icon">📦</span> Product Breakdown</div>
+      </div>
+      <div class="collapsible-body">
+        <div class="product-grid" id="productGrid" style="margin-top:14px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: Kitchen Forecast -->
+  <div id="tab-kitchen" class="hidden">
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Date</span>
+        <input type="date" id="kitchenDate">
+      </div>
+      <div class="control-group">
+        <span class="control-label">Safety Buffer</span>
+        <div class="buffer-btns">
+          <button class="buffer-btn" data-val="1.05" onclick="setBuffer(this)">5%</button>
+          <button class="buffer-btn active" data-val="1.10" onclick="setBuffer(this)">10%</button>
+          <button class="buffer-btn" data-val="1.15" onclick="setBuffer(this)">15%</button>
+          <button class="buffer-btn" data-val="1.20" onclick="setBuffer(this)">20%</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="generateHourly()" style="margin-left:auto">Generate Forecast</button>
+    </div>
+
+    <div class="summary-grid" id="kitchenSummary"></div>
+
+    <div class="section" id="hourlyOverview" style="display:none">
+      <div class="section-title"><span class="sec-icon">📊</span> Hourly Overview — All Products</div>
+      <div class="hourly-timeline" id="hourlyTimeline"></div>
+    </div>
+
+    <div class="section" id="prepSection" style="display:none">
+      <div class="section-title"><span class="sec-icon">🍳</span> Kitchen Prep Schedule</div>
+      <div id="prepSchedule"></div>
+    </div>
+
+    <div class="section" id="productHourSection" style="display:none">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">&#9654;</span>
+        <div class="section-title" style="margin-bottom:0"><span class="sec-icon">☕</span> Per-Product Hourly Breakdown</div>
+      </div>
+      <div class="collapsible-body">
+        <div id="productHourCards" style="margin-top:14px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Staff Rostering -->
+  <div id="tab-staffing" class="hidden">
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Date</span>
+        <input type="date" id="staffingDate">
+      </div>
+      <button class="btn btn-primary" onclick="generateStaffing()" style="margin-left:auto">Generate Roster</button>
+    </div>
+
+    <div class="summary-grid" id="staffingSummary"></div>
+
+    <div class="section" id="staffHeatmap" style="display:none">
+      <div class="section-title"><span class="sec-icon">📊</span> Hourly Crowd & Staffing</div>
+      <div class="staff-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--muted)"></span>Closed</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Quiet</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Moderate</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--orange)"></span>Busy</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>Peak</span>
+      </div>
+      <div class="hourly-timeline" id="staffTimeline"></div>
+      <div class="staff-hour-details" id="staffHourDetails"></div>
+    </div>
+
+    <div class="section" id="shiftSection" style="display:none">
+      <div class="section-title"><span class="sec-icon">🔄</span> Recommended Shifts</div>
+      <div class="shift-grid" id="shiftGrid"></div>
+    </div>
+
+    <div class="section" id="roleSummarySection" style="display:none">
+      <div class="section-title"><span class="sec-icon">👤</span> Role Summary & Daily Cost</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Role</th><th>Peak Staff</th><th>Daily Cost/Person</th><th>Total Daily</th></tr></thead>
+          <tbody id="roleSummaryTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: Accuracy -->
+  <div id="tab-accuracy" class="hidden">
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Check Date</span>
+        <input type="date" id="accuracyDate">
+      </div>
+      <button class="btn btn-primary" onclick="checkAccuracy()" style="margin-left:auto">Check Accuracy</button>
+    </div>
+    <div class="summary-grid" id="accuracySummary"></div>
+    <div class="section" id="accuracyTableSection" style="display:none">
+      <div class="section-title"><span class="sec-icon">🎯</span> Predicted vs Actual</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Predicted</th><th>Actual</th><th>Diff</th><th>Error %</th></tr></thead>
+          <tbody id="accuracyTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Overlay -->
+<div id="settingsOverlay" class="settings-overlay hidden" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2>Settings</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeSettings()">Close</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Business Periods</h3>
+      <div id="periodsList"></div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="form-row">
+          <div class="form-field"><label>Code</label><input id="npCode" placeholder="e.g. eid_week"></div>
+          <div class="form-field"><label>Name</label><input id="npName" placeholder="e.g. Eid Week"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Start Date</label><input type="date" id="npStart"></div>
+          <div class="form-field"><label>End Date</label><input type="date" id="npEnd"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:2"><label>Operating Hours (JSON array)</label><input id="npHours" value="[17,18,19,20,21,22,23,0,1,2,3,4,5]" placeholder="[0,1,...,23]"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Notes</label><input id="npNotes" placeholder="Optional notes"></div>
+          <button class="btn btn-primary btn-sm" onclick="savePeriod()" style="align-self:flex-end">Add Period</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Intelligence Multipliers</h3>
+      <div class="mult-list" id="multList"></div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="form-row">
+          <div class="form-field"><label>Period</label><select id="nmPeriod"></select></div>
+          <div class="form-field"><label>Scope</label>
+            <select id="nmScope" onchange="updateScopeId()">
+              <option value="all">All Products</option>
+              <option value="product">Specific Product</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+          <div class="form-field" id="nmScopeIdWrap" style="display:none"><label>Target</label><select id="nmScopeId"></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Day of Week</label>
+            <select id="nmDow"><option value="">All Days</option><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select>
+          </div>
+          <div class="form-field"><label>Multiplier</label><input type="number" id="nmValue" value="1.0" step="0.05" min="0.1" max="5.0"></div>
+          <div class="form-field"><label>Reason</label><input id="nmReason" placeholder="e.g. Last 10 days heavy"></div>
+          <button class="btn btn-primary btn-sm" onclick="saveMultiplier()" style="align-self:flex-end">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Data Cache</h3>
+      <div id="cacheStatus" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+      <button class="btn btn-ghost btn-sm" onclick="rebuildCache(false)">Update Cache</button>
+      <button class="btn btn-ghost btn-sm" onclick="rebuildCache(true)" style="margin-left:6px">Full Rebuild</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inline Loading -->
+<div class="loading hidden" id="loading"><div class="spinner"></div></div>
+
+<script>
+const API = '/api/predictor';
+const $ = id => document.getElementById(id);
+const fmt = n => '₹' + (n || 0).toLocaleString('en-IN', {maximumFractionDigits: 0});
+
+let currentPin = '';
+let userName = '';
+let currentTab = 'purchase';
+let safetyBuffer = 1.10;
+let forecastData = null;
+let hourlyData = null;
+
+// Products for scope selector
+const PRODUCTS = {
+  1028: 'Irani Chai', 1102: 'Coffee', 1103: 'Lemon Tea', 1029: 'Bun Maska',
+  1118: 'Malai Bun', 1031: 'Chicken Cutlet', 1115: 'Pyaaz Samosa',
+  1117: 'Cheese Balls', 1030: 'Osmania Biscuit', 1033: 'Osmania Pack of 3',
+  1111: 'Niloufer Box', 1094: 'Water'
+};
+
+// ─── PIN ──────────────────────────────────────
+function pinKey(k) {
+  if (k === 'back') { currentPin = currentPin.slice(0, -1); updateDots(); return; }
+  if (k === 'enter') { verifyPin(); return; }
+  if (currentPin.length >= 4) return;
+  currentPin += k;
+  updateDots();
+  if (currentPin.length === 4) setTimeout(verifyPin, 200);
+}
+
+function updateDots() {
+  for (let i = 0; i < 4; i++) $('d' + i).classList.toggle('filled', i < currentPin.length);
+}
+
+async function verifyPin() {
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${currentPin}`);
+    const data = await res.json();
+    if (data.success) {
+      userName = data.name;
+      $('pinScreen').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('userBadge').textContent = userName;
+      initDates();
+    } else {
+      $('pinError').textContent = 'Invalid PIN';
+      currentPin = '';
+      updateDots();
+    }
+  } catch (e) {
+    $('pinError').textContent = 'Connection error';
+    currentPin = '';
+    updateDots();
+  }
+}
+
+// ─── TABS ─────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  const tabs = ['purchase', 'kitchen', 'staffing', 'accuracy'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === tab));
+  tabs.forEach(t => $('tab-' + t).classList.toggle('hidden', t !== tab));
+}
+
+// ─── CONTROLS ─────────────────────────────────
+function initDates() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tmrStr = tomorrow.toISOString().slice(0, 10);
+  $('startDate').value = tmrStr;
+  $('kitchenDate').value = tmrStr;
+  $('staffingDate').value = tmrStr;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  $('accuracyDate').value = yesterday.toISOString().slice(0, 10);
+}
+
+function setBuffer(el) {
+  el.closest('.buffer-btns').querySelectorAll('.buffer-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  safetyBuffer = parseFloat(el.dataset.val);
+}
+
+function toggleCollapse(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+// ─── PURCHASE FORECAST ────────────────────────
+async function generate() {
+  if (currentTab === 'kitchen') { generateHourly(); return; }
+  if (currentTab === 'staffing') { generateStaffing(); return; }
+  if (currentTab === 'accuracy') { checkAccuracy(); return; }
+
+  const days = $('daysSelect').value;
+  const date = $('startDate').value;
+  showLoading(true);
+  try {
+    const res = await fetch(`${API}?action=forecast&days=${days}&date=${date}&buffer=${safetyBuffer}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    forecastData = data.prediction;
+    renderPurchase(forecastData);
+    hideError();
+  } catch (e) {
+    showError(e.message);
+  }
+  showLoading(false);
+}
+
+function renderPurchase(p) {
+  // Period banner
+  const banner = $('periodBanner');
+  if (p.segment) {
+    banner.classList.remove('hidden');
+    $('periodName').textContent = `Period: ${p.segment.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`;
+    $('periodDetail').textContent = `${p.targetDates.length} day(s): ${p.targetDates.join(', ')} | Buffer: ${Math.round((safetyBuffer - 1) * 100)}% | ${p.dataPoints} days of data`;
+    const multsHtml = (p.appliedMultipliers || []).map(m => `<span class="mult-badge">${m.multiplier}x ${m.scope === 'all' ? 'all' : m.scope} — ${m.reason || m.period_code}</span>`).join('');
+    $('periodMults').innerHTML = multsHtml;
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  // Summary cards
+  const itemsToBuy = p.materials.filter(m => m.toPurchase > 0).length;
+  const prodCount = Object.keys(p.products).length;
+  const confBadge = p.confidence === 'high' ? 'conf-high' : p.confidence === 'medium' ? 'conf-medium' : 'conf-low';
+  $('purchaseSummary').innerHTML = `
+    <div class="summary-card"><div class="icon">💰</div><div class="label">Total Purchase Cost</div><div class="value v-green">${fmt(p.totalPurchaseCost)}</div><div class="sub">${p.targetDates.length} day prediction</div></div>
+    <div class="summary-card"><div class="icon">🛒</div><div class="label">Items to Buy</div><div class="value v-orange">${itemsToBuy}</div><div class="sub">of ${p.materials.length} materials</div></div>
+    <div class="summary-card"><div class="icon">📦</div><div class="label">Products Predicted</div><div class="value v-blue">${prodCount}</div><div class="sub">${p.days} day forecast</div></div>
+    <div class="summary-card"><div class="icon">🎯</div><div class="label">Confidence</div><div class="value"><span class="${confBadge}" style="font-size:16px;padding:4px 12px">${p.confidence.toUpperCase()}</span></div><div class="sub">${p.dataPoints} days of data</div></div>
+  `;
+
+  // Purchase table
+  $('purchaseTableSection').style.display = '';
+  $('purchaseTable').innerHTML = p.materials.map(m => {
+    const statusCls = `status-${m.status}`;
+    return `<tr>
+      <td><strong>${m.name}</strong></td>
+      <td>${m.uom}</td>
+      <td class="mono">${m.needed}</td>
+      <td class="mono">${m.currentStock}</td>
+      <td class="mono" style="color:${m.toPurchase > 0 ? 'var(--orange)' : 'var(--green)'}">${m.toPurchase}</td>
+      <td class="mono">${fmt(m.unitCost)}/${m.uom}</td>
+      <td><span class="status-pill ${statusCls}">${m.status}</span></td>
+      <td class="mono" style="color:var(--green)">${fmt(m.cost)}</td>
+    </tr>`;
+  }).join('');
+
+  // Product breakdown
+  $('productSection').style.display = '';
+  $('productGrid').innerHTML = Object.entries(p.products).sort((a, b) => b[1].total - a[1].total).map(([pid, prod]) => {
+    const recipe = PRODUCTS[pid];
+    const confCls = forecastData.dailyBreakdown?.[p.targetDates[0]]?.products?.[pid]?.confidence || 'medium';
+    return `<div class="product-card">
+      <div class="p-name">${prod.name}</div>
+      <div class="p-qty">${Math.round(prod.total)}</div>
+      <div class="p-detail">${p.targetDates.length > 1 ? Object.entries(prod.daily).map(([d, q]) => `${d.slice(5)}: ${Math.round(q)}`).join(' · ') : `predicted for ${p.targetDates[0]}`}</div>
+      <span class="p-conf conf-${confCls}">${confCls}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── HOURLY FORECAST ──────────────────────────
+async function generateHourly() {
+  const date = $('kitchenDate').value;
+  showLoading(true);
+  try {
+    const res = await fetch(`${API}?action=hourly&date=${date}&buffer=${safetyBuffer}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    hourlyData = data;
+    renderHourly(data);
+    hideError();
+  } catch (e) {
+    showError(e.message);
+  }
+  showLoading(false);
+}
+
+function renderHourly(d) {
+  const opHours = new Set(d.operatingHours || []);
+
+  // Summary
+  let totalItems = 0;
+  const topProducts = [];
+  for (const [pid, prod] of Object.entries(d.products)) {
+    totalItems += prod.totalPredicted;
+    topProducts.push({name: prod.name, qty: prod.totalPredicted});
+  }
+  topProducts.sort((a, b) => b.qty - a.qty);
+
+  $('kitchenSummary').innerHTML = `
+    <div class="summary-card"><div class="icon">📅</div><div class="label">Forecast Date</div><div class="value v-blue">${d.dayName}</div><div class="sub">${d.date}</div></div>
+    <div class="summary-card"><div class="icon">📊</div><div class="label">Total Items</div><div class="value v-green">${totalItems}</div><div class="sub">${Object.keys(d.products).length} products</div></div>
+    <div class="summary-card"><div class="icon">🕐</div><div class="label">Operating Hours</div><div class="value v-orange">${opHours.size}h</div><div class="sub">${d.segment.replace(/_/g, ' ')}</div></div>
+    <div class="summary-card"><div class="icon">🏆</div><div class="label">Top Item</div><div class="value v-purple">${topProducts[0]?.qty || 0}</div><div class="sub">${topProducts[0]?.name || '-'}</div></div>
+  `;
+
+  // Hourly overview — stacked total across all products
+  $('hourlyOverview').style.display = '';
+  const hourTotals = Array(24).fill(0);
+  for (const prod of Object.values(d.products)) {
+    for (const h of prod.hours) hourTotals[h.hour] += h.predicted;
+  }
+  const maxHour = Math.max(...hourTotals, 1);
+
+  $('hourlyTimeline').innerHTML = Array.from({length: 24}, (_, h) => {
+    const total = hourTotals[h];
+    const pct = total / maxHour * 100;
+    const isOp = opHours.has(h);
+    const label = h === 0 ? '12A' : h === 12 ? '12P' : h > 12 ? (h - 12) + 'P' : h + 'A';
+    return `<div class="hour-col">
+      <div class="hour-bar-wrap">
+        <div class="hour-bar ${isOp ? '' : 'inactive'}" style="height:${pct}%;background:${isOp ? 'var(--orange)' : ''}" data-tooltip="${label}: ${total} items"></div>
+      </div>
+      <span class="hour-label">${label}</span>
+    </div>`;
+  }).join('');
+
+  // Kitchen prep schedule
+  $('prepSection').style.display = '';
+  $('prepSchedule').innerHTML = (d.kitchen || []).map(w => {
+    if (!w.items.length) return '';
+    return `<div class="prep-card">
+      <div class="prep-time">${w.label}</div>
+      <div class="prep-items">
+        ${w.items.map(it => `<div class="prep-item">
+          <span class="prep-name">${it.product}</span>
+          <span class="prep-qty">${it.qty}</span>
+          <span class="prep-note">${it.prepNote || ''}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Per-product hourly cards
+  $('productHourSection').style.display = '';
+  const colors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f59e0b', '#ec4899', '#14b8a6', '#6366f1', '#f43f5e', '#84cc16'];
+  let colorIdx = 0;
+
+  $('productHourCards').innerHTML = Object.entries(d.products)
+    .sort((a, b) => b[1].totalPredicted - a[1].totalPredicted)
+    .map(([pid, prod]) => {
+      const color = colors[colorIdx++ % colors.length];
+      const maxH = Math.max(...prod.hours.map(h => h.predicted), 1);
+      return `<div class="product-hour-card">
+        <div class="phc-header">
+          <span class="phc-name">${prod.name}</span>
+          <span class="phc-total">${prod.totalPredicted}</span>
+        </div>
+        <div class="phc-bars">
+          ${prod.hours.map(h => {
+            const pct = h.predicted / maxH * 100;
+            const label = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? (h.hour - 12) + 'P' : h.hour + 'A';
+            return `<div class="phc-bar" style="height:${pct}%;background:${h.isOperating ? color : 'rgba(100,116,139,.2)'}" data-tooltip="${label}: ${h.predicted}"></div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+}
+
+// ─── STAFF ROSTERING ──────────────────────────
+let staffingData = null;
+
+async function generateStaffing() {
+  const date = $('staffingDate').value;
+  showLoading(true);
+  try {
+    const res = await fetch(`${API}?action=staffing&date=${date}&buffer=${safetyBuffer}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    staffingData = data;
+    renderStaffing(data);
+    hideError();
+  } catch (e) {
+    showError(e.message);
+  }
+  showLoading(false);
+}
+
+function renderStaffing(d) {
+  const crowdColors = {closed: 'var(--muted)', quiet: 'var(--blue)', moderate: 'var(--green)', busy: 'var(--orange)', peak: 'var(--red)'};
+
+  // Summary cards
+  $('staffingSummary').innerHTML = `
+    <div class="summary-card"><div class="icon">📅</div><div class="label">Forecast Date</div><div class="value v-blue">${d.dayName}</div><div class="sub">${d.date}</div></div>
+    <div class="summary-card"><div class="icon">👥</div><div class="label">Peak Staff Needed</div><div class="value v-orange">${d.totalPeakStaff}</div><div class="sub">at ${d.peakHour ? d.peakHour.label : '-'} (${d.peakHour ? d.peakHour.orders : 0} orders)</div></div>
+    <div class="summary-card"><div class="icon">💰</div><div class="label">Est. Daily Staff Cost</div><div class="value v-green">${fmt(d.estimatedDailyStaffCost)}</div><div class="sub">${d.shifts.length} shifts</div></div>
+    <div class="summary-card"><div class="icon">🕐</div><div class="label">Operating Hours</div><div class="value v-cyan">${d.operatingHours.length}h</div><div class="sub">${d.segment.replace(/_/g, ' ')}</div></div>
+  `;
+
+  // Hourly crowd heatmap
+  $('staffHeatmap').style.display = '';
+  const maxOrders = Math.max(...d.hourlyStaffing.map(h => h.orders), 1);
+
+  $('staffTimeline').innerHTML = d.hourlyStaffing.map(h => {
+    const pct = h.orders / maxOrders * 100;
+    const color = crowdColors[h.crowdLevel];
+    return `<div class="hour-col">
+      <div class="hour-bar-wrap">
+        <div class="hour-bar ${h.isOperating ? '' : 'inactive'}" style="height:${pct}%;background:${h.isOperating ? color : ''}" data-tooltip="${h.label}: ${h.orders} orders · ${h.totalStaff} staff · ${h.crowdLevel}"></div>
+      </div>
+      <span class="hour-label">${h.label}</span>
+    </div>`;
+  }).join('');
+
+  // Hour-by-hour detail grid (only operating hours)
+  $('staffHourDetails').innerHTML = d.hourlyStaffing.filter(h => h.isOperating).map(h => {
+    return `<div class="staff-hour-cell level-${h.crowdLevel}">
+      <div class="shc-time">${h.label}</div>
+      <div class="shc-orders">${h.orders} orders</div>
+      <div class="shc-staff" style="color:${crowdColors[h.crowdLevel]}">${h.totalStaff} staff</div>
+      <span class="level-badge ${h.crowdLevel}">${h.crowdLevel}</span>
+    </div>`;
+  }).join('');
+
+  // Shift cards
+  $('shiftSection').style.display = '';
+  $('shiftGrid').innerHTML = d.shifts.map(s => {
+    const roleRows = Object.entries(s.staffNeeded).filter(([_, count]) => count > 0).map(([role, count]) => {
+      const roleInfo = d.staffRoles[role];
+      return `<div class="sc-role"><span class="sc-role-name">${roleInfo ? roleInfo.label : role}</span><span class="sc-role-count">${count}</span></div>`;
+    }).join('');
+
+    return `<div class="shift-card">
+      <div class="sc-header">
+        <span class="sc-name">${s.name}</span>
+        <span class="sc-time">${s.startLabel} — ${s.endLabel}</span>
+      </div>
+      <div class="sc-meta">
+        <span>${s.hours}h duration</span>
+        <span>Peak: ${s.peakOrders} orders/h</span>
+        <span class="level-badge ${s.peakLevel}">${s.peakLevel}</span>
+      </div>
+      <div class="sc-roles">${roleRows}</div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace">Total: <strong style="color:var(--text)">${s.totalStaff} staff</strong></div>
+    </div>`;
+  }).join('');
+
+  // Role summary table
+  $('roleSummarySection').style.display = '';
+  let totalDailyCost = 0;
+  $('roleSummaryTable').innerHTML = d.roleSummary.map(r => {
+    const totalCost = r.peakCount * r.dailyCostPerPerson;
+    totalDailyCost += totalCost;
+    return `<tr>
+      <td><strong>${r.label}</strong></td>
+      <td class="mono">${r.peakCount}</td>
+      <td class="mono">${fmt(r.dailyCostPerPerson)}</td>
+      <td class="mono" style="color:var(--green)">${fmt(totalCost)}</td>
+    </tr>`;
+  }).join('') + `<tr style="border-top:2px solid var(--border)">
+    <td><strong>Total</strong></td>
+    <td class="mono">${d.totalPeakStaff}</td>
+    <td></td>
+    <td class="mono" style="color:var(--green);font-size:15px"><strong>${fmt(totalDailyCost)}</strong></td>
+  </tr>`;
+}
+
+// ─── ACCURACY ─────────────────────────────────
+async function checkAccuracy() {
+  const date = $('accuracyDate').value;
+  showLoading(true);
+  try {
+    const res = await fetch(`${API}?action=accuracy&date=${date}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    renderAccuracy(data);
+    hideError();
+  } catch (e) {
+    showError(e.message);
+  }
+  showLoading(false);
+}
+
+function renderAccuracy(d) {
+  $('accuracySummary').innerHTML = `
+    <div class="summary-card"><div class="icon">🎯</div><div class="label">Overall Accuracy</div><div class="value ${d.overallAccuracy >= 80 ? 'v-green' : d.overallAccuracy >= 60 ? 'v-orange' : 'v-red'}">${d.overallAccuracy}%</div><div class="sub">${d.date} · ${d.segment}</div></div>
+    <div class="summary-card"><div class="icon">📊</div><div class="label">Total Predicted</div><div class="value v-blue">${Math.round(d.totalPredicted)}</div></div>
+    <div class="summary-card"><div class="icon">📈</div><div class="label">Total Actual</div><div class="value v-green">${Math.round(d.totalActual)}</div></div>
+  `;
+
+  $('accuracyTableSection').style.display = '';
+  $('accuracyTable').innerHTML = d.comparison.map(c => {
+    const color = c.diff > 0 ? 'var(--yellow)' : c.diff < 0 ? 'var(--red)' : 'var(--green)';
+    return `<tr>
+      <td><strong>${c.name}</strong></td>
+      <td class="mono">${c.predicted}</td>
+      <td class="mono">${c.actual}</td>
+      <td class="mono" style="color:${color}">${c.diff > 0 ? '+' : ''}${c.diff}</td>
+      <td class="mono" style="color:${c.pctError > 20 ? 'var(--red)' : c.pctError > 10 ? 'var(--yellow)' : 'var(--green)'}">${c.pctError}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── SETTINGS ─────────────────────────────────
+async function openSettings() {
+  $('settingsOverlay').classList.remove('hidden');
+  await Promise.all([loadPeriods(), loadMultipliers()]);
+}
+
+function closeSettings() {
+  $('settingsOverlay').classList.add('hidden');
+}
+
+async function loadPeriods() {
+  const res = await fetch(`${API}?action=periods`);
+  const data = await res.json();
+  if (!data.success) return;
+
+  $('periodsList').innerHTML = data.periods.map(p => `
+    <div class="mult-row">
+      <div class="mult-info"><strong>${p.name}</strong> <span style="color:var(--muted);font-size:11px">(${p.code})</span><br>
+        <span style="font-size:11px;color:var(--text2)">${p.start_date} → ${p.end_date || 'ongoing'} · Hours: ${JSON.parse(p.operating_hours).length}h</span>
+      </div>
+    </div>
+  `).join('');
+
+  // Update multiplier period dropdown
+  const sel = $('nmPeriod');
+  sel.innerHTML = '<option value="_global">Global (All Periods)</option>' +
+    data.periods.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
+}
+
+async function loadMultipliers() {
+  const res = await fetch(`${API}?action=multipliers`);
+  const data = await res.json();
+  if (!data.success) return;
+
+  $('multList').innerHTML = data.multipliers.length ? data.multipliers.map(m => {
+    const scopeLabel = m.scope === 'all' ? 'All Products' : m.scope === 'product' ? PRODUCTS[m.scope_id] || `Product ${m.scope_id}` : `Category: ${m.scope_id}`;
+    const dowLabel = m.day_of_week !== null ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][m.day_of_week] : 'All days';
+    return `<div class="mult-row">
+      <div class="mult-info">${m.period_code} · ${scopeLabel} · ${dowLabel}${m.reason ? ` — ${m.reason}` : ''}</div>
+      <span class="mult-val">${m.multiplier}x</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteMultiplier(${m.id})">Delete</button>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--muted);padding:8px">No multipliers set. Add one below.</div>';
+}
+
+function updateScopeId() {
+  const scope = $('nmScope').value;
+  const wrap = $('nmScopeIdWrap');
+  const sel = $('nmScopeId');
+
+  if (scope === 'all') { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  if (scope === 'product') {
+    sel.innerHTML = Object.entries(PRODUCTS).map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+  } else if (scope === 'category') {
+    sel.innerHTML = '<option value="beverage">Beverage</option><option value="snack">Snack</option><option value="other">Other</option>';
+  }
+}
+
+async function savePeriod() {
+  const body = {
+    code: $('npCode').value, name: $('npName').value,
+    start_date: $('npStart').value, end_date: $('npEnd').value || null,
+    operating_hours: JSON.parse($('npHours').value || '[]'),
+    notes: $('npNotes').value, pin: currentPin
+  };
+  if (!body.code || !body.name || !body.start_date) return alert('Code, name, and start date required');
+
+  const res = await fetch(`${API}?action=save-period`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const data = await res.json();
+  if (data.success) { loadPeriods(); $('npCode').value = ''; $('npName').value = ''; }
+  else alert(data.error);
+}
+
+async function saveMultiplier() {
+  const scope = $('nmScope').value;
+  const body = {
+    period_code: $('nmPeriod').value,
+    scope,
+    scope_id: scope !== 'all' ? ($('nmScopeId').value || null) : null,
+    day_of_week: $('nmDow').value !== '' ? parseInt($('nmDow').value) : null,
+    multiplier: parseFloat($('nmValue').value),
+    reason: $('nmReason').value,
+    pin: currentPin
+  };
+
+  const res = await fetch(`${API}?action=save-multiplier`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const data = await res.json();
+  if (data.success) { loadMultipliers(); $('nmReason').value = ''; $('nmValue').value = '1.0'; }
+  else alert(data.error);
+}
+
+async function deleteMultiplier(id) {
+  if (!confirm('Delete this multiplier?')) return;
+  const res = await fetch(`${API}?action=delete-multiplier`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, pin: currentPin})});
+  const data = await res.json();
+  if (data.success) loadMultipliers();
+  else alert(data.error);
+}
+
+async function rebuildCache(force) {
+  $('cacheStatus').textContent = 'Rebuilding cache...';
+  const res = await fetch(`${API}?action=rebuild-cache&force=${force}`);
+  const data = await res.json();
+  if (data.success) {
+    $('cacheStatus').textContent = `Cache rebuilt: ${data.cached} entries from ${data.datesProcessed || 0} days, ${data.ordersProcessed || 0} orders`;
+  } else {
+    $('cacheStatus').textContent = 'Error: ' + (data.error || 'Unknown');
+  }
+}
+
+// ─── UTILS ────────────────────────────────────
+function showLoading(on) { $('loading').classList.toggle('hidden', !on); }
+function showError(msg) { $('error').textContent = msg; $('error').classList.add('show'); }
+function hideError() { $('error').classList.remove('show'); }
+</script>
+</body>
+</html>
