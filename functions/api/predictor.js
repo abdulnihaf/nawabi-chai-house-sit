@@ -19,8 +19,13 @@ export async function onRequest(context) {
   const BUSINESS_START = '2026-02-03';
 
   // ═══════════════════════════════════════════════════════════
-  // POS Product → Raw Material RECIPES (qty per 1 unit sold)
-  // Copied from daily-settlement.js (per-file constant pattern)
+  // THEORETICAL RECIPES — reference only, NOT used directly for purchase prediction.
+  // These are the lab-condition ratios from daily-settlement.js (e.g., 57.42ml milk per chai cup).
+  // ACTUAL consumption differs due to evaporation, spillage, and operating conditions.
+  // The purchase predictor applies EVAPORATION_ADJUSTMENT (calibrated from 23 real settlements)
+  // on top of these ratios to match real-world consumption.
+  // For unit-based items (cutlet, bun, samosa) → 1:1 = same as actual (no evaporation).
+  // For milk-based items → theoretical × evapMultiplier = actual consumption.
   // ═══════════════════════════════════════════════════════════
   const RECIPES = {
     // ─── BEVERAGES ───
@@ -191,6 +196,13 @@ export async function onRequest(context) {
     }
 
     // ─── PURCHASE FORECAST ──────────────────────────
+    // Pipeline: Predict sales → theoretical recipe → ACTUAL consumption adjustment → buffer → subtract stock → purchase qty
+    // Step 1: Predict product sales (weighted avg + DOW + trend from POS history)
+    // Step 2: Decompose via theoretical recipes (starting point only)
+    // Step 3: Apply evaporation multiplier (converts theoretical → actual, calibrated from 23 settlements)
+    // Step 4: Apply safety buffer (10% default — covers wastage, spillage, unexpected crowd)
+    // Step 5: Subtract current stock (live from Odoo)
+    // Step 6: = What to purchase (rounded up for unit items)
     if (action === 'forecast') {
       const days = parseInt(url.searchParams.get('days') || '1');
       const dateParam = url.searchParams.get('date');
@@ -254,13 +266,39 @@ export async function onRequest(context) {
 
       // Convert products → raw materials
       const materialNeeds = {};
+      const unmatchedProducts = []; // Products without recipes (can't decompose)
       for (const [pid, data] of Object.entries(allProductPredictions)) {
         const recipe = RECIPES[pid];
-        if (!recipe) continue;
+        if (!recipe) {
+          unmatchedProducts.push({productId: parseInt(pid), name: data.name, qty: round2(data.total)});
+          continue;
+        }
         for (const [mid, ratio] of Object.entries(recipe.materials)) {
           if (!materialNeeds[mid]) materialNeeds[mid] = {name: RAW_MATERIALS[mid]?.name || `Material ${mid}`, uom: RAW_MATERIALS[mid]?.uom || '?', needed: 0, sources: []};
           materialNeeds[mid].needed += data.total * ratio;
           materialNeeds[mid].sources.push({product: data.name, qty: data.total, ratio});
+        }
+      }
+
+      // ─── EVAPORATION ADJUSTMENT ────────────────────
+      // Beverage raw materials (milk, SMP, condensed milk) evaporate during continuous boiling.
+      // Calibrated from 23 actual daily settlements (Feb 12 - Mar 10, 2026):
+      //   24hr operation: actual 106.3ml/cup vs recipe 57.42ml = 1.85x multiplier
+      //   12-13hr Ramadan: actual 80.3ml/cup vs recipe 57.42ml = 1.40x multiplier
+      // These are ingredients in the boiled milk mixture (10L milk + 0.25kg SMP + 0.2kg condensed milk).
+      // When water evaporates from boiling, you need MORE batches → more of ALL three ingredients.
+      // The multiplier scales linearly with operating hours (more hours = more evaporation time).
+      const EVAP_MATERIALS = new Set(['1095', '1096', '1112']); // milk, SMP, condensed milk
+      const segmentForEvap = findSegment(targetDates[0], periods);
+      const opHoursForEvap = segmentForEvap ? JSON.parse(segmentForEvap.operating_hours).length : 24;
+      // Linear interpolation: 12hr → 1.40x, 24hr → 1.85x
+      const evapMultiplier = round2(1.40 + Math.max(0, opHoursForEvap - 12) * 0.0375);
+
+      for (const [mid, data] of Object.entries(materialNeeds)) {
+        if (EVAP_MATERIALS.has(String(mid))) {
+          data.preEvapNeeded = round2(data.needed); // Store pre-adjustment for transparency
+          data.needed = round2(data.needed * evapMultiplier);
+          data.evaporationFactor = evapMultiplier;
         }
       }
 
@@ -273,7 +311,13 @@ export async function onRequest(context) {
       for (const [mid, data] of Object.entries(materialNeeds)) {
         const needed = round2(data.needed);
         const currentStock = stock[mid] || 0;
-        const toPurchase = round2(Math.max(0, needed - currentStock));
+        let toPurchase = round2(Math.max(0, needed - currentStock));
+
+        // Round UP for unit-based materials (can't buy 0.3 of a cutlet or 0.7 of a bun)
+        if (RAW_MATERIALS[mid]?.uom === 'Units' && toPurchase > 0) {
+          toPurchase = Math.ceil(toPurchase);
+        }
+
         const unitCost = FALLBACK_COSTS[mid] || 0;
         const cost = round2(toPurchase * unitCost);
         totalCost += cost;
@@ -283,7 +327,8 @@ export async function onRequest(context) {
 
         purchaseList.push({
           materialId: parseInt(mid), name: data.name, uom: data.uom,
-          needed, currentStock: round2(currentStock), toPurchase, unitCost, cost, status, stockPct
+          needed, currentStock: round2(currentStock), toPurchase, unitCost, cost, status, stockPct,
+          ...(data.evaporationFactor ? {evaporationFactor: data.evaporationFactor, preEvapNeeded: data.preEvapNeeded} : {})
         });
       }
 
@@ -314,6 +359,8 @@ export async function onRequest(context) {
           totalPurchaseCost: round2(totalCost),
           appliedMultipliers: activeMultipliers,
           dailyBreakdown: dailyPredictions,
+          evaporation: {factor: evapMultiplier, operatingHours: opHoursForEvap, affectedMaterials: ['Buffalo Milk', 'SMP', 'Condensed Milk']},
+          unmatchedProducts,
         }
       });
     }
