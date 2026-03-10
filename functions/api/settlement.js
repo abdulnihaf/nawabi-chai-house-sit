@@ -38,8 +38,8 @@ export async function onRequest(context) {
 
   // Runner QR codes for live UPI tracking (new QR IDs for RUN001/RUN002)
   const RUNNER_QR_MAP = {
-    'RUN001': 'qr_SPTqwgC6ssVDDb',
-    'RUN002': 'qr_SPTrTvvh9AKsW0',
+    'RUN001': 'qr_SBdtZG1AMDwSmJ',   // TODO: switch to qr_SPTqwgC6ssVDDb once new QR cards printed
+    'RUN002': 'qr_SBdte3aRvGpRMY',   // TODO: switch to qr_SPTrTvvh9AKsW0 once new QR cards printed
     'RUN003': 'qr_SBgTo2a39kYmET',
     'RUN004': 'qr_SBgTtFrfddY4AW',
     'RUN005': 'qr_SBgTyFKUsdwLe1'
