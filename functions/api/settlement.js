@@ -27,6 +27,27 @@ export async function onRequest(context) {
     68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005'}
   };
 
+  // Runner-specific PINs for Runner Live Dashboard (maps PIN → specific runner)
+  const RUNNER_PINS = {
+    '3678': {runner_id: 64, name: 'FAROOQ', barcode: 'RUN001'},
+    '4421': {runner_id: 65, name: 'AMIN', barcode: 'RUN002'},
+    '5503': {runner_id: 66, name: 'NCH Runner 03', barcode: 'RUN003'},
+    '6604': {runner_id: 67, name: 'NCH Runner 04', barcode: 'RUN004'},
+    '7705': {runner_id: 68, name: 'NCH Runner 05', barcode: 'RUN005'}
+  };
+
+  // Runner QR codes for live UPI tracking (new QR IDs for RUN001/RUN002)
+  const RUNNER_QR_MAP = {
+    'RUN001': 'qr_SPTqwgC6ssVDDb',
+    'RUN002': 'qr_SPTrTvvh9AKsW0',
+    'RUN003': 'qr_SBgTo2a39kYmET',
+    'RUN004': 'qr_SBgTtFrfddY4AW',
+    'RUN005': 'qr_SBgTyFKUsdwLe1'
+  };
+
+  // Partner aliases — duplicate Odoo contacts that map to known runners
+  const PARTNER_ALIASES = {90: 64, 37: 64};
+
   try {
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
@@ -635,10 +656,160 @@ export async function onRequest(context) {
       }
     }
 
+    // === RUNNER LIVE DASHBOARD — PIN verification (maps PIN to specific runner) ===
+    if (action === 'runner-verify-pin') {
+      const pin = url.searchParams.get('pin');
+      if (RUNNER_PINS[pin]) {
+        const r = RUNNER_PINS[pin];
+        return new Response(JSON.stringify({success: true, runner_id: r.runner_id, name: r.name, barcode: r.barcode}), {headers: corsHeaders});
+      }
+      return new Response(JSON.stringify({success: false, error: 'Invalid PIN'}), {headers: corsHeaders});
+    }
+
+    // === RUNNER LIVE DASHBOARD — live sales + UPI data for a single runner ===
+    if (action === 'runner-live') {
+      const runnerId = parseInt(url.searchParams.get('runner_id'));
+      const runner = RUNNERS[runnerId];
+      if (!runner) return new Response(JSON.stringify({success: false, error: 'Invalid runner'}), {headers: corsHeaders});
+
+      const ODOO_API_KEY = context.env.ODOO_API_KEY;
+      const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
+      const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
+
+      // 1. Get period start from last settlement
+      const baseline = '2026-02-04T17:00:00Z';
+      let periodStart = baseline;
+      let lastSettlement = null;
+      if (DB) {
+        const result = await DB.prepare(
+          'SELECT * FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1'
+        ).bind(String(runnerId)).first();
+        if (result) {
+          periodStart = result.settled_at;
+          lastSettlement = result;
+        }
+      }
+
+      // 2. Convert period start to formats needed by Odoo (UTC) and Razorpay (Unix)
+      const periodDate = new Date(periodStart);
+      const fromOdoo = periodStart.replace('T', ' ').slice(0, 19);
+      const fromUnix = Math.floor(periodDate.getTime() / 1000);
+      const toUnix = Math.floor(Date.now() / 1000);
+
+      // Build partner ID list including aliases
+      const partnerIds = [runnerId];
+      for (const [alias, target] of Object.entries(PARTNER_ALIASES)) {
+        if (target === runnerId) partnerIds.push(parseInt(alias));
+      }
+
+      // 3. Fetch Odoo orders + Razorpay QR payments in parallel
+      const qrId = RUNNER_QR_MAP[runner.barcode];
+      const auth = RAZORPAY_KEY && RAZORPAY_SECRET ? btoa(RAZORPAY_KEY + ':' + RAZORPAY_SECRET) : null;
+
+      const [ordersData, razorpayPayments] = await Promise.all([
+        // Odoo: fetch orders for this runner since period start
+        (async () => {
+          if (!ODOO_API_KEY) return [];
+          try {
+            const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                [[['config_id', 'in', [27, 28]], ['date_order', '>=', fromOdoo],
+                  ['state', 'in', ['paid', 'done', 'invoiced', 'posted']],
+                  ['partner_id', 'in', partnerIds]]],
+                {fields: ['id', 'name', 'date_order', 'amount_total', 'config_id', 'payment_ids'], order: 'date_order desc'}]}, id: Date.now()};
+            const res = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+            const data = await res.json();
+            return data.result || [];
+          } catch (e) { console.error('Runner-live Odoo orders error:', e.message); return []; }
+        })(),
+        // Razorpay: fetch this runner's QR payments
+        (async () => {
+          if (!auth || !qrId) return [];
+          try {
+            return await fetchRunnerQrPayments(auth, qrId, runner.barcode, fromUnix, toUnix);
+          } catch (e) { console.error('Runner-live Razorpay error:', e.message); return []; }
+        })()
+      ]);
+
+      // 4. Fetch payment methods for runner counter orders (POS 28) to detect cross-payments
+      let crossPaymentCredit = 0;
+      const pos28Orders = ordersData.filter(o => o.config_id && o.config_id[0] === 28);
+      if (pos28Orders.length > 0 && ODOO_API_KEY) {
+        try {
+          const paymentIds = pos28Orders.flatMap(o => o.payment_ids || []);
+          if (paymentIds.length > 0) {
+            const pmPayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+                [[['id', 'in', paymentIds]]],
+                {fields: ['id', 'amount', 'payment_method_id']}]}, id: Date.now()};
+            const pmRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(pmPayload)});
+            const pmData = await pmRes.json();
+            const payments = pmData.result || [];
+            // PM 38 = UPI — these are cross-payments (paid at counter, not by runner)
+            crossPaymentCredit = payments.filter(p => p.payment_method_id && p.payment_method_id[0] === 38).reduce((sum, p) => sum + p.amount, 0);
+          }
+        } catch (e) { console.error('Runner-live cross-payment error:', e.message); }
+      }
+
+      // 5. Calculate totals
+      const tokens = ordersData.filter(o => o.config_id && o.config_id[0] === 27).reduce((sum, o) => sum + o.amount_total, 0);
+      const sales = ordersData.filter(o => o.config_id && o.config_id[0] === 28).reduce((sum, o) => sum + o.amount_total, 0);
+      const upiTotal = razorpayPayments.reduce((sum, p) => sum + (p.amount / 100), 0); // paisa → rupees
+      const cashInHand = tokens + sales - upiTotal - crossPaymentCredit;
+
+      // 6. Format UPI payments for display
+      const upiPayments = razorpayPayments.map(p => ({
+        id: p.id,
+        amount: p.amount / 100,
+        time: new Date(p.created_at * 1000).toISOString(),
+        vpa: p.vpa || p.email || '',
+        method: p.method || 'upi'
+      })).sort((a, b) => new Date(b.time) - new Date(a.time));
+
+      // 7. Format period start as IST for display
+      const periodIST = new Date(periodDate.getTime() + 5.5 * 60 * 60 * 1000);
+      const periodFormatted = periodIST.toLocaleString('en-IN', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC'});
+
+      return new Response(JSON.stringify({
+        success: true,
+        runner: {id: runnerId, name: runner.name, barcode: runner.barcode},
+        period: {start: periodStart, startFormatted: periodFormatted, now: new Date().toISOString()},
+        tokens, sales, crossPaymentCredit,
+        tokenOrders: ordersData.filter(o => o.config_id && o.config_id[0] === 27).length,
+        salesOrders: ordersData.filter(o => o.config_id && o.config_id[0] === 28).length,
+        upi: {total: upiTotal, count: upiPayments.length, payments: upiPayments},
+        cashInHand,
+        lastSettlement
+      }), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), {status: 500, headers: corsHeaders});
   }
+}
+
+// ─── RAZORPAY QR PAYMENT FETCH (for runner live dashboard) ──
+async function fetchRunnerQrPayments(auth, qrId, label, since, until) {
+  const allItems = [];
+  let skip = 0;
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 10;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    try {
+      const response = await fetch(
+        `https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments?count=${PAGE_SIZE}&skip=${skip}&from=${since}&to=${until}`,
+        {headers: {'Authorization': 'Basic ' + auth}}
+      );
+      const data = await response.json();
+      if (data.error || !data.items || data.items.length === 0) break;
+      const captured = data.items.filter(p => p.status === 'captured').map(p => ({...p, qr_label: label}));
+      allItems.push(...captured);
+      if (data.items.length < PAGE_SIZE) break;
+      skip += PAGE_SIZE;
+    } catch (e) { break; }
+  }
+  return allItems;
 }
 
 // ─── WHATSAPP ALERT HELPER ──────────────────────────────────

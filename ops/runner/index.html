@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NCH Runner Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+
+    /* === PIN SCREEN === */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:22px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
+    .pin-input input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,0.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,0.08)}
+    .pin-success{display:none;align-items:center;gap:8px;justify-content:center;color:var(--green);font-weight:600;margin-top:16px}
+    .pin-success.show{display:flex}
+    .pin-error{display:none;color:var(--red);font-size:13px;margin-top:12px}
+    .pin-error.show{display:block}
+
+    /* === DASHBOARD === */
+    .dashboard{display:none;min-height:100vh;padding-bottom:60px}
+    .dashboard.show{display:block}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+    .header h1{font-size:16px;display:flex;align-items:center;gap:8px}
+    .header h1::before{content:'';width:4px;height:20px;background:var(--green);border-radius:2px}
+    .user-badge{display:flex;align-items:center;gap:10px}
+    .user-badge .dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    .user-badge .name{font-weight:600;font-size:14px}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+    .content{padding:16px;max-width:600px;margin:0 auto}
+
+    /* === HERO: CASH IN HAND === */
+    .hero-card{background:var(--card);border:2px solid var(--green);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px}
+    .hero-card.negative{border-color:var(--red)}
+    .hero-label{font-size:13px;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;justify-content:center;gap:6px}
+    .hero-amount{font-size:48px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green);line-height:1.2}
+    .hero-amount.negative{color:var(--red)}
+    .hero-sub{font-size:12px;color:var(--text2);margin-top:8px;font-family:'JetBrains Mono',monospace}
+    .hero-period{display:inline-flex;align-items:center;gap:4px;background:var(--bg2);padding:4px 10px;border-radius:6px;margin-top:10px;font-size:11px;color:var(--text2)}
+
+    /* === SALES BREAKDOWN === */
+    .section{margin-bottom:16px}
+    .section-header{font-size:13px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;padding:0 4px}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+    .stat-icon{font-size:20px;margin-bottom:6px}
+    .stat-value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .stat-label{font-size:11px;color:var(--text2);margin-top:2px}
+    .summary-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+    .summary-row .sr-label{font-size:14px;font-weight:600}
+    .summary-row .sr-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .cross-payment-note{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:12px;font-size:12px;color:var(--blue);margin-top:10px;display:none}
+    .cross-payment-note.show{display:block}
+
+    /* === UPI PAYMENTS === */
+    .upi-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px}
+    .upi-header .uh-left{font-size:13px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px}
+    .upi-count{background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px}
+    .upi-header .uh-total{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .upi-list{display:flex;flex-direction:column;gap:8px}
+    .upi-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;transition:all 0.3s}
+    .upi-item.new-payment{border-left:3px solid var(--green);animation:newPayment 2s ease-out}
+    @keyframes newPayment{0%{background:rgba(34,197,94,0.2);transform:translateX(-4px)}100%{background:transparent;transform:translateX(0)}}
+    .upi-item .ui-left{display:flex;flex-direction:column;gap:2px}
+    .upi-item .ui-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .upi-item .ui-vpa{font-size:11px;color:var(--text2)}
+    .upi-item .ui-time{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;text-align:right}
+    .upi-empty{text-align:center;padding:24px;color:var(--text2);font-size:13px;background:var(--card);border:1px dashed var(--border);border-radius:10px}
+
+    /* === SETTLEMENT HISTORY === */
+    .history-toggle{width:100%;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;color:var(--text);font-size:14px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:10px}
+    .history-toggle .ht-arrow{transition:transform 0.2s;color:var(--text2)}
+    .history-toggle.open .ht-arrow{transform:rotate(180deg)}
+    .history-list{display:none;flex-direction:column;gap:8px}
+    .history-list.show{display:flex}
+    .history-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .history-card .hc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .history-card .hc-amount{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .history-card .hc-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .history-card .hc-by{font-size:12px;color:var(--text2);margin-bottom:6px}
+    .history-card .hc-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+    .history-card .hc-stat{background:var(--bg2);border-radius:6px;padding:6px 8px;text-align:center}
+    .history-card .hc-stat-val{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .history-card .hc-stat-label{font-size:9px;color:var(--text2);text-transform:uppercase}
+    .history-empty{text-align:center;padding:20px;color:var(--text2);font-size:13px}
+
+    /* === REFRESH BAR === */
+    .refresh-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);padding:10px 16px;display:none;justify-content:space-between;align-items:center;z-index:10;font-size:12px}
+    .refresh-bar.show{display:flex}
+    .refresh-bar .rb-left{display:flex;align-items:center;gap:8px;color:var(--text2)}
+    .refresh-bar .rb-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    .refresh-bar .rb-right{color:var(--text2);cursor:pointer;padding:4px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border)}
+    .refresh-bar .rb-right:active{background:var(--border)}
+    .refresh-bar.loading .rb-dot{background:var(--yellow)}
+    .refresh-bar.error .rb-dot{background:var(--red)}
+
+    .loading-text{text-align:center;color:var(--text2);padding:40px;font-size:14px}
+  </style>
+</head>
+<body>
+  <!-- PIN SCREEN -->
+  <div class="pin-screen" id="pinScreen">
+    <div class="pin-box">
+      <div class="icon">🏃</div>
+      <h2>Runner Dashboard</h2>
+      <p>Enter your 4-digit PIN</p>
+      <div class="pin-input" id="pinInput">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="pin-success" id="pinSuccess"></div>
+      <div class="pin-error" id="pinError">Invalid PIN. Try again.</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard" id="dashboard">
+    <div class="header">
+      <h1>My Dashboard</h1>
+      <div class="user-badge">
+        <span class="dot"></span>
+        <span class="name" id="userName"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- LOADING -->
+      <div class="loading-text" id="loadingText">Loading your data...</div>
+
+      <!-- MAIN CONTENT (hidden until data loads) -->
+      <div id="mainContent" style="display:none">
+
+        <!-- HERO: CASH IN HAND -->
+        <div class="hero-card" id="heroCard">
+          <div class="hero-label">Cash you should have</div>
+          <div class="hero-amount" id="cashInHand">-</div>
+          <div class="hero-sub" id="heroFormula"></div>
+          <div class="hero-period" id="heroPeriod"></div>
+        </div>
+
+        <!-- SALES BREAKDOWN -->
+        <div class="section">
+          <div class="section-header">Sales Breakdown</div>
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-icon">🎟</div>
+              <div class="stat-value" id="tokensAmount">-</div>
+              <div class="stat-label"><span id="tokenCount">0</span> token issues</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📊</div>
+              <div class="stat-value" id="salesAmount">-</div>
+              <div class="stat-label"><span id="salesCount">0</span> direct sales</div>
+            </div>
+          </div>
+          <div class="summary-row">
+            <span class="sr-label">Total Revenue</span>
+            <span class="sr-value" id="totalRevenue">-</span>
+          </div>
+          <div class="cross-payment-note" id="crossPaymentNote">
+            <strong>Cross-payment credit:</strong> <span id="crossPaymentAmount"></span> was paid via UPI at the counter for your orders. This is deducted from your cash obligation.
+          </div>
+        </div>
+
+        <!-- UPI PAYMENTS -->
+        <div class="section">
+          <div class="upi-header">
+            <div class="uh-left">UPI Received <span class="upi-count" id="upiCount">0</span></div>
+            <div class="uh-total" id="upiTotal">-</div>
+          </div>
+          <div class="upi-list" id="upiList"></div>
+        </div>
+
+        <!-- SETTLEMENT HISTORY -->
+        <div class="section">
+          <button class="history-toggle" id="historyToggle" onclick="toggleHistory()">
+            <span>Settlement History</span>
+            <span class="ht-arrow">▼</span>
+          </button>
+          <div class="history-list" id="historyList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFRESH BAR -->
+  <div class="refresh-bar" id="refreshBar">
+    <div class="rb-left"><span class="rb-dot"></span><span id="refreshStatus">Auto-refresh 30s</span></div>
+    <div class="rb-right" onclick="manualRefresh()">Refresh now</div>
+  </div>
+
+  <script>
+    const $=id=>document.getElementById(id);
+    const fmt=n=>{const r=Math.round(n);return (r<0?'-':'')+'₹'+Math.abs(r).toLocaleString('en-IN')};
+
+    let currentRunner=null;
+    let refreshTimer=null;
+    let lastUpdateTime=null;
+    let lastData=null;
+    let previousUpiIds=new Set();
+    let timeAgoTimer=null;
+    let historyLoaded=false;
+
+    // === PIN INPUT ===
+    const pins=Array.from($('pinInput').querySelectorAll('input'));
+    pins.forEach((input,i)=>{
+      input.addEventListener('input',e=>{
+        const v=e.target.value;
+        if(v){input.classList.add('filled');if(i<3)pins[i+1].focus();else checkPin();}
+        else input.classList.remove('filled');
+      });
+      input.addEventListener('keydown',e=>{
+        if(e.key==='Backspace'&&!e.target.value&&i>0){pins[i-1].focus();pins[i-1].value='';pins[i-1].classList.remove('filled');}
+      });
+    });
+
+    async function checkPin(){
+      const pin=pins.map(p=>p.value).join('');
+      if(pin.length!==4)return;
+      $('pinError').classList.remove('show');
+      try{
+        const res=await fetch('/api/settlement?action=runner-verify-pin&pin='+pin);
+        const data=await res.json();
+        if(data.success){
+          currentRunner={runner_id:data.runner_id,name:data.name,barcode:data.barcode};
+          $('pinSuccess').textContent='✓ Welcome, '+data.name;
+          $('pinSuccess').classList.add('show');
+          $('userName').textContent=data.name;
+          setTimeout(()=>{
+            $('pinScreen').classList.add('hidden');
+            $('dashboard').classList.add('show');
+            $('refreshBar').classList.add('show');
+            loadData();
+            startAutoRefresh();
+          },600);
+        }else{
+          $('pinError').classList.add('show');
+          pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
+          setTimeout(()=>pins.forEach(p=>p.style.borderColor=''),600);
+          pins[0].focus();
+        }
+      }catch(e){console.error(e);$('pinError').classList.add('show');}
+    }
+
+    function logout(){
+      currentRunner=null;lastData=null;previousUpiIds=new Set();historyLoaded=false;
+      stopAutoRefresh();
+      $('dashboard').classList.remove('show');
+      $('refreshBar').classList.remove('show');
+      $('pinScreen').classList.remove('hidden');
+      $('pinSuccess').classList.remove('show');
+      $('pinError').classList.remove('show');
+      $('mainContent').style.display='none';
+      $('loadingText').style.display='block';
+      pins.forEach(p=>{p.value='';p.classList.remove('filled');});
+      pins[0].focus();
+    }
+
+    // === DATA LOADING ===
+    async function loadData(){
+      setRefreshStatus('loading');
+      try{
+        const res=await fetch('/api/settlement?action=runner-live&runner_id='+currentRunner.runner_id);
+        const data=await res.json();
+        if(!data.success)throw new Error(data.error);
+
+        // Detect new UPI payments
+        const newIds=[];
+        if(lastData){
+          for(const p of data.upi.payments){
+            if(!previousUpiIds.has(p.id))newIds.push(p.id);
+          }
+        }
+        previousUpiIds=new Set(data.upi.payments.map(p=>p.id));
+
+        render(data,newIds);
+        lastData=data;
+        lastUpdateTime=Date.now();
+        setRefreshStatus('live');
+
+        // Load history once
+        if(!historyLoaded)loadHistory();
+      }catch(e){
+        console.error('Load error:',e);
+        setRefreshStatus('error');
+      }
+    }
+
+    // === RENDER ===
+    function render(data,newPaymentIds=[]){
+      $('loadingText').style.display='none';
+      $('mainContent').style.display='block';
+
+      // Hero: Cash in hand
+      const cash=data.cashInHand;
+      $('cashInHand').textContent=fmt(cash);
+      $('cashInHand').className='hero-amount'+(cash<0?' negative':'');
+      $('heroCard').className='hero-card'+(cash<0?' negative':'');
+      $('heroFormula').textContent=`${fmt(data.tokens+data.sales)} sales - ${fmt(data.upi.total)} UPI${data.crossPaymentCredit>0?' - '+fmt(data.crossPaymentCredit)+' cross':''}`;
+      $('heroPeriod').textContent='Since: '+data.period.startFormatted;
+
+      // Sales breakdown
+      $('tokensAmount').textContent=fmt(data.tokens);
+      $('tokenCount').textContent=data.tokenOrders;
+      $('salesAmount').textContent=fmt(data.sales);
+      $('salesCount').textContent=data.salesOrders;
+      $('totalRevenue').textContent=fmt(data.tokens+data.sales);
+
+      // Cross-payment
+      if(data.crossPaymentCredit>0){
+        $('crossPaymentNote').classList.add('show');
+        $('crossPaymentAmount').textContent=fmt(data.crossPaymentCredit);
+      }else{
+        $('crossPaymentNote').classList.remove('show');
+      }
+
+      // UPI payments
+      $('upiCount').textContent=data.upi.count;
+      $('upiTotal').textContent=fmt(data.upi.total);
+
+      if(data.upi.payments.length===0){
+        $('upiList').innerHTML='<div class="upi-empty">No UPI payments yet this period</div>';
+      }else{
+        $('upiList').innerHTML=data.upi.payments.map(p=>{
+          const isNew=newPaymentIds.includes(p.id);
+          const t=new Date(p.time);
+          const timeStr=t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'});
+          const dateStr=isToday(t)?timeStr:t.toLocaleDateString('en-IN',{day:'numeric',month:'short',timeZone:'Asia/Kolkata'})+' '+timeStr;
+          return `<div class="upi-item${isNew?' new-payment':''}">
+            <div class="ui-left">
+              <span class="ui-amount">${fmt(p.amount)}</span>
+              <span class="ui-vpa">${maskVpa(p.vpa)}</span>
+            </div>
+            <div class="ui-time">${dateStr}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // === SETTLEMENT HISTORY ===
+    async function loadHistory(){
+      try{
+        const res=await fetch('/api/settlement?action=history&runner_id='+currentRunner.runner_id+'&limit=10');
+        const data=await res.json();
+        if(!data.success)return;
+        historyLoaded=true;
+
+        if(data.settlements.length===0){
+          $('historyList').innerHTML='<div class="history-empty">No settlements recorded yet</div>';
+          return;
+        }
+
+        $('historyList').innerHTML=data.settlements.map(s=>{
+          const d=new Date(s.settled_at);
+          const dateStr=d.toLocaleDateString('en-IN',{day:'numeric',month:'short',timeZone:'Asia/Kolkata'});
+          const timeStr=d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'});
+          return `<div class="history-card">
+            <div class="hc-top">
+              <span class="hc-amount">${fmt(s.cash_settled)}</span>
+              <span class="hc-date">${dateStr} ${timeStr}</span>
+            </div>
+            <div class="hc-by">Settled by ${s.settled_by}</div>
+            <div class="hc-breakdown">
+              <div class="hc-stat"><div class="hc-stat-val">${fmt(s.tokens_amount||0)}</div><div class="hc-stat-label">Tokens</div></div>
+              <div class="hc-stat"><div class="hc-stat-val">${fmt(s.sales_amount||0)}</div><div class="hc-stat-label">Sales</div></div>
+              <div class="hc-stat"><div class="hc-stat-val">${fmt(s.upi_amount||0)}</div><div class="hc-stat-label">UPI</div></div>
+            </div>
+          </div>`;
+        }).join('');
+      }catch(e){console.error('History error:',e);}
+    }
+
+    function toggleHistory(){
+      const list=$('historyList');
+      const toggle=$('historyToggle');
+      if(list.classList.contains('show')){
+        list.classList.remove('show');
+        toggle.classList.remove('open');
+      }else{
+        list.classList.add('show');
+        toggle.classList.add('open');
+      }
+    }
+
+    // === AUTO-REFRESH ===
+    function startAutoRefresh(){
+      stopAutoRefresh();
+      refreshTimer=setInterval(()=>loadData(),30000);
+      timeAgoTimer=setInterval(updateTimeAgo,5000);
+    }
+
+    function stopAutoRefresh(){
+      if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}
+      if(timeAgoTimer){clearInterval(timeAgoTimer);timeAgoTimer=null;}
+    }
+
+    function manualRefresh(){
+      loadData();
+    }
+
+    function setRefreshStatus(status){
+      const bar=$('refreshBar');
+      bar.classList.remove('loading','error');
+      if(status==='loading'){
+        bar.classList.add('loading');
+        $('refreshStatus').textContent='Updating...';
+      }else if(status==='error'){
+        bar.classList.add('error');
+        $('refreshStatus').textContent='Update failed';
+      }else{
+        updateTimeAgo();
+      }
+    }
+
+    function updateTimeAgo(){
+      if(!lastUpdateTime)return;
+      const seconds=Math.floor((Date.now()-lastUpdateTime)/1000);
+      if(seconds<5)$('refreshStatus').textContent='Just updated';
+      else if(seconds<60)$('refreshStatus').textContent=seconds+'s ago';
+      else $('refreshStatus').textContent=Math.floor(seconds/60)+'m ago';
+    }
+
+    // === HELPERS ===
+    function maskVpa(vpa){
+      if(!vpa)return '';
+      const parts=vpa.split('@');
+      const name=parts[0]||'';
+      if(name.length<=3)return vpa;
+      return name.slice(0,3)+'****@'+(parts[1]||'');
+    }
+
+    function isToday(date){
+      const today=new Date();
+      return date.getDate()===today.getDate()&&date.getMonth()===today.getMonth()&&date.getFullYear()===today.getFullYear();
+    }
+
+    // Auto-focus first PIN input
+    pins[0].focus();
+  </script>
+</body>
+</html>
