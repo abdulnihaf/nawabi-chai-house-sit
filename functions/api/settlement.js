@@ -751,13 +751,44 @@ export async function onRequest(context) {
         } catch (e) { console.error('Runner-live cross-payment error:', e.message); }
       }
 
-      // 5. Calculate totals
-      const tokens = ordersData.filter(o => o.config_id && o.config_id[0] === 27).reduce((sum, o) => sum + o.amount_total, 0);
+      // 5. Fetch token order line items for product breakdown (Chai/Coffee/Haleem)
+      const TOKEN_PRODUCT_NAMES = {
+        1028: 'Irani Chai', 1102: 'Coffee', 1103: 'Lemon Tea',
+        1395: 'Haleem Qtr', 1396: 'Haleem Half', 1397: 'Haleem Full', 1400: 'Haleem Mutton'
+      };
+      let tokenBreakdown = [];
+      const pos27Orders = ordersData.filter(o => o.config_id && o.config_id[0] === 27);
+      if (pos27Orders.length > 0 && ODOO_API_KEY) {
+        try {
+          const tokenOrderIds = pos27Orders.map(o => o.id);
+          const linePayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+            args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order.line', 'search_read',
+              [[['order_id', 'in', tokenOrderIds]]],
+              {fields: ['order_id', 'product_id', 'qty', 'price_subtotal_incl']}]}, id: Date.now()};
+          const lineRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(linePayload)});
+          const lineData = await lineRes.json();
+          const lines = lineData.result || [];
+
+          // Group by product_id
+          const productAgg = {};
+          for (const line of lines) {
+            const pid = line.product_id[0];
+            const pname = TOKEN_PRODUCT_NAMES[pid] || line.product_id[1] || `Product ${pid}`;
+            if (!productAgg[pid]) productAgg[pid] = {product_id: pid, name: pname, qty: 0, amount: 0};
+            productAgg[pid].qty += Math.round(line.qty);
+            productAgg[pid].amount += line.price_subtotal_incl;
+          }
+          tokenBreakdown = Object.values(productAgg).filter(p => p.qty > 0).sort((a, b) => b.amount - a.amount);
+        } catch (e) { console.error('Runner-live token lines error:', e.message); }
+      }
+
+      // 6. Calculate totals (reuse pos27Orders from step 5)
+      const tokens = pos27Orders.reduce((sum, o) => sum + o.amount_total, 0);
       const sales = ordersData.filter(o => o.config_id && o.config_id[0] === 28).reduce((sum, o) => sum + o.amount_total, 0);
       const upiTotal = razorpayPayments.reduce((sum, p) => sum + (p.amount / 100), 0); // paisa → rupees
       const cashInHand = tokens + sales - upiTotal - crossPaymentCredit;
 
-      // 6. Format UPI payments for display
+      // 7. Format UPI payments for display
       const upiPayments = razorpayPayments.map(p => ({
         id: p.id,
         amount: p.amount / 100,
@@ -766,7 +797,7 @@ export async function onRequest(context) {
         method: p.method || 'upi'
       })).sort((a, b) => new Date(b.time) - new Date(a.time));
 
-      // 7. Format period start as IST for display
+      // 8. Format period start as IST for display
       const periodIST = new Date(periodDate.getTime() + 5.5 * 60 * 60 * 1000);
       const periodFormatted = periodIST.toLocaleString('en-IN', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC'});
 
@@ -774,8 +805,8 @@ export async function onRequest(context) {
         success: true,
         runner: {id: runnerId, name: runner.name, barcode: runner.barcode},
         period: {start: periodStart, startFormatted: periodFormatted, now: new Date().toISOString()},
-        tokens, sales, crossPaymentCredit,
-        tokenOrders: ordersData.filter(o => o.config_id && o.config_id[0] === 27).length,
+        tokens, sales, crossPaymentCredit, tokenBreakdown,
+        tokenOrders: pos27Orders.length,
         salesOrders: ordersData.filter(o => o.config_id && o.config_id[0] === 28).length,
         upi: {total: upiTotal, count: upiPayments.length, payments: upiPayments},
         cashInHand,

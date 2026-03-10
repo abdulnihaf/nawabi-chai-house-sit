@@ -52,11 +52,26 @@
     /* === SALES BREAKDOWN === */
     .section{margin-bottom:16px}
     .section-header{font-size:13px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;padding:0 4px}
-    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-    .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
-    .stat-icon{font-size:20px;margin-bottom:6px}
-    .stat-value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
-    .stat-label{font-size:11px;color:var(--text2);margin-top:2px}
+    .breakdown-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px}
+    .breakdown-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .breakdown-header .bh-left{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+    .breakdown-header .bh-left .bh-icon{font-size:18px}
+    .breakdown-header .bh-total{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .breakdown-lines{display:flex;flex-direction:column;gap:6px}
+    .breakdown-line{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:8px}
+    .bl-left{display:flex;align-items:center;gap:8px}
+    .bl-icon{font-size:14px;width:20px;text-align:center}
+    .bl-name{font-size:13px;font-weight:500}
+    .bl-right{display:flex;align-items:center;gap:10px}
+    .bl-qty{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .bl-amount{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .breakdown-empty{padding:12px;text-align:center;color:var(--text2);font-size:13px}
+    .sales-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+    .sales-card .sc-left{display:flex;align-items:center;gap:8px}
+    .sales-card .sc-left .sc-icon{font-size:18px}
+    .sales-card .sc-left .sc-label{font-size:14px;font-weight:600}
+    .sales-card .sc-left .sc-count{font-size:12px;color:var(--text2);margin-left:4px}
+    .sales-card .sc-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
     .summary-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
     .summary-row .sr-label{font-size:14px;font-weight:600}
     .summary-row .sr-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
@@ -152,20 +167,21 @@
           <div class="hero-period" id="heroPeriod"></div>
         </div>
 
-        <!-- SALES BREAKDOWN -->
+        <!-- TOKEN ISSUES BREAKDOWN -->
         <div class="section">
           <div class="section-header">Sales Breakdown</div>
-          <div class="stat-grid">
-            <div class="stat-card">
-              <div class="stat-icon">🎟</div>
-              <div class="stat-value" id="tokensAmount">-</div>
-              <div class="stat-label"><span id="tokenCount">0</span> token issues</div>
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <div class="bh-left"><span class="bh-icon">🎟</span> Token Issues <span style="font-size:12px;color:var(--text2);font-weight:400" id="tokenCount">(0)</span></div>
+              <div class="bh-total" id="tokensAmount">-</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon">📊</div>
-              <div class="stat-value" id="salesAmount">-</div>
-              <div class="stat-label"><span id="salesCount">0</span> direct sales</div>
+            <div class="breakdown-lines" id="tokenBreakdown">
+              <div class="breakdown-empty">No token issues yet</div>
             </div>
+          </div>
+          <div class="sales-card">
+            <div class="sc-left"><span class="sc-icon">📊</span><span class="sc-label">Direct Sales</span><span class="sc-count" id="salesCount">(0)</span></div>
+            <div class="sc-value" id="salesAmount">-</div>
           </div>
           <div class="summary-row">
             <span class="sr-label">Total Revenue</span>
@@ -313,11 +329,25 @@
       $('heroFormula').textContent=`${fmt(data.tokens+data.sales)} sales - ${fmt(data.upi.total)} UPI${data.crossPaymentCredit>0?' - '+fmt(data.crossPaymentCredit)+' cross':''}`;
       $('heroPeriod').textContent='Since: '+data.period.startFormatted;
 
-      // Sales breakdown
+      // Token breakdown
       $('tokensAmount').textContent=fmt(data.tokens);
-      $('tokenCount').textContent=data.tokenOrders;
+      $('tokenCount').textContent='('+data.tokenOrders+')';
+      if(data.tokenBreakdown && data.tokenBreakdown.length>0){
+        $('tokenBreakdown').innerHTML=data.tokenBreakdown.map(p=>{
+          const icon=p.name.includes('Haleem')?'🍲':'☕';
+          const unitPrice=p.qty>0?Math.round(p.amount/p.qty):0;
+          return `<div class="breakdown-line">
+            <div class="bl-left"><span class="bl-icon">${icon}</span><span class="bl-name">${p.name}</span></div>
+            <div class="bl-right"><span class="bl-qty">${p.qty} × ₹${unitPrice}</span><span class="bl-amount">${fmt(p.amount)}</span></div>
+          </div>`;
+        }).join('');
+      }else{
+        $('tokenBreakdown').innerHTML='<div class="breakdown-empty">No token issues yet</div>';
+      }
+
+      // Direct sales
       $('salesAmount').textContent=fmt(data.sales);
-      $('salesCount').textContent=data.salesOrders;
+      $('salesCount').textContent='('+data.salesOrders+')';
       $('totalRevenue').textContent=fmt(data.tokens+data.sales);
 
       // Cross-payment
