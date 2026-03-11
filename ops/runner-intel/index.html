@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Runner Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--purple:#a855f7;--orange:#f97316;--cyan:#06b6d4}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* PIN SCREEN */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box h2{font-size:22px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
+    .pin-input input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(249,115,22,0.2)}
+    .pin-input input.filled{border-color:var(--orange);background:rgba(249,115,22,0.08)}
+    .pin-error{display:none;color:var(--red);font-size:13px;margin-top:12px}
+    .pin-error.show{display:block}
+
+    /* DASHBOARD */
+    .dashboard{display:none;min-height:100vh}
+    .dashboard.show{display:block}
+    .container{max-width:1400px;margin:0 auto;padding:20px}
+
+    /* HEADER */
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--orange),var(--yellow));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .logout-btn{padding:6px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
+
+    /* FILTER BAR */
+    .filter-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .filter-group{display:flex;flex-direction:column;gap:4px}
+    .filter-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    input[type="date"],input[type="time"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    input:focus{outline:none;border-color:var(--orange)}
+    input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;color:#fff}
+    .btn-primary{background:linear-gradient(135deg,var(--orange),var(--yellow))}
+    .quick-btns{display:flex;gap:6px;margin-left:auto}
+    .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
+    .quick-btn:hover,.quick-btn.active{border-color:var(--orange);color:var(--text)}
+    .quick-btn.active{background:var(--orange);color:#fff}
+    .live-toggle{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+    .live-toggle.active{background:rgba(34,197,94,.15);border-color:var(--green)}
+    .live-switch{width:32px;height:18px;background:var(--border);border-radius:9px;position:relative}
+    .live-toggle.active .live-switch{background:var(--green)}
+    .live-switch::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:all .2s}
+    .live-toggle.active .live-switch::after{left:16px}
+    .live-toggle span{font-size:12px;color:var(--text2)}
+    .live-toggle.active span{color:var(--green)}
+
+    /* SUMMARY STRIP */
+    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .summary-card .value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+    .summary-card.revenue .value{color:var(--green)}
+    .summary-card.upi .value{color:var(--blue)}
+    .summary-card.variance .value.positive{color:var(--green)}
+    .summary-card.variance .value.negative{color:var(--red)}
+
+    /* RUNNER SCORECARDS */
+    .scorecards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+    .scorecard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+    .scorecard .rank-badge{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .rank-gold{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#78350f}
+    .rank-silver{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#374151}
+    .rank-bronze{background:linear-gradient(135deg,#d97706,#b45309);color:#fff}
+    .rank-muted{background:var(--bg2);color:var(--muted)}
+    .scorecard .sc-name{font-size:16px;font-weight:700;margin-bottom:2px}
+    .scorecard .sc-barcode{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:12px}
+    .scorecard .sc-revenue{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green);margin-bottom:14px}
+    .sc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+    .sc-stat{background:var(--bg2);border-radius:6px;padding:8px;text-align:center}
+    .sc-stat .sv{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .sc-stat .sl{font-size:9px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+    .sc-products{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+    .sc-product-chip{font-size:10px;background:var(--bg2);border:1px solid var(--border);padding:3px 8px;border-radius:4px;color:var(--text2)}
+    .sc-activity{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+    .upi-good{color:var(--green)}.upi-mid{color:var(--yellow)}.upi-bad{color:var(--red)}
+    .var-good{color:var(--green)}.var-mid{color:var(--yellow)}.var-bad{color:var(--red)}
+
+    /* COMPARISON TABLE */
+    .table-section{margin-bottom:24px}
+    .section-title{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';width:4px;height:16px;background:var(--orange);border-radius:2px}
+    .table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead{background:var(--card)}
+    th{padding:12px 14px;text-align:left;font-weight:600;color:var(--text2);cursor:pointer;white-space:nowrap;user-select:none;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+    th:hover{color:var(--text)}
+    th.sorted-asc::after{content:' \u25B2';font-size:10px;color:var(--orange)}
+    th.sorted-desc::after{content:' \u25BC';font-size:10px;color:var(--orange)}
+    td{padding:10px 14px;border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap}
+    tr:hover{background:rgba(249,115,22,0.04)}
+    td.best{color:var(--green);font-weight:600}
+    td.worst{color:var(--red);font-weight:600}
+    td.runner-name-cell{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px}
+
+    /* SETTLEMENT DISCIPLINE */
+    .discipline-section{margin-bottom:24px}
+    .disc-runner{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+    .disc-toggle{width:100%;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:transparent;border:none;color:var(--text);font-size:14px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif}
+    .disc-toggle:hover{background:rgba(249,115,22,0.04)}
+    .disc-arrow{transition:transform 0.2s;color:var(--muted);font-size:12px}
+    .disc-toggle.open .disc-arrow{transform:rotate(180deg)}
+    .disc-body{display:none;padding:0 16px 14px;border-top:1px solid var(--border)}
+    .disc-body.show{display:block}
+    .disc-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 0}
+    .disc-summary .ds{background:var(--bg2);border-radius:6px;padding:8px;text-align:center}
+    .disc-summary .ds-val{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .disc-summary .ds-label{font-size:9px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+    .disc-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:6px;margin-top:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .disc-row .dr-time{color:var(--text2)}
+    .disc-row .dr-cash{color:var(--text)}
+    .disc-row .dr-var{font-weight:600}
+
+    /* PRODUCT MIX */
+    .product-mix{margin-bottom:24px}
+    .pm-runner{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+    .pm-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .pm-name{font-weight:600;font-size:14px}
+    .pm-total{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+    .pm-bars{display:flex;flex-direction:column;gap:6px}
+    .pm-bar-row{display:flex;align-items:center;gap:10px}
+    .pm-bar-label{font-size:11px;width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+    .pm-bar-track{flex:1;height:20px;background:var(--bg2);border-radius:4px;overflow:hidden;position:relative}
+    .pm-bar-fill{height:100%;border-radius:4px;transition:width 0.4s}
+    .pm-bar-qty{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted);width:50px;text-align:right}
+
+    /* LOADING */
+    .loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
+    .loading-overlay.hidden{display:none}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+
+    @media(max-width:1024px){.summary-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:1fr}.filter-bar{flex-direction:column;align-items:stretch}.quick-btns{margin-left:0;flex-wrap:wrap}.scorecards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <!-- PIN SCREEN -->
+  <div class="pin-screen" id="pinScreen">
+    <div class="pin-box">
+      <h2>Runner Intelligence</h2>
+      <p>Owner access only</p>
+      <div class="pin-input" id="pinInput">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+        <input type="password" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="pin-error" id="pinError">Access denied</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard" id="dashboard">
+    <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+    <div class="container">
+      <header class="header">
+        <h1>Runner Intelligence</h1>
+        <div class="header-right">
+          <div class="status"><div class="status-dot" id="statusDot"></div><span id="statusText">Ready</span></div>
+          <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <div class="filter-group"><span class="filter-label">From</span><input type="date" id="fromDate"><input type="time" id="fromTime" value="00:00"></div>
+        <div class="filter-group"><span class="filter-label">To</span><input type="date" id="toDate"><input type="time" id="toTime" value="23:59"></div>
+        <div class="live-toggle" id="liveToggle" onclick="toggleLive()"><div class="live-switch"></div><span>Live</span></div>
+        <button class="btn btn-primary" onclick="applyFilter()">Apply</button>
+        <div class="quick-btns">
+          <button class="quick-btn active" onclick="quick('today',this)">Today</button>
+          <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
+          <button class="quick-btn" onclick="quick('week',this)">7 Days</button>
+          <button class="quick-btn" onclick="quick('month',this)">30 Days</button>
+        </div>
+      </div>
+
+      <!-- SUMMARY STRIP -->
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-card revenue"><div class="label">Total Revenue</div><div class="value" id="smRevenue">-</div><div class="sub" id="smRunners">-</div></div>
+        <div class="summary-card"><div class="label">Total Orders</div><div class="value" id="smOrders">-</div><div class="sub" id="smAov">-</div></div>
+        <div class="summary-card upi"><div class="label">UPI Adoption</div><div class="value" id="smUpi">-</div><div class="sub" id="smUpiAmt">-</div></div>
+        <div class="summary-card variance"><div class="label">Net Variance</div><div class="value" id="smVariance">-</div><div class="sub" id="smVarNote">-</div></div>
+      </div>
+
+      <!-- RUNNER SCORECARDS -->
+      <div class="section-title">Runner Scorecards</div>
+      <div class="scorecards" id="scorecards"><div class="empty-state">Loading...</div></div>
+
+      <!-- COMPARISON TABLE -->
+      <div class="table-section">
+        <div class="section-title">Comparison Table</div>
+        <div class="table-wrap">
+          <table id="compTable">
+            <thead><tr>
+              <th data-key="name">Runner</th>
+              <th data-key="revenue" data-type="num">Revenue</th>
+              <th data-key="tokens" data-type="num">Tokens</th>
+              <th data-key="sales" data-type="num">Sales</th>
+              <th data-key="totalOrders" data-type="num">Orders</th>
+              <th data-key="avgOrderValue" data-type="num">Avg OV</th>
+              <th data-key="upi" data-type="num">UPI</th>
+              <th data-key="upiPercent" data-type="num">UPI%</th>
+              <th data-key="cashInHand" data-type="num">Cash</th>
+              <th data-key="totalVariance" data-type="num">Variance</th>
+            </tr></thead>
+            <tbody id="compBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SETTLEMENT DISCIPLINE -->
+      <div class="discipline-section">
+        <div class="section-title">Settlement Discipline</div>
+        <div id="disciplineList"><div class="empty-state">Loading...</div></div>
+      </div>
+
+      <!-- PRODUCT MIX -->
+      <div class="product-mix">
+        <div class="section-title">Product Mix Comparison</div>
+        <div id="productMix"><div class="empty-state">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=n=>{const r=Math.round(n);return(r<0?'-':'')+'₹'+Math.abs(r).toLocaleString('en-IN')};
+
+let currentPin=null;
+let currentData=null;
+let refreshTimer=null;
+let isLive=false;
+let sortKey='revenue',sortDir='desc';
+
+// ─── PIN ───────────────────────────
+const pins=Array.from($('pinInput').querySelectorAll('input'));
+pins.forEach((input,i)=>{
+  input.addEventListener('input',e=>{
+    const v=e.target.value;
+    if(v){input.classList.add('filled');if(i<3)pins[i+1].focus();else checkPin();}
+    else input.classList.remove('filled');
+  });
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Backspace'&&!e.target.value&&i>0){pins[i-1].focus();pins[i-1].value='';pins[i-1].classList.remove('filled');}
+  });
+});
+
+function checkPin(){
+  const pin=pins.map(p=>p.value).join('');
+  if(pin.length!==4)return;
+  if(['0305','3754'].includes(pin)){
+    currentPin=pin;
+    $('pinScreen').classList.add('hidden');
+    $('dashboard').classList.add('show');
+    initDates();
+    loadData();
+  }else{
+    $('pinError').classList.add('show');
+    pins.forEach(p=>{p.value='';p.classList.remove('filled');p.style.borderColor='var(--red)';});
+    setTimeout(()=>pins.forEach(p=>p.style.borderColor=''),600);
+    pins[0].focus();
+  }
+}
+
+function logout(){
+  currentPin=null;currentData=null;
+  stopAutoRefresh();
+  $('dashboard').classList.remove('show');
+  $('pinScreen').classList.remove('hidden');
+  $('pinError').classList.remove('show');
+  pins.forEach(p=>{p.value='';p.classList.remove('filled');});
+  pins[0].focus();
+}
+
+// ─── DATE HANDLING ─────────────────
+function todayStr(){
+  const d=new Date(Date.now()+5.5*60*60*1000);
+  return d.toISOString().slice(0,10);
+}
+
+function initDates(){
+  const t=todayStr();
+  $('fromDate').value=t;$('toDate').value=t;
+  $('fromTime').value='00:00';$('toTime').value='23:59';
+  isLive=true;$('liveToggle').classList.add('active');
+  startAutoRefresh();
+}
+
+function getDateRange(){
+  const from=$('fromDate').value+'T'+($('fromTime').value||'00:00')+':00';
+  const to=$('toDate').value+'T'+($('toTime').value||'23:59')+':59';
+  return{from,to};
+}
+
+function quick(period,btn){
+  document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const now=new Date(Date.now()+5.5*60*60*1000);
+  const t=now.toISOString().slice(0,10);
+  if(period==='today'){
+    $('fromDate').value=t;$('toDate').value=t;
+    $('fromTime').value='00:00';$('toTime').value='23:59';
+    isLive=true;$('liveToggle').classList.add('active');startAutoRefresh();
+  }else if(period==='yesterday'){
+    const y=new Date(now.getTime()-24*60*60*1000).toISOString().slice(0,10);
+    $('fromDate').value=y;$('toDate').value=y;
+    $('fromTime').value='00:00';$('toTime').value='23:59';
+    isLive=false;$('liveToggle').classList.remove('active');stopAutoRefresh();
+  }else if(period==='week'){
+    const w=new Date(now.getTime()-7*24*60*60*1000).toISOString().slice(0,10);
+    $('fromDate').value=w;$('toDate').value=t;
+    $('fromTime').value='00:00';$('toTime').value='23:59';
+    isLive=false;$('liveToggle').classList.remove('active');stopAutoRefresh();
+  }else if(period==='month'){
+    const m=new Date(now.getTime()-30*24*60*60*1000).toISOString().slice(0,10);
+    $('fromDate').value=m;$('toDate').value=t;
+    $('fromTime').value='00:00';$('toTime').value='23:59';
+    isLive=false;$('liveToggle').classList.remove('active');stopAutoRefresh();
+  }
+  loadData();
+}
+
+function applyFilter(){
+  document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));
+  isLive=false;$('liveToggle').classList.remove('active');stopAutoRefresh();
+  loadData();
+}
+
+function toggleLive(){
+  isLive=!isLive;
+  if(isLive){
+    $('liveToggle').classList.add('active');
+    const t=todayStr();
+    $('fromDate').value=t;$('toDate').value=t;
+    $('fromTime').value='00:00';$('toTime').value='23:59';
+    document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector('.quick-btn').classList.add('active');
+    startAutoRefresh();loadData();
+  }else{
+    $('liveToggle').classList.remove('active');
+    stopAutoRefresh();
+  }
+}
+
+function startAutoRefresh(){stopAutoRefresh();refreshTimer=setInterval(()=>loadData(),30000);}
+function stopAutoRefresh(){if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}}
+
+// ─── DATA LOADING ──────────────────
+async function loadData(){
+  $('loading').classList.remove('hidden');
+  $('statusText').textContent='Loading...';
+  try{
+    const{from,to}=getDateRange();
+    const res=await fetch(`/api/settlement?action=runner-performance&pin=${currentPin}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    const data=await res.json();
+    if(!data.success)throw new Error(data.error);
+    currentData=data;
+    render(data);
+    $('statusText').textContent=isLive?'Live — 30s refresh':'Loaded';
+  }catch(e){
+    console.error(e);
+    $('statusText').textContent='Error: '+e.message;
+    $('statusDot').style.background='var(--red)';
+  }finally{
+    $('loading').classList.add('hidden');
+  }
+}
+
+// ─── RENDER ────────────────────────
+function render(data){
+  $('statusDot').style.background='var(--green)';
+  renderSummary(data.summary);
+  renderScorecards(data.runners);
+  renderTable(data.runners);
+  renderDiscipline(data.runners);
+  renderProductMix(data.runners);
+}
+
+function renderSummary(s){
+  $('smRevenue').textContent=fmt(s.totalRevenue);
+  $('smRunners').textContent=s.activeRunners+' active runners';
+  $('smOrders').textContent=s.totalOrders.toLocaleString('en-IN');
+  $('smAov').textContent='Avg '+fmt(s.avgOrderValue);
+  $('smUpi').textContent=s.overallUpiPercent+'%';
+  $('smUpiAmt').textContent=fmt(s.totalUpi);
+  $('smVariance').textContent=fmt(s.netVariance);
+  $('smVariance').className='value '+(s.netVariance===0?'positive':s.netVariance>0?'positive':'negative');
+  $('smVarNote').textContent=s.netVariance===0?'Clean':'Across all runners';
+}
+
+function renderScorecards(runners){
+  if(runners.length===0){$('scorecards').innerHTML='<div class="empty-state">No runner data for this period</div>';return;}
+  const rankClass=r=>r===1?'rank-gold':r===2?'rank-silver':r===3?'rank-bronze':'rank-muted';
+  const upiClass=p=>p>=40?'upi-good':p>=20?'upi-mid':'upi-bad';
+  const varClass=v=>v===0?'var-good':Math.abs(v)<50?'var-mid':'var-bad';
+
+  $('scorecards').innerHTML=runners.map(r=>`
+    <div class="scorecard">
+      <div class="rank-badge ${rankClass(r.rank)}">#${r.rank}</div>
+      <div class="sc-name">${r.name}</div>
+      <div class="sc-barcode">${r.barcode}</div>
+      <div class="sc-revenue">${fmt(r.revenue)}</div>
+      <div class="sc-stats">
+        <div class="sc-stat"><div class="sv">${r.totalOrders}</div><div class="sl">Orders</div></div>
+        <div class="sc-stat"><div class="sv">${fmt(r.avgOrderValue)}</div><div class="sl">Avg OV</div></div>
+        <div class="sc-stat"><div class="sv ${upiClass(r.upiPercent)}">${r.upiPercent}%</div><div class="sl">UPI</div></div>
+        <div class="sc-stat"><div class="sv">${fmt(r.cashInHand)}</div><div class="sl">Cash</div></div>
+        <div class="sc-stat"><div class="sv ${varClass(r.totalVariance)}">${fmt(r.totalVariance)}</div><div class="sl">Variance</div></div>
+        <div class="sc-stat"><div class="sv">${r.activeHours||0}h</div><div class="sl">Active</div></div>
+      </div>
+      <div class="sc-products">${(r.products||[]).slice(0,3).map(p=>`<span class="sc-product-chip">${p.name} (${p.qty})</span>`).join('')||'<span class="sc-product-chip">No sales</span>'}</div>
+      <div class="sc-activity">${r.firstOrder?r.firstOrder+' → '+r.lastOrder:'No activity'}</div>
+    </div>
+  `).join('');
+}
+
+function renderTable(runners){
+  const sorted=[...runners].sort((a,b)=>{
+    const av=a[sortKey],bv=b[sortKey];
+    if(typeof av==='string')return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+    return sortDir==='asc'?av-bv:bv-av;
+  });
+
+  // Find best/worst for numeric columns
+  const numCols=['revenue','tokens','sales','totalOrders','avgOrderValue','upi','upiPercent','cashInHand','totalVariance'];
+  const best={},worst={};
+  const active=sorted.filter(r=>r.totalOrders>0);
+  if(active.length>1){
+    numCols.forEach(k=>{
+      let bestVal=-Infinity,worstVal=Infinity;
+      active.forEach(r=>{
+        if(r[k]>bestVal)bestVal=r[k];
+        if(r[k]<worstVal)worstVal=r[k];
+      });
+      if(bestVal!==worstVal){best[k]=bestVal;worst[k]=worstVal;}
+    });
+    // For variance, closest to 0 is best
+    if(active.length>1){
+      let minAbs=Infinity,maxAbs=-Infinity,minVal,maxVal;
+      active.forEach(r=>{
+        const a=Math.abs(r.totalVariance);
+        if(a<minAbs){minAbs=a;minVal=r.totalVariance;}
+        if(a>maxAbs){maxAbs=a;maxVal=r.totalVariance;}
+      });
+      if(minAbs!==maxAbs){best.totalVariance=minVal;worst.totalVariance=maxVal;}
+    }
+  }
+
+  const cellClass=(key,val)=>{
+    if(best[key]!==undefined&&val===best[key])return' best';
+    if(worst[key]!==undefined&&val===worst[key])return' worst';
+    return'';
+  };
+
+  $('compBody').innerHTML=sorted.map(r=>`<tr>
+    <td class="runner-name-cell">${r.name}</td>
+    <td class="${cellClass('revenue',r.revenue)}">${fmt(r.revenue)}</td>
+    <td class="${cellClass('tokens',r.tokens)}">${fmt(r.tokens)}</td>
+    <td class="${cellClass('sales',r.sales)}">${fmt(r.sales)}</td>
+    <td class="${cellClass('totalOrders',r.totalOrders)}">${r.totalOrders}</td>
+    <td class="${cellClass('avgOrderValue',r.avgOrderValue)}">${fmt(r.avgOrderValue)}</td>
+    <td class="${cellClass('upi',r.upi)}">${fmt(r.upi)}</td>
+    <td class="${cellClass('upiPercent',r.upiPercent)}">${r.upiPercent}%</td>
+    <td class="${cellClass('cashInHand',r.cashInHand)}">${fmt(r.cashInHand)}</td>
+    <td class="${cellClass('totalVariance',r.totalVariance)}">${fmt(r.totalVariance)}</td>
+  </tr>`).join('');
+
+  // Update sort indicators
+  document.querySelectorAll('#compTable th').forEach(th=>{
+    th.classList.remove('sorted-asc','sorted-desc');
+    if(th.dataset.key===sortKey)th.classList.add('sorted-'+sortDir);
+  });
+}
+
+function renderDiscipline(runners){
+  if(runners.length===0){$('disciplineList').innerHTML='<div class="empty-state">No data</div>';return;}
+  const varClass=v=>v===0?'var-good':Math.abs(v)<50?'var-mid':'var-bad';
+
+  $('disciplineList').innerHTML=runners.map((r,i)=>{
+    const worstVar=r.recentSettlements.length>0?Math.min(...r.recentSettlements.map(s=>s.variance)):0;
+    const rows=r.recentSettlements.map(s=>{
+      const vc=s.variance===0?'var-good':Math.abs(s.variance)<50?'var-mid':'var-bad';
+      const t=s.settled_at?fmtTime(s.settled_at):'—';
+      return`<div class="disc-row"><span class="dr-time">${t}</span><span class="dr-cash">${fmt(s.cash_settled)}</span><span class="dr-var ${vc}">${s.variance>=0?'+':''}${s.variance}</span></div>`;
+    }).join('')||'<div class="disc-row"><span class="dr-time" style="color:var(--muted)">No settlements in period</span></div>';
+
+    return`<div class="disc-runner">
+      <button class="disc-toggle" onclick="toggleDisc(this)">
+        <span>${r.name} — ${r.settlementCount} settlement${r.settlementCount!==1?'s':''}</span>
+        <span class="disc-arrow">▼</span>
+      </button>
+      <div class="disc-body" id="disc${i}">
+        <div class="disc-summary">
+          <div class="ds"><div class="ds-val">${r.settlementCount}</div><div class="ds-label">Settlements</div></div>
+          <div class="ds"><div class="ds-val ${varClass(r.avgVariance)}">${fmt(r.avgVariance)}</div><div class="ds-label">Avg Variance</div></div>
+          <div class="ds"><div class="ds-val ${varClass(worstVar)}">${fmt(worstVar)}</div><div class="ds-label">Worst</div></div>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderProductMix(runners){
+  const active=runners.filter(r=>r.products&&r.products.length>0);
+  if(active.length===0){$('productMix').innerHTML='<div class="empty-state">No product data</div>';return;}
+
+  // Find max qty across all runners for proportional bars
+  let maxQty=0;
+  active.forEach(r=>r.products.slice(0,5).forEach(p=>{if(p.qty>maxQty)maxQty=p.qty;}));
+
+  const colors=['var(--orange)','var(--blue)','var(--green)','var(--purple)','var(--cyan)'];
+
+  $('productMix').innerHTML=active.map(r=>{
+    const top=r.products.slice(0,5);
+    const bars=top.map((p,i)=>{
+      const pct=maxQty>0?Math.round((p.qty/maxQty)*100):0;
+      return`<div class="pm-bar-row">
+        <div class="pm-bar-label">${p.name}</div>
+        <div class="pm-bar-track"><div class="pm-bar-fill" style="width:${pct}%;background:${colors[i%5]}"></div></div>
+        <div class="pm-bar-qty">${p.qty} (${fmt(p.amount)})</div>
+      </div>`;
+    }).join('');
+
+    return`<div class="pm-runner">
+      <div class="pm-header"><span class="pm-name">${r.name}</span><span class="pm-total">${r.products.length} products</span></div>
+      <div class="pm-bars">${bars}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── TABLE SORT ────────────────────
+document.querySelectorAll('#compTable th').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const key=th.dataset.key;
+    if(!key)return;
+    if(sortKey===key)sortDir=sortDir==='desc'?'asc':'desc';
+    else{sortKey=key;sortDir=th.dataset.type==='num'?'desc':'asc';}
+    if(currentData)renderTable(currentData.runners);
+  });
+});
+
+// ─── HELPERS ───────────────────────
+function toggleDisc(btn){
+  btn.classList.toggle('open');
+  const body=btn.nextElementSibling;
+  body.classList.toggle('show');
+}
+
+function fmtTime(isoStr){
+  try{
+    const d=new Date(isoStr);
+    if(isNaN(d))return isoStr.slice(0,16);
+    return d.toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'});
+  }catch{return isoStr.slice(0,16);}
+}
+
+pins[0].focus();
+</script>
+</body>
+</html>

@@ -846,6 +846,257 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // === RUNNER INTELLIGENCE — owner-only performance overview ===
+    if (action === 'runner-performance') {
+      const pin = url.searchParams.get('pin');
+      if (!['0305', '3754'].includes(pin)) {
+        return new Response(JSON.stringify({success: false, error: 'Not authorized'}), {headers: corsHeaders});
+      }
+
+      const fromIST = url.searchParams.get('from');
+      const toIST = url.searchParams.get('to');
+      if (!fromIST || !toIST) {
+        return new Response(JSON.stringify({success: false, error: 'from and to required'}), {headers: corsHeaders});
+      }
+
+      const ODOO_API_KEY = context.env.ODOO_API_KEY;
+      const RAZORPAY_KEY = context.env.RAZORPAY_KEY;
+      const RAZORPAY_SECRET = context.env.RAZORPAY_SECRET;
+      const auth = RAZORPAY_KEY && RAZORPAY_SECRET ? btoa(RAZORPAY_KEY + ':' + RAZORPAY_SECRET) : null;
+
+      // IST→UTC for Odoo: subtract 5.5 hours
+      const fromDate = new Date(fromIST);
+      const toDate = new Date(toIST);
+      const fromUTC = new Date(fromDate.getTime() - 5.5 * 60 * 60 * 1000);
+      const toUTC = new Date(toDate.getTime() - 5.5 * 60 * 60 * 1000);
+      const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
+      const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
+      const fromUnix = Math.floor(fromUTC.getTime() / 1000);
+      const toUnix = Math.floor(toUTC.getTime() / 1000);
+
+      // All runner partner IDs (including aliases)
+      const runnerPartnerIds = [64, 65, 66, 67, 68, 90, 37];
+
+      // 1. Fetch Odoo orders + Razorpay QR payments + D1 data in parallel
+      const [ordersData, ...qrResults] = await Promise.all([
+        // Odoo POS orders for all runners
+        (async () => {
+          if (!ODOO_API_KEY) return [];
+          try {
+            const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                [[['config_id', 'in', [27, 28]], ['date_order', '>=', fromOdoo], ['date_order', '<=', toOdoo],
+                  ['state', 'in', ['paid', 'done', 'invoiced', 'posted']],
+                  ['partner_id', 'in', runnerPartnerIds]]],
+                {fields: ['id', 'name', 'date_order', 'amount_total', 'config_id', 'partner_id', 'payment_ids'], order: 'date_order asc'}]}, id: Date.now()};
+            const res = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+            const data = await res.json();
+            return data.result || [];
+          } catch (e) { console.error('Runner-perf orders error:', e.message); return []; }
+        })(),
+        // Razorpay QR payments per runner
+        ...Object.entries(RUNNER_QR_MAP).map(([barcode, qrId]) =>
+          auth ? fetchRunnerQrPayments(auth, qrId, barcode, fromUnix, toUnix).catch(() => []) : Promise.resolve([])
+        )
+      ]);
+
+      // 2. Fetch order lines for product breakdown
+      const orderIds = ordersData.map(o => o.id);
+      let orderLines = [];
+      if (orderIds.length > 0 && ODOO_API_KEY) {
+        try {
+          const linePayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+            args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order.line', 'search_read',
+              [[['order_id', 'in', orderIds]]],
+              {fields: ['order_id', 'product_id', 'qty', 'price_subtotal_incl']}]}, id: Date.now()};
+          const lineRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(linePayload)});
+          const lineData = await lineRes.json();
+          orderLines = lineData.result || [];
+        } catch (e) { console.error('Runner-perf lines error:', e.message); }
+      }
+
+      // 3. Fetch cross-payments (PM 38) for POS 28 orders
+      const pos28Orders = ordersData.filter(o => o.config_id && o.config_id[0] === 28);
+      const crossPaymentsByOrder = {};
+      if (pos28Orders.length > 0 && ODOO_API_KEY) {
+        try {
+          const paymentIds = pos28Orders.flatMap(o => o.payment_ids || []);
+          if (paymentIds.length > 0) {
+            const pmPayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+                [[['id', 'in', paymentIds]]],
+                {fields: ['id', 'amount', 'payment_method_id', 'pos_order_id']}]}, id: Date.now()};
+            const pmRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(pmPayload)});
+            const pmData = await pmRes.json();
+            for (const p of (pmData.result || [])) {
+              if (p.payment_method_id && p.payment_method_id[0] === 38) {
+                const oid = p.pos_order_id ? p.pos_order_id[0] : 0;
+                crossPaymentsByOrder[oid] = (crossPaymentsByOrder[oid] || 0) + p.amount;
+              }
+            }
+          }
+        } catch (e) { console.error('Runner-perf cross-payments error:', e.message); }
+      }
+
+      // 4. D1: settlements + shift_runner_checkpoints
+      let d1Settlements = [], d1Checkpoints = [];
+      if (DB) {
+        try {
+          const [stlRes, chkRes] = await Promise.all([
+            DB.prepare('SELECT * FROM settlements WHERE runner_id IN (?,?,?,?,?) AND settled_at >= ? AND settled_at <= ?')
+              .bind('64', '65', '66', '67', '68', fromIST, toIST).all(),
+            DB.prepare(`SELECT src.* FROM shift_runner_checkpoints src JOIN cashier_shifts cs ON src.shift_id = cs.id WHERE cs.settled_at >= ? AND cs.settled_at <= ?`)
+              .bind(fromIST, toIST).all()
+          ]);
+          d1Settlements = stlRes.results || [];
+          d1Checkpoints = chkRes.results || [];
+        } catch (e) { console.error('Runner-perf D1 error:', e.message); }
+      }
+
+      // 5. Build QR payments map by barcode
+      const barcodes = Object.keys(RUNNER_QR_MAP);
+      const qrPaymentsByBarcode = {};
+      barcodes.forEach((barcode, i) => {
+        qrPaymentsByBarcode[barcode] = qrResults[i] || [];
+      });
+
+      // 6. Aggregate per runner
+      const runnerIds = [64, 65, 66, 67, 68];
+      const runnerData = runnerIds.map(rid => {
+        const runner = RUNNERS[rid];
+        // Resolve aliases → canonical runner ID
+        const myPartnerIds = [rid];
+        for (const [alias, target] of Object.entries(PARTNER_ALIASES)) {
+          if (target === rid) myPartnerIds.push(parseInt(alias));
+        }
+
+        // Orders for this runner
+        const myOrders = ordersData.filter(o => o.partner_id && myPartnerIds.includes(o.partner_id[0]));
+        const myPos27 = myOrders.filter(o => o.config_id && o.config_id[0] === 27);
+        const myPos28 = myOrders.filter(o => o.config_id && o.config_id[0] === 28);
+
+        const tokens = myPos27.reduce((s, o) => s + o.amount_total, 0);
+        const sales = myPos28.reduce((s, o) => s + o.amount_total, 0);
+        const revenue = tokens + sales;
+
+        // Cross-payment credit for this runner's POS 28 orders
+        const crossCredit = myPos28.reduce((s, o) => s + (crossPaymentsByOrder[o.id] || 0), 0);
+
+        // UPI from Razorpay QR
+        const myQrPayments = qrPaymentsByBarcode[runner.barcode] || [];
+        const upi = myQrPayments.reduce((s, p) => s + (p.amount / 100), 0);
+        const upiPercent = revenue > 0 ? Math.round((upi / revenue) * 100) : 0;
+
+        const cashInHand = revenue - upi - crossCredit;
+
+        // Products
+        const myOrderIds = new Set(myOrders.map(o => o.id));
+        const productAgg = {};
+        for (const line of orderLines) {
+          if (!myOrderIds.has(line.order_id[0])) continue;
+          const pid = line.product_id[0];
+          const pname = (TOKEN_PRODUCT_NAMES[pid] || line.product_id[1] || 'Product ' + pid).replace(/^\[.*?\]\s*/, '');
+          if (!productAgg[pid]) productAgg[pid] = {name: pname, qty: 0, amount: 0};
+          productAgg[pid].qty += Math.round(line.qty);
+          productAgg[pid].amount += line.price_subtotal_incl;
+        }
+        const products = Object.values(productAgg).filter(p => p.qty > 0).sort((a, b) => b.amount - a.amount);
+
+        // Activity window
+        let firstOrder = null, lastOrder = null, activeHours = 0;
+        if (myOrders.length > 0) {
+          const dates = myOrders.map(o => new Date(o.date_order.replace(' ', 'T') + 'Z'));
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          // Convert to IST for display
+          const toISTTime = d => {
+            const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+            const h = ist.getUTCHours();
+            const m = ist.getUTCMinutes().toString().padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            return ((h % 12) || 12) + ':' + m + ' ' + ampm;
+          };
+          firstOrder = toISTTime(minDate);
+          lastOrder = toISTTime(maxDate);
+          activeHours = Math.round(((maxDate - minDate) / (1000 * 60 * 60)) * 10) / 10;
+        }
+
+        // Settlement data from D1
+        const mySettlements = d1Settlements.filter(s => String(s.runner_id) === String(rid));
+        const myCheckpoints = d1Checkpoints.filter(c => c.runner_id === rid);
+        const settlementCount = mySettlements.length + myCheckpoints.length;
+        const totalVariance = myCheckpoints.reduce((s, c) => s + (c.cash_variance || 0), 0) +
+          mySettlements.reduce((s, st) => {
+            // Legacy settlements don't have explicit variance, skip
+            return s;
+          }, 0);
+        const avgVariance = settlementCount > 0 ? Math.round(totalVariance / settlementCount) : 0;
+
+        // Recent settlements for detail view
+        const recentSettlements = mySettlements.slice(0, 5).map(s => ({
+          settled_at: s.settled_at,
+          cash_settled: s.cash_settled,
+          tokens_amount: s.tokens_amount || 0,
+          sales_amount: s.sales_amount || 0,
+          upi_amount: s.upi_amount || 0,
+          settled_by: s.settled_by,
+          variance: 0
+        }));
+        // Add checkpoint-based settlements
+        for (const c of myCheckpoints.slice(0, 5)) {
+          recentSettlements.push({
+            settled_at: c.created_at || '',
+            cash_settled: c.cash_collected || 0,
+            tokens_amount: c.tokens_amount || 0,
+            sales_amount: c.sales_amount || 0,
+            upi_amount: c.upi_amount || 0,
+            settled_by: 'Shift Wizard',
+            variance: c.cash_variance || 0
+          });
+        }
+        recentSettlements.sort((a, b) => (b.settled_at || '').localeCompare(a.settled_at || ''));
+
+        return {
+          id: rid, name: runner.name, barcode: runner.barcode,
+          tokens: Math.round(tokens), sales: Math.round(sales), revenue: Math.round(revenue),
+          tokenOrders: myPos27.length, salesOrders: myPos28.length, totalOrders: myOrders.length,
+          avgOrderValue: myOrders.length > 0 ? Math.round(revenue / myOrders.length) : 0,
+          upi: Math.round(upi), upiPercent, crossPaymentCredit: Math.round(crossCredit),
+          cashInHand: Math.round(cashInHand),
+          firstOrder, lastOrder, activeHours,
+          products: products.slice(0, 10),
+          settlementCount, totalVariance: Math.round(totalVariance), avgVariance,
+          recentSettlements: recentSettlements.slice(0, 5)
+        };
+      });
+
+      // Sort by revenue desc and assign rank
+      runnerData.sort((a, b) => b.revenue - a.revenue);
+      runnerData.forEach((r, i) => r.rank = i + 1);
+
+      // Filter out runners with zero activity
+      const activeRunners = runnerData.filter(r => r.totalOrders > 0);
+
+      // Summary
+      const totalRevenue = runnerData.reduce((s, r) => s + r.revenue, 0);
+      const totalOrders = runnerData.reduce((s, r) => s + r.totalOrders, 0);
+      const totalUpi = runnerData.reduce((s, r) => s + r.upi, 0);
+      const netVariance = runnerData.reduce((s, r) => s + r.totalVariance, 0);
+
+      return new Response(JSON.stringify({
+        success: true,
+        summary: {
+          totalRevenue, totalOrders,
+          avgOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,
+          totalUpi,
+          overallUpiPercent: totalRevenue > 0 ? Math.round((totalUpi / totalRevenue) * 100) : 0,
+          netVariance,
+          activeRunners: activeRunners.length
+        },
+        runners: runnerData
+      }), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), {status: 500, headers: corsHeaders});
