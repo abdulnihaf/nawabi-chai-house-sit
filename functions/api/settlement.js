@@ -48,6 +48,12 @@ export async function onRequest(context) {
   // Partner aliases — duplicate Odoo contacts that map to known runners
   const PARTNER_ALIASES = {90: 64, 37: 64};
 
+  // Token product name mapping (shared by runner-live and runner-performance)
+  const TOKEN_PRODUCT_NAMES = {
+    1028: 'Irani Chai', 1102: 'Coffee', 1103: 'Lemon Tea',
+    1395: 'Haleem Qtr', 1396: 'Haleem Half', 1397: 'Haleem Full', 1400: 'Haleem Mutton'
+  };
+
   try {
     if (action === 'verify-pin') {
       const pin = url.searchParams.get('pin');
@@ -752,10 +758,6 @@ export async function onRequest(context) {
       }
 
       // 5. Fetch token order line items for product breakdown (Chai/Coffee/Haleem)
-      const TOKEN_PRODUCT_NAMES = {
-        1028: 'Irani Chai', 1102: 'Coffee', 1103: 'Lemon Tea',
-        1395: 'Haleem Qtr', 1396: 'Haleem Half', 1397: 'Haleem Full', 1400: 'Haleem Mutton'
-      };
       let tokenBreakdown = [];
       const pos27Orders = ordersData.filter(o => o.config_id && o.config_id[0] === 27);
       if (pos27Orders.length > 0 && ODOO_API_KEY) {
