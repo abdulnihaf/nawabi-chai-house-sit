@@ -716,7 +716,7 @@ export async function onRequest(context) {
                 [[['config_id', 'in', [27, 28]], ['date_order', '>=', fromOdoo],
                   ['state', 'in', ['paid', 'done', 'invoiced', 'posted']],
                   ['partner_id', 'in', partnerIds]]],
-                {fields: ['id', 'name', 'date_order', 'amount_total', 'config_id', 'payment_ids'], order: 'date_order desc'}]}, id: Date.now()};
+                {fields: ['id', 'name', 'date_order', 'amount_total', 'config_id', 'payment_ids', 'lines'], order: 'date_order desc'}]}, id: Date.now()};
             const res = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
             const data = await res.json();
             return data.result || [];
@@ -782,9 +782,41 @@ export async function onRequest(context) {
         } catch (e) { console.error('Runner-live token lines error:', e.message); }
       }
 
-      // 6. Calculate totals (reuse pos27Orders from step 5)
+      // 6. Build direct sales detail with product breakdown per order (POS 28)
+      // pos28Orders already declared in step 4
+      let salesDetails = [];
+      if (pos28Orders.length > 0 && ODOO_API_KEY) {
+        try {
+          const salesOrderIds = pos28Orders.map(o => o.id);
+          const slPayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+            args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order.line', 'search_read',
+              [[['order_id', 'in', salesOrderIds]]],
+              {fields: ['order_id', 'product_id', 'qty', 'price_subtotal_incl']}]}, id: Date.now()};
+          const slRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(slPayload)});
+          const slData = await slRes.json();
+          const salesLines = slData.result || [];
+
+          // Group lines by order_id
+          const linesByOrder = {};
+          for (const line of salesLines) {
+            const oid = line.order_id[0];
+            if (!linesByOrder[oid]) linesByOrder[oid] = [];
+            linesByOrder[oid].push({name: line.product_id[1] || 'Item', qty: Math.round(line.qty), amount: line.price_subtotal_incl});
+          }
+
+          salesDetails = pos28Orders.map(o => ({
+            id: o.id,
+            name: o.name,
+            amount: o.amount_total,
+            time: o.date_order,
+            items: linesByOrder[o.id] || []
+          })).sort((a, b) => new Date(b.time) - new Date(a.time));
+        } catch (e) { console.error('Runner-live sales lines error:', e.message); }
+      }
+
+      // 7. Calculate totals (reuse pos27Orders from step 5)
       const tokens = pos27Orders.reduce((sum, o) => sum + o.amount_total, 0);
-      const sales = ordersData.filter(o => o.config_id && o.config_id[0] === 28).reduce((sum, o) => sum + o.amount_total, 0);
+      const sales = pos28Orders.reduce((sum, o) => sum + o.amount_total, 0);
       const upiTotal = razorpayPayments.reduce((sum, p) => sum + (p.amount / 100), 0); // paisa → rupees
       const cashInHand = tokens + sales - upiTotal - crossPaymentCredit;
 
@@ -805,9 +837,9 @@ export async function onRequest(context) {
         success: true,
         runner: {id: runnerId, name: runner.name, barcode: runner.barcode},
         period: {start: periodStart, startFormatted: periodFormatted, now: new Date().toISOString()},
-        tokens, sales, crossPaymentCredit, tokenBreakdown,
+        tokens, sales, crossPaymentCredit, tokenBreakdown, salesDetails,
         tokenOrders: pos27Orders.length,
-        salesOrders: ordersData.filter(o => o.config_id && o.config_id[0] === 28).length,
+        salesOrders: pos28Orders.length,
         upi: {total: upiTotal, count: upiPayments.length, payments: upiPayments},
         cashInHand,
         lastSettlement

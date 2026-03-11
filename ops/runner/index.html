@@ -66,12 +66,12 @@
     .bl-qty{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
     .bl-amount{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
     .breakdown-empty{padding:12px;text-align:center;color:var(--text2);font-size:13px}
-    .sales-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
-    .sales-card .sc-left{display:flex;align-items:center;gap:8px}
-    .sales-card .sc-left .sc-icon{font-size:18px}
-    .sales-card .sc-left .sc-label{font-size:14px;font-weight:600}
-    .sales-card .sc-left .sc-count{font-size:12px;color:var(--text2);margin-left:4px}
-    .sales-card .sc-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .sale-order{background:var(--bg2);border-radius:8px;padding:10px 12px}
+    .sale-order .so-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .sale-order .so-amount{font-size:16px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--orange)}
+    .sale-order .so-time{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .sale-order .so-items{display:flex;flex-wrap:wrap;gap:4px}
+    .sale-order .so-item{font-size:11px;color:var(--text2);background:var(--card);padding:2px 8px;border-radius:4px}
     .summary-row{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
     .summary-row .sr-label{font-size:14px;font-weight:600}
     .summary-row .sr-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
@@ -179,9 +179,14 @@
               <div class="breakdown-empty">No token issues yet</div>
             </div>
           </div>
-          <div class="sales-card">
-            <div class="sc-left"><span class="sc-icon">📊</span><span class="sc-label">Direct Sales</span><span class="sc-count" id="salesCount">(0)</span></div>
-            <div class="sc-value" id="salesAmount">-</div>
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <div class="bh-left"><span class="bh-icon">📊</span> Direct Sales <span style="font-size:12px;color:var(--text2);font-weight:400" id="salesCount">(0)</span></div>
+              <div class="bh-total" id="salesAmount">-</div>
+            </div>
+            <div class="breakdown-lines" id="salesDetails">
+              <div class="breakdown-empty">No direct sales yet</div>
+            </div>
           </div>
           <div class="summary-row">
             <span class="sr-label">Total Revenue</span>
@@ -345,9 +350,26 @@
         $('tokenBreakdown').innerHTML='<div class="breakdown-empty">No token issues yet</div>';
       }
 
-      // Direct sales
+      // Direct sales breakdown
       $('salesAmount').textContent=fmt(data.sales);
       $('salesCount').textContent='('+data.salesOrders+')';
+      if(data.salesDetails && data.salesDetails.length>0){
+        $('salesDetails').innerHTML=data.salesDetails.map(o=>{
+          const t=new Date(o.time.replace(' ','T')+'Z'); // Odoo date_order is UTC
+          const timeStr=t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'});
+          const dateStr=isToday(t)?timeStr:t.toLocaleDateString('en-IN',{day:'numeric',month:'short',timeZone:'Asia/Kolkata'})+' '+timeStr;
+          const itemChips=o.items.map(i=>{
+            const name=(i.name||'').replace(/^\[.*?\]\s*/,'');
+            return `<span class="so-item">${i.qty>1?i.qty+'× ':''}${name}</span>`;
+          }).join('');
+          return `<div class="sale-order">
+            <div class="so-top"><span class="so-amount">${fmt(o.amount)}</span><span class="so-time">${dateStr}</span></div>
+            <div class="so-items">${itemChips}</div>
+          </div>`;
+        }).join('');
+      }else{
+        $('salesDetails').innerHTML='<div class="breakdown-empty">No direct sales yet</div>';
+      }
       $('totalRevenue').textContent=fmt(data.tokens+data.sales);
 
       // Cross-payment
