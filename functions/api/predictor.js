@@ -15,7 +15,7 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  const PINS = {'0305': 'Nihaf', '2026': 'Zoya', '8523': 'Basheer'};
+  const PINS = {'0305': 'Nihaf', '2026': 'Zoya', '8523': 'Basheer', '7115': 'Kesmat', '8241': 'Nafees'};
   const BUSINESS_START = '2026-02-03';
 
   // ═══════════════════════════════════════════════════════════
@@ -115,6 +115,16 @@ export async function onRequest(context) {
     // Finished goods — cost TBD (costing module separate)
     1393: 0, 1395: 0, 1396: 0, 1397: 0, 1400: 0,
     1401: 0, 1402: 0, 1403: 0, 1424: 0,
+  };
+
+  // Product type classification for ops-forecast snack/beverage buffers
+  const PRODUCT_TYPES = {
+    1028: 'beverage', 1102: 'beverage', 1103: 'beverage', 1094: 'other',
+    1029: 'snack', 1118: 'snack', 1031: 'snack', 1115: 'snack',
+    1117: 'snack', 1392: 'snack',
+    1030: 'other', 1033: 'other', 1111: 'other',
+    1395: 'snack', 1396: 'snack', 1397: 'snack', 1400: 'snack',
+    1401: 'other', 1402: 'other', 1403: 'other', 1423: 'other',
   };
 
   const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -648,6 +658,148 @@ export async function onRequest(context) {
       });
     }
 
+    // ─── OPS FORECAST (Kitchen Ops Dashboard) ──────
+    if (action === 'ops-forecast') {
+      const pin = url.searchParams.get('pin');
+      if (!PINS[pin]) return json({success: false, error: 'Unauthorized'});
+
+      const dateParam = url.searchParams.get('date');
+      const targetDate = dateParam || formatDateIST(new Date(Date.now() + IST_OFFSET_MS));
+
+      await ensureCacheUpToDate(DB, ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY);
+
+      const periods = (await DB.prepare('SELECT * FROM prediction_periods ORDER BY start_date').all()).results;
+      const multipliers = (await DB.prepare('SELECT * FROM prediction_multipliers').all()).results;
+      const cache = (await DB.prepare('SELECT * FROM prediction_daily_cache ORDER BY date').all()).results;
+
+      const dow = new Date(targetDate + 'T12:00:00+05:30').getDay();
+      const segment = findSegment(targetDate, periods);
+      const segmentCode = segment ? segment.code : 'unknown';
+      const opHours = segment ? JSON.parse(segment.operating_hours) : Array.from({length: 24}, (_, i) => i);
+
+      const segmentCache = cache.filter(c => c.period_code === segmentCode);
+      const dataSource = segmentCache.length >= 3 ? segmentCache : cache.filter(c => c.date < targetDate).slice(-21);
+
+      if (!dataSource.length) return json({success: true, date: targetDate, empty: true, message: 'No historical data'});
+
+      // Standard forecast pipeline
+      const productPredictions = computeWeightedAverage(dataSource, dow, targetDate);
+      applyMultipliers(productPredictions, multipliers, segmentCode, dow);
+
+      // Snack-chai demand adjustment
+      const chaiPredicted = productPredictions['1028']?.predicted || 0;
+      if (chaiPredicted > 0) {
+        const ratios = computeSnackChaiRatios(cache.filter(c => c.date < targetDate));
+        for (const [sid, ratio] of Object.entries(ratios)) {
+          const pid = String(sid);
+          const standardForecast = productPredictions[pid]?.predicted || 0;
+          const chaiBasedForecast = chaiPredicted * ratio;
+          if (chaiBasedForecast > standardForecast) {
+            if (!productPredictions[pid]) {
+              productPredictions[pid] = {name: RECIPES[sid]?.name || `Product ${sid}`, predicted: 0, confidence: 'low', dataPoints: 0, multiplier: 1.0};
+            }
+            productPredictions[pid].predicted = round2(chaiBasedForecast);
+            productPredictions[pid].method = 'crowd-proportional';
+            productPredictions[pid].snackChaiRatio = round2(ratio);
+          }
+        }
+      }
+
+      // Apply type-specific buffers
+      const TYPE_BUFFERS = {beverage: 1.10, snack: 1.40, other: 1.15};
+      for (const [pid, pred] of Object.entries(productPredictions)) {
+        const type = PRODUCT_TYPES[parseInt(pid)] || 'other';
+        pred.type = type;
+        pred.buffered = round2(pred.predicted * (TYPE_BUFFERS[type] || 1.15));
+      }
+
+      // Build hourly curves + item distribution
+      const hourlyCurves = buildHourlyCurves(dataSource, dow);
+      const hourlyItemCounts = Array(24).fill(0);
+      let totalItems = 0;
+      const productList = [];
+
+      for (const [pid, pred] of Object.entries(productPredictions)) {
+        const qty = Math.round(pred.buffered);
+        if (qty <= 0) continue;
+        totalItems += qty;
+        const curve = hourlyCurves[pid] || buildFlatCurve(opHours);
+        for (let h = 0; h < 24; h++) hourlyItemCounts[h] += Math.round(pred.buffered * (curve[h] || 0));
+        const entry = {id: parseInt(pid), name: pred.name, qty, type: pred.type};
+        if (pred.method) { entry.method = pred.method; entry.snackChaiRatio = pred.snackChaiRatio; }
+        productList.push(entry);
+      }
+      productList.sort((a, b) => b.qty - a.qty);
+
+      const hourlyOrders = hourlyItemCounts.map(i => Math.round(i / ITEMS_PER_ORDER));
+      const totalOrders = Math.round(totalItems / ITEMS_PER_ORDER);
+
+      // Crowd level helper
+      function crowdLevel(orders) {
+        if (orders >= 45) return {level: 'peak', color: '#ef4444'};
+        if (orders >= 25) return {level: 'busy', color: '#f97316'};
+        if (orders >= 10) return {level: 'moderate', color: '#10b981'};
+        return {level: 'quiet', color: '#3b82f6'};
+      }
+
+      // Time blocks (2-hour windows)
+      const timeBlocks = [];
+      for (let i = 0; i < opHours.length; i += 2) {
+        const windowHours = opHours.slice(i, i + 2);
+        const avgOrders = Math.round(windowHours.reduce((s, h) => s + hourlyOrders[h], 0) / windowHours.length);
+        const cl = crowdLevel(avgOrders);
+
+        const blockProds = [];
+        for (const [pid, pred] of Object.entries(productPredictions)) {
+          const curve = hourlyCurves[pid] || buildFlatCurve(opHours);
+          let wQty = 0;
+          for (const h of windowHours) wQty += pred.buffered * (curve[h] || 0);
+          const qty = Math.round(wQty);
+          if (qty > 0) {
+            blockProds.push({
+              name: pred.name, qty, type: pred.type,
+              prepNote: generatePrepNote(parseInt(pid), qty, RECIPES)
+            });
+          }
+        }
+        blockProds.sort((a, b) => b.qty - a.qty);
+
+        const endH = (windowHours[windowHours.length - 1] + 1) % 24;
+        const startSuffix = windowHours[0] >= 12 ? 'PM' : 'AM';
+        const endSuffix = endH >= 12 ? 'PM' : 'AM';
+        const sNum = windowHours[0] === 0 ? 12 : windowHours[0] > 12 ? windowHours[0] - 12 : windowHours[0];
+        const eNum = endH === 0 ? 12 : endH > 12 ? endH - 12 : endH;
+        const label = startSuffix === endSuffix ? `${sNum} - ${eNum} ${endSuffix}` : `${sNum} ${startSuffix} - ${eNum} ${endSuffix}`;
+
+        timeBlocks.push({
+          label, startHour: windowHours[0],
+          crowdLevel: cl.level, crowdColor: cl.color, ordersPerHour: avgOrders,
+          products: blockProds.slice(0, 15)
+        });
+      }
+
+      // Peak hours + hourly breakdown
+      const peakHours = opHours.map(h => {
+        const cl = crowdLevel(hourlyOrders[h]);
+        return {hour: h, label: formatHourLabel(h), ordersPerHour: hourlyOrders[h], crowdLevel: cl.level};
+      }).sort((a, b) => b.ordersPerHour - a.ordersPerHour).slice(0, 5);
+
+      const hourlyBreakdown = opHours.map(h => {
+        const cl = crowdLevel(hourlyOrders[h]);
+        return {hour: h, label: formatHourLabel(h), ordersPerHour: hourlyOrders[h], crowdLevel: cl.level, crowdColor: cl.color};
+      });
+
+      const dowNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      return json({
+        success: true, date: targetDate, dayName: dowNames[dow], segment: segmentCode,
+        operatingHours: opHours,
+        buffers: {beverage: '10%', snack: '40%', other: '15%'},
+        dayTotals: {totalItems, totalOrders, products: productList},
+        timeBlocks, peakHours, hourlyBreakdown
+      });
+    }
+
     return json({success: false, error: `Unknown action: ${action}`});
 
   } catch (error) {
@@ -915,6 +1067,40 @@ export async function onRequest(context) {
     if (pid === 1115) return `Fry ${Math.round(qty)} samosa`;
     if (pid === 1117) return `Fry ${Math.round(qty)} cheese balls`;
     return `Prep ${Math.round(qty)} ${recipe.name}`;
+  }
+
+  // ─── SNACK-CHAI RATIO COMPUTATION ───────────────
+  // Uses chai (1028) as footfall proxy. On "good availability days" (top 25% by snack volume),
+  // compute how many of each snack sell per chai unit. This corrects for historical under-reporting
+  // due to snack unavailability.
+  function computeSnackChaiRatios(cacheData) {
+    const dailyMap = {};
+    for (const row of cacheData) {
+      if (!dailyMap[row.date]) dailyMap[row.date] = {};
+      dailyMap[row.date][row.product_id] = row.qty_sold;
+    }
+
+    const ratios = {};
+    const snackIds = Object.entries(PRODUCT_TYPES)
+      .filter(([_, t]) => t === 'snack').map(([id]) => parseInt(id));
+
+    for (const snackId of snackIds) {
+      const daysWithBoth = Object.entries(dailyMap)
+        .filter(([_, prods]) => (prods[1028] || 0) > 0 && (prods[snackId] || 0) > 0)
+        .map(([date, prods]) => ({ chaiQty: prods[1028], snackQty: prods[snackId] }));
+
+      if (daysWithBoth.length < 3) {
+        ratios[snackId] = 0.15; // fallback: 15% of chai volume
+        continue;
+      }
+
+      // Top 25% by snack volume = "good availability days"
+      daysWithBoth.sort((a, b) => b.snackQty - a.snackQty);
+      const topCount = Math.max(Math.ceil(daysWithBoth.length * 0.25), 2);
+      const topDays = daysWithBoth.slice(0, topCount);
+      ratios[snackId] = topDays.reduce((s, d) => s + d.snackQty / d.chaiQty, 0) / topDays.length;
+    }
+    return ratios;
   }
 
   // ─── SHIFT BLOCK COMPUTATION ────────────────────

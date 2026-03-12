@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NCH Kitchen Ops</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--orange:#f97316;--pink:#ec4899}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* PIN Screen */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box h2{font-size:22px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .pin-box h2::before{content:'';width:5px;height:24px;background:linear-gradient(180deg,var(--green),var(--cyan));border-radius:3px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:48px;height:56px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:24px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all .2s}
+    .pin-input input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(16,185,129,.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(16,185,129,.08)}
+    .pin-error{display:none;color:var(--red);font-size:13px;margin-top:12px}
+    .pin-error.show{display:block}
+
+    /* Dashboard */
+    .dashboard{display:none;min-height:100vh;padding-bottom:20px}
+    .dashboard.show{display:block}
+    .header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:50}
+    .header h1{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+    .header h1::before{content:'';width:4px;height:20px;background:linear-gradient(180deg,var(--green),var(--cyan));border-radius:2px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .status-text{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .user-name{font-size:12px;color:var(--text2)}
+    .btn-logout{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--muted);font-size:11px;cursor:pointer}
+
+    /* Tabs */
+    .tabs{display:flex;border-bottom:1px solid var(--border);padding:0}
+    .tab{flex:1;padding:12px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all .15s}
+    .tab.active{color:var(--green);border-bottom-color:var(--green)}
+    .tab-content{display:none;padding:14px 16px;padding-bottom:80px}
+    .tab-content.active{display:block}
+
+    /* Hero card */
+    .hero-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+    .hero-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .hero-date{font-size:14px;font-weight:600}
+    .segment-badge{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(6,182,212,.15);color:var(--cyan);font-weight:600;text-transform:uppercase}
+    .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .stat-box{background:var(--bg2);border-radius:8px;padding:10px;text-align:center}
+    .stat-box .label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+    .stat-box .val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:2px;color:var(--orange)}
+    .stat-box .sub{font-size:10px;color:var(--text2);margin-top:2px}
+
+    /* Buffer note */
+    .buffer-note{background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--text2)}
+
+    /* Time block cards */
+    .block-card{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid var(--muted)}
+    .block-card.crowd-quiet{border-left-color:var(--blue)}
+    .block-card.crowd-moderate{border-left-color:var(--green)}
+    .block-card.crowd-busy{border-left-color:var(--orange)}
+    .block-card.crowd-peak{border-left-color:var(--red)}
+    .block-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .block-time{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .block-meta{display:flex;align-items:center;gap:8px}
+    .crowd-badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;text-transform:uppercase}
+    .crowd-badge.quiet{background:rgba(59,130,246,.15);color:var(--blue)}
+    .crowd-badge.moderate{background:rgba(16,185,129,.15);color:var(--green)}
+    .crowd-badge.busy{background:rgba(249,115,22,.15);color:var(--orange)}
+    .crowd-badge.peak{background:rgba(239,68,68,.15);color:var(--red)}
+    .block-oph{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+    .block-products{padding:8px 12px}
+    .prod-row{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid rgba(45,58,79,.4)}
+    .prod-row:last-child{border-bottom:none}
+    .prod-qty{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--orange);min-width:36px;text-align:right}
+    .prod-info{flex:1}
+    .prod-name{font-size:12px;font-weight:500}
+    .prod-prep{font-size:10px;color:var(--cyan);font-style:italic;margin-top:1px}
+    .type-pill{font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;flex-shrink:0}
+    .type-pill.beverage{background:rgba(59,130,246,.15);color:var(--blue)}
+    .type-pill.snack{background:rgba(249,115,22,.15);color:var(--orange)}
+    .type-pill.other{background:rgba(100,116,139,.15);color:var(--muted)}
+
+    /* Peak Hours tab */
+    .guidance-card{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:14px;margin-bottom:16px}
+    .guidance-title{font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px}
+    .guidance-text{font-size:12px;color:var(--text2);line-height:1.5}
+
+    .timeline-section{margin-bottom:16px}
+    .section-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+    .section-title::before{content:'';width:3px;height:12px;background:var(--green);border-radius:2px}
+    .timeline-bar{display:flex;border-radius:6px;overflow:hidden;height:32px;background:var(--bg2)}
+    .timeline-seg{display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;min-width:0}
+    .timeline-labels{display:flex;margin-top:4px}
+    .timeline-lbl{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;min-width:0;text-align:center}
+
+    .hour-list{margin-top:12px}
+    .hour-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;border-left:4px solid var(--muted)}
+    .hour-row.crowd-quiet{border-left-color:var(--blue)}
+    .hour-row.crowd-moderate{border-left-color:var(--green)}
+    .hour-row.crowd-busy{border-left-color:var(--orange)}
+    .hour-row.crowd-peak{border-left-color:var(--red)}
+    .hour-label{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;min-width:60px}
+    .hour-orders{font-size:12px;color:var(--text2);flex:1}
+
+    .empty-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+    .loading{text-align:center;padding:60px 20px;color:var(--muted)}
+    .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+
+<!-- PIN Screen -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-box">
+    <h2>Kitchen Ops</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-input" id="pinInput">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+    </div>
+    <div class="pin-error" id="pinError">Invalid PIN. Try again.</div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div class="dashboard" id="dashboard">
+  <div class="header">
+    <h1>Kitchen Ops</h1>
+    <div class="header-right">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Loading...</span>
+      <span class="user-name" id="userName"></span>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="forecast" onclick="switchTab('forecast')">Kitchen Forecast</div>
+    <div class="tab" data-tab="peak" onclick="switchTab('peak')">Peak Hours</div>
+  </div>
+
+  <div class="tab-content active" id="tab-forecast">
+    <div id="forecastContent"><div class="loading"><div class="spinner"></div><div style="margin-top:10px">Loading forecast...</div></div></div>
+  </div>
+
+  <div class="tab-content" id="tab-peak">
+    <div id="peakContent"><div class="loading"><div class="spinner"></div><div style="margin-top:10px">Loading peak hours...</div></div></div>
+  </div>
+</div>
+
+<script>
+const API = '/api/predictor';
+let pin = '';
+let staffName = '';
+let refreshTimer = null;
+
+// --- PIN Input (4 separate fields, same pattern as runner) ---
+const inputs = document.querySelectorAll('#pinInput input');
+inputs.forEach((inp, i) => {
+  inp.addEventListener('input', () => {
+    inp.value = inp.value.replace(/\D/g, '');
+    if (inp.value) {
+      inp.classList.add('filled');
+      if (i < 3) inputs[i + 1].focus();
+    }
+    const code = Array.from(inputs).map(x => x.value).join('');
+    if (code.length === 4) verifyPin(code);
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !inp.value && i > 0) {
+      inputs[i - 1].value = '';
+      inputs[i - 1].classList.remove('filled');
+      inputs[i - 1].focus();
+    }
+  });
+  inp.addEventListener('focus', () => { document.getElementById('pinError').classList.remove('show'); });
+});
+inputs[0].focus();
+
+async function verifyPin(code) {
+  try {
+    const res = await fetch(`${API}?action=verify-pin&pin=${code}`);
+    const data = await res.json();
+    if (data.success) {
+      pin = code;
+      staffName = data.name;
+      document.getElementById('pinScreen').classList.add('hidden');
+      document.getElementById('dashboard').classList.add('show');
+      document.getElementById('userName').textContent = staffName;
+      loadForecast();
+      startAutoRefresh();
+    } else {
+      document.getElementById('pinError').classList.add('show');
+      inputs.forEach(inp => { inp.value = ''; inp.classList.remove('filled'); });
+      inputs[0].focus();
+    }
+  } catch {
+    document.getElementById('pinError').textContent = 'Connection error';
+    document.getElementById('pinError').classList.add('show');
+    inputs.forEach(inp => { inp.value = ''; inp.classList.remove('filled'); });
+    inputs[0].focus();
+  }
+}
+
+function logout() {
+  stopAutoRefresh();
+  pin = ''; staffName = '';
+  document.getElementById('dashboard').classList.remove('show');
+  document.getElementById('pinScreen').classList.remove('hidden');
+  document.getElementById('pinError').classList.remove('show');
+  document.getElementById('pinError').textContent = 'Invalid PIN. Try again.';
+  inputs.forEach(inp => { inp.value = ''; inp.classList.remove('filled'); });
+  inputs[0].focus();
+}
+
+// --- Tabs ---
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('active', tc.id === 'tab-' + tab));
+}
+
+// --- Data ---
+async function loadForecast() {
+  const today = getISTToday();
+  try {
+    updateStatus('loading');
+    const res = await fetch(`${API}?action=ops-forecast&pin=${pin}&date=${today}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed');
+    renderForecast(data);
+    renderPeakHours(data);
+    updateStatus('live');
+  } catch (e) {
+    updateStatus('error');
+    document.getElementById('forecastContent').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
+    document.getElementById('peakContent').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function updateStatus(state) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.style.background = state === 'live' ? 'var(--green)' : state === 'loading' ? 'var(--yellow)' : 'var(--red)';
+  dot.style.animation = state === 'live' ? 'pulse 2s infinite' : 'none';
+  if (state === 'live') {
+    const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const h = now.getUTCHours(), m = String(now.getUTCMinutes()).padStart(2, '0');
+    text.textContent = `Updated ${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
+  } else {
+    text.textContent = state === 'loading' ? 'Loading...' : 'Error';
+  }
+}
+
+function startAutoRefresh() { refreshTimer = setInterval(loadForecast, 30000); }
+function stopAutoRefresh() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } }
+
+// --- Render Forecast ---
+function renderForecast(data) {
+  if (data.empty) {
+    document.getElementById('forecastContent').innerHTML = `<div class="empty-msg">${data.message || 'No data'}</div>`;
+    return;
+  }
+  const top = data.dayTotals.products[0];
+  let html = `<div class="hero-card">
+    <div class="hero-header">
+      <span class="hero-date">${data.dayName}, ${fmtDate(data.date)}</span>
+      <span class="segment-badge">${data.segment.replace(/_/g, ' ')}</span>
+    </div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="label">Orders</div><div class="val">${data.dayTotals.totalOrders}</div></div>
+      <div class="stat-box"><div class="label">Items</div><div class="val">${data.dayTotals.totalItems}</div></div>
+      <div class="stat-box"><div class="label">Top Item</div><div class="val" style="font-size:13px">${top ? top.name : '-'}</div><div class="sub">${top ? top.qty + ' qty' : ''}</div></div>
+    </div>
+  </div>`;
+
+  html += `<div class="buffer-note">Beverages +${data.buffers.beverage}, Snacks +${data.buffers.snack} buffer (demand recovery), Others +${data.buffers.other}</div>`;
+
+  for (const b of data.timeBlocks) {
+    html += `<div class="block-card crowd-${b.crowdLevel}">
+      <div class="block-header">
+        <span class="block-time">${b.label}</span>
+        <div class="block-meta">
+          <span class="crowd-badge ${b.crowdLevel}">${b.crowdLevel}</span>
+          <span class="block-oph">~${b.ordersPerHour}/hr</span>
+        </div>
+      </div><div class="block-products">`;
+    for (const p of b.products) {
+      html += `<div class="prod-row">
+        <span class="prod-qty">${p.qty}</span>
+        <div class="prod-info"><div class="prod-name">${p.name}</div>${p.prepNote ? `<div class="prod-prep">${p.prepNote}</div>` : ''}</div>
+        <span class="type-pill ${p.type}">${p.type}</span>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+  document.getElementById('forecastContent').innerHTML = html;
+}
+
+// --- Render Peak Hours ---
+function renderPeakHours(data) {
+  if (data.empty || !data.hourlyBreakdown) {
+    document.getElementById('peakContent').innerHTML = `<div class="empty-msg">No data</div>`;
+    return;
+  }
+  let html = '';
+
+  // Guidance
+  const rush = data.peakHours.filter(h => h.crowdLevel === 'peak' || h.crowdLevel === 'busy');
+  if (rush.length) {
+    const peakOnly = rush.filter(h => h.crowdLevel === 'peak');
+    const title = peakOnly.length ? 'Heavy Rush Expected' : 'Busy Periods Ahead';
+    const desc = peakOnly.length
+      ? `Peak rush at ${peakOnly.map(h => h.label).join(', ')}. Plan token issuing, table clearing, and prep staging accordingly.`
+      : `Moderate-to-busy traffic at ${rush.map(h => h.label).join(', ')}. Stay prepared with pre-batched items.`;
+    html += `<div class="guidance-card"><div class="guidance-title">${title}</div><div class="guidance-text">${desc}</div></div>`;
+  }
+
+  // Timeline bar
+  html += `<div class="timeline-section"><div class="section-title">Crowd Timeline</div><div class="timeline-bar">`;
+  const maxOph = Math.max(...data.hourlyBreakdown.map(h => h.ordersPerHour), 1);
+  for (const h of data.hourlyBreakdown) {
+    const flex = Math.max(h.ordersPerHour / maxOph * 100, 8);
+    html += `<div class="timeline-seg" style="flex:${flex};background:${h.crowdColor}" title="${h.label}: ~${h.ordersPerHour}/hr">${h.ordersPerHour || ''}</div>`;
+  }
+  html += `</div><div class="timeline-labels">`;
+  for (const h of data.hourlyBreakdown) {
+    const flex = Math.max(h.ordersPerHour / maxOph * 100, 8);
+    html += `<div class="timeline-lbl" style="flex:${flex}">${h.label.replace(/ AM| PM/, '')}</div>`;
+  }
+  html += '</div></div>';
+
+  // Hour list
+  html += `<div class="section-title">Hour by Hour</div><div class="hour-list">`;
+  for (const h of data.hourlyBreakdown) {
+    html += `<div class="hour-row crowd-${h.crowdLevel}">
+      <span class="hour-label">${h.label}</span>
+      <span class="crowd-badge ${h.crowdLevel}">${h.crowdLevel}</span>
+      <span class="hour-orders">~${h.ordersPerHour} orders/hr</span>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('peakContent').innerHTML = html;
+}
+
+// --- Utils ---
+function getISTToday() {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+function fmtDate(s) {
+  const [y, m, d] = s.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[+m - 1]} ${+d}, ${y}`;
+}
+</script>
+</body>
+</html>
