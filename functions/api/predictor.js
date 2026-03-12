@@ -731,6 +731,7 @@ export async function onRequest(context) {
       }
       productList.sort((a, b) => b.qty - a.qty);
 
+      const ITEMS_PER_ORDER = 3.27;
       const hourlyOrders = hourlyItemCounts.map(i => Math.round(i / ITEMS_PER_ORDER));
       const totalOrders = Math.round(totalItems / ITEMS_PER_ORDER);
 
