@@ -1,9 +1,11 @@
 package com.nawabichai.ops;
 
-import android.content.Context;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.media.AudioManager;
+import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
@@ -15,29 +17,26 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationChannelCompat;
-import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends BridgeActivity {
-    private static final String TAG = "NCHMainActivity";
-    private static final String PREFS = "nch_prefs";
-    private static final String CHANNEL_ID = "nch_orders";
-    private String fcmToken = "";
+
+    private static final String TAG = "NCHMain";
+    private static final int NOTIFICATION_PERMISSION_CODE = 1001;
+    private static final String PREFS_NAME = "nch_ops_prefs";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         createNotificationChannel();
         requestAllPermissions();
         setupBackNavigation();
 
-        // Delay bridge injection until WebView is ready
+        // Delay bridge injection slightly to ensure WebView is fully ready
         getBridge().getWebView().post(() -> {
             exposeJsBridge();
             getFcmTokenAndInject();
@@ -45,49 +44,55 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void createNotificationChannel() {
-        Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (alarmSound == null) {
-            alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        }
-
-        long[] vibrationPattern = new long[]{
-            0, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000,
-            300, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000
-        };
-
-        NotificationChannelCompat channel = new NotificationChannelCompat.Builder(
-                CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
-                .setName("NCH Orders")
-                .setDescription("Order alerts that ring like an alarm")
-                .setSound(alarmSound, null)
-                .setVibrationEnabled(true)
-                .setVibrationPattern(vibrationPattern)
-                .build();
-
-        NotificationManagerCompat.from(this).createNotificationChannel(channel);
-
-        // Set bypass DND on the actual NotificationChannel (requires API 26+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            android.app.NotificationChannel nc =
-                    ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE))
-                            .getNotificationChannel(CHANNEL_ID);
-            if (nc != null) {
-                nc.setBypassDnd(true);
+            Uri alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (alarmSound == null) {
+                alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            }
+
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .build();
+
+            NotificationChannel orderChannel = new NotificationChannel(
+                    "nch_orders",
+                    "NCH Order Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            orderChannel.setDescription("Order alerts that ring like an alarm");
+            orderChannel.setSound(alarmSound, audioAttributes);
+            orderChannel.enableVibration(true);
+            orderChannel.setVibrationPattern(new long[]{
+                    0, 1000, 300, 1000, 300, 1000, 300, 1000, 300,
+                    1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000
+            });
+            orderChannel.setBypassDnd(true);
+            orderChannel.enableLights(true);
+            orderChannel.setLightColor(0xFFD4A44C);
+
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(orderChannel);
             }
         }
     }
 
     private void requestAllPermissions() {
-        // Notification permission (Android 13+)
+        // 1. Request POST_NOTIFICATIONS permission (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 100);
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_CODE);
+            }
         }
 
-        // Battery optimization exemption
+        // 2. Request battery optimization exemption
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
@@ -99,12 +104,18 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                WebView wv = getBridge().getWebView();
-                if (wv.canGoBack()) {
-                    wv.goBack();
+                WebView webView = getBridge().getWebView();
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
                 } else {
-                    // At hub — minimize app instead of closing
-                    moveTaskToBack(true);
+                    String url = webView != null ? webView.getUrl() : "";
+                    if (url != null && (url.endsWith("/ops/") || url.endsWith("/ops"))) {
+                        moveTaskToBack(true);
+                    } else {
+                        if (webView != null) {
+                            webView.loadUrl("https://nawabichaihouse.com/ops/");
+                        }
+                    }
                 }
             }
         });
@@ -117,59 +128,50 @@ public class MainActivity extends BridgeActivity {
                         Log.w(TAG, "FCM token fetch failed", task.getException());
                         return;
                     }
-                    fcmToken = task.getResult();
-                    Log.d(TAG, "FCM Token: " + fcmToken);
+                    String token = task.getResult();
+                    Log.d(TAG, "FCM Token: " + token);
 
-                    // Store in SharedPreferences
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                            .putString("fcm_token", fcmToken).apply();
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().putString("fcm_token", token).apply();
 
-                    // Inject into WebView
-                    WebView wv = getBridge().getWebView();
-                    wv.post(() -> {
-                        String js = "window.nativeFcmToken='" + fcmToken.replace("'", "\\'") + "';" +
-                                "window.dispatchEvent(new CustomEvent('fcmTokenReady',{detail:'" +
-                                fcmToken.replace("'", "\\'") + "'}));";
-                        wv.evaluateJavascript(js, null);
+                    runOnUiThread(() -> {
+                        WebView webView = getBridge().getWebView();
+                        if (webView != null) {
+                            webView.evaluateJavascript(
+                                    "window.nativeFcmToken = '" + token + "';" +
+                                    "window.dispatchEvent(new CustomEvent('fcmTokenReady', { detail: '" + token + "' }));",
+                                    null
+                            );
+                        }
                     });
                 });
     }
 
     private void exposeJsBridge() {
-        getBridge().getWebView().addJavascriptInterface(new NCHJsBridge(), "NCHNative");
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            webView.addJavascriptInterface(new NCHJsBridge(), "NCHNative");
+            Log.d(TAG, "NCHNative JS bridge injected");
+        } else {
+            Log.w(TAG, "WebView not ready for JS bridge injection");
+        }
     }
 
-    class NCHJsBridge {
+    public class NCHJsBridge {
         @JavascriptInterface
-        public String getFcmToken() {
-            if (!fcmToken.isEmpty()) return fcmToken;
-            return getSharedPreferences(PREFS, MODE_PRIVATE).getString("fcm_token", "");
-        }
-
-        @JavascriptInterface
-        public void setAuthInfo(String token, String staffId) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .putString("auth_token", token)
+        public void setAuthInfo(String authToken, String staffId) {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            prefs.edit()
+                    .putString("auth_token", authToken)
                     .putString("staff_id", staffId)
                     .apply();
+            Log.d(TAG, "Auth info saved for staff: " + staffId);
         }
 
         @JavascriptInterface
-        public String getAuthToken() {
-            return getSharedPreferences(PREFS, MODE_PRIVATE).getString("auth_token", "");
-        }
-
-        @JavascriptInterface
-        public String getStaffId() {
-            return getSharedPreferences(PREFS, MODE_PRIVATE).getString("staff_id", "");
-        }
-
-        @JavascriptInterface
-        public void clearAuth() {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .remove("auth_token")
-                    .remove("staff_id")
-                    .apply();
+        public String getFcmToken() {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            return prefs.getString("fcm_token", "");
         }
     }
 }
