@@ -25,7 +25,7 @@ export async function onRequest(context) {
     '3678': {name: 'Farooq', role: 'runner', is_admin: false},
     '4421': {name: 'Amin', role: 'runner', is_admin: false},
     '2026': {name: 'Zoya', role: 'manager', is_admin: true},
-    '3697': {name: 'Yashwant', role: 'staff', is_admin: false},
+    '3697': {name: 'Yashwant', role: 'admin', is_admin: true},
     '8241': {name: 'Nafees', role: 'staff', is_admin: false},
     '8523': {name: 'Basheer', role: 'cashier', is_admin: false},
     '5503': {name: 'NCH Runner 03', role: 'runner', is_admin: false},
