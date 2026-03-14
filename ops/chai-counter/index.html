@@ -296,6 +296,75 @@
     .total-row.haleem-total .total-label { color: var(--text); }
     .total-row.haleem-total .total-value { color: var(--haleem); }
 
+    /* ── Hourly Breakdown ── */
+    .hourly-section {
+      margin-bottom: 16px;
+    }
+    .hourly-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hourly-title .ht-icon { font-size: 18px; }
+    .hourly-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hour-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+    }
+    .hour-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      width: 52px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .hour-bar-wrap {
+      flex: 1;
+      height: 22px;
+      background: rgba(255,255,255,.04);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hour-bar {
+      height: 100%;
+      border-radius: 6px;
+      min-width: 2px;
+      transition: width .4s ease;
+    }
+    .hour-bar.chai-bar { background: var(--chai); }
+    .hour-bar.haleem-bar { background: var(--haleem); }
+    .hour-qty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      width: 32px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .hour-qty.chai-qty { color: var(--chai); }
+    .hour-qty.haleem-qty { color: var(--haleem); }
+    .hour-row.empty .hour-label { color: var(--muted); opacity: .5; }
+    .hour-row.empty .hour-qty { color: var(--muted); opacity: .5; }
+    .hourly-empty {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      padding: 16px 0;
+    }
+
     /* ── Last Updated ── */
     .footer {
       text-align: center;
@@ -401,6 +470,11 @@
       <div class="total-value" id="totalCount">—</div>
     </div>
 
+    <div class="hourly-section" id="chaiHourlySection" style="display:none;">
+      <div class="hourly-title"><span class="ht-icon">🍵</span> Chai — Hour by Hour</div>
+      <div class="hourly-rows" id="chaiHourlyRows"></div>
+    </div>
+
     <div class="section-divider">
       <div class="line"></div>
       <div class="label">🍲 Haleem</div>
@@ -433,6 +507,11 @@
     <div class="total-row haleem-total">
       <div class="total-label">🍲 Total Haleem</div>
       <div class="total-value" id="haleemTotal">—</div>
+    </div>
+
+    <div class="hourly-section" id="haleemHourlySection" style="display:none;">
+      <div class="hourly-title"><span class="ht-icon">🍲</span> Haleem — Hour by Hour</div>
+      <div class="hourly-rows" id="haleemHourlyRows"></div>
     </div>
 
     <div class="footer">
@@ -685,9 +764,64 @@
       animateCount('haleemMutton', hMutton);
       animateCount('haleemTotal', haleemTotal);
 
+      // Hourly breakdowns from productHourly
+      const ph = data.productHourly || {};
+      // Chai hourly: combine product IDs 1028 (Irani Chai)
+      const chaiHourly = ph[1028] || {};
+      renderHourlyBars('chaiHourlySection', 'chaiHourlyRows', chaiHourly, 'chai');
+
+      // Haleem hourly: combine all haleem product IDs
+      const haleemHourly = {};
+      [1395, 1396, 1397, 1398, 1400].forEach(pid => {
+        const h = ph[pid] || {};
+        Object.keys(h).forEach(hr => {
+          haleemHourly[hr] = (haleemHourly[hr] || 0) + h[hr];
+        });
+      });
+      renderHourlyBars('haleemHourlySection', 'haleemHourlyRows', haleemHourly, 'haleem');
+
       // Last updated
       const now = new Date();
       $('lastUpdated').textContent = fmtTime(now);
+    }
+
+    // ── Render Hourly Bars ──
+    function renderHourlyBars(sectionId, containerId, hourlyMap, type) {
+      const section = $(sectionId);
+      const container = $(containerId);
+
+      // Build array of hours that have data
+      const entries = [];
+      let maxQty = 0;
+      for (let h = 0; h <= 23; h++) {
+        const qty = hourlyMap[h] || 0;
+        if (qty > 0) {
+          entries.push({ hour: h, qty });
+          if (qty > maxQty) maxQty = qty;
+        }
+      }
+
+      if (entries.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      const barClass = type === 'chai' ? 'chai-bar' : 'haleem-bar';
+      const qtyClass = type === 'chai' ? 'chai-qty' : 'haleem-qty';
+
+      let html = '';
+      entries.forEach(e => {
+        const pct = maxQty > 0 ? Math.round((e.qty / maxQty) * 100) : 0;
+        const label = e.hour === 0 ? '12 AM' : e.hour === 12 ? '12 PM' : e.hour > 12 ? (e.hour - 12) + ' PM' : e.hour + ' AM';
+        html += '<div class="hour-row">' +
+          '<div class="hour-label">' + label + '</div>' +
+          '<div class="hour-bar-wrap"><div class="hour-bar ' + barClass + '" style="width:' + pct + '%"></div></div>' +
+          '<div class="hour-qty ' + qtyClass + '">' + e.qty + '</div>' +
+          '</div>';
+      });
+
+      container.innerHTML = html;
     }
 
     // ── Animate Counter ──

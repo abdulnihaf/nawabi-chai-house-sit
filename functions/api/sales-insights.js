@@ -136,8 +136,8 @@ function processInsights(orders, orderLines) {
     }
   });
 
-  // Second pass for runner product breakdown — needed because runnerSales entries
-  // are created in the orders loop above, but orderLines loop needs them to exist
+  // Second pass for runner product breakdown + per-product hourly data
+  const productHourly = {};
   orderLines.forEach(line => {
     const orderId = line.order_id ? line.order_id[0] : null;
     const order = orderId ? orderMap[orderId] : null;
@@ -148,6 +148,15 @@ function processInsights(orders, orderLines) {
         if (!runnerSales[partnerId].products[pname]) runnerSales[partnerId].products[pname] = 0;
         runnerSales[partnerId].products[pname] += line.qty;
       }
+
+      // Per-product hourly breakdown
+      const pid = line.product_id ? line.product_id[0] : 0;
+      const orderDate = order.date_order ? new Date(order.date_order.replace(' ', 'T') + 'Z') : null;
+      const istTime = orderDate ? new Date(orderDate.getTime() + 5.5 * 60 * 60 * 1000) : null;
+      const istHour = istTime ? istTime.getUTCHours() : 0;
+      if (!productHourly[pid]) productHourly[pid] = {};
+      if (!productHourly[pid][istHour]) productHourly[pid][istHour] = 0;
+      productHourly[pid][istHour] += line.qty;
     }
   });
 
@@ -176,6 +185,7 @@ function processInsights(orders, orderLines) {
     products: productList,
     channels: {cashCounter: {...channelSales.cashCounter, percentage: totalRevenue > 0 ? Math.round((channelSales.cashCounter.amount / totalRevenue) * 100) : 0}, runners: {...channelSales.runners, percentage: totalRevenue > 0 ? Math.round((channelSales.runners.amount / totalRevenue) * 100) : 0}},
     runners: runnerList,
-    hourly: hourlyArray
+    hourly: hourlyArray,
+    productHourly
   };
 }
