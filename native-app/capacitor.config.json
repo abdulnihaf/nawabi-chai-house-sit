@@ -1,0 +1,9 @@
+{
+  "appId": "com.nawabichai.ops",
+  "appName": "NCH Ops",
+  "webDir": "dist",
+  "server": {
+    "url": "https://nawabichaihouse.com/ops/",
+    "cleartext": false
+  }
+}

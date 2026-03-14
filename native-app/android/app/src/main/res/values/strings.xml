@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NCH Ops</string>
+    <string name="title_activity_main">NCH Ops</string>
+    <string name="package_name">com.nawabichai.ops</string>
+    <string name="custom_url_scheme">com.nawabichai.ops</string>
+</resources>
