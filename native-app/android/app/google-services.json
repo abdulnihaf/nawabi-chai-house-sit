@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "347929491697",
+    "project_id": "nawabi-chai-house-477ac",
+    "storage_bucket": "nawabi-chai-house-477ac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347929491697:android:73ef71810d1a3b4eaa1150",
+        "android_client_info": {
+          "package_name": "com.nawabichai.ops"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhJ0rYDvR56PCLFRWOiIvS39dYUNS1cec"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

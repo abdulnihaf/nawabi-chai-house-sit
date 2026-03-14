@@ -1,0 +1,19 @@
+{
+  "appId": "com.nawabichai.ops",
+  "appName": "NCH Ops",
+  "webDir": "www",
+  "server": {
+    "url": "https://nawabichaihouse.com/ops/",
+    "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#D4A44C",
+      "sound": "alarm.wav"
+    }
+  }
+}
