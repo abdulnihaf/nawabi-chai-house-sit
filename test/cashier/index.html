@@ -645,9 +645,9 @@ function renderErrorCard(err, idx, runnerId) {
       <div class="ec-actions">
         <select id="fix-action-${runnerId}-${idx}" onchange="onFixActionChange(${runnerId}, ${idx})">
           <option value="">Choose fix...</option>
-          <option value="assign_runner">Assign to runner</option>
-          <option value="change_payment">Change payment method</option>
-          <option value="dismiss">Dismiss</option>
+          <option value="remove_runner">Remove runner</option>
+          <option value="assign_runner">Assign to correct runner</option>
+          <option value="change_method">Change payment method</option>
         </select>
       </div>
       <div id="fix-extra-${runnerId}-${idx}"></div>
@@ -659,29 +659,29 @@ function onFixActionChange(runnerId, idx) {
   const action = $('fix-action-' + runnerId + '-' + idx).value;
   const extraEl = $('fix-extra-' + runnerId + '-' + idx);
 
-  if (action === 'assign_runner') {
+  if (action === 'remove_runner') {
+    extraEl.innerHTML = `
+      <div class="ec-actions" style="margin-top:8px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">This removes the runner from the order in Odoo. Use when a runner was accidentally left selected.</div>
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Remove Runner & Fix</button>
+      </div>
+    `;
+  } else if (action === 'assign_runner') {
     extraEl.innerHTML = `
       <div class="ec-actions" style="margin-top:8px">
         <select id="fix-data-${runnerId}-${idx}">
           ${RUNNERS.map(r => `<option value="${r.code}">${r.name} (${r.code})</option>`).join('')}
         </select>
-        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Fix</button>
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Assign & Fix</button>
       </div>
     `;
-  } else if (action === 'change_payment') {
+  } else if (action === 'change_method') {
     extraEl.innerHTML = `
       <div class="ec-actions" style="margin-top:8px">
         <select id="fix-data-${runnerId}-${idx}">
           ${PAYMENT_METHODS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
         </select>
-        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Fix</button>
-      </div>
-    `;
-  } else if (action === 'dismiss') {
-    extraEl.innerHTML = `
-      <input class="dismiss-input" id="fix-data-${runnerId}-${idx}" placeholder="Reason for dismissing..." />
-      <div class="ec-actions" style="margin-top:8px">
-        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Dismiss</button>
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Change & Fix</button>
       </div>
     `;
   } else {
@@ -698,11 +698,20 @@ async function applyFix(runnerId, idx) {
   if (!err) return;
 
   const fixAction = $('fix-action-' + runnerId + '-' + idx).value;
-  const fixDataEl = $('fix-data-' + runnerId + '-' + idx);
-  const fixData = fixDataEl ? fixDataEl.value : '';
-
   if (!fixAction) { toast('Choose a fix action', 'err'); return; }
-  if (fixAction === 'dismiss' && !fixData.trim()) { toast('Enter a reason', 'err'); return; }
+
+  // Build fix_data based on action type
+  let fixData = {};
+  if (fixAction === 'assign_runner') {
+    const el = $('fix-data-' + runnerId + '-' + idx);
+    if (!el) return;
+    fixData = { runner_slot: el.value };
+  } else if (fixAction === 'change_method') {
+    const el = $('fix-data-' + runnerId + '-' + idx);
+    if (!el) return;
+    fixData = { payment_method_id: parseInt(el.value), payment_id: err.payment_method_id ? err.id : null };
+  }
+  // remove_runner needs no extra data
 
   const card = $('ec-' + runnerId + '-' + idx);
   if (card) card.style.opacity = '0.5';
@@ -713,7 +722,7 @@ async function applyFix(runnerId, idx) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pin: currentPin,
-        error_id: err.id || err.error_id,
+        error_id: err.id,
         fix_action: fixAction,
         fix_data: fixData
       })
@@ -721,7 +730,7 @@ async function applyFix(runnerId, idx) {
     const data = await res.json();
 
     if (data.success) {
-      toast('Fixed!', 'ok');
+      toast(data.odoo_updated ? 'Fixed in Odoo!' : 'Fixed!', 'ok');
       // Reload runner data
       await loadRunnerLive(runnerId);
       renderRunnerPanel(runnerId);

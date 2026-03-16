@@ -23,7 +23,27 @@ for (const [slot, info] of Object.entries(STAFF_SLOTS)) {
 
 const CAN_FIX_ERRORS = new Set(['cashier', 'admin', 'gm']);
 const CAN_RECORD_EXPENSE = new Set(['cashier', 'admin', 'gm']);
-const VALID_FIX_ACTIONS = new Set(['assign_runner', 'change_method', 'dismiss']);
+const VALID_FIX_ACTIONS = new Set(['remove_runner', 'assign_runner', 'change_method']);
+
+// Odoo connection (same as validator.js)
+const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+const ODOO_DB = 'main';
+const ODOO_UID = 2;
+
+// Payment method IDs + POS config IDs (mirrored from validator)
+const PM = { CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMP: 49 };
+const POS = { CASH_COUNTER: 27, RUNNER_COUNTER: 28 };
+const VALID_RUNNER_IDS = new Set([64, 65, 66, 67, 68]);
+
+// The 15 valid (M, W, R) tuples — SAME as validator.js
+const VALID_MWR = new Set([
+  '37:27:0', '38:27:0', '39:27:0', '49:27:0',           // Counter, no runner
+  '48:27:64', '48:27:65', '48:27:66', '48:27:67', '48:27:68', // Token Issue + runner
+  '40:28:64', '40:28:65', '40:28:66', '40:28:67', '40:28:68', // Runner Ledger + runner
+  '38:28:0'                                                // UPI on Runner Counter, no runner
+]);
+
+const PM_NAMES = { 37: 'Cash', 38: 'UPI', 39: 'Card', 40: 'Runner Ledger', 48: 'Token Issue', 49: 'Comp' };
 
 // Cash collection: only these people can take cash from counter
 // Naveen = final destination. Others collect "in transit" until Naveen confirms.
@@ -71,44 +91,129 @@ export async function onRequest(context) {
 async function fixError(context, DB, cors) {
   const body = await context.request.json();
   const {pin, error_id, fix_action, fix_data} = body;
+  const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
+  // 1. Auth
   const staff = verifyPin(pin);
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
-  if (!CAN_FIX_ERRORS.has(staff.role)) return json({success: false, error: 'Only cashier or admin can fix errors'}, cors, 403);
-  if (!VALID_FIX_ACTIONS.has(fix_action)) return json({success: false, error: `Invalid fix_action: ${fix_action}`}, cors, 400);
+  if (!CAN_FIX_ERRORS.has(staff.role)) return json({success: false, error: 'Only cashier/admin/GM can fix errors'}, cors, 403);
+  if (!VALID_FIX_ACTIONS.has(fix_action)) return json({success: false, error: `Invalid action. Use: remove_runner, assign_runner, change_method`}, cors, 400);
 
+  // 2. Error must exist and be pending
   const err = await DB.prepare('SELECT * FROM validation_errors WHERE id = ?').bind(error_id).first();
   if (!err) return json({success: false, error: 'Error not found'}, cors, 404);
   if (err.status !== 'pending') return json({success: false, error: `Error already ${err.status}`}, cors, 400);
 
-  const now = new Date().toISOString();
-  const beforeState = err.status;
-  let impactDesc = '';
+  const data = typeof fix_data === 'string' ? JSON.parse(fix_data) : (fix_data || {});
+  let odooWrite = null;   // What to write to Odoo
+  let impactDesc = '';     // Audit trail description
+  let expectedMWR = null;  // What the tuple SHOULD become after fix
 
-  if (fix_action === 'assign_runner') {
-    const data = typeof fix_data === 'string' ? JSON.parse(fix_data) : fix_data;
-    const runnerSlot = data?.runner_slot;
-    if (!runnerSlot || !STAFF_SLOTS[runnerSlot] || STAFF_SLOTS[runnerSlot].role !== 'runner') {
-      return json({success: false, error: 'Invalid runner_slot'}, cors, 400);
+  // 3. Determine fix and PRE-VALIDATE it produces a valid tuple
+  if (fix_action === 'remove_runner') {
+    // Removing runner → partner_id becomes false (0)
+    // New tuple: method:pos:0 — must be in VALID_MWR
+    expectedMWR = `${err.payment_method_id}:${err.pos_config_id}:0`;
+    if (!VALID_MWR.has(expectedMWR)) {
+      return json({
+        success: false,
+        error: `Removing runner would create invalid combo: ${PM_NAMES[err.payment_method_id] || err.payment_method_id} + POS ${err.pos_config_id} + No Runner. Not allowed.`
+      }, cors, 400);
     }
-    impactDesc = `Assigned to ${runnerSlot} (${STAFF_SLOTS[runnerSlot].person})`;
-  } else if (fix_action === 'change_method') {
-    const data = typeof fix_data === 'string' ? JSON.parse(fix_data) : fix_data;
-    impactDesc = `Changed payment method: ${JSON.stringify(data)}`;
-  } else if (fix_action === 'dismiss') {
-    const data = typeof fix_data === 'string' ? JSON.parse(fix_data) : (fix_data || {});
-    impactDesc = `Dismissed: ${data.reason || 'no reason provided'}`;
+    odooWrite = { model: 'pos.order', id: err.order_id, values: { partner_id: false } };
+    impactDesc = `Removed runner (was ${err.runner_slot || 'partner ' + err.runner_partner_id}). Order ${err.order_ref}`;
   }
 
+  else if (fix_action === 'assign_runner') {
+    // Assigning a runner → partner_id becomes runner's partner_id
+    const runnerSlot = data.runner_slot;
+    if (!runnerSlot || !STAFF_SLOTS[runnerSlot] || STAFF_SLOTS[runnerSlot].role !== 'runner') {
+      return json({success: false, error: 'Invalid runner_slot. Use RUN001-RUN005.'}, cors, 400);
+    }
+    const runnerId = STAFF_SLOTS[runnerSlot].partner_id;
+    expectedMWR = `${err.payment_method_id}:${err.pos_config_id}:${runnerId}`;
+    if (!VALID_MWR.has(expectedMWR)) {
+      return json({
+        success: false,
+        error: `Assigning ${runnerSlot} would create invalid combo: ${PM_NAMES[err.payment_method_id] || err.payment_method_id} + POS ${err.pos_config_id} + ${runnerSlot}. Not allowed.`
+      }, cors, 400);
+    }
+    odooWrite = { model: 'pos.order', id: err.order_id, values: { partner_id: runnerId } };
+    impactDesc = `Assigned to ${runnerSlot} (${STAFF_SLOTS[runnerSlot].person}, partner_id=${runnerId}). Order ${err.order_ref}`;
+  }
+
+  else if (fix_action === 'change_method') {
+    // Changing payment method → must result in valid MWR tuple
+    const newMethodId = parseInt(data.payment_method_id);
+    if (!PM_NAMES[newMethodId]) {
+      return json({success: false, error: `Invalid payment method ID: ${data.payment_method_id}. Valid: ${Object.entries(PM_NAMES).map(([k,v]) => k+'='+v).join(', ')}`}, cors, 400);
+    }
+    // Payment ID needed to write to pos.payment
+    const paymentId = parseInt(data.payment_id);
+    if (!paymentId) {
+      return json({success: false, error: 'payment_id required for change_method'}, cors, 400);
+    }
+    const runnerKey = VALID_RUNNER_IDS.has(err.runner_partner_id) ? err.runner_partner_id : 0;
+    expectedMWR = `${newMethodId}:${err.pos_config_id}:${runnerKey}`;
+    if (!VALID_MWR.has(expectedMWR)) {
+      return json({
+        success: false,
+        error: `Changing to ${PM_NAMES[newMethodId]} would create invalid combo: ${PM_NAMES[newMethodId]} + POS ${err.pos_config_id} + ${runnerKey ? 'Runner ' + runnerKey : 'No Runner'}. Not allowed.`
+      }, cors, 400);
+    }
+    odooWrite = { model: 'pos.payment', id: paymentId, values: { payment_method_id: newMethodId } };
+    impactDesc = `Changed payment ${PM_NAMES[err.payment_method_id] || err.payment_method_id} → ${PM_NAMES[newMethodId]}. Order ${err.order_ref}`;
+  }
+
+  // 4. Write to Odoo — this is the actual fix at the source
+  if (!ODOO_API_KEY) return json({success: false, error: 'ODOO_API_KEY not configured'}, cors, 500);
+
+  try {
+    const writeRes = await fetch(ODOO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', method: 'call',
+        params: {
+          service: 'object', method: 'execute_kw',
+          args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, odooWrite.model, 'write', [[odooWrite.id], odooWrite.values]]
+        },
+        id: Date.now()
+      })
+    });
+    const writeData = await writeRes.json();
+    if (writeData.error) {
+      return json({
+        success: false,
+        error: `Odoo write failed: ${writeData.error.data?.message || writeData.error.message}`,
+        odoo_error: writeData.error
+      }, cors, 500);
+    }
+    if (writeData.result !== true) {
+      return json({success: false, error: 'Odoo write returned unexpected result', result: writeData.result}, cors, 500);
+    }
+  } catch (e) {
+    return json({success: false, error: `Odoo connection failed: ${e.message}`}, cors, 500);
+  }
+
+  // 5. Odoo write succeeded → mark resolved in D1 + audit log
+  const now = new Date().toISOString();
   await DB.batch([
     DB.prepare(`UPDATE validation_errors SET status = 'rectified', rectified_by = ?, rectified_at = ?, rectification_action = ? WHERE id = ?`)
       .bind(staff.slot, now, fix_action, error_id),
     DB.prepare(`INSERT INTO rectification_log (ref_type, ref_id, action_type, before_state, after_state, impact_description, performed_by, performed_by_name, pin_verified, performed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
-      .bind('validation_error', error_id, fix_action, beforeState, 'rectified', impactDesc, staff.slot, staff.name, now)
+      .bind('validation_error', error_id, fix_action, 'pending', 'rectified', impactDesc + ` | Odoo ${odooWrite.model}#${odooWrite.id} updated | Expected tuple: ${expectedMWR}`, staff.slot, staff.name, now)
   ]);
 
   const updated = await DB.prepare('SELECT * FROM validation_errors WHERE id = ?').bind(error_id).first();
-  return json({success: true, error: updated}, cors);
+  return json({
+    success: true,
+    fixed: true,
+    odoo_updated: true,
+    expected_tuple: expectedMWR,
+    tuple_valid: VALID_MWR.has(expectedMWR),
+    error: updated
+  }, cors);
 }
 
 async function getRunnerErrors(url, DB, cors) {
