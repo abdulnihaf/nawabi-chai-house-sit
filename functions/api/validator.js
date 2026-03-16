@@ -119,11 +119,11 @@ export async function onRequest(context) {
         errors.push(...orderErrors);
       }
 
-      // Write errors to D1
+      // Write errors to D1 — batch all inserts
       let written = 0;
-      for (const err of errors) {
-        try {
-          await DB.prepare(`
+      if (errors.length > 0) {
+        const stmts = errors.map(err =>
+          DB.prepare(`
             INSERT OR IGNORE INTO validation_errors
             (order_id, order_ref, error_code, description, pos_config_id, pos_config_name,
              payment_method_id, payment_method_name, runner_partner_id, runner_slot,
@@ -138,11 +138,10 @@ export async function onRequest(context) {
             JSON.stringify(err.product_ids), JSON.stringify(err.product_names),
             err.cashier_uid, err.cashier_name, err.order_amount, err.order_time,
             err.assigned_to, err.assigned_role
-          ).run();
-          written++;
-        } catch (e) {
-          // Duplicate — already recorded
-        }
+          )
+        );
+        const results = await DB.batch(stmts);
+        written = results.filter(r => r.meta?.changes > 0).length;
       }
 
       return json({
@@ -306,11 +305,11 @@ export async function onRequest(context) {
         }
       }
 
-      // Write to D1
+      // Write to D1 — batch all inserts in one call
       let written = 0;
-      for (const err of allErrors) {
-        try {
-          await DB.prepare(`
+      if (allErrors.length > 0) {
+        const stmts = allErrors.map(err =>
+          DB.prepare(`
             INSERT OR IGNORE INTO validation_errors
             (order_id, order_ref, error_code, description, pos_config_id, pos_config_name,
              payment_method_id, payment_method_name, runner_partner_id, runner_slot,
@@ -325,9 +324,10 @@ export async function onRequest(context) {
             JSON.stringify(err.product_ids), JSON.stringify(err.product_names),
             err.cashier_uid, err.cashier_name, err.order_amount, err.order_time,
             err.assigned_to, err.assigned_role
-          ).run();
-          written++;
-        } catch (e) { /* duplicate */ }
+          )
+        );
+        const results = await DB.batch(stmts);
+        written = results.filter(r => r.meta?.changes > 0).length;
       }
 
       return json({
@@ -599,73 +599,114 @@ async function fetchOdooOrders(apiKey, from, to) {
   ];
   if (toUtc) domain.push(['date_order', '<=', toUtc]);
 
+  // 1. Fetch all orders (1 call)
   const orders = await odooRpc(apiKey, 'pos.order', 'search_read', domain, [
     'id', 'name', 'pos_reference', 'date_order', 'amount_total',
     'config_id', 'partner_id', 'user_id', 'session_id',
     'payment_ids', 'lines'
   ]);
 
-  // Enrich with payment details and line items
-  const enriched = [];
-  for (const order of orders) {
-    const configId = order.config_id?.[0] || order.config_id;
-    const partnerId = order.partner_id?.[0] || order.partner_id || null;
-    const userId = order.user_id?.[0] || order.user_id;
-    const userName = order.user_id?.[1] || null;
+  if (!orders.length) return [];
 
-    // Fetch payment lines
-    let payments = [];
-    if (order.payment_ids?.length > 0) {
-      const paymentData = await odooRpc(apiKey, 'pos.payment', 'search_read',
-        [['id', 'in', order.payment_ids]],
-        ['id', 'amount', 'payment_method_id']
-      );
-      payments = paymentData.map(p => ({
+  // 2. Collect ALL payment IDs and line IDs across all orders
+  const allPaymentIds = [];
+  const allLineIds = [];
+  for (const order of orders) {
+    if (order.payment_ids?.length) allPaymentIds.push(...order.payment_ids);
+    if (order.lines?.length) allLineIds.push(...order.lines);
+  }
+
+  // 3. Batch fetch all payments in ONE call
+  const paymentMap = {};
+  if (allPaymentIds.length > 0) {
+    const paymentData = await odooRpc(apiKey, 'pos.payment', 'search_read',
+      [['id', 'in', allPaymentIds]],
+      ['id', 'amount', 'payment_method_id'],
+      allPaymentIds.length
+    );
+    for (const p of paymentData) {
+      paymentMap[p.id] = {
         id: p.id,
         amount: p.amount,
         method_id: p.payment_method_id?.[0] || p.payment_method_id,
         method_name: p.payment_method_id?.[1] || null
-      }));
+      };
     }
+  }
 
-    // Fetch order lines
-    let lines = [];
-    if (order.lines?.length > 0) {
-      const lineData = await odooRpc(apiKey, 'pos.order.line', 'search_read',
-        [['id', 'in', order.lines]],
-        ['id', 'product_id', 'qty', 'price_subtotal_incl', 'full_product_name']
-      );
-      lines = lineData.map(l => ({
+  // 4. Batch fetch all lines in ONE call
+  const lineMap = {};
+  if (allLineIds.length > 0) {
+    const lineData = await odooRpc(apiKey, 'pos.order.line', 'search_read',
+      [['id', 'in', allLineIds]],
+      ['id', 'product_id', 'qty', 'price_subtotal_incl', 'full_product_name'],
+      allLineIds.length
+    );
+    for (const l of lineData) {
+      lineMap[l.id] = {
         id: l.id,
         product_id: l.product_id?.[0] || l.product_id,
         product_name: l.full_product_name || l.product_id?.[1] || null,
         qty: l.qty,
         amount: l.price_subtotal_incl
-      }));
+      };
     }
-
-    enriched.push({
-      id: order.id,
-      name: order.name,
-      pos_reference: order.pos_reference,
-      date_order: order.date_order,
-      amount_total: order.amount_total,
-      config_id: configId,
-      partner_id: partnerId,
-      user_id: userId,
-      cashier_name: userName,
-      payments,
-      lines
-    });
   }
 
-  return enriched;
+  // 5. Assemble enriched orders from maps (0 additional calls)
+  return orders.map(order => ({
+    id: order.id,
+    name: order.name,
+    pos_reference: order.pos_reference,
+    date_order: order.date_order,
+    amount_total: order.amount_total,
+    config_id: order.config_id?.[0] || order.config_id,
+    partner_id: order.partner_id?.[0] || order.partner_id || null,
+    user_id: order.user_id?.[0] || order.user_id,
+    cashier_name: order.user_id?.[1] || null,
+    payments: (order.payment_ids || []).map(id => paymentMap[id]).filter(Boolean),
+    lines: (order.lines || []).map(id => lineMap[id]).filter(Boolean)
+  }));
 }
 
 async function fetchOdooOrderById(apiKey, orderId) {
-  return fetchOdooOrders(apiKey, '2020-01-01 00:00:00').then(orders =>
-    orders.filter(o => o.id === orderId)
+  // Fetch just this one order directly by ID
+  const orders = await odooRpc(apiKey, 'pos.order', 'search_read',
+    [['id', '=', orderId]],
+    ['id', 'name', 'pos_reference', 'date_order', 'amount_total',
+     'config_id', 'partner_id', 'user_id', 'session_id',
+     'payment_ids', 'lines'],
+    1
   );
+  if (!orders.length) return [];
+
+  const order = orders[0];
+  const allPaymentIds = order.payment_ids || [];
+  const allLineIds = order.lines || [];
+
+  let payments = [];
+  if (allPaymentIds.length) {
+    const pd = await odooRpc(apiKey, 'pos.payment', 'search_read',
+      [['id', 'in', allPaymentIds]], ['id', 'amount', 'payment_method_id'], allPaymentIds.length);
+    payments = pd.map(p => ({ id: p.id, amount: p.amount, method_id: p.payment_method_id?.[0] || p.payment_method_id, method_name: p.payment_method_id?.[1] || null }));
+  }
+
+  let lines = [];
+  if (allLineIds.length) {
+    const ld = await odooRpc(apiKey, 'pos.order.line', 'search_read',
+      [['id', 'in', allLineIds]], ['id', 'product_id', 'qty', 'price_subtotal_incl', 'full_product_name'], allLineIds.length);
+    lines = ld.map(l => ({ id: l.id, product_id: l.product_id?.[0] || l.product_id, product_name: l.full_product_name || l.product_id?.[1] || null, qty: l.qty, amount: l.price_subtotal_incl }));
+  }
+
+  return [{
+    id: order.id, name: order.name, pos_reference: order.pos_reference,
+    date_order: order.date_order, amount_total: order.amount_total,
+    config_id: order.config_id?.[0] || order.config_id,
+    partner_id: order.partner_id?.[0] || order.partner_id || null,
+    user_id: order.user_id?.[0] || order.user_id,
+    cashier_name: order.user_id?.[1] || null,
+    payments, lines
+  }];
 }
 
 // ============================================================
