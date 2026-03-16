@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Admin Overview</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* PIN Screen */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:24px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-field{width:100%;padding:16px;font-size:24px;text-align:center;letter-spacing:12px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-family:'JetBrains Mono',monospace;outline:none;transition:border .2s}
+    .pin-field:focus{border-color:var(--purple)}
+    .pin-field::placeholder{letter-spacing:4px;font-size:16px;color:var(--text2)}
+    .pin-error{color:var(--red);margin-top:12px;font-size:13px;min-height:20px}
+    .pin-hint{color:var(--text2);margin-top:16px;font-size:12px}
+
+    /* Dashboard */
+    .dashboard{display:none;min-height:100vh}
+    .dashboard.show{display:block}
+
+    /* Header */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .header-left{display:flex;align-items:center;gap:12px}
+    .header-left h1{font-size:18px;font-weight:700}
+    .header-left h1::before{content:'';display:inline-block;width:4px;height:20px;background:var(--purple);border-radius:2px;margin-right:8px;vertical-align:middle}
+    .header-right{display:flex;align-items:center;gap:12px}
+    .user-pill{display:flex;align-items:center;gap:8px;background:var(--bg2);padding:6px 14px;border-radius:8px;font-size:13px}
+    .user-pill .dot{width:8px;height:8px;background:var(--green);border-radius:50%;flex-shrink:0}
+    .role-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--purple)}
+    .btn-sm{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;transition:all .2s}
+    .btn-sm:hover{border-color:var(--text2);color:var(--text)}
+    .refresh-hint{font-size:11px;color:var(--text2)}
+
+    /* Content */
+    .content{padding:20px;max-width:1200px;margin:0 auto}
+
+    /* Summary cards row */
+    .summary-row{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:24px;-webkit-overflow-scrolling:touch}
+    .summary-row::-webkit-scrollbar{height:4px}
+    .summary-row::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;min-width:180px;flex-shrink:0}
+    .summary-card .sc-label{font-size:12px;color:var(--text2);margin-bottom:6px;white-space:nowrap}
+    .summary-card .sc-value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sc-sub{font-size:11px;color:var(--text2);margin-top:4px}
+    .sc-green{color:var(--green)}
+    .sc-red{color:var(--red)}
+    .sc-blue{color:var(--blue)}
+    .sc-yellow{color:var(--yellow)}
+
+    /* Section */
+    .section{margin-bottom:28px}
+    .section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .section-hdr h2{font-size:16px;font-weight:600}
+    .section-hdr .badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(34,197,94,.15);color:var(--green)}
+    .section-hdr .badge.warn{background:rgba(239,68,68,.15);color:var(--red)}
+
+    /* Runner grid */
+    .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+    .runner-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:16px;transition:all .2s;position:relative}
+    .runner-card.clean{border-color:var(--green)}
+    .runner-card.errors{border-color:var(--yellow)}
+    .runner-card.shortage{border-color:var(--red)}
+    .runner-card .rc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+    .runner-card .rc-name{font-weight:600;font-size:15px}
+    .runner-card .rc-slot{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .runner-card .rc-err{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.2);color:var(--red)}
+    .runner-card .rc-cash{margin:8px 0}
+    .runner-card .rc-cash .label{font-size:12px;color:var(--text2)}
+    .runner-card .rc-cash .amount{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .runner-card .rc-status{font-size:12px;padding:6px 10px;border-radius:8px;background:var(--bg2);text-align:center}
+    .rc-status.settled{color:var(--green)}
+    .rc-status.pending{color:var(--text2)}
+
+    /* Error dashboard */
+    .error-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+    .error-section.hidden{display:none}
+    .err-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .err-header h3{font-size:16px;color:var(--red);display:flex;align-items:center;gap:8px}
+    .err-group{margin-bottom:16px}
+    .err-group-hdr{font-size:13px;font-weight:600;color:var(--text2);padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;display:flex;justify-content:space-between}
+    .err-item{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--bg2);margin-bottom:6px;gap:12px}
+    .err-item .err-desc{font-size:13px;flex:1;line-height:1.4}
+    .err-item .err-ref{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-top:2px}
+    .err-item .err-time{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+    .err-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+    .fix-btn{background:var(--purple);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+    .fix-btn:hover{opacity:.85}
+    .fix-btn:disabled{background:var(--border);cursor:not-allowed}
+
+    /* Error trends */
+    .error-trends{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .trend-chip{font-size:12px;padding:4px 10px;border-radius:6px;background:var(--bg2)}
+    .trend-chip.has-errors{color:var(--red)}
+    .trend-chip.no-errors{color:var(--green)}
+
+    /* Fix modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+    .modal-overlay.show{display:flex}
+    .modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:420px;width:100%}
+    .modal h3{font-size:18px;margin-bottom:4px}
+    .modal .modal-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
+    .modal label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px}
+    .modal select,.modal input,.modal textarea{width:100%;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;margin-bottom:14px;outline:none}
+    .modal select:focus,.modal input:focus,.modal textarea:focus{border-color:var(--purple)}
+    .modal textarea{resize:vertical;min-height:60px}
+    .modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+    .modal-btns .btn-cancel{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px}
+    .modal-btns .btn-fix{background:var(--green);color:#fff;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600}
+    .modal-btns .btn-fix:disabled{background:var(--border);cursor:not-allowed}
+
+    /* Expense log */
+    .expense-table{width:100%;border-collapse:collapse}
+    .expense-table th{font-size:11px;text-transform:uppercase;color:var(--text2);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600}
+    .expense-table td{font-size:13px;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .expense-table .exp-amount{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--orange)}
+    .expense-total{display:flex;justify-content:space-between;padding:12px 0;font-weight:600;border-top:2px solid var(--border);margin-top:4px}
+    .expense-total .amount{font-family:'JetBrains Mono',monospace;color:var(--orange);font-size:18px}
+
+    /* Settlement audit */
+    .audit-list{display:flex;flex-direction:column;gap:8px}
+    .audit-item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:10px}
+    .audit-item .ai-left{display:flex;flex-direction:column;gap:2px}
+    .audit-item .ai-name{font-weight:600;font-size:14px}
+    .audit-item .ai-meta{font-size:11px;color:var(--text2)}
+    .audit-item .ai-amount{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:16px}
+    .audit-item.has-shortage .ai-amount{color:var(--red)}
+
+    /* Empty state */
+    .empty{text-align:center;padding:32px;color:var(--text2);font-size:14px}
+
+    /* Loading */
+    .loading{text-align:center;color:var(--text2);padding:40px;font-size:14px}
+    .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Toast */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:12px 24px;border-radius:10px;font-size:13px;display:none;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+    .toast.show{display:block}
+    .toast.success{border-color:var(--green);color:var(--green)}
+    .toast.error{border-color:var(--red);color:var(--red)}
+
+    /* Responsive */
+    @media(max-width:640px){
+      .header{padding:12px 16px;flex-wrap:wrap;gap:8px}
+      .header-left h1{font-size:16px}
+      .content{padding:16px}
+      .summary-card{min-width:150px;padding:12px 16px}
+      .summary-card .sc-value{font-size:20px}
+      .runner-grid{grid-template-columns:1fr 1fr}
+      .err-item{flex-direction:column;gap:8px}
+      .err-actions{align-self:flex-end}
+      .expense-table{font-size:12px}
+      .expense-table th,.expense-table td{padding:6px 8px}
+    }
+    @media(max-width:420px){
+      .runner-grid{grid-template-columns:1fr}
+      .user-pill .name-text{display:none}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PIN Login -->
+  <div class="pin-screen" id="pinScreen">
+    <div class="pin-box">
+      <div class="icon">&#x1F6E1;</div>
+      <h2>Admin Overview</h2>
+      <p>Nawabi Chai House Management</p>
+      <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="pin-field" id="pinInput" placeholder="PIN" autofocus>
+      <div class="pin-error" id="pinError"></div>
+      <p class="pin-hint">GM / Supervisor / Manager / Admin only</p>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <h1>Admin Overview</h1>
+      </div>
+      <div class="header-right">
+        <span class="refresh-hint" id="refreshHint"></span>
+        <div class="user-pill">
+          <span class="dot"></span>
+          <span class="name-text" id="hdName"></span>
+          <span class="role-tag" id="hdRole"></span>
+        </div>
+        <button class="btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- A. Summary Cards -->
+      <div class="summary-row" id="summaryRow">
+        <div class="summary-card">
+          <div class="sc-label">Total Sales Today</div>
+          <div class="sc-value sc-green" id="sTotalSales">--</div>
+          <div class="sc-sub" id="sOrderCount"></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">Pending Errors</div>
+          <div class="sc-value" id="sPendingErrors">--</div>
+          <div class="sc-sub" id="sResolvedToday"></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">Runners Active</div>
+          <div class="sc-value sc-blue" id="sRunnersActive">--</div>
+          <div class="sc-sub">of 5 slots</div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">Expenses Today</div>
+          <div class="sc-value sc-yellow" id="sExpenses">--</div>
+          <div class="sc-sub" id="sExpenseCount"></div>
+        </div>
+      </div>
+
+      <!-- B. Runner Overview Grid -->
+      <div class="section">
+        <div class="section-hdr">
+          <h2>Runner Overview</h2>
+          <span class="badge" id="runnerBadge">All Clear</span>
+        </div>
+        <div class="runner-grid" id="runnerGrid">
+          <div class="loading"><span class="spinner"></span>Loading runners...</div>
+        </div>
+      </div>
+
+      <!-- C. Error Dashboard -->
+      <div class="section">
+        <div class="error-section" id="errorSection">
+          <div class="err-header">
+            <h3 id="errTitle">Loading errors...</h3>
+          </div>
+          <div id="errBody">
+            <div class="loading"><span class="spinner"></span>Loading...</div>
+          </div>
+          <div class="error-trends" id="errTrends"></div>
+        </div>
+      </div>
+
+      <!-- D. Expense Log -->
+      <div class="section">
+        <div class="section-hdr">
+          <h2>Expense Log</h2>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto">
+          <div id="expenseBody">
+            <div class="loading"><span class="spinner"></span>Loading expenses...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- E. Settlement Audit -->
+      <div class="section">
+        <div class="section-hdr">
+          <h2>Settlement Audit</h2>
+        </div>
+        <div id="auditBody">
+          <div class="loading"><span class="spinner"></span>Loading settlements...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fix Error Modal -->
+  <div class="modal-overlay" id="fixModal">
+    <div class="modal">
+      <h3>Fix Error</h3>
+      <p class="modal-sub" id="fixDesc"></p>
+      <label>Fix Action</label>
+      <select id="fixAction">
+        <option value="">Select action...</option>
+        <option value="reassign_runner">Reassign to correct runner</option>
+        <option value="dismiss">Dismiss (false positive)</option>
+        <option value="void_order">Void order</option>
+      </select>
+      <div id="fixRunnerSelect" style="display:none">
+        <label>Assign to Runner</label>
+        <select id="fixRunner">
+          <option value="64">Runner 01</option>
+          <option value="65">Runner 02</option>
+          <option value="66">Runner 03</option>
+          <option value="67">Runner 04</option>
+          <option value="68">Runner 05</option>
+        </select>
+      </div>
+      <label>Notes (optional)</label>
+      <textarea id="fixNotes" placeholder="Reason for fix..."></textarea>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeFixModal()">Cancel</button>
+        <button class="btn-fix" id="fixSubmitBtn" onclick="submitFix()">Apply Fix</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── State ──
+    let STATE = { pin: null, name: null, role: null, slot: null, canFix: false };
+    let REFRESH_TIMER = null;
+    let CURRENT_FIX_ERROR = null;
+
+    const RUNNER_NAMES = {
+      'RUN001': 'Runner 01', 'RUN002': 'Runner 02', 'RUN003': 'Runner 03',
+      'RUN004': 'Runner 04', 'RUN005': 'Runner 05'
+    };
+    const RUNNER_IDS = { 64: 'RUN001', 65: 'RUN002', 66: 'RUN003', 67: 'RUN004', 68: 'RUN005' };
+
+    // ── Helpers ──
+    function fmt(n) { return '₹' + (n || 0).toLocaleString('en-IN'); }
+    function fmtTime(iso) {
+      if (!iso) return '--';
+      const d = new Date(iso);
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    function todayIST() {
+      const now = new Date();
+      const ist = new Date(now.getTime() + (330 - now.getTimezoneOffset()) * 60000);
+      return ist.toISOString().slice(0, 10);
+    }
+    function todayStartIST() { return todayIST() + ' 00:00:00'; }
+
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show ' + type;
+      setTimeout(() => t.className = 'toast', 3000);
+    }
+
+    // ── PIN Login ──
+    const pinInput = document.getElementById('pinInput');
+    const pinError = document.getElementById('pinError');
+
+    pinInput.addEventListener('input', async () => {
+      pinError.textContent = '';
+      if (pinInput.value.length === 4) {
+        pinInput.disabled = true;
+        try {
+          const res = await fetch('/api/validator?action=login&pin=' + encodeURIComponent(pinInput.value));
+          const data = await res.json();
+          if (data.success) {
+            const allowed = ['admin', 'gm', 'supervisor', 'manager'];
+            if (!allowed.includes(data.role)) {
+              pinError.textContent = 'Access denied. Admin/GM/Supervisor/Manager only.';
+              pinInput.value = '';
+              pinInput.disabled = false;
+              pinInput.focus();
+              return;
+            }
+            STATE.pin = pinInput.value;
+            STATE.name = data.name;
+            STATE.role = data.role;
+            STATE.slot = data.slot;
+            STATE.canFix = ['admin', 'gm'].includes(data.role);
+            localStorage.setItem('nch_admin_session', JSON.stringify(STATE));
+            showDashboard();
+          } else {
+            pinError.textContent = 'Invalid PIN';
+            pinInput.value = '';
+            pinInput.disabled = false;
+            pinInput.focus();
+          }
+        } catch (e) {
+          pinError.textContent = 'Connection error';
+          pinInput.value = '';
+          pinInput.disabled = false;
+          pinInput.focus();
+        }
+      }
+    });
+
+    // ── Session ──
+    function restoreSession() {
+      try {
+        const s = JSON.parse(localStorage.getItem('nch_admin_session'));
+        if (s && s.pin && s.name) { STATE = s; return true; }
+      } catch {}
+      return false;
+    }
+
+    function logout() {
+      STATE = { pin: null, name: null, role: null, slot: null, canFix: false };
+      localStorage.removeItem('nch_admin_session');
+      clearInterval(REFRESH_TIMER);
+      document.getElementById('dashboard').className = 'dashboard';
+      document.getElementById('pinScreen').className = 'pin-screen';
+      pinInput.value = '';
+      pinInput.disabled = false;
+      pinInput.focus();
+    }
+
+    // ── Show Dashboard ──
+    function showDashboard() {
+      document.getElementById('pinScreen').className = 'pin-screen hidden';
+      document.getElementById('dashboard').className = 'dashboard show';
+      document.getElementById('hdName').textContent = STATE.name;
+      document.getElementById('hdRole').textContent = STATE.role;
+      loadAll();
+      REFRESH_TIMER = setInterval(loadAll, 60000);
+      updateRefreshHint();
+    }
+
+    function updateRefreshHint() {
+      const el = document.getElementById('refreshHint');
+      const now = new Date();
+      el.textContent = 'Updated ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ── Load All Data ──
+    async function loadAll() {
+      await Promise.all([
+        loadSalesSummary(),
+        loadOverview(),
+        loadExpenses(),
+        loadSettlementAudit()
+      ]);
+      updateRefreshHint();
+    }
+
+    // ── A. Sales Summary ──
+    async function loadSalesSummary() {
+      try {
+        const from = todayStartIST();
+        const res = await fetch('/api/nch-data?from=' + encodeURIComponent(from));
+        const data = await res.json();
+        if (data.success !== false) {
+          const total = data.total_sales || data.totalSales || 0;
+          const orders = data.order_count || data.orderCount || 0;
+          document.getElementById('sTotalSales').textContent = fmt(total);
+          document.getElementById('sOrderCount').textContent = orders + ' orders';
+        }
+      } catch (e) {
+        document.getElementById('sTotalSales').textContent = 'ERR';
+      }
+    }
+
+    // ── B+C. Overview (runners + errors) ──
+    async function loadOverview() {
+      try {
+        const res = await fetch('/api/validator?action=get-overview&pin=' + encodeURIComponent(STATE.pin));
+        const data = await res.json();
+        if (!data.success) { console.error('Overview error:', data.error); return; }
+
+        // Summary cards
+        const pending = data.summary.pending_count || 0;
+        const el = document.getElementById('sPendingErrors');
+        el.textContent = pending;
+        el.className = 'sc-value mono ' + (pending > 0 ? 'sc-red' : 'sc-green');
+        document.getElementById('sResolvedToday').textContent =
+          (data.summary.resolved_today || 0) + ' resolved today';
+
+        // Runner count (active = has orders or errors)
+        const runners = data.runner_slots || [];
+        document.getElementById('sRunnersActive').textContent = runners.length + '/5';
+
+        // Runner grid
+        renderRunnerGrid(runners, data.pending.errors || []);
+
+        // Error dashboard
+        renderErrorDashboard(data.pending.errors || [], data.pending.discrepancies || [], data.summary);
+
+      } catch (e) {
+        console.error('Overview fetch error:', e);
+      }
+    }
+
+    // ── Render Runner Grid ──
+    function renderRunnerGrid(runners, errors) {
+      const grid = document.getElementById('runnerGrid');
+      const badge = document.getElementById('runnerBadge');
+      let totalErrors = 0;
+
+      // Build error map by runner slot
+      const errByRunner = {};
+      for (const err of errors) {
+        const slot = err.runner_slot || 'unknown';
+        if (!errByRunner[slot]) errByRunner[slot] = 0;
+        errByRunner[slot]++;
+      }
+
+      let html = '';
+      const allSlots = ['RUN001', 'RUN002', 'RUN003', 'RUN004', 'RUN005'];
+      for (const slot of allSlots) {
+        const runner = runners.find(r => r.slot === slot);
+        const name = runner?.person || RUNNER_NAMES[slot] || slot;
+        const errCount = runner?.pending_errors || errByRunner[slot] || 0;
+        totalErrors += errCount;
+
+        const borderClass = errCount > 0 ? 'errors' : 'clean';
+
+        html += `
+          <div class="runner-card ${borderClass}">
+            <div class="rc-top">
+              <div>
+                <div class="rc-name">${name}</div>
+                <div class="rc-slot">${slot}</div>
+              </div>
+              ${errCount > 0 ? `<span class="rc-err">${errCount} error${errCount > 1 ? 's' : ''}</span>` : ''}
+            </div>
+            <div class="rc-cash">
+              <div class="label">Pending Errors</div>
+              <div class="amount" style="font-size:16px;color:${errCount > 0 ? 'var(--yellow)' : 'var(--green)'}">${errCount === 0 ? 'Clean' : errCount + ' pending'}</div>
+            </div>
+            <div class="rc-status pending">Slot active</div>
+          </div>`;
+      }
+
+      grid.innerHTML = html;
+      if (totalErrors > 0) {
+        badge.textContent = totalErrors + ' errors';
+        badge.className = 'badge warn';
+      } else {
+        badge.textContent = 'All Clear';
+        badge.className = 'badge';
+      }
+    }
+
+    // ── Render Error Dashboard ──
+    function renderErrorDashboard(errors, discrepancies, summary) {
+      const section = document.getElementById('errorSection');
+      const title = document.getElementById('errTitle');
+      const body = document.getElementById('errBody');
+      const trends = document.getElementById('errTrends');
+
+      const totalPending = errors.length + discrepancies.length;
+      if (totalPending === 0) {
+        title.innerHTML = '&#x2705; No Pending Errors';
+        title.style.color = 'var(--green)';
+        body.innerHTML = '<div class="empty">All orders validated. No issues found today.</div>';
+        section.classList.remove('hidden');
+      } else {
+        title.innerHTML = '&#x26A0;&#xFE0F; ' + totalPending + ' Pending Error' + (totalPending > 1 ? 's' : '');
+        title.style.color = '';
+
+        // Group errors by runner/cashier
+        const grouped = {};
+        for (const err of errors) {
+          const key = err.runner_slot || err.cashier_name || 'Unassigned';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(err);
+        }
+
+        let html = '';
+        for (const [groupName, items] of Object.entries(grouped)) {
+          html += `<div class="err-group">
+            <div class="err-group-hdr">
+              <span>${groupName}</span>
+              <span>${items.length} error${items.length > 1 ? 's' : ''}</span>
+            </div>`;
+
+          for (const err of items) {
+            const canFix = STATE.canFix;
+            html += `
+              <div class="err-item">
+                <div style="flex:1">
+                  <div class="err-desc">${escHtml(err.description || err.error_type)}</div>
+                  <div class="err-ref">${escHtml(err.order_ref || '')} &middot; ${fmtTime(err.order_time || err.detected_at)}</div>
+                </div>
+                <div class="err-actions">
+                  <span class="err-time">${fmt(err.order_amount || 0)}</span>
+                  ${canFix ? `<button class="fix-btn" onclick='openFixModal(${JSON.stringify(err).replace(/'/g, "&#39;")})'>Fix</button>` : ''}
+                </div>
+              </div>`;
+          }
+          html += '</div>';
+        }
+
+        // Discrepancies
+        if (discrepancies.length > 0) {
+          html += `<div class="err-group">
+            <div class="err-group-hdr">
+              <span>Payment Discrepancies</span>
+              <span>${discrepancies.length}</span>
+            </div>`;
+          for (const d of discrepancies) {
+            html += `<div class="err-item">
+              <div style="flex:1">
+                <div class="err-desc">${escHtml(d.description || d.error_type || 'Payment mismatch')}</div>
+                <div class="err-ref">${escHtml(d.order_ref || '')} &middot; ${fmtTime(d.detected_at)}</div>
+              </div>
+              <div class="err-actions">
+                <span class="err-time">${fmt(d.amount || 0)}</span>
+              </div>
+            </div>`;
+          }
+          html += '</div>';
+        }
+
+        body.innerHTML = html;
+      }
+
+      // Error trends
+      const cashierCounts = summary.cashier_error_counts || [];
+      const runnerCounts = summary.runner_error_counts || [];
+      let trendHtml = '';
+
+      // Show all cashier trends
+      for (const c of cashierCounts) {
+        const count = c.count || 0;
+        trendHtml += `<span class="trend-chip ${count > 0 ? 'has-errors' : 'no-errors'}">${escHtml(c.cashier_name)}: ${count} error${count !== 1 ? 's' : ''} today</span>`;
+      }
+      // Show all runner trends
+      for (const r of runnerCounts) {
+        const count = r.count || 0;
+        const name = RUNNER_NAMES[r.runner_slot] || r.runner_slot;
+        trendHtml += `<span class="trend-chip ${count > 0 ? 'has-errors' : 'no-errors'}">${name}: ${count} error${count !== 1 ? 's' : ''} today</span>`;
+      }
+
+      if (!trendHtml) {
+        trendHtml = '<span class="trend-chip no-errors">No error data yet</span>';
+      }
+      trends.innerHTML = trendHtml;
+    }
+
+    // ── Fix Error Modal ──
+    function openFixModal(err) {
+      CURRENT_FIX_ERROR = err;
+      document.getElementById('fixDesc').textContent = err.description || err.error_type;
+      document.getElementById('fixAction').value = '';
+      document.getElementById('fixNotes').value = '';
+      document.getElementById('fixRunnerSelect').style.display = 'none';
+      document.getElementById('fixModal').className = 'modal-overlay show';
+    }
+
+    function closeFixModal() {
+      CURRENT_FIX_ERROR = null;
+      document.getElementById('fixModal').className = 'modal-overlay';
+    }
+
+    document.getElementById('fixAction').addEventListener('change', function() {
+      document.getElementById('fixRunnerSelect').style.display =
+        this.value === 'reassign_runner' ? 'block' : 'none';
+    });
+
+    async function submitFix() {
+      if (!CURRENT_FIX_ERROR) return;
+      const action = document.getElementById('fixAction').value;
+      if (!action) { showToast('Select a fix action', 'error'); return; }
+
+      const btn = document.getElementById('fixSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+
+      try {
+        if (action === 'reassign_runner') {
+          // Use the rectify-discrepancy endpoint to reassign runner in Odoo
+          const runnerId = parseInt(document.getElementById('fixRunner').value);
+          const res = await fetch('/api/settlement?action=rectify-discrepancy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pin: STATE.pin,
+              order_id: CURRENT_FIX_ERROR.order_id,
+              order_name: CURRENT_FIX_ERROR.order_ref,
+              correct_partner_id: runnerId,
+              original_partner_id: CURRENT_FIX_ERROR.runner_partner_id
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast('Rectified: ' + (data.message || 'Runner reassigned'));
+          } else {
+            showToast('Fix failed: ' + (data.error || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Apply Fix';
+            return;
+          }
+        } else if (action === 'dismiss' || action === 'void_order') {
+          // For dismiss/void, we note it but these would need a dedicated endpoint
+          // For now, show info that the action was noted
+          showToast('Action noted: ' + action.replace('_', ' ') + '. Manual follow-up may be needed.');
+        }
+
+        closeFixModal();
+        // Refresh data
+        setTimeout(() => loadOverview(), 500);
+      } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Apply Fix';
+    }
+
+    // ── D. Expenses ──
+    async function loadExpenses() {
+      try {
+        const res = await fetch('/api/settlement?action=counter-balance');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const expenses = data.expenses || [];
+        const total = data.total_expenses || 0;
+
+        document.getElementById('sExpenses').textContent = fmt(total);
+        document.getElementById('sExpenseCount').textContent = expenses.length + ' entries';
+
+        const body = document.getElementById('expenseBody');
+        if (expenses.length === 0) {
+          body.innerHTML = '<div class="empty">No expenses recorded today.</div>';
+          return;
+        }
+
+        let html = `<table class="expense-table">
+          <thead><tr><th>Time</th><th>Reason</th><th>Amount</th><th>By</th></tr></thead>
+          <tbody>`;
+
+        for (const exp of expenses) {
+          html += `<tr>
+            <td class="mono" style="white-space:nowrap">${fmtTime(exp.recorded_at)}</td>
+            <td>${escHtml(exp.reason || '--')}</td>
+            <td class="exp-amount">${fmt(exp.amount)}</td>
+            <td>${escHtml(exp.recorded_by || '--')}</td>
+          </tr>`;
+        }
+
+        html += `</tbody></table>
+          <div class="expense-total">
+            <span>Total Expenses</span>
+            <span class="amount">${fmt(total)}</span>
+          </div>`;
+
+        body.innerHTML = html;
+      } catch (e) {
+        document.getElementById('expenseBody').innerHTML = '<div class="empty">Failed to load expenses.</div>';
+      }
+    }
+
+    // ── E. Settlement Audit ──
+    async function loadSettlementAudit() {
+      try {
+        const res = await fetch('/api/settlement?action=history&limit=20');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const settlements = data.settlements || [];
+        const body = document.getElementById('auditBody');
+
+        if (settlements.length === 0) {
+          body.innerHTML = '<div class="empty">No settlements recorded yet.</div>';
+          return;
+        }
+
+        // Filter to today only
+        const today = todayIST();
+        const todaySettlements = settlements.filter(s => {
+          if (!s.settled_at) return false;
+          return s.settled_at.startsWith(today);
+        });
+
+        if (todaySettlements.length === 0) {
+          body.innerHTML = '<div class="empty">No settlements today yet.</div>';
+          return;
+        }
+
+        let html = '<div class="audit-list">';
+        for (const s of todaySettlements) {
+          const name = s.runner_name || s.runner_id || '--';
+          const shortage = (s.shortage || 0) > 0;
+          html += `
+            <div class="audit-item ${shortage ? 'has-shortage' : ''}">
+              <div class="ai-left">
+                <div class="ai-name">${escHtml(name)}</div>
+                <div class="ai-meta">Settled ${fmtTime(s.settled_at)} ${s.settled_by ? 'by ' + escHtml(s.settled_by) : ''}</div>
+                ${shortage ? `<div class="ai-meta" style="color:var(--red)">Shortage: ${fmt(s.shortage)}</div>` : ''}
+              </div>
+              <div class="ai-amount">${fmt(s.cash_settled || s.amount || 0)}</div>
+            </div>`;
+        }
+        html += '</div>';
+        body.innerHTML = html;
+      } catch (e) {
+        document.getElementById('auditBody').innerHTML = '<div class="empty">Failed to load settlement history.</div>';
+      }
+    }
+
+    // ── Utilities ──
+    function escHtml(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ── Init ──
+    (function init() {
+      if (restoreSession()) {
+        showDashboard();
+      }
+    })();
+  </script>
+</body>
+</html>

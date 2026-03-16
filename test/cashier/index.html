@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH Cashier Settlement</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ── PIN SCREEN ── */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;text-align:center;max-width:360px;width:100%}
+    .pin-box .icon{font-size:48px;margin-bottom:20px}
+    .pin-box h2{font-size:22px;margin-bottom:8px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-input{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .pin-input input{width:52px;height:60px;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:26px;text-align:center;font-family:'JetBrains Mono',monospace;transition:all 0.2s}
+    .pin-input input:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,0.2)}
+    .pin-input input.filled{border-color:var(--green);background:rgba(34,197,94,0.1)}
+    .pin-msg{min-height:24px;font-size:14px;font-weight:600;margin-top:16px}
+    .pin-msg.ok{color:var(--green)}
+    .pin-msg.err{color:var(--red)}
+
+    /* ── DASHBOARD ── */
+    .dashboard{display:none;min-height:100vh;padding-bottom:80px}
+    .dashboard.show{display:block}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .header h1{font-size:18px;display:flex;align-items:center;gap:8px}
+    .header h1::before{content:'';width:4px;height:22px;background:var(--green);border-radius:2px}
+    .user-info{display:flex;align-items:center;gap:10px}
+    .user-info .dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .user-info .name{font-weight:600;font-size:14px}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;min-height:40px}
+    .logout-btn:active{background:var(--border)}
+    .content{padding:16px;max-width:800px;margin:0 auto}
+    .section-label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;font-weight:600}
+
+    /* ── RUNNER GRID ── */
+    .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+    .runner-card{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all 0.15s;min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;position:relative;-webkit-user-select:none;user-select:none}
+    .runner-card:active{transform:scale(0.97)}
+    .runner-card.selected{border-color:var(--green);background:rgba(34,197,94,0.08)}
+    .runner-card .r-name{font-weight:700;font-size:15px}
+    .runner-card .r-code{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .runner-card .r-status{position:absolute;top:8px;right:8px;font-size:14px}
+    .runner-card .r-badge{position:absolute;top:6px;left:6px;background:var(--orange);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;display:none}
+    .runner-card .r-badge.show{display:block}
+
+    /* ── RUNNER PANEL ── */
+    .runner-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:20px;display:none}
+    .runner-panel.show{display:block}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .panel-head h2{font-size:18px;display:flex;align-items:center;gap:8px}
+    .panel-head .period{font-size:11px;color:var(--text2);background:var(--bg2);padding:4px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace}
+    .stat-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+    .stat-row:last-of-type{border-bottom:none}
+    .stat-row .s-label{color:var(--text2);font-size:14px}
+    .stat-row .s-value{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:15px}
+    .stat-row .s-value.blue{color:var(--blue)}
+    .stat-row.total{margin-top:8px;padding-top:16px;border-top:2px solid var(--border)}
+    .stat-row.total .s-label{font-weight:700;color:var(--text);font-size:15px}
+    .stat-row.total .s-value{font-size:24px}
+    .stat-row.total .s-value.positive{color:var(--green)}
+    .stat-row.total .s-value.negative{color:var(--red)}
+
+    /* ── ERROR CARDS ── */
+    .errors-section{margin-top:20px}
+    .errors-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .errors-header h3{font-size:15px;color:var(--orange);display:flex;align-items:center;gap:6px}
+    .error-card{background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid var(--orange)}
+    .error-card .ec-desc{font-size:14px;line-height:1.5;margin-bottom:10px;color:var(--text)}
+    .error-card .ec-meta{font-size:11px;color:var(--text2);margin-bottom:10px;font-family:'JetBrains Mono',monospace}
+    .error-card .ec-amount{font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--orange)}
+    .ec-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .ec-actions select{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px;flex:1;min-width:120px;min-height:44px;font-family:inherit}
+    .ec-actions select:focus{outline:none;border-color:var(--orange)}
+    .fix-btn{background:var(--orange);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;min-width:70px;font-family:inherit}
+    .fix-btn:active{background:#ea580c}
+    .fix-btn:disabled{background:var(--border);cursor:not-allowed}
+    .dismiss-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px;margin-top:8px;font-family:inherit;min-height:44px}
+    .dismiss-input:focus{outline:none;border-color:var(--orange)}
+
+    /* ── SETTLE BUTTON ── */
+    .settle-btn{width:100%;padding:18px;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;border:none;margin-top:16px;transition:all 0.15s;font-family:inherit;min-height:56px}
+    .settle-btn.ready{background:var(--green);color:#fff}
+    .settle-btn.ready:active{background:#16a34a}
+    .settle-btn.blocked{background:var(--border);color:var(--text2);cursor:not-allowed}
+    .settle-btn.loading{background:var(--yellow);color:#000;cursor:wait}
+
+    /* ── COUNTER PANEL ── */
+    .counter-panel{background:var(--card);border:2px solid var(--yellow);border-radius:16px;padding:20px;margin-bottom:20px;display:none}
+    .counter-panel.show{display:block}
+    .counter-panel h3{font-size:17px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .counter-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+    .cb-item{background:var(--bg2);border-radius:10px;padding:12px;text-align:center}
+    .cb-item .cb-val{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .cb-item .cb-label{font-size:11px;color:var(--text2);margin-top:4px}
+    .counter-total{text-align:center;padding:16px 0;border-top:2px solid var(--border)}
+    .counter-total .ct-amount{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+    .counter-total .ct-label{font-size:13px;color:var(--text2);margin-top:4px}
+
+    /* ── POLICE EXPENSE PANEL ── */
+    .expense-panel{background:var(--card);border:2px solid var(--red);border-radius:16px;padding:20px;margin-bottom:20px;display:none}
+    .expense-panel.show{display:block}
+    .expense-panel h3{font-size:17px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .expense-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+    .expense-btn{background:var(--bg2);border:2px solid var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;font-family:inherit;color:var(--text);font-size:14px;font-weight:600;min-height:52px;transition:all 0.15s}
+    .expense-btn:active{border-color:var(--red);background:rgba(239,68,68,0.1)}
+    .expense-btn.selected{border-color:var(--red);background:rgba(239,68,68,0.15)}
+    .expense-form{display:none;margin-top:16px}
+    .expense-form.show{display:block}
+    .expense-form label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
+    .expense-form input{width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;padding:14px;font-family:'JetBrains Mono',monospace;min-height:56px}
+    .expense-form input:focus{outline:none;border-color:var(--red)}
+    .expense-submit{width:100%;background:var(--red);color:#fff;border:none;padding:16px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-top:12px;font-family:inherit;min-height:52px}
+    .expense-submit:active{background:#dc2626}
+    .expense-submit:disabled{background:var(--border);cursor:not-allowed}
+    .expense-list{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+    .expense-list h4{font-size:13px;color:var(--text2);margin-bottom:10px}
+    .exp-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .exp-item:last-child{border-bottom:none}
+    .exp-item .exp-cat{color:var(--text)}
+    .exp-item .exp-amt{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--red)}
+    .exp-total{display:flex;justify-content:space-between;padding:12px 0;border-top:2px solid var(--border);font-weight:700;font-size:15px;margin-top:4px}
+    .exp-total .exp-amt{font-family:'JetBrains Mono',monospace;color:var(--red)}
+
+    /* ── SETTLEMENT STATUS ── */
+    .status-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+    .status-chip{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;background:var(--bg2);border:1px solid var(--border)}
+    .status-chip.settled{border-color:rgba(34,197,94,0.3);color:var(--green)}
+    .status-chip.pending{border-color:rgba(239,68,68,0.3);color:var(--red)}
+
+    /* ── OVERLAY / CONFIRM DIALOG ── */
+    .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:100;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+    .overlay.show{display:flex}
+    .dialog{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:24px;max-width:400px;width:100%;max-height:85vh;overflow-y:auto}
+    .dialog h3{font-size:18px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .dialog-row{display:flex;justify-content:space-between;padding:8px 0;font-size:14px;border-bottom:1px solid var(--border)}
+    .dialog-row:last-of-type{border-bottom:none}
+    .dialog-row .dr-label{color:var(--text2)}
+    .dialog-row .dr-val{font-family:'JetBrains Mono',monospace;font-weight:600}
+    .dialog-warn{background:rgba(234,179,8,0.1);border:1px solid var(--yellow);border-radius:8px;padding:10px;font-size:13px;color:var(--yellow);margin:12px 0}
+    .dialog-buttons{display:flex;gap:10px;margin-top:20px}
+    .dialog-buttons button{flex:1;padding:16px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;border:none;font-family:inherit;min-height:52px}
+    .btn-cancel{background:var(--bg2);color:var(--text);border:1px solid var(--border)!important}
+    .btn-cancel:active{background:var(--border)}
+    .btn-confirm{background:var(--green);color:#fff}
+    .btn-confirm:active{background:#16a34a}
+
+    /* ── LOADING ── */
+    .loading{text-align:center;color:var(--text2);padding:32px;font-size:14px}
+    .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ── TOAST ── */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 24px;font-size:14px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:90vw;text-align:center}
+    .toast.show{opacity:1}
+    .toast.ok{border-color:var(--green);color:var(--green)}
+    .toast.err{border-color:var(--red);color:var(--red)}
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ PIN SCREEN ═══════════════ -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-box">
+    <div class="icon">🧾</div>
+    <h2>Cashier Settlement</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-input" id="pinInput">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]">
+      <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]">
+    </div>
+    <div class="pin-msg" id="pinMsg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div class="dashboard" id="dashboard">
+  <div class="header">
+    <h1>Cashier Settlement</h1>
+    <div class="user-info">
+      <span class="dot"></span>
+      <span class="name" id="userName"></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- RUNNER GRID -->
+    <div class="section-label">Runners</div>
+    <div class="runner-grid" id="runnerGrid"></div>
+
+    <!-- RUNNER PANEL -->
+    <div class="runner-panel" id="runnerPanel">
+      <div class="panel-head">
+        <h2 id="rpName"></h2>
+        <span class="period" id="rpPeriod"></span>
+      </div>
+      <div id="rpStats"></div>
+      <div id="rpErrors"></div>
+      <div id="rpSettle"></div>
+    </div>
+
+    <!-- COUNTER PANEL -->
+    <div class="counter-panel" id="counterPanel">
+      <h3>💰 Cash Counter</h3>
+      <div id="counterContent"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+    </div>
+
+    <!-- POLICE EXPENSE PANEL -->
+    <div class="expense-panel" id="expensePanel">
+      <h3>📝 Record Expense</h3>
+      <div class="expense-grid" id="expenseGrid"></div>
+      <div class="expense-form" id="expenseForm">
+        <label id="expenseLabel">Amount</label>
+        <input type="number" id="expenseAmount" placeholder="0" inputmode="numeric">
+        <button class="expense-submit" id="expenseSubmit" onclick="submitExpense()">Record Expense</button>
+      </div>
+      <div id="expenseListContainer"></div>
+    </div>
+
+    <!-- PETTY CASH (visible for cashiers, Tanveer, Basheer) -->
+    <div class="counter-panel" id="pettyPanel" style="border-color:var(--orange);display:none">
+      <h3>🧾 Petty Cash Expense</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--text2)">Balance</span>
+        <span id="pettyBalance" class="mono" style="font-size:20px;font-weight:700;color:var(--orange)">-</span>
+      </div>
+      <div class="expense-grid" id="pettyGrid"></div>
+      <div class="expense-form" id="pettyForm">
+        <label id="pettyLabel">Amount</label>
+        <input type="number" id="pettyAmount" placeholder="0" inputmode="numeric" style="width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;padding:14px;font-family:'JetBrains Mono',monospace">
+        <div style="margin-top:10px">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">Receipt Photo (optional)</label>
+          <input type="file" id="pettyPhoto" accept="image/*" capture="environment" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px;font-size:13px">
+          <div id="pettyPhotoPreview" style="margin-top:8px"></div>
+        </div>
+        <button class="expense-submit" style="background:var(--orange)" id="pettySubmit" onclick="submitPettyExpense()">Record Petty Expense</button>
+      </div>
+      <div id="pettyListContainer"></div>
+    </div>
+
+    <!-- CASH COLLECTION (visible only for authorized collectors) -->
+    <div class="counter-panel" id="collectPanel" style="border-color:var(--green);display:none">
+      <h3>💵 Collect Cash from Counter</h3>
+      <div id="collectContent">
+        <div style="margin-bottom:16px">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">Amount to collect (₹)</label>
+          <input type="number" id="collectAmount" placeholder="0" inputmode="numeric" style="width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;padding:14px;font-family:'JetBrains Mono',monospace">
+        </div>
+        <button class="settle-btn ready" id="collectBtn" onclick="doCollectCash()">Collect Cash</button>
+        <div id="collectStatus" style="margin-top:12px"></div>
+      </div>
+      <!-- In-transit collections -->
+      <div id="inTransitList" style="margin-top:16px"></div>
+    </div>
+
+    <!-- SETTLEMENT STATUS -->
+    <div class="section-label" style="margin-top:24px">Settlement Status</div>
+    <div class="status-bar" id="statusBar"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ CONFIRM OVERLAY ═══════════════ -->
+<div class="overlay" id="confirmOverlay">
+  <div class="dialog" id="confirmDialog"></div>
+</div>
+
+<!-- ═══════════════ TOAST ═══════════════ -->
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => {
+  const abs = Math.abs(Math.round(n));
+  const s = abs.toLocaleString('en-IN');
+  return (n < 0 ? '-₹' : '₹') + s;
+};
+
+// ── CONSTANTS ──
+const RUNNERS = [
+  { id: 64, name: 'Runner 01', code: 'RUN001' },
+  { id: 65, name: 'Runner 02', code: 'RUN002' },
+  { id: 66, name: 'Runner 03', code: 'RUN003' },
+  { id: 67, name: 'Runner 04', code: 'RUN004' },
+  { id: 68, name: 'Runner 05', code: 'RUN005' }
+];
+
+const EXPENSE_CATEGORIES = [
+  { code: 'BEAT',    label: 'Beat Police' },
+  { code: 'CHETA',   label: 'Cheta Police' },
+  { code: 'HOYSALA', label: 'Hoysala' },
+  { code: 'ASI',     label: 'ASI' },
+  { code: 'WEEKLY',  label: 'Weekly Police' },
+  { code: 'CIRCLE',  label: 'Circle Police' },
+  { code: 'SI',      label: 'Sub Inspector' }
+];
+
+const PETTY_CATEGORIES = [
+  { code: 'MILK',      label: 'Milk' },
+  { code: 'GAS',       label: 'Gas Cylinder' },
+  { code: 'SUPPLIES',  label: 'Kitchen Supplies' },
+  { code: 'CLEANING',  label: 'Cleaning' },
+  { code: 'STAFF_FOOD',label: 'Staff Food' },
+  { code: 'TRANSPORT', label: 'Transport/Auto' },
+  { code: 'REPAIR',    label: 'Repair' },
+  { code: 'EMERGENCY', label: 'Emergency' }
+];
+
+// Petty cash holders: cashiers + Tanveer + Basheer
+const PETTY_HOLDER_PINS = new Set(['7115', '8241', '8523', '6890']);
+
+const PAYMENT_METHODS = [
+  { id: 37, name: 'Cash' },
+  { id: 38, name: 'UPI' },
+  { id: 39, name: 'Card' },
+  { id: 40, name: 'Runner Ledger' },
+  { id: 48, name: 'Token Issue' },
+  { id: 49, name: 'Comp' }
+];
+
+// ── STATE ──
+// Cash collectors: Nihaf(0305), Naveen(3754), Basheer(8523), Tanveer(6890)
+const CASH_COLLECTOR_PINS = new Set(['0305', '3754', '8523', '6890']);
+const NAVEEN_PIN = '3754';
+
+let currentUser = null;
+let currentPin = null;
+let currentSlot = null;
+let selectedRunnerId = null;
+let runnerDataCache = {};      // id → { data, timestamp }
+let runnerSettlementStatus = {}; // id → 'settled' | 'pending'
+let selectedExpenseCode = null;
+
+// ── PIN INPUT ──
+const pins = Array.from($('pinInput').querySelectorAll('input'));
+pins.forEach((input, i) => {
+  input.addEventListener('input', e => {
+    const v = e.target.value.replace(/[^0-9]/g, '');
+    e.target.value = v;
+    if (v) {
+      input.classList.add('filled');
+      if (i < 3) pins[i + 1].focus();
+      else doLogin();
+    } else {
+      input.classList.remove('filled');
+    }
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !e.target.value && i > 0) {
+      pins[i - 1].focus();
+      pins[i - 1].value = '';
+      pins[i - 1].classList.remove('filled');
+    }
+  });
+});
+
+async function doLogin() {
+  const pin = pins.map(p => p.value).join('');
+  if (pin.length !== 4) return;
+
+  $('pinMsg').textContent = '';
+  $('pinMsg').className = 'pin-msg';
+
+  try {
+    const res = await fetch('/api/validator?action=login&pin=' + pin);
+    const data = await res.json();
+
+    if (!data.success) {
+      showPinError('Invalid PIN');
+      return;
+    }
+
+    const role = data.role;
+    if (role !== 'cashier' && role !== 'admin' && role !== 'gm') {
+      showPinError('Not authorized — cashier access only');
+      return;
+    }
+
+    currentUser = data.name;
+    currentPin = pin;
+    currentSlot = data.slot;
+    $('pinMsg').textContent = '✓ Welcome, ' + data.name;
+    $('pinMsg').className = 'pin-msg ok';
+    $('userName').textContent = data.name;
+
+    setTimeout(() => {
+      $('pinScreen').classList.add('hidden');
+      $('dashboard').classList.add('show');
+      initDashboard();
+    }, 600);
+
+  } catch (e) {
+    showPinError('Connection error');
+  }
+}
+
+function showPinError(msg) {
+  $('pinMsg').textContent = msg;
+  $('pinMsg').className = 'pin-msg err';
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  setTimeout(() => pins[0].focus(), 100);
+}
+
+function logout() {
+  currentUser = null;
+  currentPin = null;
+  currentSlot = null;
+  selectedRunnerId = null;
+  runnerDataCache = {};
+  runnerSettlementStatus = {};
+  selectedExpenseCode = null;
+  $('dashboard').classList.remove('show');
+  $('pinScreen').classList.remove('hidden');
+  $('pinMsg').textContent = '';
+  $('pinMsg').className = 'pin-msg';
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  pins[0].focus();
+}
+
+// ── DASHBOARD INIT ──
+function initDashboard() {
+  renderRunnerGrid();
+  loadAllRunnerStatus();
+  loadCounterData();
+  renderExpensePanel();
+  loadExpenses();
+  $('counterPanel').classList.add('show');
+  $('expensePanel').classList.add('show');
+  // Show petty cash for holders
+  if (PETTY_HOLDER_PINS.has(currentPin)) {
+    $('pettyPanel').style.display = 'block';
+    renderPettyGrid();
+    loadPettyData();
+  }
+  // Show cash collection only for authorized collectors
+  if (CASH_COLLECTOR_PINS.has(currentPin)) {
+    $('collectPanel').style.display = 'block';
+    loadCollections();
+  }
+  renderStatusBar();
+}
+
+// ── RUNNER GRID ──
+function renderRunnerGrid() {
+  const grid = $('runnerGrid');
+  grid.innerHTML = RUNNERS.map(r => `
+    <div class="runner-card" id="rc-${r.id}" onclick="selectRunner(${r.id})">
+      <span class="r-status" id="rs-${r.id}">⏳</span>
+      <span class="r-badge" id="rb-${r.id}"></span>
+      <div class="r-name">${r.name}</div>
+      <div class="r-code">${r.code}</div>
+    </div>
+  `).join('');
+}
+
+async function loadAllRunnerStatus() {
+  for (const r of RUNNERS) {
+    loadRunnerLive(r.id, true);
+  }
+  // Also refresh status chips
+  setTimeout(renderStatusBar, 2000);
+}
+
+async function loadRunnerLive(runnerId, bgOnly = false) {
+  try {
+    const res = await fetch('/api/settlement?action=runner-live&runner_id=' + runnerId);
+    const data = await res.json();
+    if (!data.success) return;
+
+    runnerDataCache[runnerId] = { data, timestamp: Date.now() };
+
+    // Determine status
+    const errors = data.pending_errors || [];
+    const cash = data.cash_to_collect || 0;
+    const statusEl = $('rs-' + runnerId);
+    const badgeEl = $('rb-' + runnerId);
+
+    if (errors.length > 0) {
+      statusEl.textContent = '🟡';
+      badgeEl.textContent = errors.length;
+      badgeEl.classList.add('show');
+    } else if (cash < 0) {
+      statusEl.textContent = '🔴';
+      badgeEl.classList.remove('show');
+    } else {
+      statusEl.textContent = '🟢';
+      badgeEl.classList.remove('show');
+    }
+
+    // If this runner is currently selected, refresh panel
+    if (!bgOnly && selectedRunnerId === runnerId) {
+      renderRunnerPanel(runnerId);
+    }
+
+  } catch (e) {
+    console.error('Failed to load runner', runnerId, e);
+    const statusEl = $('rs-' + runnerId);
+    if (statusEl) statusEl.textContent = '⚠️';
+  }
+}
+
+function selectRunner(id) {
+  // Deselect previous
+  if (selectedRunnerId) {
+    const prev = $('rc-' + selectedRunnerId);
+    if (prev) prev.classList.remove('selected');
+  }
+
+  selectedRunnerId = id;
+  $('rc-' + id).classList.add('selected');
+
+  // Show runner panel (keep counter + expense visible below)
+  $('runnerPanel').classList.add('show');
+
+  // Render from cache or load fresh
+  const cached = runnerDataCache[id];
+  if (cached && Date.now() - cached.timestamp < 30000) {
+    renderRunnerPanel(id);
+  } else {
+    $('rpStats').innerHTML = '<div class="loading"><span class="spinner"></span>Loading runner data...</div>';
+    $('rpErrors').innerHTML = '';
+    $('rpSettle').innerHTML = '';
+    loadRunnerLive(id).then(() => renderRunnerPanel(id));
+  }
+}
+
+function renderRunnerPanel(runnerId) {
+  const cached = runnerDataCache[runnerId];
+  if (!cached) return;
+
+  const d = cached.data;
+  const runner = RUNNERS.find(r => r.id === runnerId);
+  if (!runner) return;
+
+  $('rpName').textContent = runner.name + ' — ' + runner.code;
+
+  // Period
+  if (d.period_start) {
+    const ps = new Date(d.period_start);
+    $('rpPeriod').textContent = formatTime(ps) + ' → Now';
+  } else {
+    $('rpPeriod').textContent = '';
+  }
+
+  const tokens = d.tokens_amount || 0;
+  const sales = d.sales_amount || 0;
+  const upi = d.upi_amount || 0;
+  const cash = d.cash_to_collect || 0;
+  const errors = d.pending_errors || [];
+
+  // Stats
+  $('rpStats').innerHTML = `
+    <div class="stat-row">
+      <span class="s-label">Tokens Issued</span>
+      <span class="s-value mono">${fmt(tokens)}</span>
+    </div>
+    <div class="stat-row">
+      <span class="s-label">Direct Sales</span>
+      <span class="s-value mono">${fmt(sales)}</span>
+    </div>
+    <div class="stat-row">
+      <span class="s-label">UPI Collected</span>
+      <span class="s-value mono blue">${fmt(upi)}</span>
+    </div>
+    <div class="stat-row total">
+      <span class="s-label">Cash to Collect</span>
+      <span class="s-value mono ${cash >= 0 ? 'positive' : 'negative'}">${fmt(cash)}</span>
+    </div>
+  `;
+
+  // Errors
+  if (errors.length > 0) {
+    $('rpErrors').innerHTML = `
+      <div class="errors-section">
+        <div class="errors-header">
+          <h3>⚠️ ${errors.length} Error${errors.length > 1 ? 's' : ''} to Fix</h3>
+        </div>
+        ${errors.map((err, i) => renderErrorCard(err, i, runnerId)).join('')}
+      </div>
+    `;
+  } else {
+    $('rpErrors').innerHTML = '';
+  }
+
+  // Settle button
+  if (errors.length > 0) {
+    $('rpSettle').innerHTML = `
+      <button class="settle-btn blocked" disabled>
+        Fix ${errors.length} error${errors.length > 1 ? 's' : ''} first
+      </button>
+    `;
+  } else {
+    $('rpSettle').innerHTML = `
+      <button class="settle-btn ready" onclick="confirmSettle(${runnerId})">
+        ✓ Settle ${fmt(cash)}
+      </button>
+    `;
+  }
+}
+
+function renderErrorCard(err, idx, runnerId) {
+  const desc = humanizeError(err);
+  const errId = err.id || err.error_id || idx;
+
+  return `
+    <div class="error-card" id="ec-${runnerId}-${idx}">
+      <div class="ec-desc">${desc}</div>
+      <div class="ec-meta">Order: ${err.order_ref || '—'} &nbsp;|&nbsp; ${fmt(err.order_amount || 0)}</div>
+      <div class="ec-actions">
+        <select id="fix-action-${runnerId}-${idx}" onchange="onFixActionChange(${runnerId}, ${idx})">
+          <option value="">Choose fix...</option>
+          <option value="assign_runner">Assign to runner</option>
+          <option value="change_payment">Change payment method</option>
+          <option value="dismiss">Dismiss</option>
+        </select>
+      </div>
+      <div id="fix-extra-${runnerId}-${idx}"></div>
+    </div>
+  `;
+}
+
+function onFixActionChange(runnerId, idx) {
+  const action = $('fix-action-' + runnerId + '-' + idx).value;
+  const extraEl = $('fix-extra-' + runnerId + '-' + idx);
+
+  if (action === 'assign_runner') {
+    extraEl.innerHTML = `
+      <div class="ec-actions" style="margin-top:8px">
+        <select id="fix-data-${runnerId}-${idx}">
+          ${RUNNERS.map(r => `<option value="${r.code}">${r.name} (${r.code})</option>`).join('')}
+        </select>
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Fix</button>
+      </div>
+    `;
+  } else if (action === 'change_payment') {
+    extraEl.innerHTML = `
+      <div class="ec-actions" style="margin-top:8px">
+        <select id="fix-data-${runnerId}-${idx}">
+          ${PAYMENT_METHODS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+        </select>
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Fix</button>
+      </div>
+    `;
+  } else if (action === 'dismiss') {
+    extraEl.innerHTML = `
+      <input class="dismiss-input" id="fix-data-${runnerId}-${idx}" placeholder="Reason for dismissing..." />
+      <div class="ec-actions" style="margin-top:8px">
+        <button class="fix-btn" onclick="applyFix(${runnerId}, ${idx})">Dismiss</button>
+      </div>
+    `;
+  } else {
+    extraEl.innerHTML = '';
+  }
+}
+
+async function applyFix(runnerId, idx) {
+  const cached = runnerDataCache[runnerId];
+  if (!cached) return;
+
+  const errors = cached.data.pending_errors || [];
+  const err = errors[idx];
+  if (!err) return;
+
+  const fixAction = $('fix-action-' + runnerId + '-' + idx).value;
+  const fixDataEl = $('fix-data-' + runnerId + '-' + idx);
+  const fixData = fixDataEl ? fixDataEl.value : '';
+
+  if (!fixAction) { toast('Choose a fix action', 'err'); return; }
+  if (fixAction === 'dismiss' && !fixData.trim()) { toast('Enter a reason', 'err'); return; }
+
+  const card = $('ec-' + runnerId + '-' + idx);
+  if (card) card.style.opacity = '0.5';
+
+  try {
+    const res = await fetch('/api/rectify?action=fix-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pin: currentPin,
+        error_id: err.id || err.error_id,
+        fix_action: fixAction,
+        fix_data: fixData
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      toast('Fixed!', 'ok');
+      // Reload runner data
+      await loadRunnerLive(runnerId);
+      renderRunnerPanel(runnerId);
+    } else {
+      toast(data.error || 'Fix failed', 'err');
+      if (card) card.style.opacity = '1';
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+    if (card) card.style.opacity = '1';
+  }
+}
+
+function humanizeError(err) {
+  const type = err.error_type || err.type || '';
+  const desc = err.description || '';
+
+  // Convert technical error types to plain language
+  const map = {
+    'C2_TOKEN_WRONG_RUNNER': 'Token was given to the wrong runner',
+    'invalid_tuple': 'Wrong combination of payment + counter + runner',
+    'invalid_partner': 'Order linked to an unknown person',
+    'invalid_product_method': 'Product sold with wrong payment type',
+    'runner_missing': 'Runner not assigned to this order',
+    'payment_mismatch': 'Payment amount does not match order',
+    'duplicate_payment': 'Duplicate payment detected',
+    'wrong_counter': 'Order punched on the wrong counter'
+  };
+
+  if (map[type]) return map[type];
+  if (desc) return desc;
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── SETTLE CONFIRM ──
+function confirmSettle(runnerId) {
+  const cached = runnerDataCache[runnerId];
+  if (!cached) return;
+
+  const d = cached.data;
+  const runner = RUNNERS.find(r => r.id === runnerId);
+  const cash = d.cash_to_collect || 0;
+
+  $('confirmDialog').innerHTML = `
+    <h3>✓ Confirm Settlement</h3>
+    <div class="dialog-row">
+      <span class="dr-label">Runner</span>
+      <span class="dr-val">${runner.name} (${runner.code})</span>
+    </div>
+    <div class="dialog-row">
+      <span class="dr-label">Tokens</span>
+      <span class="dr-val">${fmt(d.tokens_amount || 0)}</span>
+    </div>
+    <div class="dialog-row">
+      <span class="dr-label">Sales</span>
+      <span class="dr-val">${fmt(d.sales_amount || 0)}</span>
+    </div>
+    <div class="dialog-row">
+      <span class="dr-label">UPI Collected</span>
+      <span class="dr-val" style="color:var(--blue)">${fmt(d.upi_amount || 0)}</span>
+    </div>
+    <div class="dialog-row">
+      <span class="dr-label">Cash to Collect</span>
+      <span class="dr-val" style="color:${cash >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:20px">${fmt(cash)}</span>
+    </div>
+    ${cash < 0 ? '<div class="dialog-warn">Runner owes less than expected. Verify UPI amount before settling.</div>' : ''}
+    <div class="dialog-buttons">
+      <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-confirm" id="btnDoSettle" onclick="doSettle(${runnerId})">Settle ${fmt(cash)}</button>
+    </div>
+  `;
+  $('confirmOverlay').classList.add('show');
+}
+
+function closeConfirm() {
+  $('confirmOverlay').classList.remove('show');
+}
+
+async function doSettle(runnerId) {
+  const cached = runnerDataCache[runnerId];
+  if (!cached) return;
+
+  const d = cached.data;
+  const runner = RUNNERS.find(r => r.id === runnerId);
+  const btn = $('btnDoSettle');
+  btn.textContent = 'Settling...';
+  btn.disabled = true;
+
+  try {
+    const now = new Date().toISOString();
+    const res = await fetch('/api/settlement?action=settle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        runner_id: runnerId,
+        runner_name: runner.name,
+        settled_by: currentUser,
+        period_start: d.period_start || now,
+        period_end: now,
+        tokens_amount: d.tokens_amount || 0,
+        sales_amount: d.sales_amount || 0,
+        upi_amount: d.upi_amount || 0,
+        cash_settled: d.cash_to_collect || 0
+      })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      closeConfirm();
+      toast(runner.name + ' settled!', 'ok');
+      runnerSettlementStatus[runnerId] = 'settled';
+      // Refresh
+      await loadRunnerLive(runnerId);
+      renderRunnerPanel(runnerId);
+      renderStatusBar();
+      loadCounterData();
+    } else {
+      toast(result.error || 'Settlement failed', 'err');
+      btn.textContent = 'Retry';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+  }
+}
+
+// ── COUNTER PANEL ──
+async function loadCounterData() {
+  $('counterPanel').classList.add('show');
+
+  try {
+    const res = await fetch('/api/settlement?action=runner-live&runner_id=counter');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const cash = data.cash_amount || 0;
+    const upi = data.upi_amount || 0;
+    const card = data.card_amount || 0;
+    const total = data.cash_to_collect || (cash - upi);
+
+    $('counterContent').innerHTML = `
+      <div class="counter-breakdown">
+        <div class="cb-item">
+          <div class="cb-val mono" style="color:var(--green)">${fmt(cash)}</div>
+          <div class="cb-label">Cash</div>
+        </div>
+        <div class="cb-item">
+          <div class="cb-val mono" style="color:var(--blue)">${fmt(upi)}</div>
+          <div class="cb-label">UPI</div>
+        </div>
+        <div class="cb-item">
+          <div class="cb-val mono" style="color:var(--purple)">${fmt(card)}</div>
+          <div class="cb-label">Card</div>
+        </div>
+      </div>
+      <div class="counter-total">
+        <div class="ct-amount">${fmt(total)}</div>
+        <div class="ct-label">Cash to Settle</div>
+      </div>
+    `;
+  } catch (e) {
+    $('counterContent').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load counter data</div>';
+  }
+}
+
+// ── EXPENSE PANEL ──
+function renderExpensePanel() {
+  $('expenseGrid').innerHTML = EXPENSE_CATEGORIES.map(c => `
+    <button class="expense-btn" id="exp-${c.code}" onclick="selectExpense('${c.code}')">${c.label}</button>
+  `).join('');
+}
+
+function selectExpense(code) {
+  // Deselect previous
+  if (selectedExpenseCode) {
+    const prev = $('exp-' + selectedExpenseCode);
+    if (prev) prev.classList.remove('selected');
+  }
+
+  selectedExpenseCode = code;
+  $('exp-' + code).classList.add('selected');
+
+  const cat = EXPENSE_CATEGORIES.find(c => c.code === code);
+  $('expenseLabel').textContent = 'Amount for ' + cat.label;
+  $('expenseAmount').value = '';
+  $('expenseForm').classList.add('show');
+  $('expenseAmount').focus();
+}
+
+async function submitExpense() {
+  if (!selectedExpenseCode) { toast('Select expense type', 'err'); return; }
+  const amount = parseInt($('expenseAmount').value);
+  if (!amount || amount <= 0) { toast('Enter amount', 'err'); return; }
+
+  const cat = EXPENSE_CATEGORIES.find(c => c.code === selectedExpenseCode);
+  const btn = $('expenseSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Recording...';
+
+  try {
+    const res = await fetch('/api/rectify?action=record-expense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pin: currentPin,
+        category_code: selectedExpenseCode,
+        amount: amount
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      toast(fmt(amount) + ' recorded for ' + cat.label, 'ok');
+      $('expenseAmount').value = '';
+      $('expenseForm').classList.remove('show');
+      if (selectedExpenseCode) {
+        $('exp-' + selectedExpenseCode).classList.remove('selected');
+      }
+      selectedExpenseCode = null;
+      loadExpenses();
+    } else {
+      toast(data.error || 'Failed', 'err');
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Record Expense';
+}
+
+async function loadExpenses() {
+  try {
+    const res = await fetch('/api/rectify?action=get-expenses&pin=' + currentPin);
+    const data = await res.json();
+
+    if (data.success && data.expenses && data.expenses.length > 0) {
+      let total = 0;
+      const items = data.expenses.map(e => {
+        total += e.amount;
+        return `
+          <div class="exp-item">
+            <span class="exp-cat">${e.reason || e.category || '—'}</span>
+            <span class="exp-amt">${fmt(e.amount)}</span>
+          </div>
+        `;
+      }).join('');
+
+      $('expenseListContainer').innerHTML = `
+        <div class="expense-list">
+          <h4>Today's Expenses</h4>
+          ${items}
+          <div class="exp-total">
+            <span>Total</span>
+            <span class="exp-amt">${fmt(total)}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      $('expenseListContainer').innerHTML = '';
+    }
+  } catch (e) {
+    // Expense loading is non-critical — silently fail
+    $('expenseListContainer').innerHTML = '';
+  }
+}
+
+// ── STATUS BAR ──
+function renderStatusBar() {
+  const bar = $('statusBar');
+  bar.innerHTML = RUNNERS.map(r => {
+    const settled = runnerSettlementStatus[r.id] === 'settled';
+    return `
+      <div class="status-chip ${settled ? 'settled' : 'pending'}">
+        ${settled ? '✓' : '✕'} ${r.name}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── HELPERS ──
+function formatTime(d) {
+  if (typeof d === 'string') d = new Date(d);
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function toast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── PETTY CASH ──
+let selectedPettyCode = null;
+let pettyPhotoBase64 = null;
+
+function renderPettyGrid() {
+  $('pettyGrid').innerHTML = PETTY_CATEGORIES.map(c => `
+    <button class="expense-btn" id="petty-${c.code}" onclick="selectPettyCategory('${c.code}')">${c.label}</button>
+  `).join('');
+
+  // Photo preview handler
+  $('pettyPhoto').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) { pettyPhotoBase64 = null; $('pettyPhotoPreview').innerHTML = ''; return; }
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      pettyPhotoBase64 = ev.target.result;
+      $('pettyPhotoPreview').innerHTML = `<img src="${pettyPhotoBase64}" style="max-width:100%;max-height:150px;border-radius:8px;border:1px solid var(--border)">`;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function selectPettyCategory(code) {
+  if (selectedPettyCode) {
+    const prev = $('petty-' + selectedPettyCode);
+    if (prev) prev.classList.remove('selected');
+  }
+  selectedPettyCode = code;
+  $('petty-' + code).classList.add('selected');
+  const cat = PETTY_CATEGORIES.find(c => c.code === code);
+  $('pettyLabel').textContent = 'Amount for ' + cat.label;
+  $('pettyAmount').value = '';
+  pettyPhotoBase64 = null;
+  $('pettyPhoto').value = '';
+  $('pettyPhotoPreview').innerHTML = '';
+  $('pettyForm').classList.add('show');
+  $('pettyAmount').focus();
+}
+
+async function submitPettyExpense() {
+  if (!selectedPettyCode) { toast('Select category', 'err'); return; }
+  const amount = parseInt($('pettyAmount').value);
+  if (!amount || amount <= 0) { toast('Enter amount', 'err'); return; }
+
+  const btn = $('pettySubmit');
+  btn.disabled = true;
+  btn.textContent = 'Recording...';
+
+  try {
+    const payload = { pin: currentPin, category_code: selectedPettyCode, amount };
+    if (pettyPhotoBase64) payload.receipt_photo = pettyPhotoBase64;
+
+    const res = await fetch('/api/rectify?action=petty-expense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const cat = PETTY_CATEGORIES.find(c => c.code === selectedPettyCode);
+      toast(fmt(amount) + ' recorded for ' + cat.label, 'ok');
+      $('pettyAmount').value = '';
+      $('pettyPhoto').value = '';
+      $('pettyPhotoPreview').innerHTML = '';
+      pettyPhotoBase64 = null;
+      $('pettyForm').classList.remove('show');
+      if (selectedPettyCode) $('petty-' + selectedPettyCode).classList.remove('selected');
+      selectedPettyCode = null;
+      loadPettyData();
+    } else {
+      toast(data.error || 'Failed', 'err');
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Record Petty Expense';
+}
+
+async function loadPettyData() {
+  try {
+    const res = await fetch('/api/rectify?action=get-petty&pin=' + currentPin);
+    const data = await res.json();
+    if (!data.success) return;
+
+    $('pettyBalance').textContent = fmt(data.balance);
+
+    if (data.transactions && data.transactions.length > 0) {
+      const expenses = data.transactions.filter(t => t.transaction_type === 'expense');
+      if (expenses.length > 0) {
+        let total = 0;
+        const items = expenses.map(e => {
+          total += e.amount;
+          const hasPhoto = e.receipt_photo ? ' 📷' : '';
+          return `<div class="exp-item">
+            <span class="exp-cat">${e.category_name || e.category_code}${hasPhoto}</span>
+            <span class="exp-amt" style="color:var(--orange)">${fmt(e.amount)}</span>
+          </div>`;
+        }).join('');
+        $('pettyListContainer').innerHTML = `
+          <div class="expense-list">
+            <h4>Today's Petty Expenses</h4>
+            ${items}
+            <div class="exp-total">
+              <span>Total</span>
+              <span class="exp-amt" style="color:var(--orange)">${fmt(total)}</span>
+            </div>
+          </div>`;
+      } else {
+        $('pettyListContainer').innerHTML = '';
+      }
+    } else {
+      $('pettyListContainer').innerHTML = '';
+    }
+  } catch (e) {
+    console.error('Petty load error:', e);
+  }
+}
+
+// ── CASH COLLECTION ──
+async function doCollectCash() {
+  const amount = parseInt($('collectAmount').value);
+  if (!amount || amount <= 0) { toast('Enter amount', 'err'); return; }
+
+  const btn = $('collectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Collecting...';
+  btn.className = 'settle-btn loading';
+
+  try {
+    const res = await fetch('/api/rectify?action=collect-cash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: currentPin, amount })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      toast(data.message, 'ok');
+      $('collectAmount').value = '';
+      loadCollections();
+      loadCounterData();
+    } else {
+      toast(data.error || 'Failed', 'err');
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Collect Cash';
+  btn.className = 'settle-btn ready';
+}
+
+async function loadCollections() {
+  try {
+    const res = await fetch('/api/rectify?action=get-collections&pin=' + currentPin);
+    const data = await res.json();
+    if (!data.success) return;
+
+    let html = '';
+    if (data.in_transit.length > 0) {
+      html += '<div style="border-top:1px solid var(--border);padding-top:12px">';
+      html += '<div style="font-size:13px;color:var(--yellow);font-weight:600;margin-bottom:8px">⏳ In Transit to Naveen</div>';
+      for (const c of data.in_transit) {
+        const time = new Date(c.collected_at).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true});
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg2);border-radius:8px;margin-bottom:6px;border-left:3px solid var(--yellow)">
+          <div>
+            <div style="font-size:14px;font-weight:600">${fmt(c.amount)}</div>
+            <div style="font-size:11px;color:var(--text2)">by ${c.collected_by_name} at ${time}</div>
+          </div>
+          ${currentPin === NAVEEN_PIN ? `<button class="fix-btn" style="background:var(--green)" onclick="confirmCashReceived(${c.id})">✓ Received</button>` : '<span style="font-size:11px;color:var(--yellow)">Pending</span>'}
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    if (data.total_collected > 0) {
+      html += `<div style="text-align:center;padding:10px;margin-top:8px;color:var(--green);font-size:13px">✓ ₹${data.total_collected.toLocaleString('en-IN')} collected today</div>`;
+    }
+
+    $('inTransitList').innerHTML = html;
+  } catch (e) {
+    console.error('Collections error:', e);
+  }
+}
+
+async function confirmCashReceived(collectionId) {
+  try {
+    const res = await fetch('/api/rectify?action=confirm-received', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: currentPin, collection_id: collectionId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(data.message, 'ok');
+      loadCollections();
+    } else {
+      toast(data.error || 'Failed', 'err');
+    }
+  } catch (e) {
+    toast('Connection error', 'err');
+  }
+}
+
+// Auto-refresh runner data every 60s
+setInterval(() => {
+  if (currentUser) loadAllRunnerStatus();
+}, 60000);
+</script>
+</body>
+</html>

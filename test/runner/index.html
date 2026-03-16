@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NCH Runner</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+    .mono{font-family:'JetBrains Mono',monospace}
+
+    /* ── PIN Screen ── */
+    .pin-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .pin-screen.hidden{display:none}
+    .pin-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 32px;text-align:center;max-width:360px;width:100%}
+    .pin-box .logo{width:56px;height:56px;background:var(--purple);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px}
+    .pin-box h2{font-size:22px;margin-bottom:6px}
+    .pin-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .pin-dots{display:flex;gap:14px;justify-content:center;margin-bottom:24px}
+    .pin-dots .dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);transition:all .2s}
+    .pin-dots .dot.filled{background:var(--purple);border-color:var(--purple)}
+    .pin-dots .dot.error{background:var(--red);border-color:var(--red)}
+    .pin-hidden{position:absolute;opacity:0;width:1px;height:1px}
+    .pin-error{color:var(--red);font-size:14px;font-weight:600;min-height:20px;margin-bottom:12px}
+    .pin-loading{color:var(--purple);font-size:14px;min-height:20px;margin-bottom:12px;display:none}
+    .pin-tap{color:var(--text2);font-size:13px}
+
+    /* ── Phone Input ── */
+    .phone-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;display:none}
+    .phone-screen.show{display:flex}
+    .phone-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 32px;text-align:center;max-width:360px;width:100%}
+    .phone-box h2{font-size:20px;margin-bottom:6px}
+    .phone-box p{color:var(--text2);font-size:14px;margin-bottom:24px}
+    .phone-input{width:100%;background:var(--bg2);border:2px solid var(--border);border-radius:12px;color:var(--text);font-size:22px;text-align:center;padding:14px;font-family:'JetBrains Mono',monospace;letter-spacing:2px}
+    .phone-input:focus{outline:none;border-color:var(--purple)}
+    .phone-submit{width:100%;background:var(--purple);color:#fff;border:none;padding:14px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:16px;min-height:48px}
+    .phone-submit:disabled{opacity:.5;cursor:not-allowed}
+
+    /* ── Dashboard ── */
+    .dashboard{display:none;min-height:100vh;padding-bottom:72px}
+    .dashboard.show{display:block}
+
+    /* Header */
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .header-left{display:flex;align-items:center;gap:10px}
+    .header-left .bar{width:4px;height:22px;background:var(--purple);border-radius:2px}
+    .header-left h1{font-size:17px;font-weight:700}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .runner-name{font-size:13px;font-weight:600;color:var(--text2)}
+    .logout-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;min-height:32px}
+
+    .content{padding:16px;max-width:480px;margin:0 auto}
+
+    /* ── Hero Card ── */
+    .hero{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;text-align:center;margin-bottom:16px}
+    .hero-label{font-size:14px;color:var(--text2);margin-bottom:8px;font-weight:500}
+    .hero-amount{font-size:48px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1.1}
+    .hero-amount.positive{color:var(--green)}
+    .hero-amount.negative{color:var(--red)}
+    .hero-formula{font-size:13px;color:var(--text2);margin-top:10px;font-family:'JetBrains Mono',monospace}
+    .hero-period{font-size:12px;color:var(--text2);margin-top:8px;opacity:.7}
+
+    /* ── Error Alerts ── */
+    .errors-section{display:none;margin-bottom:16px}
+    .errors-section.show{display:block}
+    .errors-header{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+    .error-card{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--red);border-radius:12px;padding:16px;margin-bottom:10px}
+    .error-card .error-desc{font-size:14px;font-weight:600;margin-bottom:6px}
+    .error-card .error-meta{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-bottom:12px}
+    .error-card .error-amount{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--orange)}
+    .error-actions{display:flex;gap:10px}
+    .error-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px}
+    .btn-confirm{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3) !important}
+    .btn-dispute{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3) !important}
+    .dispute-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:10px;margin-top:10px;min-height:60px;resize:vertical;display:none;font-family:'Plus Jakarta Sans',sans-serif}
+    .dispute-input.show{display:block}
+    .dispute-send{width:100%;background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;min-height:44px;display:none}
+    .dispute-send.show{display:block}
+
+    /* ── Accountability Banner ── */
+    .accountability{display:none;background:rgba(234,179,8,.1);border:1px solid var(--yellow);border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:14px;color:var(--yellow);line-height:1.5}
+    .accountability.show{display:block}
+    .accountability strong{font-family:'JetBrains Mono',monospace}
+
+    /* ── Section Cards ── */
+    .section{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden}
+    .section-header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+    .section-title{font-size:15px;font-weight:600}
+    .section-badge{background:var(--bg2);color:var(--text2);font-size:12px;font-family:'JetBrains Mono',monospace;padding:4px 10px;border-radius:6px}
+    .section-body{padding:14px 16px}
+    .line-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(45,58,79,.5)}
+    .line-item:last-child{border-bottom:none}
+    .line-item .li-left{display:flex;flex-direction:column;gap:2px}
+    .line-item .li-name{font-size:14px;font-weight:500}
+    .line-item .li-meta{font-size:12px;color:var(--text2)}
+    .line-item .li-amount{font-size:16px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .total-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0 4px;border-top:2px solid var(--border);margin-top:6px}
+    .total-row .label{font-size:14px;font-weight:600}
+    .total-row .value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+
+    /* Sales order card */
+    .order-card{background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px}
+    .order-card:last-child{margin-bottom:0}
+    .order-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .order-ref{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .order-time{font-size:11px;color:var(--text2)}
+    .order-items{font-size:13px;color:var(--text2);margin-bottom:6px}
+    .order-total{font-size:16px;font-weight:600;font-family:'JetBrains Mono',monospace;text-align:right}
+
+    /* UPI payments */
+    .upi-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(45,58,79,.5)}
+    .upi-item:last-child{border-bottom:none}
+    .upi-item.new{border-left:3px solid var(--green);padding-left:12px;animation:fadeIn .5s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+    .upi-left{display:flex;flex-direction:column;gap:2px}
+    .upi-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .upi-vpa{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .upi-time{font-size:11px;color:var(--text2)}
+
+    /* Settlement history */
+    .history-toggle{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:14px 16px;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;min-height:48px}
+    .history-toggle .arrow{transition:transform .2s}
+    .history-toggle.open .arrow{transform:rotate(180deg)}
+    .history-content{display:none;margin-bottom:16px}
+    .history-content.show{display:block}
+    .history-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px}
+    .history-item .hi-top{display:flex;justify-content:space-between;align-items:center}
+    .history-item .hi-amount{font-size:18px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--green)}
+    .history-item .hi-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+    .history-item .hi-who{font-size:12px;color:var(--text2);margin-top:4px}
+
+    /* ── Refresh Bar ── */
+    .refresh-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;z-index:50;display:none}
+    .refresh-bar.show{display:flex}
+    .refresh-text{font-size:13px;color:var(--text2)}
+    .refresh-btn{background:var(--purple);color:#fff;border:none;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px}
+    .refresh-btn:active{transform:scale(.96)}
+    .refresh-btn.loading{opacity:.6;cursor:wait}
+
+    /* ── Empty state ── */
+    .empty{text-align:center;padding:24px;color:var(--text2);font-size:14px}
+
+    /* ── Loading skeleton ── */
+    .skeleton{background:linear-gradient(90deg,var(--card) 25%,var(--bg2) 50%,var(--card) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;height:20px;margin:8px 0}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .skeleton.big{height:60px;border-radius:12px}
+    .skeleton.med{height:40px}
+
+    /* ── Full-screen loader ── */
+    .dash-loading{padding:24px;max-width:480px;margin:0 auto}
+  </style>
+</head>
+<body>
+
+<!-- ====== PIN LOGIN ====== -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-box">
+    <div class="logo">🏃</div>
+    <h2>Runner Login</h2>
+    <p>Enter your 4-digit PIN</p>
+    <div class="pin-dots" id="pinDots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-loading" id="pinLoading">Verifying...</div>
+    <input type="tel" class="pin-hidden" id="pinInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    <p class="pin-tap">Tap anywhere to type</p>
+  </div>
+</div>
+
+<!-- ====== PHONE INPUT ====== -->
+<div class="phone-screen" id="phoneScreen">
+  <div class="phone-box">
+    <h2 id="phoneGreeting">Hi!</h2>
+    <p>Enter your phone number to continue</p>
+    <input type="tel" class="phone-input" id="phoneInput" maxlength="10" inputmode="numeric" pattern="[0-9]*" placeholder="9876543210" autocomplete="off">
+    <button class="phone-submit" id="phoneSubmit" disabled>Continue</button>
+  </div>
+</div>
+
+<!-- ====== DASHBOARD ====== -->
+<div class="dashboard" id="dashboard">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="bar"></div>
+      <h1>Runner Dashboard</h1>
+    </div>
+    <div class="header-right">
+      <div class="status-dot"></div>
+      <span class="runner-name" id="runnerName"></span>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div class="dash-loading" id="dashLoading">
+    <div class="skeleton big" style="margin-top:8px"></div>
+    <div class="skeleton med" style="margin-top:16px"></div>
+    <div class="skeleton" style="margin-top:12px;width:70%"></div>
+    <div class="skeleton big" style="margin-top:20px"></div>
+    <div class="skeleton" style="margin-top:12px"></div>
+    <div class="skeleton" style="margin-top:8px;width:60%"></div>
+  </div>
+
+  <!-- Dashboard content (hidden until data loads) -->
+  <div class="content" id="dashContent" style="display:none">
+
+    <!-- A. Hero Card -->
+    <div class="hero">
+      <div class="hero-label">Cash you should have</div>
+      <div class="hero-amount" id="heroCash">--</div>
+      <div class="hero-formula mono" id="heroFormula"></div>
+      <div class="hero-period" id="heroPeriod"></div>
+    </div>
+
+    <!-- B. Error Alerts -->
+    <div class="errors-section" id="errorsSection">
+      <div class="errors-header" id="errorsHeader"></div>
+      <div id="errorsList"></div>
+    </div>
+
+    <!-- C. Accountability Banner -->
+    <div class="accountability" id="accountability"></div>
+
+    <!-- D. Sales Breakdown — Token Issues -->
+    <div class="section" id="tokenSection">
+      <div class="section-header">
+        <span class="section-title">Token Issues</span>
+        <span class="section-badge" id="tokenBadge">0 orders</span>
+      </div>
+      <div class="section-body" id="tokenBody"></div>
+    </div>
+
+    <!-- D. Sales Breakdown — Direct Sales -->
+    <div class="section" id="salesSection">
+      <div class="section-header">
+        <span class="section-title">Direct Sales</span>
+        <span class="section-badge" id="salesBadge">0 orders</span>
+      </div>
+      <div class="section-body" id="salesBody"></div>
+    </div>
+
+    <!-- D. Total Revenue -->
+    <div class="section">
+      <div class="section-body">
+        <div class="total-row">
+          <span class="label">Total Revenue</span>
+          <span class="value" id="totalRevenue">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- E. UPI Payments -->
+    <div class="section" id="upiSection">
+      <div class="section-header">
+        <span class="section-title">UPI Payments</span>
+        <span class="section-badge" id="upiBadge">0</span>
+      </div>
+      <div class="section-body" id="upiBody"></div>
+    </div>
+
+    <!-- F. Settlement History -->
+    <button class="history-toggle" id="historyToggle">
+      <span>Past Settlements</span>
+      <span class="arrow">&#9660;</span>
+    </button>
+    <div class="history-content" id="historyContent"></div>
+  </div>
+</div>
+
+<!-- G. Refresh Bar -->
+<div class="refresh-bar" id="refreshBar">
+  <span class="refresh-text" id="refreshText">Last updated: --</span>
+  <button class="refresh-btn" id="refreshBtn">Refresh</button>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── State ──
+  let state = {
+    pin: '',
+    slot: '',
+    name: '',
+    partnerId: null,
+    barcode: '',
+    lastRefresh: null,
+    refreshTimer: null,
+    countdownTimer: null,
+    previousUpiIds: new Set(),
+    historyLoaded: false
+  };
+
+  const PARTNER_MAP = {
+    'RUN001': 64, 'RUN002': 65, 'RUN003': 66, 'RUN004': 67, 'RUN005': 68
+  };
+
+  const ERROR_LABELS = {
+    'invalid_tuple': 'Wrong payment method',
+    'invalid_partner': 'Wrong runner assigned',
+    'invalid_product_method': 'Product/payment mismatch',
+    'missing_runner': 'Runner not assigned',
+    'duplicate_payment': 'Duplicate payment',
+    'amount_mismatch': 'Amount mismatch'
+  };
+
+  // ── Helpers ──
+  function fmt(n) {
+    if (n == null || isNaN(n)) return '0';
+    return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+
+  function fmtRupee(n) {
+    return '\u20B9' + fmt(n);
+  }
+
+  function maskVpa(vpa) {
+    if (!vpa) return '';
+    const atIdx = vpa.indexOf('@');
+    if (atIdx <= 3) return vpa;
+    return vpa.slice(0, 3) + '****' + vpa.slice(atIdx);
+  }
+
+  function timeAgo(isoStr) {
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const mins = Math.floor(diffMs / 60000);
+    const hrs = Math.floor(mins / 60);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm ago';
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }
+
+  function formatTimeIST(isoStr) {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+    } catch { return ''; }
+  }
+
+  function formatDateIST(isoStr) {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+    } catch { return ''; }
+  }
+
+  async function api(url) {
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  async function apiPost(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  }
+
+  // ── PIN Screen ──
+  const pinScreen = document.getElementById('pinScreen');
+  const pinInput = document.getElementById('pinInput');
+  const pinDots = document.querySelectorAll('#pinDots .dot');
+  const pinError = document.getElementById('pinError');
+  const pinLoading = document.getElementById('pinLoading');
+
+  pinScreen.addEventListener('click', () => pinInput.focus());
+  pinInput.focus();
+
+  pinInput.addEventListener('input', function() {
+    const val = this.value.replace(/\D/g, '').slice(0, 4);
+    this.value = val;
+
+    pinDots.forEach((dot, i) => {
+      dot.classList.toggle('filled', i < val.length);
+      dot.classList.remove('error');
+    });
+
+    pinError.textContent = '';
+
+    if (val.length === 4) {
+      attemptLogin(val);
+    }
+  });
+
+  async function attemptLogin(pin) {
+    pinLoading.style.display = 'block';
+    pinInput.disabled = true;
+
+    try {
+      const data = await api('/api/validator?action=login&pin=' + pin);
+
+      if (!data.success) {
+        showPinError('Invalid PIN. Try again.');
+        return;
+      }
+
+      if (data.role !== 'runner') {
+        showPinError('This dashboard is for runners only');
+        return;
+      }
+
+      state.pin = pin;
+      state.slot = data.slot;
+      // Show as "Runner 01" not personal name
+      const slotNum = data.slot.replace('RUN00', '');
+      state.name = 'Runner ' + slotNum.padStart(2, '0');
+      state.partnerId = PARTNER_MAP[data.slot];
+      state.barcode = data.slot;
+
+      if (data.phone_required) {
+        showPhoneScreen(data.name);
+      } else {
+        showDashboard();
+      }
+    } catch (e) {
+      showPinError('Connection error. Try again.');
+    }
+  }
+
+  function showPinError(msg) {
+    pinLoading.style.display = 'none';
+    pinInput.disabled = false;
+    pinInput.value = '';
+    pinError.textContent = msg;
+    pinDots.forEach(d => { d.classList.remove('filled'); d.classList.add('error'); });
+    setTimeout(() => {
+      pinDots.forEach(d => d.classList.remove('error'));
+      pinInput.focus();
+    }, 1200);
+  }
+
+  // ── Phone Screen ──
+  const phoneScreen = document.getElementById('phoneScreen');
+  const phoneInput = document.getElementById('phoneInput');
+  const phoneSubmit = document.getElementById('phoneSubmit');
+
+  phoneInput.addEventListener('input', function() {
+    const val = this.value.replace(/\D/g, '').slice(0, 10);
+    this.value = val;
+    phoneSubmit.disabled = val.length < 10;
+  });
+
+  phoneSubmit.addEventListener('click', async function() {
+    const phone = phoneInput.value.replace(/\D/g, '');
+    if (phone.length < 10) return;
+
+    phoneSubmit.disabled = true;
+    phoneSubmit.textContent = 'Saving...';
+
+    try {
+      await api('/api/validator?action=login&pin=' + state.pin + '&phone=91' + phone);
+      showDashboard();
+    } catch {
+      phoneSubmit.disabled = false;
+      phoneSubmit.textContent = 'Continue';
+    }
+  });
+
+  function showPhoneScreen(name) {
+    pinScreen.classList.add('hidden');
+    document.getElementById('phoneGreeting').textContent = 'Hi ' + name + '!';
+    phoneScreen.classList.add('show');
+    setTimeout(() => phoneInput.focus(), 300);
+  }
+
+  // ── Dashboard ──
+  function showDashboard() {
+    pinScreen.classList.add('hidden');
+    phoneScreen.classList.remove('show');
+    phoneScreen.style.display = 'none';
+    document.getElementById('dashboard').classList.add('show');
+    document.getElementById('refreshBar').classList.add('show');
+    document.getElementById('runnerName').textContent = state.name;
+
+    loadDashboard();
+    startAutoRefresh();
+  }
+
+  async function loadDashboard() {
+    const loading = document.getElementById('dashLoading');
+    const content = document.getElementById('dashContent');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    loading.style.display = 'block';
+    content.style.display = 'none';
+    refreshBtn.classList.add('loading');
+    refreshBtn.textContent = 'Loading...';
+
+    try {
+      const [liveData, errorsData] = await Promise.all([
+        api('/api/settlement?action=runner-live&runner_id=' + state.partnerId),
+        api('/api/validator?action=get-my-errors&pin=' + state.pin).catch(() => ({ errors: [], discrepancies: [] }))
+      ]);
+
+      if (!liveData.success) {
+        loading.innerHTML = '<div class="empty">Failed to load data. Pull to refresh.</div>';
+        return;
+      }
+
+      renderDashboard(liveData, errorsData);
+      state.lastRefresh = new Date();
+      updateRefreshText();
+
+    } catch (e) {
+      loading.innerHTML = '<div class="empty">Connection error. Check your network.</div>';
+    } finally {
+      refreshBtn.classList.remove('loading');
+      refreshBtn.textContent = 'Refresh';
+    }
+  }
+
+  function renderDashboard(data, errorsData) {
+    const loading = document.getElementById('dashLoading');
+    const content = document.getElementById('dashContent');
+
+    loading.style.display = 'none';
+    content.style.display = 'block';
+
+    // A. Hero Card
+    const cash = data.cashInHand || 0;
+    const heroEl = document.getElementById('heroCash');
+    heroEl.textContent = fmtRupee(Math.abs(cash));
+    if (cash < 0) heroEl.textContent = '-' + fmtRupee(Math.abs(cash));
+    heroEl.className = 'hero-amount ' + (cash >= 0 ? 'positive' : 'negative');
+
+    const totalSales = (data.tokens || 0) + (data.sales || 0);
+    const upiAmt = data.upi ? data.upi.total : 0;
+    const cross = data.crossPaymentCredit || 0;
+    let formulaParts = fmtRupee(totalSales) + ' sales';
+    if (upiAmt > 0) formulaParts += ' - ' + fmtRupee(upiAmt) + ' UPI';
+    if (cross > 0) formulaParts += ' - ' + fmtRupee(cross) + ' cross-pay';
+    document.getElementById('heroFormula').textContent = formulaParts;
+    document.getElementById('heroPeriod').textContent = 'Since: ' + (data.period ? data.period.startFormatted : '--');
+
+    // B. Errors
+    const errors = (errorsData.errors || []).concat(errorsData.discrepancies || []);
+    renderErrors(errors);
+
+    // C. Accountability
+    renderAccountability(errors);
+
+    // D. Token Issues
+    renderTokens(data);
+
+    // D. Direct Sales
+    renderSales(data);
+
+    // D. Total Revenue
+    document.getElementById('totalRevenue').textContent = fmtRupee(totalSales);
+
+    // E. UPI Payments
+    renderUPI(data);
+  }
+
+  // ── B. Error Alerts ──
+  function renderErrors(errors) {
+    const section = document.getElementById('errorsSection');
+    const header = document.getElementById('errorsHeader');
+    const list = document.getElementById('errorsList');
+
+    if (!errors.length) {
+      section.classList.remove('show');
+      return;
+    }
+
+    section.classList.add('show');
+    header.innerHTML = '\u26A0\uFE0F ' + errors.length + ' issue' + (errors.length > 1 ? 's' : '') + ' need attention';
+
+    list.innerHTML = errors.map((err, i) => {
+      const label = ERROR_LABELS[err.error_type] || err.error_type || 'Issue detected';
+      const amount = err.order_amount ? fmtRupee(err.order_amount) : '';
+      const ref = err.order_ref || '';
+      const time = formatTimeIST(err.order_time || err.detected_at);
+      const errId = err.id;
+
+      return `
+        <div class="error-card" data-error-id="${errId}">
+          <div class="error-desc">${label}</div>
+          <div class="error-meta">${ref}${amount ? ' &middot; ' + amount : ''}${time ? ' &middot; ' + time : ''}</div>
+          ${err.description ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">' + err.description + '</div>' : ''}
+          <div class="error-actions">
+            <button class="btn-confirm" onclick="confirmError(${errId})">&#10003; I Confirm</button>
+            <button class="btn-dispute" onclick="toggleDispute(${errId})">&#10007; Not Mine</button>
+          </div>
+          <textarea class="dispute-input" id="dispute-input-${errId}" placeholder="Explain why this isn't yours..."></textarea>
+          <button class="dispute-send" id="dispute-send-${errId}" onclick="submitDispute(${errId})">Send Dispute</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Global handlers for error actions
+  window.confirmError = async function(errorId) {
+    const card = document.querySelector(`[data-error-id="${errorId}"]`);
+    if (!card) return;
+
+    const btn = card.querySelector('.btn-confirm');
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
+
+    try {
+      // Use get-my-errors acknowledge pattern — POST to validator
+      const res = await apiPost('/api/rectify?action=acknowledge-error', {
+        pin: state.pin,
+        error_id: errorId
+      });
+
+      if (res.success) {
+        card.style.opacity = '0.3';
+        card.style.pointerEvents = 'none';
+        btn.textContent = 'Confirmed';
+        setTimeout(() => card.remove(), 1000);
+        updateErrorCount();
+      } else {
+        btn.textContent = '\u2713 I Confirm';
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = '\u2713 I Confirm';
+      btn.disabled = false;
+    }
+  };
+
+  window.toggleDispute = function(errorId) {
+    const input = document.getElementById('dispute-input-' + errorId);
+    const sendBtn = document.getElementById('dispute-send-' + errorId);
+    input.classList.toggle('show');
+    sendBtn.classList.toggle('show');
+    if (input.classList.contains('show')) input.focus();
+  };
+
+  window.submitDispute = async function(errorId) {
+    const input = document.getElementById('dispute-input-' + errorId);
+    const sendBtn = document.getElementById('dispute-send-' + errorId);
+    const reason = input.value.trim();
+
+    if (!reason) {
+      input.style.borderColor = 'var(--red)';
+      input.placeholder = 'Please enter a reason';
+      return;
+    }
+
+    sendBtn.textContent = 'Sending...';
+    sendBtn.disabled = true;
+
+    try {
+      const res = await apiPost('/api/rectify?action=dispute-error', {
+        pin: state.pin,
+        error_id: errorId,
+        reason: reason
+      });
+
+      const card = document.querySelector(`[data-error-id="${errorId}"]`);
+      if (res.success && card) {
+        card.style.opacity = '0.3';
+        card.style.pointerEvents = 'none';
+        sendBtn.textContent = 'Disputed';
+        setTimeout(() => card.remove(), 1000);
+        updateErrorCount();
+      } else {
+        sendBtn.textContent = 'Send Dispute';
+        sendBtn.disabled = false;
+      }
+    } catch {
+      sendBtn.textContent = 'Send Dispute';
+      sendBtn.disabled = false;
+    }
+  };
+
+  function updateErrorCount() {
+    const remaining = document.querySelectorAll('#errorsList .error-card:not([style*="pointer-events: none"])');
+    if (remaining.length === 0) {
+      document.getElementById('errorsSection').classList.remove('show');
+      document.getElementById('accountability').classList.remove('show');
+    } else {
+      document.getElementById('errorsHeader').innerHTML = '\u26A0\uFE0F ' + remaining.length + ' issue' + (remaining.length > 1 ? 's' : '') + ' need attention';
+    }
+  }
+
+  // ── C. Accountability Banner ──
+  function renderAccountability(errors) {
+    const el = document.getElementById('accountability');
+    if (!errors.length) {
+      el.classList.remove('show');
+      return;
+    }
+    const totalAmount = errors.reduce((sum, e) => sum + (e.order_amount || 0), 0);
+    el.classList.add('show');
+    el.innerHTML = 'You have <strong>' + fmtRupee(totalAmount) + '</strong> in unresolved errors. This will be deducted at settlement if not fixed.';
+  }
+
+  // ── D. Token Issues ──
+  function renderTokens(data) {
+    const body = document.getElementById('tokenBody');
+    const badge = document.getElementById('tokenBadge');
+    const breakdown = data.tokenBreakdown || [];
+
+    badge.textContent = (data.tokenOrders || 0) + ' order' + ((data.tokenOrders || 0) !== 1 ? 's' : '');
+
+    if (!breakdown.length) {
+      body.innerHTML = '<div class="empty">No token issues yet</div>';
+      return;
+    }
+
+    let html = breakdown.map(item => `
+      <div class="line-item">
+        <div class="li-left">
+          <span class="li-name">${item.name}</span>
+          <span class="li-meta">${item.qty} x ${fmtRupee(Math.round(item.amount / item.qty))}</span>
+        </div>
+        <span class="li-amount">${fmtRupee(item.amount)}</span>
+      </div>
+    `).join('');
+
+    const tokenTotal = data.tokens || 0;
+    html += `
+      <div class="total-row">
+        <span class="label">Token Total</span>
+        <span class="value">${fmtRupee(tokenTotal)}</span>
+      </div>
+    `;
+
+    body.innerHTML = html;
+  }
+
+  // ── D. Direct Sales ──
+  function renderSales(data) {
+    const body = document.getElementById('salesBody');
+    const badge = document.getElementById('salesBadge');
+    const details = data.salesDetails || [];
+
+    badge.textContent = (data.salesOrders || 0) + ' order' + ((data.salesOrders || 0) !== 1 ? 's' : '');
+
+    if (!details.length) {
+      body.innerHTML = '<div class="empty">No direct sales yet</div>';
+      return;
+    }
+
+    let html = details.map(order => {
+      const itemsStr = (order.items || []).map(it => it.qty + 'x ' + it.name).join(', ');
+      return `
+        <div class="order-card">
+          <div class="order-header">
+            <span class="order-ref">${order.name || ''}</span>
+            <span class="order-time">${formatTimeIST(order.time)}</span>
+          </div>
+          ${itemsStr ? '<div class="order-items">' + itemsStr + '</div>' : ''}
+          <div class="order-total">${fmtRupee(order.amount)}</div>
+        </div>
+      `;
+    }).join('');
+
+    const salesTotal = data.sales || 0;
+    html += `
+      <div class="total-row">
+        <span class="label">Sales Total</span>
+        <span class="value">${fmtRupee(salesTotal)}</span>
+      </div>
+    `;
+
+    body.innerHTML = html;
+  }
+
+  // ── E. UPI Payments ──
+  function renderUPI(data) {
+    const body = document.getElementById('upiBody');
+    const badge = document.getElementById('upiBadge');
+    const payments = data.upi ? data.upi.payments : [];
+    const upiTotal = data.upi ? data.upi.total : 0;
+    const count = data.upi ? data.upi.count : 0;
+
+    badge.textContent = count + ' \u00B7 ' + fmtRupee(upiTotal);
+
+    if (!payments.length) {
+      body.innerHTML = '<div class="empty">No UPI payments yet</div>';
+      state.previousUpiIds = new Set();
+      return;
+    }
+
+    const newIds = new Set(payments.map(p => p.id));
+
+    body.innerHTML = payments.map(p => {
+      const isNew = !state.previousUpiIds.has(p.id);
+      return `
+        <div class="upi-item${isNew && state.previousUpiIds.size > 0 ? ' new' : ''}">
+          <div class="upi-left">
+            <span class="upi-amount">${fmtRupee(p.amount)}</span>
+            <span class="upi-vpa">${maskVpa(p.vpa)}</span>
+          </div>
+          <span class="upi-time">${formatTimeIST(p.time)}</span>
+        </div>
+      `;
+    }).join('');
+
+    state.previousUpiIds = newIds;
+  }
+
+  // ── F. Settlement History ──
+  const historyToggle = document.getElementById('historyToggle');
+  const historyContent = document.getElementById('historyContent');
+
+  historyToggle.addEventListener('click', async function() {
+    const isOpen = historyContent.classList.contains('show');
+    if (isOpen) {
+      historyContent.classList.remove('show');
+      historyToggle.classList.remove('open');
+      return;
+    }
+
+    historyToggle.classList.add('open');
+    historyContent.classList.add('show');
+
+    if (state.historyLoaded) return;
+
+    historyContent.innerHTML = '<div class="empty">Loading...</div>';
+
+    try {
+      const data = await api('/api/settlement?action=history&runner_id=' + state.partnerId + '&limit=10');
+      const settlements = data.settlements || [];
+
+      if (!settlements.length) {
+        historyContent.innerHTML = '<div class="empty">No past settlements</div>';
+      } else {
+        historyContent.innerHTML = settlements.map(s => `
+          <div class="history-item">
+            <div class="hi-top">
+              <span class="hi-amount">${fmtRupee(s.cash_settled)}</span>
+              <span class="hi-date">${formatDateIST(s.settled_at)}</span>
+            </div>
+            <div class="hi-who">Settled by ${s.settled_by || 'unknown'}</div>
+          </div>
+        `).join('');
+      }
+
+      state.historyLoaded = true;
+    } catch {
+      historyContent.innerHTML = '<div class="empty">Failed to load history</div>';
+    }
+  });
+
+  // ── G. Refresh Bar ──
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.addEventListener('click', function() {
+    if (refreshBtn.classList.contains('loading')) return;
+    loadDashboard();
+  });
+
+  function startAutoRefresh() {
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+    if (state.countdownTimer) clearInterval(state.countdownTimer);
+
+    state.refreshTimer = setInterval(() => {
+      loadDashboard();
+    }, 30000);
+
+    state.countdownTimer = setInterval(() => {
+      updateRefreshText();
+    }, 1000);
+  }
+
+  function updateRefreshText() {
+    if (!state.lastRefresh) return;
+    const seconds = Math.floor((Date.now() - state.lastRefresh.getTime()) / 1000);
+    const text = seconds < 5 ? 'Just now' : seconds + 's ago';
+    document.getElementById('refreshText').textContent = 'Updated: ' + text;
+  }
+
+  // ── Logout ──
+  document.getElementById('logoutBtn').addEventListener('click', function() {
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+    if (state.countdownTimer) clearInterval(state.countdownTimer);
+
+    state = { pin: '', slot: '', name: '', partnerId: null, barcode: '', lastRefresh: null, refreshTimer: null, countdownTimer: null, previousUpiIds: new Set(), historyLoaded: false };
+
+    document.getElementById('dashboard').classList.remove('show');
+    document.getElementById('refreshBar').classList.remove('show');
+    document.getElementById('dashLoading').style.display = 'block';
+    document.getElementById('dashContent').style.display = 'none';
+    pinScreen.classList.remove('hidden');
+    pinInput.value = '';
+    pinInput.disabled = false;
+    pinDots.forEach(d => d.classList.remove('filled', 'error'));
+    pinError.textContent = '';
+    pinLoading.style.display = 'none';
+    setTimeout(() => pinInput.focus(), 300);
+  });
+
+  // Focus PIN input on load
+  setTimeout(() => pinInput.focus(), 500);
+})();
+</script>
+</body>
+</html>
