@@ -473,15 +473,35 @@ async function loadAllRunnerStatus() {
 
 async function loadRunnerLive(runnerId, bgOnly = false) {
   try {
-    const res = await fetch('/api/settlement?action=runner-live&runner_id=' + runnerId);
-    const data = await res.json();
-    if (!data.success) return;
+    const runner = RUNNERS.find(r => r.id === runnerId);
+    if (!runner) return;
 
-    runnerDataCache[runnerId] = { data, timestamp: Date.now() };
+    // Fetch settlement data + validator errors in parallel
+    const [settleRes, errRes] = await Promise.all([
+      fetch('/api/settlement?action=runner-live&runner_id=' + runnerId),
+      fetch('/api/validator?action=get-my-errors&pin=' + getRunnerPin(runner.code))
+    ]);
+    const settleData = await settleRes.json();
+    const errData = await errRes.json();
+
+    if (!settleData.success) return;
+
+    // Map settlement API fields to what the UI uses
+    const merged = {
+      ...settleData,
+      tokens_amount: settleData.tokens || 0,
+      sales_amount: settleData.sales || 0,
+      upi_amount: settleData.upi?.total || 0,
+      cash_to_collect: settleData.cashInHand || 0,
+      period_start: settleData.period?.start || null,
+      pending_errors: errData.success ? (errData.errors || []) : []
+    };
+
+    runnerDataCache[runnerId] = { data: merged, timestamp: Date.now() };
 
     // Determine status
-    const errors = data.pending_errors || [];
-    const cash = data.cash_to_collect || 0;
+    const errors = merged.pending_errors;
+    const cash = merged.cash_to_collect;
     const statusEl = $('rs-' + runnerId);
     const badgeEl = $('rb-' + runnerId);
 
@@ -507,6 +527,12 @@ async function loadRunnerLive(runnerId, bgOnly = false) {
     const statusEl = $('rs-' + runnerId);
     if (statusEl) statusEl.textContent = '⚠️';
   }
+}
+
+// Map runner slot code to their PIN for error lookup
+function getRunnerPin(slotCode) {
+  const pins = { RUN001: '3678', RUN002: '4421', RUN003: '5503', RUN004: '6604', RUN005: '7705' };
+  return pins[slotCode] || '';
 }
 
 function selectRunner(id) {
@@ -710,7 +736,7 @@ async function applyFix(runnerId, idx) {
 }
 
 function humanizeError(err) {
-  const type = err.error_type || err.type || '';
+  const type = err.error_code || err.error_type || err.type || '';
   const desc = err.description || '';
 
   // Convert technical error types to plain language
@@ -829,33 +855,35 @@ async function loadCounterData() {
   $('counterPanel').classList.add('show');
 
   try {
-    const res = await fetch('/api/settlement?action=runner-live&runner_id=counter');
+    const res = await fetch('/api/settlement?action=counter-balance');
     const data = await res.json();
     if (!data.success) return;
 
-    const cash = data.cash_amount || 0;
-    const upi = data.upi_amount || 0;
-    const card = data.card_amount || 0;
-    const total = data.cash_to_collect || (cash - upi);
+    const bal = data.balance || {};
+    const pettyCash = bal.pettyCash || 0;
+    const counterCash = bal.counterCash || 0;
+    const runnerCash = bal.runnerCash || 0;
+    const expenses = bal.totalExpenses || 0;
+    const total = bal.total || 0;
 
     $('counterContent').innerHTML = `
       <div class="counter-breakdown">
         <div class="cb-item">
-          <div class="cb-val mono" style="color:var(--green)">${fmt(cash)}</div>
-          <div class="cb-label">Cash</div>
+          <div class="cb-val mono" style="color:var(--green)">${fmt(counterCash)}</div>
+          <div class="cb-label">Counter Cash</div>
         </div>
         <div class="cb-item">
-          <div class="cb-val mono" style="color:var(--blue)">${fmt(upi)}</div>
-          <div class="cb-label">UPI</div>
+          <div class="cb-val mono" style="color:var(--blue)">${fmt(runnerCash)}</div>
+          <div class="cb-label">Runner Cash</div>
         </div>
         <div class="cb-item">
-          <div class="cb-val mono" style="color:var(--purple)">${fmt(card)}</div>
-          <div class="cb-label">Card</div>
+          <div class="cb-val mono" style="color:var(--red)">-${fmt(expenses)}</div>
+          <div class="cb-label">Expenses</div>
         </div>
       </div>
       <div class="counter-total">
         <div class="ct-amount">${fmt(total)}</div>
-        <div class="ct-label">Cash to Settle</div>
+        <div class="ct-label">Total at Counter</div>
       </div>
     `;
   } catch (e) {
