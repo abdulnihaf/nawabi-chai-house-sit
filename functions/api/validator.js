@@ -593,7 +593,7 @@ async function fetchOdooOrders(apiKey, from, to) {
   const toUtc = to ? istToUtc(to) : null;
 
   const domain = [
-    ['company_id', '=', NCH_COMPANY_ID],
+    ['config_id', 'in', [POS.CASH_COUNTER, POS.RUNNER_COUNTER]],
     ['date_order', '>=', fromUtc],
     ['state', 'in', ['paid', 'done', 'invoiced']]
   ];
