@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS validation_errors (
     pos_config_name TEXT,
     payment_method_id INTEGER,
     payment_method_name TEXT,
+    odoo_payment_id INTEGER,        -- Odoo pos.payment record ID (needed for change_method fix)
     runner_partner_id INTEGER,
     runner_slot TEXT,
     product_ids TEXT,                 -- JSON array

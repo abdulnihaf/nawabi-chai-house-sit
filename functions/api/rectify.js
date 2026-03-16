@@ -148,10 +148,10 @@ async function fixError(context, DB, cors) {
     if (!PM_NAMES[newMethodId]) {
       return json({success: false, error: `Invalid payment method ID: ${data.payment_method_id}. Valid: ${Object.entries(PM_NAMES).map(([k,v]) => k+'='+v).join(', ')}`}, cors, 400);
     }
-    // Payment ID needed to write to pos.payment
-    const paymentId = parseInt(data.payment_id);
+    // Use the Odoo payment record ID stored during validation scan
+    const paymentId = err.odoo_payment_id;
     if (!paymentId) {
-      return json({success: false, error: 'payment_id required for change_method'}, cors, 400);
+      return json({success: false, error: 'No Odoo payment ID stored for this error. Re-run validator scan to populate odoo_payment_id.'}, cors, 400);
     }
     const runnerKey = VALID_RUNNER_IDS.has(err.runner_partner_id) ? err.runner_partner_id : 0;
     expectedMWR = `${newMethodId}:${err.pos_config_id}:${runnerKey}`;

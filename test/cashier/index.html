@@ -709,7 +709,7 @@ async function applyFix(runnerId, idx) {
   } else if (fixAction === 'change_method') {
     const el = $('fix-data-' + runnerId + '-' + idx);
     if (!el) return;
-    fixData = { payment_method_id: parseInt(el.value), payment_id: err.payment_method_id ? err.id : null };
+    fixData = { payment_method_id: parseInt(el.value) };
   }
   // remove_runner needs no extra data
 

@@ -126,14 +126,14 @@ export async function onRequest(context) {
           DB.prepare(`
             INSERT OR IGNORE INTO validation_errors
             (order_id, order_ref, error_code, description, pos_config_id, pos_config_name,
-             payment_method_id, payment_method_name, runner_partner_id, runner_slot,
+             payment_method_id, payment_method_name, odoo_payment_id, runner_partner_id, runner_slot,
              product_ids, product_names, cashier_uid, cashier_name, order_amount, order_time,
              assigned_to, assigned_role)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
             err.order_id, err.order_ref, err.error_code, err.description,
             err.pos_config_id, err.pos_config_name,
-            err.payment_method_id, err.payment_method_name,
+            err.payment_method_id, err.payment_method_name, err.odoo_payment_id,
             err.runner_partner_id, err.runner_slot,
             JSON.stringify(err.product_ids), JSON.stringify(err.product_names),
             err.cashier_uid, err.cashier_name, err.order_amount, err.order_time,
@@ -312,14 +312,14 @@ export async function onRequest(context) {
           DB.prepare(`
             INSERT OR IGNORE INTO validation_errors
             (order_id, order_ref, error_code, description, pos_config_id, pos_config_name,
-             payment_method_id, payment_method_name, runner_partner_id, runner_slot,
+             payment_method_id, payment_method_name, odoo_payment_id, runner_partner_id, runner_slot,
              product_ids, product_names, cashier_uid, cashier_name, order_amount, order_time,
              assigned_to, assigned_role)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
             err.order_id, err.order_ref, err.error_code, err.description,
             err.pos_config_id, err.pos_config_name,
-            err.payment_method_id, err.payment_method_name,
+            err.payment_method_id, err.payment_method_name, err.odoo_payment_id,
             err.runner_partner_id, err.runner_slot,
             JSON.stringify(err.product_ids), JSON.stringify(err.product_names),
             err.cashier_uid, err.cashier_name, err.order_amount, err.order_time,
@@ -495,6 +495,7 @@ function validateOrder(order) {
         pos_config_name: posName,
         payment_method_id: methodId,
         payment_method_name: methodName,
+        odoo_payment_id: payment.id || null,
         runner_partner_id: partnerId || null,
         runner_slot: runnerSlot,
         product_ids: (order.lines || []).map(l => l.product_id),
@@ -535,6 +536,7 @@ function validateOrder(order) {
           pos_config_name: posName,
           payment_method_id: methodId,
           payment_method_name: methodName,
+          odoo_payment_id: payment.id || null,
           runner_partner_id: partnerId || null,
           runner_slot: runnerSlot,
           product_ids: [line.product_id],
