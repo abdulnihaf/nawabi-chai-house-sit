@@ -417,7 +417,7 @@ async function pettyExpense(context, DB, cors) {
 
 async function pettyFund(context, DB, cors) {
   const body = await context.request.json();
-  const {pin, amount, description} = body;
+  const {pin, amount, description, given_to} = body;
 
   const staff = verifyPin(pin);
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
@@ -428,19 +428,35 @@ async function pettyFund(context, DB, cors) {
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return json({success: false, error: 'Invalid amount'}, cors, 400);
 
+  // Validate given_to if provided — must be a petty cash holder
+  let givenToSlot = null, givenToName = null;
+  if (given_to) {
+    if (!PETTY_CASH_HOLDERS.has(given_to)) {
+      return json({success: false, error: 'Invalid recipient. Must be CASH001, CASH002, GM001, or MGR001'}, cors, 400);
+    }
+    // Resolve slot to name from STAFF_BY_PIN
+    const recipient = Object.values(STAFF_BY_PIN).find(s => s.slot === given_to);
+    givenToSlot = given_to;
+    givenToName = recipient?.name || given_to;
+  }
+
   const now = new Date().toISOString();
+  const desc = givenToName
+    ? `Cash given to ${givenToName}`
+    : (description || 'Petty cash funded');
+
   await DB.batch([
     DB.prepare(
-      `INSERT INTO petty_cash (transaction_type, amount, description, recorded_by, recorded_by_name, pin_verified, recorded_at)
-       VALUES ('fund_add', ?, ?, ?, ?, 1, ?)`
-    ).bind(amt, description || 'Petty cash funded', staff.slot, staff.name, now),
+      `INSERT INTO petty_cash (transaction_type, amount, description, recorded_by, recorded_by_name, pin_verified, recorded_at, given_to, given_to_name)
+       VALUES ('fund_add', ?, ?, ?, ?, 1, ?, ?, ?)`
+    ).bind(amt, desc, staff.slot, staff.name, now, givenToSlot, givenToName),
     DB.prepare(
       `UPDATE petty_cash_balance SET current_balance = current_balance + ?, last_funded_at = ?, last_funded_by = ?, last_funded_amount = ? WHERE id = 1`
     ).bind(amt, now, staff.name, amt)
   ]);
 
   const newBal = await DB.prepare('SELECT current_balance FROM petty_cash_balance WHERE id = 1').first();
-  return json({success: true, amount: amt, balance: newBal?.current_balance || 0}, cors);
+  return json({success: true, amount: amt, given_to: givenToName, balance: newBal?.current_balance || 0}, cors);
 }
 
 async function getPetty(url, DB, cors) {
@@ -457,13 +473,31 @@ async function getPetty(url, DB, cors) {
   const todayExpenses = txns.results.filter(t => t.transaction_type === 'expense');
   const todayTotal = todayExpenses.reduce((sum, t) => sum + t.amount, 0);
 
+  // Per-person breakdown: given vs spent vs holding
+  const personBreakdown = {};
+  for (const slot of PETTY_CASH_HOLDERS) {
+    const r = Object.values(STAFF_BY_PIN).find(s => s.slot === slot);
+    personBreakdown[slot] = {name: r?.name || slot, given: 0, spent: 0, holding: 0};
+  }
+  for (const t of txns.results) {
+    if (t.transaction_type === 'fund_add' && t.given_to && personBreakdown[t.given_to]) {
+      personBreakdown[t.given_to].given += t.amount;
+    } else if (t.transaction_type === 'expense' && personBreakdown[t.recorded_by]) {
+      personBreakdown[t.recorded_by].spent += t.amount;
+    }
+  }
+  for (const slot of Object.keys(personBreakdown)) {
+    personBreakdown[slot].holding = personBreakdown[slot].given - personBreakdown[slot].spent;
+  }
+
   return json({
     success: true,
     balance: bal?.current_balance || 0,
     last_funded_by: bal?.last_funded_by,
     last_funded_amount: bal?.last_funded_amount,
     transactions: txns.results,
-    today_expenses: todayTotal
+    today_expenses: todayTotal,
+    per_person: Object.values(personBreakdown)
   }, cors);
 }
 

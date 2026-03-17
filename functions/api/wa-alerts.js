@@ -72,6 +72,14 @@ async function cronTick(env, phones, cors) {
 
   const results = {};
 
+  // Fetch nch-data ONCE — shared by R1, R2, U1
+  let nchData = null;
+  try {
+    const res = await fetch(`${BASE_URL}/api/nch-data`);
+    const nch = await res.json();
+    if (nch.success) nchData = nch;
+  } catch (e) { results.nch_data_fetch = {error: e.message}; }
+
   // 1. Error escalations (E2/E3/E4)
   try {
     const escResult = await checkEscalations(env, phones, cors);
@@ -80,11 +88,11 @@ async function cronTick(env, phones, cors) {
   } catch (e) { results.escalations = {error: e.message}; }
 
   // 2. Runner cash thresholds (R1)
-  try { results.runner_cash = await checkRunnerCash(env, phones); }
+  try { results.runner_cash = await checkRunnerCash(env, phones, nchData); }
   catch (e) { results.runner_cash = {error: e.message}; }
 
   // 3. Runner settlement blocking (R2)
-  try { results.runner_blocked = await checkRunnerBlocked(env, phones); }
+  try { results.runner_blocked = await checkRunnerBlocked(env, phones, nchData); }
   catch (e) { results.runner_blocked = {error: e.message}; }
 
   // 4. Stale in-transit cash (C3)
@@ -96,7 +104,7 @@ async function cronTick(env, phones, cors) {
   catch (e) { results.petty = {error: e.message}; }
 
   // 6. UPI variance (U1)
-  try { results.upi = await checkUpiVariance(env, phones); }
+  try { results.upi = await checkUpiVariance(env, phones, nchData); }
   catch (e) { results.upi = {error: e.message}; }
 
   // 7. Shift report at scheduled hours (S1)
@@ -210,13 +218,12 @@ async function handleSendAlert(context, env, phones, cors) {
 // ══════════════════════════════════════════════════════════════
 
 // ── R1: Runner cash thresholds ──
-async function checkRunnerCash(env, phones) {
+async function checkRunnerCash(env, phones, nchData) {
   const DB = env.DB;
   const token = env.WA_ACCESS_TOKEN;
   const alerts = [];
 
-  const res = await fetch(`${BASE_URL}/api/nch-data`);
-  const nch = await res.json();
+  const nch = nchData || await fetch(`${BASE_URL}/api/nch-data`).then(r => r.json());
   if (!nch.success) return {error: 'nch-data failed'};
 
   const runners = nch.data?.shiftReconciliation?.cashBreakdown?.runnerCashObligations || [];
@@ -224,7 +231,7 @@ async function checkRunnerCash(env, phones) {
   for (const r of runners) {
     if (r.cashToCollect <= RUNNER_CASH_WARN) continue;
 
-    const slot = r.slot || runnerNameToSlot(r.name);
+    const slot = r.barcode || r.slot || runnerNameToSlot(r.name);
     if (!slot) continue;
 
     const topicKey = `runner_cash:${slot}`;
@@ -233,7 +240,7 @@ async function checkRunnerCash(env, phones) {
     // FCM always
     await sendFCM(env, [slot], {
       title: `₹${fmt(r.cashToCollect)} unsettled cash`,
-      body: `You have ₹${fmt(r.cashToCollect)} to settle with cashier.`,
+      body: `${slot}: ₹${fmt(r.cashToCollect)} to settle with cashier.`,
       tag: 'nch_runner_cash',
       url: `${BASE_URL}/ops/runner/`
     });
@@ -241,7 +248,7 @@ async function checkRunnerCash(env, phones) {
 
     // WhatsApp if urgent
     if (r.cashToCollect > RUNNER_CASH_URGENT && phones[slot]) {
-      await sendWA(token, phones[slot], `🔴 *NCH — ₹${fmt(r.cashToCollect)} unsettled cash*\n\n${r.name}, settle with cashier immediately.\n\nTokens: ₹${fmt(r.tokens)} | Sales: ₹${fmt(r.sales)} | UPI: ₹${fmt(r.upi)}`);
+      await sendWA(token, phones[slot], `🔴 *NCH — ₹${fmt(r.cashToCollect)} unsettled cash*\n\n${slot}, settle with cashier immediately.\n\nTokens: ₹${fmt(r.tokens)} | Sales: ₹${fmt(r.sales)} | UPI: ₹${fmt(r.upi)}`);
       alerts.push({slot, amount: r.cashToCollect, channel: 'wa'});
     }
 
@@ -252,7 +259,7 @@ async function checkRunnerCash(env, phones) {
 }
 
 // ── R2: Runner blocked from settlement (has errors + cash) ──
-async function checkRunnerBlocked(env, phones) {
+async function checkRunnerBlocked(env, phones, nchData) {
   const DB = env.DB;
   const alerts = [];
 
@@ -268,19 +275,18 @@ async function checkRunnerBlocked(env, phones) {
   if (runnersWithErrors.length === 0) return {alerts: []};
 
   // Get runner cash from nch-data
-  const res = await fetch(`${BASE_URL}/api/nch-data`);
-  const nch = await res.json();
+  const nch = nchData || await fetch(`${BASE_URL}/api/nch-data`).then(r => r.json());
   if (!nch.success) return {error: 'nch-data failed'};
 
   const obligations = nch.data?.shiftReconciliation?.cashBreakdown?.runnerCashObligations || [];
-  const cashByName = {};
+  const cashBySlot = {};
   for (const r of obligations) {
-    const slot = r.slot || runnerNameToSlot(r.name);
-    if (slot) cashByName[slot] = r.cashToCollect;
+    const slot = r.barcode || r.slot || runnerNameToSlot(r.name);
+    if (slot) cashBySlot[slot] = r.cashToCollect;
   }
 
   for (const r of runnersWithErrors) {
-    const cash = cashByName[r.runner_slot] || 0;
+    const cash = cashBySlot[r.runner_slot] || 0;
     if (cash <= 0) continue; // No cash to settle, not blocking
 
     const topicKey = `runner_blocked:${r.runner_slot}`;
@@ -399,13 +405,12 @@ async function checkPetty(env, phones) {
 }
 
 // ── U1: UPI variance ──
-async function checkUpiVariance(env, phones) {
+async function checkUpiVariance(env, phones, nchData) {
   const DB = env.DB;
   const token = env.WA_ACCESS_TOKEN;
   const alerts = [];
 
-  const res = await fetch(`${BASE_URL}/api/nch-data`);
-  const nch = await res.json();
+  const nch = nchData || await fetch(`${BASE_URL}/api/nch-data`).then(r => r.json());
   if (!nch.success) return {error: 'nch-data failed'};
 
   const verify = nch.data?.shiftReconciliation?.upiVerification;
@@ -626,7 +631,7 @@ async function checkEscalations(env, phones, cors) {
   // L1 → Naveen (WA)
   if (l1Errors.length > 0) {
     const lines = l1Errors.map(e =>
-      `• ${e.order_ref || 'Order #' + e.order_id}: ${e.error_type_label || e.error_type} — ₹${fmt(e.amount)}`
+      `• ${e.order_ref || 'Order #' + e.order_id}: ${e.description || e.error_code} — ₹${fmt(e.order_amount)}`
     ).join('\n');
     const msg = `⚠️ *NCH — ${l1Errors.length} New Error${l1Errors.length > 1 ? 's' : ''}*\n\n${lines}\n\nFix: ${BASE_URL}/ops/settlement/`;
     if (phones[NAVEEN_SLOT]) await sendWA(token, phones[NAVEEN_SLOT], msg);
@@ -638,7 +643,7 @@ async function checkEscalations(env, phones, cors) {
         slotsSeen.add(e.runner_slot);
         await sendFCM(env, [e.runner_slot], {
           title: 'NCH: Error on your order',
-          body: `${e.order_ref}: ${e.error_type_label || e.error_type}. Fix needed.`,
+          body: `${e.order_ref}: ${e.description || e.error_code}. Fix needed.`,
           tag: 'nch_error', url: `${BASE_URL}/ops/settlement/`
         });
       }
@@ -650,9 +655,9 @@ async function checkEscalations(env, phones, cors) {
 
   // L2 → Basheer + Tanveer (WA) + assigned staff (FCM reminder)
   if (l2Errors.length > 0) {
-    const totalAmt = l2Errors.reduce((s, e) => s + (e.amount || 0), 0);
+    const totalAmt = l2Errors.reduce((s, e) => s + (e.order_amount || 0), 0);
     const msg = `🔴 *NCH — ${l2Errors.length} Unresolved Error${l2Errors.length > 1 ? 's' : ''} (30+ min)*\n\nTotal: ₹${fmt(totalAmt)}\n\n` +
-      l2Errors.map(e => `• ${e.order_ref || '#' + e.order_id}: ${e.error_type_label || e.error_type} — ₹${fmt(e.amount)} (${Math.round(e.age_minutes)}min ago)`).join('\n') +
+      l2Errors.map(e => `• ${e.order_ref || '#' + e.order_id}: ${e.description || e.error_code} — ₹${fmt(e.order_amount)} (${Math.round(e.age_minutes)}min ago)`).join('\n') +
       `\n\nFix: ${BASE_URL}/ops/settlement/`;
 
     const sends = [];
@@ -667,7 +672,7 @@ async function checkEscalations(env, phones, cors) {
         slotsSeen.add(e.runner_slot);
         await sendFCM(env, [e.runner_slot], {
           title: '⚠️ Error still pending 30min',
-          body: `${e.order_ref}: ${e.error_type_label || e.error_type}. Managers notified.`,
+          body: `${e.order_ref}: ${e.description || e.error_code}. Managers notified.`,
           tag: 'nch_error_reminder', url: `${BASE_URL}/ops/settlement/`
         });
       }
@@ -679,9 +684,9 @@ async function checkEscalations(env, phones, cors) {
 
   // L3 → Naveen (WA) + all managers (FCM)
   if (l3Errors.length > 0) {
-    const totalAmt = l3Errors.reduce((s, e) => s + (e.amount || 0), 0);
+    const totalAmt = l3Errors.reduce((s, e) => s + (e.order_amount || 0), 0);
     const msg = `🚨 *NCH ESCALATION — ${l3Errors.length} Error${l3Errors.length > 1 ? 's' : ''} Pending 1hr+*\n\nTotal unaccounted: *₹${fmt(totalAmt)}*\n\n` +
-      l3Errors.map(e => `• ${e.order_ref || '#' + e.order_id}: ${e.error_type_label || e.error_type} — ₹${fmt(e.amount)} (${Math.round(e.age_minutes)}min)`).join('\n') +
+      l3Errors.map(e => `• ${e.order_ref || '#' + e.order_id}: ${e.description || e.error_code} — ₹${fmt(e.order_amount)} (${Math.round(e.age_minutes)}min)`).join('\n') +
       `\n\nBasheer & Tanveer were notified 30min ago.\n\nFix: ${BASE_URL}/ops/settlement/`;
 
     if (phones[NAVEEN_SLOT]) await sendWA(token, phones[NAVEEN_SLOT], msg);
@@ -772,6 +777,7 @@ async function sendWA(token, to, text) {
 
 // ── FCM push via hub API ──
 async function sendFCM(env, slots, payload) {
+  if (!slots || slots.length === 0) return {ok: true, skipped: 'no slots'};
   try {
     const res = await fetch(`${BASE_URL}/api/hub?action=push-to-slots`, {
       method: 'POST',
@@ -789,9 +795,10 @@ async function sendFCM(env, slots, payload) {
 async function shouldAlert(DB, alertType, topicKey, cooldownMinutes) {
   if (!DB) return true;
   try {
+    const cutoff = new Date(Date.now() - cooldownMinutes * 60 * 1000).toISOString();
     const row = await DB.prepare(
-      `SELECT id FROM alert_log WHERE alert_type = ? AND topic_key = ? AND sent_at >= datetime('now', '-' || ? || ' minutes') LIMIT 1`
-    ).bind(alertType, topicKey, cooldownMinutes).first();
+      `SELECT id FROM alert_log WHERE alert_type = ? AND topic_key = ? AND sent_at >= ? LIMIT 1`
+    ).bind(alertType, topicKey, cutoff).first();
     return !row;
   } catch (e) { return true; } // if table doesn't exist yet, allow
 }
@@ -836,9 +843,9 @@ async function logEscalations(DB, errors, level, sentTo) {
 const RUNNER_NAME_MAP = {
   'farzaib': 'RUN001', 'farooq': 'RUN001',
   'ritiqu': 'RUN002', 'amin': 'RUN002',
-  'anshu': 'RUN003',
-  'shabeer': 'RUN004',
-  'dhanush': 'RUN005'
+  'anshu': 'RUN003', 'nch runner 03': 'RUN003',
+  'shabeer': 'RUN004', 'nch runner 04': 'RUN004',
+  'dhanush': 'RUN005', 'nch runner 05': 'RUN005'
 };
 function runnerNameToSlot(name) {
   if (!name) return null;
