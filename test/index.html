@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NCH Operations</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#22c55e;--red:#ef4444;--purple:#a855f7;--yellow:#eab308}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-tap-highlight-color:transparent}
+    .login-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px 32px;text-align:center;max-width:380px;width:100%}
+    .logo{width:64px;height:64px;background:linear-gradient(135deg,var(--purple),#7c3aed);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:32px;box-shadow:0 8px 32px rgba(168,85,247,0.3)}
+    h1{font-size:24px;margin-bottom:4px}
+    .subtitle{color:var(--text2);font-size:14px;margin-bottom:32px}
+    .pin-dots{display:flex;gap:16px;justify-content:center;margin-bottom:24px}
+    .pin-dots .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);transition:all .2s}
+    .pin-dots .dot.filled{background:var(--purple);border-color:var(--purple);transform:scale(1.1)}
+    .pin-dots .dot.error{background:var(--red);border-color:var(--red);animation:shake .4s}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+    .pin-hidden{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+    .pin-msg{min-height:24px;font-size:14px;font-weight:600;margin-bottom:16px;transition:all .2s}
+    .pin-msg.ok{color:var(--green)}
+    .pin-msg.err{color:var(--red)}
+    .pin-msg.loading{color:var(--purple)}
+    .tap-hint{color:var(--text2);font-size:13px}
+    .role-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 12px;border-radius:6px;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px}
+    .role-badge.runner{background:rgba(168,85,247,0.2);color:var(--purple)}
+    .role-badge.cashier{background:rgba(234,179,8,0.2);color:var(--yellow)}
+    .role-badge.admin{background:rgba(34,197,94,0.2);color:var(--green)}
+    .role-badge.gm{background:rgba(59,130,246,0.2);color:#3b82f6}
+  </style>
+</head>
+<body>
+
+<div class="login-box">
+  <div class="logo">N</div>
+  <h1>Nawabi Chai House</h1>
+  <p class="subtitle">Enter your PIN to continue</p>
+  <div class="pin-dots" id="pinDots">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div class="pin-msg" id="pinMsg"></div>
+  <input type="tel" class="pin-hidden" id="pinInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus>
+  <p class="tap-hint">Tap anywhere to type</p>
+</div>
+
+<script>
+const dots = document.querySelectorAll('#pinDots .dot');
+const pinInput = document.getElementById('pinInput');
+const pinMsg = document.getElementById('pinMsg');
+
+// Focus on tap anywhere
+document.body.addEventListener('click', () => pinInput.focus());
+pinInput.focus();
+
+// Role → page mapping
+const ROLE_PAGE = {
+  runner: '/test/runner/',
+  cashier: '/test/cashier/',
+  admin: '/test/admin/',
+  gm: '/test/admin/',
+  manager: '/test/cashier/',
+  supervisor: '/test/cashier/'
+};
+
+const ROLE_LABEL = {
+  runner: 'Runner Dashboard',
+  cashier: 'Cashier Settlement',
+  admin: 'Admin Overview',
+  gm: 'GM Overview',
+  manager: 'Manager Settlement',
+  supervisor: 'Supervisor Settlement'
+};
+
+pinInput.addEventListener('input', async () => {
+  const val = pinInput.value.replace(/[^0-9]/g, '');
+  pinInput.value = val;
+
+  // Update dots
+  dots.forEach((d, i) => {
+    d.classList.toggle('filled', i < val.length);
+    d.classList.remove('error');
+  });
+
+  pinMsg.textContent = '';
+  pinMsg.className = 'pin-msg';
+
+  if (val.length === 4) {
+    pinInput.disabled = true;
+    pinMsg.textContent = 'Verifying...';
+    pinMsg.className = 'pin-msg loading';
+
+    try {
+      const res = await fetch('/api/validator?action=login&pin=' + encodeURIComponent(val));
+      const data = await res.json();
+
+      if (data.success) {
+        const role = data.role;
+        const page = ROLE_PAGE[role];
+
+        if (!page) {
+          showError('Unknown role: ' + role);
+          return;
+        }
+
+        pinMsg.innerHTML = 'Welcome, ' + data.name + '<br><span class="role-badge ' + role + '">' + (ROLE_LABEL[role] || role) + '</span>';
+        pinMsg.className = 'pin-msg ok';
+
+        // Store session for the target page
+        sessionStorage.setItem('nch_pin', val);
+        sessionStorage.setItem('nch_name', data.name);
+        sessionStorage.setItem('nch_role', role);
+        sessionStorage.setItem('nch_slot', data.slot || '');
+
+        // Redirect after brief pause
+        setTimeout(() => {
+          window.location.href = page;
+        }, 800);
+
+      } else {
+        showError('Invalid PIN');
+      }
+    } catch (e) {
+      showError('Connection error');
+    }
+  }
+});
+
+function showError(msg) {
+  pinMsg.textContent = msg;
+  pinMsg.className = 'pin-msg err';
+  dots.forEach(d => { d.classList.remove('filled'); d.classList.add('error'); });
+  pinInput.value = '';
+  pinInput.disabled = false;
+  setTimeout(() => {
+    dots.forEach(d => d.classList.remove('error'));
+    pinInput.focus();
+  }, 1000);
+}
+</script>
+</body>
+</html>

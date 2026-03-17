@@ -326,11 +326,11 @@ const fmt = n => {
 
 // ── CONSTANTS ──
 const RUNNERS = [
-  { id: 64, name: 'Runner 01', code: 'RUN001' },
-  { id: 65, name: 'Runner 02', code: 'RUN002' },
-  { id: 66, name: 'Runner 03', code: 'RUN003' },
-  { id: 67, name: 'Runner 04', code: 'RUN004' },
-  { id: 68, name: 'Runner 05', code: 'RUN005' }
+  { id: 64, name: 'Farzaib',  code: 'RUN001' },
+  { id: 65, name: 'Ritiqu',   code: 'RUN002' },
+  { id: 66, name: 'Anshu',    code: 'RUN003' },
+  { id: 67, name: 'Shabeer',  code: 'RUN004' },
+  { id: 68, name: 'Dhanush',  code: 'RUN005' }
 ];
 
 const EXPENSE_CATEGORIES = [
@@ -419,7 +419,7 @@ async function doLogin() {
     }
 
     const role = data.role;
-    if (role !== 'cashier' && role !== 'admin' && role !== 'gm') {
+    if (!['cashier', 'admin', 'gm', 'manager', 'supervisor'].includes(role)) {
       showPinError('Not authorized — cashier access only');
       return;
     }

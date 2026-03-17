@@ -867,6 +867,23 @@ export async function onRequest(context) {
       const periodIST = new Date(periodDate.getTime() + 5.5 * 60 * 60 * 1000);
       const periodFormatted = periodIST.toLocaleString('en-IN', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC'});
 
+      // 9. Fetch pending validation errors for this runner from D1
+      let pendingErrors = [];
+      try {
+        const slot = RUNNER_SLOT_MAP[runnerId];
+        if (slot && DB) {
+          const errResults = await DB.prepare(
+            `SELECT id, order_id, order_ref, error_type, description, payment_method_name,
+             order_amount, detected_at, odoo_payment_id
+             FROM validation_errors WHERE runner_slot = ? AND status = 'pending'
+             ORDER BY detected_at DESC`
+          ).bind(slot).all();
+          pendingErrors = errResults.results || [];
+        }
+      } catch (e) {
+        // validation_errors table may not exist yet — return empty
+      }
+
       return new Response(JSON.stringify({
         success: true,
         runner: {id: runnerId, name: runner.name, barcode: runner.barcode},
@@ -876,7 +893,14 @@ export async function onRequest(context) {
         salesOrders: pos28Orders.length,
         upi: {total: upiTotal, count: upiPayments.length, payments: upiPayments},
         cashInHand,
-        lastSettlement
+        lastSettlement,
+        // Aliases for cashier UI compatibility
+        tokens_amount: tokens,
+        sales_amount: sales,
+        upi_amount: upiTotal,
+        cash_to_collect: cashInHand,
+        period_start: periodStart,
+        pending_errors: pendingErrors
       }), {headers: corsHeaders});
     }
 
