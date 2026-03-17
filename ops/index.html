@@ -216,11 +216,6 @@
     }
     function fmt(n) { return n != null ? Math.round(n).toLocaleString('en-IN') : '0'; }
 
-    // ── Today midnight IST (business day: 12AM to 12AM IST) ──
-    function getTodayFrom() {
-      const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-      return istNow.getUTCFullYear() + '-' + String(istNow.getUTCMonth()+1).padStart(2,'0') + '-' + String(istNow.getUTCDate()).padStart(2,'0') + 'T00:00:00';
-    }
 
     // ── Dashboard Config per Role ──
     const DASH_CONFIG = {
@@ -347,11 +342,10 @@
 
       const pin = sessionStorage.getItem('nch_pin');
 
-      // Fire all API calls in parallel (today: midnight IST to now)
-      const shiftFrom = getTodayFrom();
+      // Fire all API calls in parallel (nch-data uses rolling 24h window — flexible for cross-day shifts)
       const [nchData, counterBal, errData, pettyData, collectData] = await Promise.all([
         widgets.some(w => ['kpi','runners','recon'].includes(w))
-          ? cachedFetch('/api/nch-data?from=' + encodeURIComponent(shiftFrom)) : Promise.resolve(null),
+          ? cachedFetch('/api/nch-data') : Promise.resolve(null),
         widgets.some(w => ['attention','counter','counter-petty','cash-ops'].includes(w))
           ? cachedFetch('/api/settlement?action=counter-balance') : Promise.resolve(null),
         widgets.includes('attention') && pin
