@@ -17,15 +17,15 @@ export async function onRequest(context) {
   // Staff PIN directory — single source of truth for hub login
   // is_admin: sees ALL ops pages | role: determines default page set
   const STAFF = {
-    // Admins (2)
+    // Admins (4 — full access)
     '0305': {name: 'Nihaf',     role: 'admin',      is_admin: true},
     '3697': {name: 'Yashwant',  role: 'admin',      is_admin: true},
+    '3754': {name: 'Naveen',    role: 'admin',      is_admin: true},   // CFO — special dashboard
+    '2026': {name: 'Zoya',      role: 'admin',      is_admin: true},
     // Managers (3)
     '8523': {name: 'Basheer',   role: 'manager',    is_admin: false},
     '6890': {name: 'Tanveer',   role: 'manager',    is_admin: false},
-    '3754': {name: 'Naveen',    role: 'manager',    is_admin: false},
-    // Accountant (1)
-    '2026': {name: 'Zoya',      role: 'accountant', is_admin: false},
+    '1234': {name: 'Waseem',    role: 'manager',    is_admin: false},
     // Cashiers (2)
     '7115': {name: 'Kesmat',    role: 'cashier',    is_admin: false},
     '8241': {name: 'Nafees',    role: 'cashier',    is_admin: false},
@@ -44,7 +44,6 @@ export async function onRequest(context) {
     runner:     ['runner'],
     cashier:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter'],
     manager:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'inventory', 'live', 'sales', 'token-settlement', 'staffing'],
-    accountant: ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'finance', 'sales', 'cash-analysis', 'staffing'],
     staff:      ['chai-counter', 'kitchen-ops']
   };
 

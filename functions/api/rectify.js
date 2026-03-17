@@ -1,7 +1,7 @@
 // Rectify API — fix validation errors, record counter expenses, check settlement readiness
 
 const STAFF_SLOTS = {
-  'CASH001': { role: 'cashier', person: 'Kismat', pin: '7115' },
+  'CASH001': { role: 'cashier', person: 'Kesmat', pin: '7115' },
   'CASH002': { role: 'cashier', person: 'Nafees', pin: '8241' },
   'RUN001':  { role: 'runner',  person: 'Farzaib', pin: '3678', partner_id: 64 },
   'RUN002':  { role: 'runner',  person: 'Ritiqu',  pin: '4421', partner_id: 65 },
@@ -13,7 +13,9 @@ const STAFF_SLOTS = {
   'MGR001':  { role: 'manager',    person: 'Tanveer', pin: '6890' },
   'ADMIN001':{ role: 'admin', person: 'Nihaf',    pin: '0305' },
   'ADMIN002':{ role: 'admin', person: 'Naveen',   pin: '3754' },
-  'ADMIN003':{ role: 'admin', person: 'Yashwant', pin: '3697' }
+  'ADMIN003':{ role: 'admin', person: 'Yashwant', pin: '3697' },
+  // Accountant
+  'ACCT001': { role: 'accountant', person: 'Zoya', pin: '2026' }
 };
 
 const STAFF_BY_PIN = {};

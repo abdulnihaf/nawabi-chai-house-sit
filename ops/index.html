@@ -6,7 +6,7 @@
   <title>NCH Operations</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0a0f1a;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#10b981;--orange:#f97316;--purple:#8b5cf6;--chamoisee:#AC7E54;--wheat:#E9D1A9;--golden:#D4A44C}
+    :root{--bg:#0a0f1a;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--green:#10b981;--orange:#f97316;--red:#ef4444;--purple:#8b5cf6;--chamoisee:#AC7E54;--wheat:#E9D1A9;--golden:#D4A44C}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
     .container{max-width:600px;width:100%}
@@ -49,6 +49,95 @@
     .push-banner{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--green);display:none;align-items:center;gap:8px}
     .push-banner.error{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444}
     .test-push-btn{background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;margin-left:auto}
+
+    /* ── Role Dashboard ── */
+    .role-dashboard{margin-bottom:24px}
+    .dash-skeleton{display:grid;gap:12px}
+    .skel-row{height:72px;background:var(--card);border-radius:10px;position:relative;overflow:hidden}
+    .skel-row::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent);animation:shimmer 1.5s infinite}
+    @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+    .widget{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+    .widget-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .widget-hdr h3{font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+    .widget-hdr .badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
+
+    /* Attention bar */
+    .attn-bar{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:10px;cursor:pointer;text-decoration:none;color:inherit;transition:opacity .2s}
+    .attn-bar:hover{opacity:.85}
+    .attn-bar.has-issues{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3)}
+    .attn-bar.all-clear{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3)}
+    .attn-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .attn-dot.red{background:var(--red)}
+    .attn-dot.green{background:var(--green)}
+    .attn-text{flex:1;font-size:14px;font-weight:500}
+    .attn-arrow{color:var(--text2);font-size:16px}
+
+    /* Stat grid */
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .stat-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+    .stat-item{text-align:center;padding:12px 8px;background:rgba(255,255,255,.03);border-radius:8px}
+    .stat-val{font-size:22px;font-weight:700;margin-bottom:2px}
+    .stat-val.green{color:var(--green)}
+    .stat-val.orange{color:var(--orange)}
+    .stat-val.red{color:var(--red)}
+    .stat-lbl{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.3px}
+
+    /* Runner list */
+    .runner-list{display:grid;gap:8px}
+    .runner-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:8px;text-decoration:none;color:inherit;transition:background .15s}
+    .runner-row:hover{background:rgba(255,255,255,.06)}
+    .runner-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .runner-dot.green{background:var(--green)}
+    .runner-dot.orange{background:var(--orange)}
+    .runner-dot.red{background:var(--red)}
+    .runner-dot.gray{background:var(--text2)}
+    .runner-name{flex:1;font-size:14px;font-weight:500}
+    .runner-cash{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+
+    /* Cash cards */
+    .cash-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .cash-card{text-align:center;padding:14px 10px;background:rgba(255,255,255,.03);border-radius:8px}
+    .cash-big{font-size:26px;font-weight:700;margin-bottom:2px;font-variant-numeric:tabular-nums}
+    .cash-sub{font-size:11px;color:var(--text2)}
+
+    /* Recon card */
+    .recon-eq{display:grid;gap:6px;font-size:13px}
+    .recon-line{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+    .recon-line:last-child{border-bottom:none}
+    .recon-line .lbl{color:var(--text2)}
+    .recon-line .val{font-weight:600;font-variant-numeric:tabular-nums}
+    .recon-variance{text-align:center;padding:10px;border-radius:8px;margin-top:8px;font-weight:600;font-size:14px}
+    .recon-variance.balanced{background:rgba(16,185,129,.1);color:var(--green)}
+    .recon-variance.unbalanced{background:rgba(239,68,68,.1);color:var(--red)}
+
+    /* CFO cash ops */
+    .transit-item{display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:8px}
+    .transit-info{font-size:13px}
+    .transit-info .who{font-weight:600}
+    .transit-info .when{color:var(--text2);font-size:11px}
+    .confirm-btn{background:var(--green);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600}
+    .confirm-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* CFO petty control */
+    .petty-txn{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.05)}
+    .petty-txn:last-child{border-bottom:none}
+    .petty-txn .cat{color:var(--text2)}
+    .petty-txn .amt{font-weight:600;color:var(--red)}
+    .fund-row{display:flex;gap:8px;margin-top:12px}
+    .fund-input{flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+    .fund-input:focus{border-color:var(--golden)}
+    .fund-btn{background:var(--golden);color:#000;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600}
+    .fund-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    .nav-label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;padding-left:4px}
+
+    @media(max-width:400px){
+      .stat-grid{grid-template-columns:1fr 1fr}
+      .stat-grid.cols-3{grid-template-columns:1fr 1fr}
+      .stat-val{font-size:18px}
+      .cash-row{grid-template-columns:1fr}
+    }
   </style>
 </head>
 <body>
@@ -80,6 +169,16 @@
       <button class="test-push-btn" id="testPushBtn" onclick="testPush()">Test Push</button>
     </div>
 
+    <!-- Personalized Role Dashboard -->
+    <div id="roleDashboard" class="role-dashboard" style="display:none">
+      <div id="dashSkeleton" class="dash-skeleton">
+        <div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div>
+      </div>
+      <div id="dashWidgets"></div>
+    </div>
+
+    <div class="nav-label" id="navLabel" style="display:none">Pages</div>
+
     <div class="cards" id="cardGrid">
       <a href="/ops/predictor/" class="card" data-page="predictor"><div class="card-icon orange">&#x1F52E;</div><span class="arrow">&#x2192;</span><h2>Inventory Predictor</h2><p>AI-powered purchase prediction & hourly kitchen forecast.</p></a>
       <a href="/ops/finance/" class="card" data-page="finance"><div class="card-icon purple">&#x1F4B0;</div><span class="arrow">&#x2192;</span><h2>Finance Dashboard</h2><p>Cash flow, P&L, business expenses, bank transactions.</p></a>
@@ -106,6 +205,24 @@
 
   <script>
     const SESSION_KEY = 'nch_hub_session';
+    let _cache = {};
+    let _dashInterval = null;
+    let _currentSession = null;
+
+    // ── Fetch cache ──
+    function cachedFetch(url) {
+      if (!_cache[url]) _cache[url] = fetch(url).then(r => r.json()).catch(() => null);
+      return _cache[url];
+    }
+    function fmt(n) { return n != null ? Math.round(n).toLocaleString('en-IN') : '0'; }
+
+    // ── Dashboard Config per Role ──
+    const DASH_CONFIG = {
+      cashier: ['attention', 'runners', 'counter-petty'],
+      manager: ['kpi', 'attention', 'runners', 'counter'],
+      admin:   ['kpi', 'recon', 'runners', 'attention'],
+      cfo:     ['kpi', 'recon', 'cash-ops', 'petty-control', 'runners', 'attention']
+    };
 
     // ── Native App Detection ──
     function isNativeApp() {
@@ -117,18 +234,13 @@
     function getSession() {
       try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
     }
-
     function setSession(data) {
       localStorage.setItem(SESSION_KEY, JSON.stringify(data));
-      // Store PIN for sub-page auto-login (sessionStorage = clears on browser close)
       if (data.pin) sessionStorage.setItem('nch_pin', data.pin);
     }
-
     function clearSession() {
       localStorage.removeItem(SESSION_KEY);
-      if (window.NCHNative) {
-        try { window.NCHNative.clearAuth(); } catch (e) {}
-      }
+      if (window.NCHNative) { try { window.NCHNative.clearAuth(); } catch (e) {} }
     }
 
     // ── PIN Login ──
@@ -165,19 +277,22 @@
 
     // ── Show Dashboard ──
     function showDashboard(session) {
+      _currentSession = session;
       document.getElementById('loginOverlay').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       document.getElementById('userName').textContent = session.name;
-      document.getElementById('userRole').textContent = session.role;
+      const roleLabel = (session.role === 'admin' && session.name === 'Naveen') ? 'CFO' : session.role;
+      document.getElementById('userRole').textContent = roleLabel;
 
       // Filter cards by role
       const cards = document.querySelectorAll('.card[data-page]');
+      let visibleCount = 0;
       cards.forEach(card => {
         const page = card.dataset.page;
         if (session.is_admin || session.pages === 'all') {
-          card.style.display = 'block';
+          card.style.display = 'block'; visibleCount++;
         } else if (Array.isArray(session.pages) && session.pages.includes(page)) {
-          card.style.display = 'block';
+          card.style.display = 'block'; visibleCount++;
         } else {
           card.style.display = 'none';
         }
@@ -187,16 +302,344 @@
       if (!session.is_admin && Array.isArray(session.pages) && session.pages.length === 1) {
         const singlePage = session.pages[0];
         const card = document.querySelector(`.card[data-page="${singlePage}"]`);
-        if (card) {
-          window.location.href = card.href;
-          return;
+        if (card) { window.location.href = card.href; return; }
+      }
+
+      // Show nav label if dashboard is being shown
+      const dashRole = getDashRole(session);
+      if (DASH_CONFIG[dashRole]) {
+        document.getElementById('navLabel').style.display = 'block';
+      }
+
+      // Init personalized dashboard
+      initRoleDashboard(session);
+
+      // Setup push for native app
+      if (isNativeApp()) setupNativePush(session);
+    }
+
+    function getDashRole(session) {
+      if (session.role === 'admin' && session.name === 'Naveen') return 'cfo';
+      return session.role;
+    }
+
+    // ══════════════════════════════════════
+    //  PERSONALIZED DASHBOARD
+    // ══════════════════════════════════════
+
+    async function initRoleDashboard(session) {
+      const dashRole = getDashRole(session);
+      const widgets = DASH_CONFIG[dashRole];
+      if (!widgets) return; // runner/staff — skip
+
+      const dashEl = document.getElementById('roleDashboard');
+      const skelEl = document.getElementById('dashSkeleton');
+      const container = document.getElementById('dashWidgets');
+      dashEl.style.display = 'block';
+      skelEl.style.display = 'grid';
+      container.innerHTML = '';
+
+      const pin = sessionStorage.getItem('nch_pin');
+
+      // Fire all API calls in parallel
+      const [nchData, counterBal, errData, pettyData, collectData] = await Promise.all([
+        widgets.some(w => ['kpi','runners','recon'].includes(w))
+          ? cachedFetch('/api/nch-data') : Promise.resolve(null),
+        widgets.some(w => ['attention','counter','counter-petty','cash-ops'].includes(w))
+          ? cachedFetch('/api/settlement?action=counter-balance') : Promise.resolve(null),
+        widgets.includes('attention') && pin
+          ? cachedFetch(`/api/validator?action=${dashRole==='cashier'?'get-my-errors':'get-overview'}&pin=${pin}`) : Promise.resolve(null),
+        widgets.some(w => ['counter-petty','petty-control'].includes(w)) && pin
+          ? cachedFetch(`/api/rectify?action=get-petty&pin=${pin}`) : Promise.resolve(null),
+        (widgets.includes('cash-ops') || (dashRole !== 'cashier' && widgets.includes('attention'))) && pin
+          ? cachedFetch(`/api/rectify?action=get-collections&pin=${pin}`) : Promise.resolve(null),
+      ]);
+
+      skelEl.style.display = 'none';
+      const ctx = { nchData, counterBal, errData, pettyData, collectData, session, dashRole, pin };
+
+      for (const wid of widgets) {
+        const html = renderWidget(wid, ctx);
+        if (html) container.innerHTML += html;
+      }
+
+      // Auto-refresh every 2 minutes
+      if (_dashInterval) clearInterval(_dashInterval);
+      _dashInterval = setInterval(() => {
+        _cache = {};
+        initRoleDashboard(session);
+      }, 120000);
+    }
+
+    function renderWidget(id, ctx) {
+      switch(id) {
+        case 'kpi': return renderKPI(ctx);
+        case 'attention': return renderAttention(ctx);
+        case 'runners': return renderRunners(ctx);
+        case 'counter-petty': return renderCounterPetty(ctx);
+        case 'counter': return renderCounter(ctx);
+        case 'recon': return renderRecon(ctx);
+        case 'cash-ops': return renderCashOps(ctx);
+        case 'petty-control': return renderPettyControl(ctx);
+        default: return '';
+      }
+    }
+
+    // ── KPI Widget (Manager/Admin/CFO) ──
+    function renderKPI(ctx) {
+      const d = ctx.nchData?.data;
+      if (!d) return '<div class="widget"><p style="color:var(--text2);font-size:13px">Loading sales data...</p></div>';
+      const gt = d.grandTotal || {};
+      const orders = ctx.nchData?.counts?.orders || 0;
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Today's Numbers</h3></div>
+        <div class="stat-grid cols-3">
+          <div class="stat-item"><div class="stat-val">${fmt(gt.allSales)}</div><div class="stat-lbl">Revenue</div></div>
+          <div class="stat-item"><div class="stat-val">${orders}</div><div class="stat-lbl">Orders</div></div>
+          <div class="stat-item"><div class="stat-val">${fmt(gt.avgOrderValue)}</div><div class="stat-lbl">AOV</div></div>
+          <div class="stat-item"><div class="stat-val orange">${fmt(gt.cashToCollect)}</div><div class="stat-lbl">Cash Pending</div></div>
+          <div class="stat-item"><div class="stat-val green">${fmt(gt.upiCollected)}</div><div class="stat-lbl">UPI</div></div>
+          <div class="stat-item"><div class="stat-val">${fmt(gt.cardCollected)}</div><div class="stat-lbl">Card</div></div>
+        </div>
+      </div>`;
+    }
+
+    // ── Attention Widget (all roles) ──
+    function renderAttention(ctx) {
+      const parts = [];
+      let hasIssues = false;
+
+      // Error count
+      if (ctx.errData) {
+        let errCount = 0;
+        if (ctx.dashRole === 'cashier') {
+          errCount = ctx.errData?.errors?.length || 0;
+        } else {
+          // get-overview returns grouped data
+          const errs = ctx.errData?.errors || ctx.errData?.pending_errors || [];
+          errCount = Array.isArray(errs) ? errs.length : 0;
+        }
+        if (errCount > 0) { parts.push(`${errCount} error${errCount>1?'s':''} to fix`); hasIssues = true; }
+      }
+
+      // Counter balance
+      if (ctx.counterBal) {
+        const total = ctx.counterBal?.total_unsettled || ctx.counterBal?.total || 0;
+        if (total > 500) { parts.push(`Counter: ${fmt(total)}`); hasIssues = true; }
+      }
+
+      // In-transit cash (managers/admins)
+      if (ctx.collectData) {
+        const transit = ctx.collectData?.in_transit || [];
+        const transitAmt = Array.isArray(transit) ? transit.reduce((s,t) => s + (t.amount||0), 0) : 0;
+        if (transitAmt > 0) { parts.push(`${fmt(transitAmt)} in transit`); hasIssues = true; }
+      }
+
+      const cls = hasIssues ? 'has-issues' : 'all-clear';
+      const dot = hasIssues ? 'red' : 'green';
+      const text = hasIssues ? parts.join(' · ') : 'All clear — no issues';
+      const href = hasIssues ? '/ops/settlement/' : '#';
+
+      return `<a class="attn-bar ${cls}" href="${href}" style="display:flex;margin-bottom:12px">
+        <span class="attn-dot ${dot}"></span>
+        <span class="attn-text">${text}</span>
+        ${hasIssues ? '<span class="attn-arrow">&#x203A;</span>' : ''}
+      </a>`;
+    }
+
+    // ── Runner Status Widget ──
+    function renderRunners(ctx) {
+      const d = ctx.nchData?.data;
+      if (!d) return '';
+      const runners = d.shiftReconciliation?.cashBreakdown?.runnerCashObligations || d.runners || [];
+      if (!runners.length) return '';
+
+      let rows = '';
+      for (const r of runners) {
+        const cash = r.cashToCollect || 0;
+        const dot = cash <= 0 ? 'green' : cash > 1500 ? 'red' : cash > 500 ? 'orange' : 'green';
+        const cashCls = cash > 1500 ? 'red' : cash > 500 ? 'orange' : '';
+        rows += `<a class="runner-row" href="/ops/runner/">
+          <span class="runner-dot ${dot}"></span>
+          <span class="runner-name">${r.name || r.barcode}</span>
+          <span class="runner-cash ${cashCls}">${fmt(cash)}</span>
+        </a>`;
+      }
+
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Runner Status</h3></div>
+        <div class="runner-list">${rows}</div>
+      </div>`;
+    }
+
+    // ── Counter + Petty (Cashier) ──
+    function renderCounterPetty(ctx) {
+      const counterTotal = ctx.counterBal?.total_unsettled || ctx.counterBal?.total || 0;
+      const pettyBal = ctx.pettyData?.balance?.current_balance ?? ctx.pettyData?.current_balance ?? '—';
+      const pettyNum = typeof pettyBal === 'number' ? pettyBal : 0;
+      const pettyCls = pettyNum < 0 ? 'red' : pettyNum < 200 ? 'orange' : '';
+
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Cash Status</h3></div>
+        <div class="cash-row">
+          <div class="cash-card">
+            <div class="cash-big">${fmt(counterTotal)}</div>
+            <div class="cash-sub">Counter Cash</div>
+          </div>
+          <div class="cash-card">
+            <div class="cash-big ${pettyCls}">${typeof pettyBal==='number' ? fmt(pettyBal) : pettyBal}</div>
+            <div class="cash-sub">Petty Cash</div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // ── Counter Balance (Manager) ──
+    function renderCounter(ctx) {
+      const counterTotal = ctx.counterBal?.total_unsettled || ctx.counterBal?.total || 0;
+      const settlements = ctx.counterBal?.settlements || [];
+      const runnerCash = settlements.reduce((s,t) => s + (t.cash_settled || t.amount || 0), 0);
+      const expenses = ctx.counterBal?.expenses_total || 0;
+
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Counter Balance</h3></div>
+        <div style="text-align:center;padding:8px 0">
+          <div class="cash-big">${fmt(counterTotal)}</div>
+          <div class="cash-sub">Uncollected counter cash</div>
+        </div>
+        <div class="recon-eq" style="margin-top:8px">
+          <div class="recon-line"><span class="lbl">Runner settlements</span><span class="val">${fmt(runnerCash)}</span></div>
+          <div class="recon-line"><span class="lbl">Expenses</span><span class="val" style="color:var(--red)">-${fmt(expenses)}</span></div>
+        </div>
+      </div>`;
+    }
+
+    // ── Shift Reconciliation (Admin/CFO) ──
+    function renderRecon(ctx) {
+      const d = ctx.nchData?.data;
+      if (!d) return '';
+      const recon = d.shiftReconciliation;
+      if (!recon) return '';
+      const bc = recon.balanceCheck || {};
+
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Shift Reconciliation</h3></div>
+        <div class="recon-eq">
+          <div class="recon-line"><span class="lbl">Total Sales</span><span class="val">${fmt(recon.totalSales)}</span></div>
+          <div class="recon-line"><span class="lbl">Verified UPI</span><span class="val green">${fmt(recon.verifiedUPI?.total)}</span></div>
+          <div class="recon-line"><span class="lbl">Card</span><span class="val">${fmt(recon.card)}</span></div>
+          <div class="recon-line"><span class="lbl">Complimentary</span><span class="val">${fmt(recon.complimentary)}</span></div>
+          <div class="recon-line"><span class="lbl">Expected Cash</span><span class="val orange">${fmt(recon.expectedTotalCash)}</span></div>
+          <div class="recon-line"><span class="lbl">Accounted Cash</span><span class="val">${fmt(bc.accountedCash)}</span></div>
+        </div>
+        <div class="recon-variance ${bc.isBalanced ? 'balanced' : 'unbalanced'}">
+          ${bc.isBalanced ? 'Shift Balanced' : `Variance: ${fmt(Math.abs(bc.variance))}`}
+        </div>
+        ${(recon.crossPayments?.length > 0) ? `<div style="margin-top:8px;font-size:12px;color:var(--text2)">${recon.crossPayments.length} cross-payment${recon.crossPayments.length>1?'s':''}</div>` : ''}
+      </div>`;
+    }
+
+    // ── Cash Ops (CFO/Naveen only) ──
+    function renderCashOps(ctx) {
+      const collections = ctx.collectData;
+      if (!collections) return '';
+      const inTransit = collections?.in_transit || [];
+      const totalTransit = inTransit.reduce((s,t) => s + (t.amount||0), 0);
+
+      let rows = '';
+      if (inTransit.length === 0) {
+        rows = '<div style="text-align:center;padding:12px;color:var(--text2);font-size:13px">No cash in transit</div>';
+      } else {
+        for (const t of inTransit) {
+          const time = t.collected_at ? new Date(t.collected_at).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}) : '';
+          rows += `<div class="transit-item">
+            <div class="transit-info">
+              <span class="who">${t.collected_by_name || t.collected_by || '?'}</span> — ${fmt(t.amount)}
+              <div class="when">${time}</div>
+            </div>
+            <button class="confirm-btn" onclick="confirmCash(${t.id}, this)">Confirm</button>
+          </div>`;
         }
       }
 
-      // Setup push for native app
-      if (isNativeApp()) {
-        setupNativePush(session);
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Cash in Transit</h3><span class="badge" style="background:rgba(249,115,22,.15);color:var(--orange)">${fmt(totalTransit)}</span></div>
+        ${rows}
+      </div>`;
+    }
+
+    // ── Petty Control (CFO/Naveen only) ──
+    function renderPettyControl(ctx) {
+      const petty = ctx.pettyData;
+      if (!petty) return '';
+      const bal = petty.balance?.current_balance ?? petty.current_balance ?? 0;
+      const txns = petty.today_expenses || petty.transactions || [];
+      const totalSpent = petty.today_total || txns.reduce((s,t) => s + (t.amount||0), 0);
+      const balCls = bal < 0 ? 'red' : bal < 200 ? 'orange' : '';
+
+      let txnRows = '';
+      for (const t of txns.slice(0, 5)) {
+        txnRows += `<div class="petty-txn">
+          <span class="cat">${t.category_name || t.description || '—'}</span>
+          <span class="amt">-${fmt(t.amount)}</span>
+        </div>`;
       }
+      if (!txnRows) txnRows = '<div style="text-align:center;padding:8px;color:var(--text2);font-size:13px">No expenses today</div>';
+
+      return `<div class="widget">
+        <div class="widget-hdr"><h3>Petty Cash</h3></div>
+        <div style="text-align:center;padding:8px 0">
+          <div class="cash-big ${balCls}">${fmt(bal)}</div>
+          <div class="cash-sub">${totalSpent > 0 ? fmt(totalSpent) + ' spent today' : 'Current balance'}</div>
+        </div>
+        ${txnRows ? `<div style="margin-top:8px">${txnRows}</div>` : ''}
+        <div class="fund-row">
+          <input type="number" class="fund-input" id="fundAmt" placeholder="Amount" min="100">
+          <button class="fund-btn" onclick="fundPetty()">Fund</button>
+        </div>
+      </div>`;
+    }
+
+    // ── CFO Actions ──
+    async function confirmCash(id, btn) {
+      btn.disabled = true; btn.textContent = '...';
+      const pin = sessionStorage.getItem('nch_pin');
+      try {
+        const res = await fetch('/api/rectify?action=confirm-received', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ pin, collection_id: id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          btn.textContent = 'Done';
+          btn.closest('.transit-item').style.opacity = '.4';
+          setTimeout(() => { _cache = {}; initRoleDashboard(_currentSession); }, 1500);
+        } else {
+          btn.textContent = data.error || 'Failed'; btn.disabled = false;
+        }
+      } catch(e) { btn.textContent = 'Error'; btn.disabled = false; }
+    }
+
+    async function fundPetty() {
+      const input = document.getElementById('fundAmt');
+      const amt = parseInt(input.value);
+      if (!amt || amt < 1) { input.style.borderColor = 'var(--red)'; return; }
+      const btn = input.nextElementSibling;
+      btn.disabled = true; btn.textContent = '...';
+      const pin = sessionStorage.getItem('nch_pin');
+      try {
+        const res = await fetch('/api/rectify?action=petty-fund', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ pin, amount: amt })
+        });
+        const data = await res.json();
+        if (data.success) {
+          btn.textContent = 'Added!'; input.value = '';
+          setTimeout(() => { _cache = {}; initRoleDashboard(_currentSession); }, 1500);
+        } else {
+          btn.textContent = data.error || 'Failed'; btn.disabled = false;
+        }
+      } catch(e) { btn.textContent = 'Error'; btn.disabled = false; }
     }
 
     // ── Native Push Setup ──
@@ -208,7 +651,6 @@
         (window.NCHNative && window.NCHNative.getFcmToken()) || '';
 
       if (!fcmToken) {
-        // Wait for token with retry loop + event listener
         const tokenPromise = new Promise(resolve => {
           window.addEventListener('fcmTokenReady', (e) => resolve(e.detail), {once: true});
         });
@@ -224,7 +666,6 @@
       }
 
       if (fcmToken) {
-        // Register token with server
         try {
           await fetch('/api/hub?action=push-subscribe', {
             method: 'POST',
@@ -273,6 +714,12 @@
     function logout() {
       clearSession();
       sessionStorage.removeItem('nch_pin');
+      _currentSession = null;
+      _cache = {};
+      if (_dashInterval) { clearInterval(_dashInterval); _dashInterval = null; }
+      document.getElementById('roleDashboard').style.display = 'none';
+      document.getElementById('dashWidgets').innerHTML = '';
+      document.getElementById('navLabel').style.display = 'none';
       document.getElementById('dashboard').style.display = 'none';
       document.getElementById('loginOverlay').style.display = 'flex';
       document.getElementById('pushBanner').style.display = 'none';
@@ -285,7 +732,6 @@
     (function init() {
       const session = getSession();
       if (session && session.name) {
-        // Ensure PIN is in sessionStorage for sub-page auto-login
         if (session.pin) sessionStorage.setItem('nch_pin', session.pin);
         showDashboard(session);
       } else {

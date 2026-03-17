@@ -53,7 +53,9 @@ const STAFF_SLOTS = {
   // Admin
   'ADMIN001':{ role: 'admin',   person: 'Nihaf',    phone: null, pin: '0305' },
   'ADMIN002':{ role: 'admin',   person: 'Naveen',   phone: null, pin: '3754' },
-  'ADMIN003':{ role: 'admin',   person: 'Yashwant', phone: null, pin: '3697' }
+  'ADMIN003':{ role: 'admin',   person: 'Yashwant', phone: null, pin: '3697' },
+  // Accountant
+  'ACCT001': { role: 'accountant', person: 'Zoya',  phone: null, pin: '2026' }
 };
 
 // Derived lookups — built from STAFF_SLOTS so everything stays in sync
@@ -220,7 +222,7 @@ export async function onRequest(context) {
     if (action === 'get-overview') {
       const pin = url.searchParams.get('pin');
       const staff = STAFF_BY_PIN[pin];
-      if (!['admin', 'gm', 'supervisor', 'manager'].includes(staff.role)) {
+      if (!['admin', 'gm', 'supervisor', 'manager', 'accountant'].includes(staff.role)) {
         return json({ success: false, error: 'Not authorized' }, cors);
       }
 
