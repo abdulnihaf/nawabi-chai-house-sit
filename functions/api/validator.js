@@ -41,18 +41,18 @@ const STAFF_SLOTS = {
   'CASH001': { role: 'cashier', person: 'Kesmat',   phone: '918637895699', pin: '7115' },
   'CASH002': { role: 'cashier', person: 'Nafees',   phone: '919019627629', pin: '8241' },
   // Runners
-  'RUN001':  { role: 'runner',  person: 'Farzaib',  phone: null,           pin: '3678', partner_id: 64 },
+  'RUN001':  { role: 'runner',  person: 'Farzaib',  phone: '919071116755', pin: '3678', partner_id: 64 },
   'RUN002':  { role: 'runner',  person: 'Ritiqu',   phone: '919181204403', pin: '4421', partner_id: 65 },
-  'RUN003':  { role: 'runner',  person: 'Anshu',    phone: '919181204403', pin: '5503', partner_id: 66 },
-  'RUN004':  { role: 'runner',  person: 'Shabeer',  phone: null,           pin: '6604', partner_id: 67 },
-  'RUN005':  { role: 'runner',  person: 'Dhanush',  phone: null,           pin: '7705', partner_id: 68 },
+  'RUN003':  { role: 'runner',  person: 'Anshu',    phone: '918172058136', pin: '5503', partner_id: 66 },
+  'RUN004':  { role: 'runner',  person: 'Shabeer',  phone: '919100533128', pin: '6604', partner_id: 67 },
+  'RUN005':  { role: 'runner',  person: 'Dhanush',  phone: '918874730537', pin: '7705', partner_id: 68 },
   // GM / Supervisor / Manager
   'GM001':   { role: 'gm',         person: 'Basheer',  phone: '919061906916', pin: '8523' },
   'SUP001':  { role: 'supervisor', person: 'Waseem',   phone: '919108414951', pin: '1234' },
   'MGR001':  { role: 'manager',    person: 'Tanveer',  phone: '919916399474', pin: '6890' },
   // Admin
-  'ADMIN001':{ role: 'admin',   person: 'Nihaf',    phone: null, pin: '0305' },
-  'ADMIN002':{ role: 'admin',   person: 'Naveen',   phone: null, pin: '3754' },
+  'ADMIN001':{ role: 'admin',   person: 'Nihaf',    phone: '917010426808', pin: '0305' },
+  'ADMIN002':{ role: 'admin',   person: 'Naveen',   phone: '918073476051', pin: '3754' },
   'ADMIN003':{ role: 'admin',   person: 'Yashwant', phone: null, pin: '3697' },
   // Accountant
   'ACCT001': { role: 'accountant', person: 'Zoya',  phone: null, pin: '2026' }
@@ -425,6 +425,30 @@ export async function onRequest(context) {
         );
         const results = await DB.batch(stmts);
         written = results.filter(r => r.meta?.changes > 0).length;
+
+        // Fire E1 alerts for new errors (non-blocking)
+        if (written > 0) {
+          const newErrors = allErrors.filter((err, i) => results[i]?.meta?.changes > 0);
+          for (const err of newErrors) {
+            context.waitUntil(
+              fetch('https://nawabichaihouse.com/api/wa-alerts?action=send-alert', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                  alert: 'E1',
+                  data: {
+                    error_id: err.order_id,
+                    runner_slot: err.runner_slot,
+                    cashier_name: err.cashier_name,
+                    order_ref: err.order_ref,
+                    error_type_label: err.description,
+                    amount: err.order_amount
+                  }
+                })
+              }).catch(() => {})
+            );
+          }
+        }
       }
 
       // ── Auto-fix: known partner aliases (e.g., partner 90 → runner 64) ──

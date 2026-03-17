@@ -398,7 +398,20 @@ async function pettyExpense(context, DB, cors) {
 
   const newBal = await DB.prepare('SELECT current_balance FROM petty_cash_balance WHERE id = 1').first();
   const result = {success: true, amount: amt, category: category.name, balance: newBal?.current_balance || 0};
-  if (willGoNegative) result.warning = `Petty cash is now negative (₹${newBal?.current_balance}). Naveen needs to reimburse.`;
+  if (willGoNegative) {
+    result.warning = `Petty cash is now negative (₹${newBal?.current_balance}). Naveen needs to reimburse.`;
+    // Fire P1 alert — petty cash went negative (non-blocking)
+    context.waitUntil(
+      fetch('https://nawabichaihouse.com/api/wa-alerts?action=send-alert', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          alert: 'P1',
+          data: {balance: newBal?.current_balance || 0, last_expense_by: staff.name}
+        })
+      }).catch(() => {})
+    );
+  }
   return json(result, cors);
 }
 
@@ -484,6 +497,20 @@ async function collectCash(context, DB, cors) {
     notes || null
   ).run();
 
+  // Fire C1 alert if in_transit (non-blocking)
+  if (!isFinalDest) {
+    context.waitUntil(
+      fetch('https://nawabichaihouse.com/api/wa-alerts?action=send-alert', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          alert: 'C1',
+          data: {amount: amt, collector_name: staff.name, collector_slot: staff.slot, collection_id: result.meta.last_row_id}
+        })
+      }).catch(() => {})
+    );
+  }
+
   return json({
     success: true,
     id: result.meta.last_row_id,
@@ -514,6 +541,18 @@ async function confirmReceived(context, DB, cors) {
   await DB.prepare(
     `UPDATE cash_collections SET status = 'collected', received_by = ?, received_by_name = ?, received_at = ? WHERE id = ?`
   ).bind(staff.slot, staff.name, now, collection_id).run();
+
+  // Fire C2 alert — notify collector that Naveen confirmed (non-blocking)
+  context.waitUntil(
+    fetch('https://nawabichaihouse.com/api/wa-alerts?action=send-alert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        alert: 'C2',
+        data: {amount: collection.amount, collector_slot: collection.collected_by, collector_name: collection.collected_by_name, collection_id}
+      })
+    }).catch(() => {})
+  );
 
   return json({
     success: true,
