@@ -13,6 +13,17 @@ const RUNNER_SLOTS = {
 };
 const VALID_RUNNER_IDS = new Set([64, 65, 66, 67, 68]);
 
+// Razorpay QR codes — maps entity to QR ID
+const RUNNER_QRS = [
+  {qr_id: 'qr_SBdtZG1AMDwSmJ', label: 'RUN001', partner_id: 64, name: 'FAROOQ'},
+  {qr_id: 'qr_SBdte3aRvGpRMY', label: 'RUN002', partner_id: 65, name: 'AMIN'},
+  {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', partner_id: 66, name: 'NCH Runner 03'},
+  {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', partner_id: 67, name: 'NCH Runner 04'},
+  {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', partner_id: 68, name: 'NCH Runner 05'}
+];
+const COUNTER_QR = {qr_id: 'qr_SBdtUCLSHVfRtT', label: 'COUNTER'};
+const RUNNER_COUNTER_QR = {qr_id: 'qr_SBuDBQDKrC8Bch', label: 'RUNNER_COUNTER'};
+
 // Partner aliases — duplicate Odoo contacts that map to known runners.
 // These are auto-fixable: invalid_partner errors with known alias → auto-correct in Odoo.
 const PARTNER_ALIASES = {90: 64, 37: 64};
@@ -370,6 +381,12 @@ export async function onRequest(context) {
         const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
         const startOfDayIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
         lastScan = startOfDayIST;
+      } else {
+        // Lookback buffer: subtract 5 minutes from cursor to catch late-syncing orders.
+        // INSERT OR IGNORE on validation_errors handles duplicates, so overlap is safe.
+        const cursorDate = new Date(lastScan.replace(' ', 'T') + '+05:30');
+        const lookback = new Date(cursorDate.getTime() - 5 * 60 * 1000);
+        lastScan = toIST(lookback);
       }
       const nowIST = toIST(new Date());
 
@@ -523,7 +540,203 @@ export async function onRequest(context) {
       }, cors);
     }
 
-    return json({ success: false, error: 'Unknown action. Use: validate, scan, scan-recent, check, get-my-errors, get-overview' }, cors);
+    // ── RAZORPAY-VERIFY — cross-check UPI amounts against actual Razorpay payments ──
+    // Compares Odoo UPI totals per QR entity against Razorpay actuals.
+    // Writes snapshots to upi_qr_snapshots and discrepancies to payment_discrepancies.
+    // Called less frequently (every 5 min or before settlement) to avoid rate limits.
+    if (action === 'razorpay-verify') {
+      if (!RZP_KEY || !RZP_SECRET) return json({ success: false, error: 'Razorpay keys not configured' }, cors);
+
+      // Get current shift period (start of today IST → now)
+      const now = new Date();
+      const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const todayIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
+      const nowISTStr = toIST(now);
+
+      // Convert to unix timestamps for Razorpay API
+      const fromUnix = Math.floor(new Date(todayIST.replace(' ', 'T') + '+05:30').getTime() / 1000);
+      const toUnix = Math.floor(now.getTime() / 1000);
+
+      const auth = btoa(RZP_KEY + ':' + RZP_SECRET);
+
+      // 1. Fetch Razorpay payments from all QR codes in parallel
+      const [counterRzp, runnerCounterRzp, ...runnerRzpResults] = await Promise.all([
+        fetchQrPayments(auth, COUNTER_QR.qr_id, fromUnix, toUnix),
+        fetchQrPayments(auth, RUNNER_COUNTER_QR.qr_id, fromUnix, toUnix),
+        ...RUNNER_QRS.map(r => fetchQrPayments(auth, r.qr_id, fromUnix, toUnix))
+      ]);
+
+      // 2. Fetch Odoo orders for the same period to get POS UPI totals
+      const orders = await fetchOdooOrders(ODOO_API_KEY, todayIST, nowISTStr);
+
+      // 3. Calculate POS UPI totals per entity
+      const posUPI = { COUNTER: 0, RUNNER_COUNTER: 0 };
+      for (const rq of RUNNER_QRS) posUPI[rq.label] = 0;
+
+      for (const order of orders) {
+        const posId = order.config_id;
+        const partnerId = order.partner_id || 0;
+        const isRunner = VALID_RUNNER_IDS.has(partnerId);
+
+        for (const payment of (order.payments || [])) {
+          if (payment.method_id !== PM.UPI) continue;
+          const amt = payment.amount || 0;
+
+          if (posId === POS.CASH_COUNTER && !isRunner) {
+            posUPI.COUNTER += amt;
+          } else if (posId === POS.RUNNER_COUNTER && !isRunner) {
+            posUPI.RUNNER_COUNTER += amt;
+          }
+          // Note: Runner UPI is collected via their personal QR codes,
+          // not tracked as UPI payment method in Odoo. Runner QR verification
+          // compares Razorpay runner QR total against nch-data's runner UPI.
+        }
+      }
+
+      // 4. Calculate Razorpay totals per entity
+      const rzpTotals = {};
+      const rzpCounts = {};
+
+      rzpTotals.COUNTER = counterRzp.reduce((s, p) => s + (p.amount / 100), 0); // Razorpay amounts in paise
+      rzpCounts.COUNTER = counterRzp.length;
+      rzpTotals.RUNNER_COUNTER = runnerCounterRzp.reduce((s, p) => s + (p.amount / 100), 0);
+      rzpCounts.RUNNER_COUNTER = runnerCounterRzp.length;
+
+      RUNNER_QRS.forEach((rq, i) => {
+        const payments = runnerRzpResults[i] || [];
+        rzpTotals[rq.label] = payments.reduce((s, p) => s + (p.amount / 100), 0);
+        rzpCounts[rq.label] = payments.length;
+      });
+
+      // 5. Build snapshots and detect discrepancies
+      const snapshotTime = nowISTStr;
+      const entities = ['COUNTER', 'RUNNER_COUNTER', ...RUNNER_QRS.map(r => r.label)];
+      const snapshots = [];
+      const discrepancies = [];
+      const TOLERANCE = 1; // ₹1 tolerance for rounding
+
+      for (const entity of entities) {
+        const rzpTotal = Math.round((rzpTotals[entity] || 0) * 100) / 100;
+        const posTotal = Math.round((posUPI[entity] || 0) * 100) / 100;
+        const excess = Math.round((rzpTotal - posTotal) * 100) / 100;
+        const deficit = Math.round((posTotal - rzpTotal) * 100) / 100;
+
+        snapshots.push({
+          entity, snapshotTime, rzpTotal, posTotal,
+          excess: excess > 0 ? excess : 0,
+          deficit: deficit > 0 ? deficit : 0,
+          rzpCount: rzpCounts[entity] || 0
+        });
+
+        // Deficit: POS says more UPI than Razorpay received — possible fake UPI / wrong QR
+        if (deficit > TOLERANCE) {
+          discrepancies.push({
+            entity, type: 'deficit', amount: deficit,
+            desc: `${entity}: POS UPI ₹${posTotal} but Razorpay only received ₹${rzpTotal}. Deficit: ₹${deficit}. Possible: order marked UPI but paid cash, or payment went to different QR.`
+          });
+        }
+
+        // Excess: Razorpay received more than POS UPI — cross-QR payment or unrecorded UPI
+        if (excess > TOLERANCE) {
+          discrepancies.push({
+            entity, type: 'excess', amount: excess,
+            desc: `${entity}: Razorpay received ₹${rzpTotal} but POS UPI only ₹${posTotal}. Excess: ₹${excess}. Possible: customer paid to wrong QR, or order marked Cash but paid UPI.`
+          });
+        }
+      }
+
+      // 6. Write snapshots to D1
+      let snapshotsWritten = 0;
+      try {
+        const stmts = snapshots.map(s =>
+          DB.prepare(`INSERT OR REPLACE INTO upi_qr_snapshots (qr_entity_code, snapshot_time, razorpay_total, pos_upi_total, excess, deficit, razorpay_count, order_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(s.entity, s.snapshotTime, s.rzpTotal, s.posTotal, s.excess, s.deficit, s.rzpCount, 0)
+        );
+        await DB.batch(stmts);
+        snapshotsWritten = stmts.length;
+      } catch (e) { /* snapshots table may not exist */ }
+
+      // 7. Write discrepancies to D1
+      let discWritten = 0;
+      try {
+        if (discrepancies.length > 0) {
+          const stmts = discrepancies.map(d =>
+            DB.prepare(`INSERT OR IGNORE INTO payment_discrepancies (disc_type, amount, expected_entity, actual_entity, detected_at, status, assigned_role, order_ref) VALUES (?, ?, ?, ?, datetime('now'), 'pending', 'cashier', ?)`)
+              .bind(d.type, d.amount, d.entity, d.entity, d.desc)
+          );
+          const results = await DB.batch(stmts);
+          discWritten = results.filter(r => r.meta?.changes > 0).length;
+        }
+      } catch (e) { /* table may not exist */ }
+
+      // 8. Auto-resolve: if a previously flagged discrepancy no longer exists (within tolerance), resolve it
+      let autoResolved = 0;
+      try {
+        const pendingDiscs = await DB.prepare(
+          `SELECT id, expected_entity, disc_type, amount FROM payment_discrepancies WHERE status = 'pending'`
+        ).all();
+        const resolveStmts = [];
+        for (const pd of (pendingDiscs?.results || [])) {
+          const entity = pd.expected_entity;
+          const snap = snapshots.find(s => s.entity === entity);
+          if (!snap) continue;
+          // If the discrepancy type no longer applies (within tolerance), auto-resolve
+          if (pd.disc_type === 'deficit' && snap.deficit <= TOLERANCE) {
+            resolveStmts.push(DB.prepare(`UPDATE payment_discrepancies SET status = 'resolved', resolved_at = datetime('now'), resolution_action = 'auto-resolved: deficit within tolerance' WHERE id = ?`).bind(pd.id));
+          }
+          if (pd.disc_type === 'excess' && snap.excess <= TOLERANCE) {
+            resolveStmts.push(DB.prepare(`UPDATE payment_discrepancies SET status = 'resolved', resolved_at = datetime('now'), resolution_action = 'auto-resolved: excess within tolerance' WHERE id = ?`).bind(pd.id));
+          }
+        }
+        if (resolveStmts.length > 0) {
+          await DB.batch(resolveStmts);
+          autoResolved = resolveStmts.length;
+        }
+      } catch (e) { /* non-critical */ }
+
+      return json({
+        success: true,
+        period: { from: todayIST, to: nowISTStr },
+        snapshots: snapshots.map(s => ({
+          entity: s.entity,
+          razorpay: s.rzpTotal,
+          pos_upi: s.posTotal,
+          excess: s.excess,
+          deficit: s.deficit,
+          rzp_count: s.rzpCount
+        })),
+        discrepancies,
+        snapshots_written: snapshotsWritten,
+        discrepancies_written: discWritten,
+        auto_resolved: autoResolved
+      }, cors);
+    }
+
+    // ── GET-DISCREPANCIES — return all pending UPI discrepancies ──
+    if (action === 'get-discrepancies') {
+      try {
+        const pending = await DB.prepare(
+          `SELECT * FROM payment_discrepancies WHERE status = 'pending' ORDER BY detected_at DESC`
+        ).all();
+        return json({ success: true, discrepancies: pending?.results || [] }, cors);
+      } catch (e) {
+        return json({ success: true, discrepancies: [] }, cors);
+      }
+    }
+
+    // ── GET-COUNTER-ERRORS — return pending validation errors for counter (no runner) ──
+    if (action === 'get-counter-errors') {
+      try {
+        const pending = await DB.prepare(
+          `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27`
+        ).first();
+        return json({ success: true, counter_errors: pending?.cnt || 0 }, cors);
+      } catch (e) {
+        return json({ success: true, counter_errors: 0 }, cors);
+      }
+    }
+
+    return json({ success: false, error: 'Unknown action. Use: validate, scan, scan-recent, check, razorpay-verify, get-discrepancies, get-counter-errors, get-my-errors, get-overview' }, cors);
 
   } catch (e) {
     return json({ success: false, error: e.message, stack: e.stack }, cors, 500);
@@ -941,6 +1154,37 @@ function toIST(date) {
   const d = new Date(date);
   const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
   return ist.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+}
+
+// ============================================================
+// RAZORPAY API
+// ============================================================
+
+async function fetchQrPayments(auth, qrId, fromUnix, toUnix) {
+  const allItems = [];
+  let skip = 0;
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 10;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    try {
+      const res = await fetch(
+        `https://api.razorpay.com/v1/payments/qr_codes/${qrId}/payments?count=${PAGE_SIZE}&skip=${skip}&from=${fromUnix}&to=${toUnix}`,
+        { headers: { 'Authorization': 'Basic ' + auth } }
+      );
+      const data = await res.json();
+      if (data.error || !data.items || data.items.length === 0) break;
+
+      const captured = data.items.filter(p => p.status === 'captured');
+      allItems.push(...captured);
+
+      if (data.items.length < PAGE_SIZE) break;
+      skip += PAGE_SIZE;
+    } catch (e) {
+      break;
+    }
+  }
+  return allItems;
 }
 
 function json(data, cors, status = 200) {

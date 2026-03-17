@@ -144,6 +144,7 @@ export async function onRequest(context) {
       try {
         const slot = RUNNER_SLOT_MAP[parseInt(runner_id)] || RUNNER_SLOT_MAP[runner_id];
         if (slot) {
+          // Runner settlement: check errors assigned to this runner's slot
           const pending = await DB.prepare(
             `SELECT COUNT(*) as cnt FROM validation_errors WHERE runner_slot = ? AND status = 'pending'`
           ).bind(slot).first();
@@ -154,6 +155,31 @@ export async function onRequest(context) {
               pending_errors: pending.cnt
             }), {headers: corsHeaders});
           }
+        } else if (String(runner_id) === 'counter') {
+          // Counter settlement: check errors with no runner (counter-side errors)
+          const pending = await DB.prepare(
+            `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27`
+          ).first();
+          if (pending && pending.cnt > 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Cannot settle counter: ${pending.cnt} validation error(s) pending on Cash Counter. Fix all errors before settling.`,
+              pending_errors: pending.cnt
+            }), {headers: corsHeaders});
+          }
+          // Also check UPI discrepancies
+          try {
+            const discPending = await DB.prepare(
+              `SELECT COUNT(*) as cnt FROM payment_discrepancies WHERE status = 'pending' AND (expected_entity = 'COUNTER' OR expected_entity = 'RUNNER_COUNTER')`
+            ).first();
+            if (discPending && discPending.cnt > 0) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: `Cannot settle counter: ${discPending.cnt} UPI discrepancy(ies) pending. Run Razorpay verification and resolve before settling.`,
+                pending_discrepancies: discPending.cnt
+              }), {headers: corsHeaders});
+            }
+          } catch (e) { /* payment_discrepancies table may not exist */ }
         }
       } catch (e) {
         // Table doesn't exist or query fails — proceed with settlement (backward compat)

@@ -228,6 +228,21 @@
     .hist-collect-row:last-child{border-bottom:none}
     .hist-collect-main{display:flex;justify-content:space-between;align-items:center;font-size:14px}
     .hist-collect-detail{font-size:12px;color:var(--text2);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+    /* ── RAZORPAY VERIFY PANEL ── */
+    .rzp-panel{background:var(--card);border:2px solid var(--purple);border-radius:16px;padding:20px;margin-bottom:20px;display:none}
+    .rzp-panel.show{display:block}
+    .rzp-panel h3{font-size:17px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .rzp-grid{display:grid;gap:8px}
+    .rzp-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:8px;font-size:13px}
+    .rzp-row .rzp-entity{font-weight:600;min-width:90px}
+    .rzp-row .rzp-amounts{display:flex;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px}
+    .rzp-row .rzp-status{font-weight:600;font-size:11px;min-width:40px;text-align:right}
+    .rzp-row.has-disc{border:1px solid var(--red);background:rgba(239,68,68,0.08)}
+    .rzp-row.ok{border:1px solid rgba(74,222,128,0.3)}
+    .rzp-verify-btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:var(--purple);color:white;margin-top:12px}
+    .rzp-verify-btn:disabled{opacity:0.5;cursor:not-allowed}
+    .rzp-last-check{font-size:11px;color:var(--text2);text-align:center;margin-top:8px}
+    .counter-errors-banner{background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:13px;color:var(--red);font-weight:600;display:flex;align-items:center;gap:8px}
   </style>
 </head>
 <body>
@@ -284,7 +299,16 @@
     <!-- COUNTER PANEL -->
     <div class="counter-panel" id="counterPanel">
       <h3>💰 Cash Counter</h3>
+      <div id="counterErrorsBanner"></div>
       <div id="counterContent"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+    </div>
+
+    <!-- RAZORPAY UPI VERIFICATION -->
+    <div class="rzp-panel" id="rzpPanel">
+      <h3>🔍 UPI Verification (Razorpay)</h3>
+      <div id="rzpContent"><div style="font-size:13px;color:var(--text2)">Click verify to cross-check UPI amounts against Razorpay</div></div>
+      <button class="rzp-verify-btn" id="rzpVerifyBtn" onclick="runRazorpayVerify()">Verify UPI Now</button>
+      <div class="rzp-last-check" id="rzpLastCheck"></div>
     </div>
 
     <!-- POLICE EXPENSE PANEL -->
@@ -543,6 +567,15 @@ function initDashboard() {
   loadHistTab('settlements');
   // Trigger background validation scan on dashboard load
   fetch('/api/validator?action=scan-recent').catch(() => {});
+  // Check counter errors
+  checkCounterErrors();
+  // Show Razorpay verification panel for cashiers/admin/GM
+  $('rzpPanel').classList.add('show');
+  // Auto-run Razorpay verify every 5 minutes
+  setInterval(() => {
+    runRazorpayVerify();
+    checkCounterErrors();
+  }, 5 * 60 * 1000);
 }
 
 // ── RUNNER GRID ──
@@ -837,6 +870,8 @@ async function applyFix(runnerId, idx) {
       // Reload runner data
       await loadRunnerLive(runnerId);
       renderRunnerPanel(runnerId);
+      // Refresh counter error banner (fix may have resolved counter errors too)
+      checkCounterErrors();
     } else {
       toast(data.error || 'Fix failed', 'err');
       if (card) card.style.opacity = '1';
@@ -1015,6 +1050,9 @@ async function doSettle(runnerId) {
       // Refresh history if loaded
       delete historyCache.settlements;
       if (activeHistTab === 'settlements') loadHistTab('settlements');
+      // Re-scan for errors + refresh counter error banner
+      fetch('/api/validator?action=scan-recent').catch(() => {});
+      checkCounterErrors();
     } else {
       toast(result.error || 'Settlement failed', 'err');
       btn.textContent = 'Retry';
@@ -1066,6 +1104,93 @@ async function loadCounterData() {
   } catch (e) {
     $('counterContent').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load counter data</div>';
   }
+}
+
+// ── COUNTER ERRORS CHECK ──
+async function checkCounterErrors() {
+  try {
+    const res = await fetch('/api/validator?action=get-counter-errors');
+    const data = await res.json();
+    const cnt = data.counter_errors || 0;
+    const banner = $('counterErrorsBanner');
+    if (cnt > 0) {
+      banner.innerHTML = `<div class="counter-errors-banner">⚠️ ${cnt} validation error${cnt > 1 ? 's' : ''} on Cash Counter — fix before counter settlement</div>`;
+    } else {
+      banner.innerHTML = '';
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+// ── RAZORPAY VERIFICATION ──
+let rzpVerifyData = null;
+
+async function runRazorpayVerify() {
+  const btn = $('rzpVerifyBtn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+
+  try {
+    const res = await fetch('/api/validator?action=razorpay-verify');
+    const data = await res.json();
+
+    if (!data.success) {
+      $('rzpContent').innerHTML = `<div style="color:var(--red);font-size:13px">${data.error || 'Verification failed'}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Retry Verify';
+      return;
+    }
+
+    rzpVerifyData = data;
+    renderRzpResults(data);
+
+    btn.textContent = 'Verify UPI Now';
+    btn.disabled = false;
+    $('rzpLastCheck').textContent = 'Last checked: ' + new Date().toLocaleTimeString('en-IN');
+  } catch (e) {
+    $('rzpContent').innerHTML = `<div style="color:var(--red);font-size:13px">Network error — try again</div>`;
+    btn.disabled = false;
+    btn.textContent = 'Retry Verify';
+  }
+}
+
+function renderRzpResults(data) {
+  const snapshots = data.snapshots || [];
+  const discrepancies = data.discrepancies || [];
+  const discEntities = new Set(discrepancies.map(d => d.entity));
+
+  const fmt = v => '₹' + Math.round(v).toLocaleString('en-IN');
+  let html = '<div class="rzp-grid">';
+
+  for (const s of snapshots) {
+    const hasDisc = discEntities.has(s.entity);
+    const cls = hasDisc ? 'has-disc' : 'ok';
+    const statusIcon = hasDisc ? '⚠️' : '✓';
+    const label = s.entity === 'COUNTER' ? 'Counter QR' :
+                  s.entity === 'RUNNER_COUNTER' ? 'Runner Ctr QR' :
+                  s.entity;
+
+    html += `<div class="rzp-row ${cls}">
+      <span class="rzp-entity">${label}</span>
+      <span class="rzp-amounts">
+        <span title="Razorpay actual">R:${fmt(s.razorpay)}</span>
+        <span title="POS UPI">P:${fmt(s.pos_upi)}</span>
+      </span>
+      <span class="rzp-status" style="color:${hasDisc ? 'var(--red)' : 'var(--green)'}">${statusIcon}</span>
+    </div>`;
+  }
+  html += '</div>';
+
+  if (discrepancies.length > 0) {
+    html += `<div style="margin-top:12px;padding:10px;background:rgba(239,68,68,0.08);border-radius:8px;font-size:12px;color:var(--red)">`;
+    for (const d of discrepancies) {
+      html += `<div style="margin-bottom:6px"><strong>${d.entity}:</strong> ${d.type === 'deficit' ? 'Deficit' : 'Excess'} ${fmt(d.amount)} — ${d.desc.split('.').slice(1, 2).join('').trim() || d.desc}</div>`;
+    }
+    html += '</div>';
+  } else {
+    html += `<div style="margin-top:10px;text-align:center;font-size:13px;color:var(--green);font-weight:600">✓ All UPI amounts verified — no discrepancies</div>`;
+  }
+
+  $('rzpContent').innerHTML = html;
 }
 
 // ── EXPENSE PANEL ──
