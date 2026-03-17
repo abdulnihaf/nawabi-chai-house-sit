@@ -165,6 +165,18 @@ let refreshTimer = null;
 
 // --- PIN Input (4 separate fields, same pattern as runner) ---
 const inputs = document.querySelectorAll('#pinInput input');
+
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    hubPin.split('').forEach((digit, i) => {
+      if (inputs[i]) { inputs[i].value = digit; inputs[i].classList.add('filled'); }
+    });
+    setTimeout(() => verifyPin(hubPin), 100);
+  }
+})();
+
 inputs.forEach((inp, i) => {
   inp.addEventListener('input', () => {
     inp.value = inp.value.replace(/\D/g, '');

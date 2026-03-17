@@ -384,6 +384,16 @@
   pinScreen.addEventListener('click', () => pinInput.focus());
   pinInput.focus();
 
+  // Auto-login from hub session
+  (function tryHubAutoLogin() {
+    const hubPin = sessionStorage.getItem('nch_pin');
+    if (hubPin && hubPin.length === 4) {
+      pinInput.value = hubPin;
+      pinDots.forEach((dot, i) => { if (i < 4) dot.classList.add('filled'); });
+      setTimeout(() => attemptLogin(hubPin), 100);
+    }
+  })();
+
   pinInput.addEventListener('input', function() {
     const val = this.value.replace(/\D/g, '').slice(0, 4);
     this.value = val;
@@ -412,20 +422,32 @@
         return;
       }
 
-      if (data.role !== 'runner') {
-        showPinError('This dashboard is for runners only');
+      // Runners get their own dashboard; others get read-only view
+      const allowedRoles = ['runner', 'cashier', 'admin', 'gm', 'manager', 'supervisor'];
+      if (!allowedRoles.includes(data.role)) {
+        showPinError('Not authorized for this page');
         return;
       }
 
       state.pin = pin;
-      state.slot = data.slot;
-      // Show as "Runner 01" not personal name
-      const slotNum = data.slot.replace('RUN00', '');
-      state.name = 'Runner ' + slotNum.padStart(2, '0');
-      state.partnerId = PARTNER_MAP[data.slot];
-      state.barcode = data.slot;
 
-      if (data.phone_required) {
+      if (data.role === 'runner' && data.slot && data.slot.startsWith('RUN')) {
+        // Runner: show their own dashboard
+        state.slot = data.slot;
+        const slotNum = data.slot.replace('RUN00', '');
+        state.name = 'Runner ' + slotNum.padStart(2, '0');
+        state.partnerId = PARTNER_MAP[data.slot];
+        state.barcode = data.slot;
+      } else {
+        // Non-runner (cashier/manager/admin): default to RUN001 overview
+        state.slot = 'RUN001';
+        state.name = data.name + ' (Viewing)';
+        state.partnerId = PARTNER_MAP['RUN001'];
+        state.barcode = 'RUN001';
+        state.isViewOnly = true;
+      }
+
+      if (data.phone_required && data.role === 'runner') {
         showPhoneScreen(data.name);
       } else {
         showDashboard();

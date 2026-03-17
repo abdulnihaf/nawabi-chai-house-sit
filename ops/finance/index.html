@@ -325,6 +325,14 @@ const fmtDateTime = iso => {
 };
 
 // ═══ PIN ═══
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    setTimeout(() => verifyPIN(hubPin), 100);
+  }
+})();
+
 (function initPIN() {
   const inputs = document.querySelectorAll('.pin-inputs input');
   inputs.forEach((inp, i) => {

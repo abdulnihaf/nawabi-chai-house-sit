@@ -507,6 +507,16 @@ const PRODUCTS = {
   1395: 'Haleem Quarter', 1396: 'Haleem Half', 1397: 'Haleem Full', 1400: 'Haleem Mutton'
 };
 
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    currentPin = hubPin;
+    updateDots();
+    setTimeout(() => verifyPin(), 100);
+  }
+})();
+
 // ─── PIN ──────────────────────────────────────
 function pinKey(k) {
   if (k === 'back') { currentPin = currentPin.slice(0, -1); updateDots(); return; }

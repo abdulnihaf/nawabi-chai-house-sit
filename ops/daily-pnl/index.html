@@ -1039,6 +1039,18 @@ const DEFAULT_VESSELS = [
 // ── PIN AUTHENTICATION ──────────────────────────────────
 
 const pins = Array.from($('pinInput').querySelectorAll('input'));
+
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    hubPin.split('').forEach((digit, i) => {
+      if (pins[i]) { pins[i].value = digit; pins[i].classList.add('filled'); }
+    });
+    setTimeout(() => checkPin(), 100);
+  }
+})();
+
 pins.forEach((input, i) => {
   input.addEventListener('input', e => {
     if (e.target.value) { input.classList.add('filled'); if (i < 3) pins[i+1].focus(); else checkPin(); }

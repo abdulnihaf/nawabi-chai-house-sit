@@ -210,6 +210,24 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── PIN ─────────────────────────────────────────────────────
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    setTimeout(() => {
+      const pins = Array.from(document.querySelectorAll('#pinInputs input'));
+      hubPin.split('').forEach((digit, i) => {
+        if (pins[i]) {
+          pins[i].value = digit;
+          pins[i].style.borderColor = 'var(--green)';
+          pins[i].style.background = 'rgba(34,197,94,.1)';
+        }
+      });
+      verifyPin();
+    }, 100);
+  }
+})();
+
 function setupPinInputs() {
   const pins = Array.from(document.querySelectorAll('#pinInputs input'));
   pins.forEach((input, i) => {

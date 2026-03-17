@@ -528,6 +528,18 @@ pins.forEach((input, i) => {
   });
 });
 
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    // Fill PIN inputs visually and trigger login
+    hubPin.split('').forEach((digit, i) => {
+      if (pins[i]) { pins[i].value = digit; pins[i].classList.add('filled'); }
+    });
+    setTimeout(() => doLogin(), 100);
+  }
+})();
+
 async function doLogin() {
   const pin = pins.map(p => p.value).join('');
   if (pin.length !== 4) return;

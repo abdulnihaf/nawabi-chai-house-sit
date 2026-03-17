@@ -17,28 +17,35 @@ export async function onRequest(context) {
   // Staff PIN directory — single source of truth for hub login
   // is_admin: sees ALL ops pages | role: determines default page set
   const STAFF = {
-    '0305': {name: 'Nihaf', role: 'admin', is_admin: true},
-    '3754': {name: 'Naveen', role: 'manager', is_admin: true},
-    '6890': {name: 'Tanveer', role: 'cashier', is_admin: false},
-    '7115': {name: 'Md Kesmat', role: 'cashier', is_admin: false},
-    '3946': {name: 'Jafar', role: 'cashier', is_admin: false},
-    '3678': {name: 'Farooq', role: 'runner', is_admin: false},
-    '4421': {name: 'Amin', role: 'runner', is_admin: false},
-    '2026': {name: 'Zoya', role: 'manager', is_admin: true},
-    '3697': {name: 'Yashwant', role: 'admin', is_admin: true},
-    '8241': {name: 'Nafees', role: 'staff', is_admin: false},
-    '8523': {name: 'Basheer', role: 'cashier', is_admin: false},
-    '5503': {name: 'NCH Runner 03', role: 'runner', is_admin: false},
-    '6604': {name: 'NCH Runner 04', role: 'runner', is_admin: false},
-    '7705': {name: 'NCH Runner 05', role: 'runner', is_admin: false}
+    // Admins (2)
+    '0305': {name: 'Nihaf',     role: 'admin',      is_admin: true},
+    '3697': {name: 'Yashwant',  role: 'admin',      is_admin: true},
+    // Managers (3)
+    '8523': {name: 'Basheer',   role: 'manager',    is_admin: false},
+    '6890': {name: 'Tanveer',   role: 'manager',    is_admin: false},
+    '3754': {name: 'Naveen',    role: 'manager',    is_admin: false},
+    // Accountant (1)
+    '2026': {name: 'Zoya',      role: 'accountant', is_admin: false},
+    // Cashiers (2)
+    '7115': {name: 'Kesmat',    role: 'cashier',    is_admin: false},
+    '8241': {name: 'Nafees',    role: 'cashier',    is_admin: false},
+    // Runners (5)
+    '3678': {name: 'Farzaib',   role: 'runner',     is_admin: false},
+    '4421': {name: 'Ritiqu',    role: 'runner',     is_admin: false},
+    '5503': {name: 'Anshu',     role: 'runner',     is_admin: false},
+    '6604': {name: 'Shabeer',   role: 'runner',     is_admin: false},
+    '7705': {name: 'Dhanush',   role: 'runner',     is_admin: false},
+    // Other staff
+    '3946': {name: 'Jafar',     role: 'staff',      is_admin: false}
   };
 
   // Pages visible per role (non-admin)
   const ROLE_PAGES = {
-    runner: ['runner', 'whatsapp'],
-    cashier: ['live', 'settlement', 'token-settlement', 'chai-counter'],
-    manager: ['live', 'settlement', 'token-settlement', 'sales', 'finance', 'daily-pnl', 'staffing', 'runner', 'whatsapp', 'chai-counter', 'kitchen-ops'],
-    staff: ['live', 'chai-counter', 'kitchen', 'kitchen-ops']
+    runner:     ['runner'],
+    cashier:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter'],
+    manager:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'inventory', 'live', 'sales', 'token-settlement', 'staffing'],
+    accountant: ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'finance', 'sales', 'cash-analysis', 'staffing'],
+    staff:      ['chai-counter', 'kitchen-ops']
   };
 
   try {
@@ -75,6 +82,7 @@ export async function onRequest(context) {
         role: staff.role,
         is_admin: staff.is_admin,
         pages: pages,
+        pin: pin,
         session_token: sessionToken,
         staff_id: staffId
       }), {headers: corsHeaders});

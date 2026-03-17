@@ -288,6 +288,18 @@ let runnerContext = null; // per-runner token issuance context from Odoo
 
 // ── PIN ──
 const pinInputs = document.querySelectorAll('#pinInput input');
+
+// Auto-login from hub session (skip PIN screen if already authenticated via /ops/)
+(function tryHubAutoLogin() {
+  const hubPin = sessionStorage.getItem('nch_pin');
+  if (hubPin && hubPin.length === 4) {
+    hubPin.split('').forEach((digit, i) => {
+      if (pinInputs[i]) { pinInputs[i].value = digit; pinInputs[i].classList.add('filled'); }
+    });
+    setTimeout(() => checkPin(), 100);
+  }
+})();
+
 pinInputs.forEach((inp, i) => {
   inp.addEventListener('input', () => {
     if (inp.value) {

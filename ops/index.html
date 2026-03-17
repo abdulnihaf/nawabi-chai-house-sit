@@ -120,6 +120,8 @@
 
     function setSession(data) {
       localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+      // Store PIN for sub-page auto-login (sessionStorage = clears on browser close)
+      if (data.pin) sessionStorage.setItem('nch_pin', data.pin);
     }
 
     function clearSession() {
@@ -270,6 +272,7 @@
     // ── Logout ──
     function logout() {
       clearSession();
+      sessionStorage.removeItem('nch_pin');
       document.getElementById('dashboard').style.display = 'none';
       document.getElementById('loginOverlay').style.display = 'flex';
       document.getElementById('pushBanner').style.display = 'none';
@@ -282,6 +285,8 @@
     (function init() {
       const session = getSession();
       if (session && session.name) {
+        // Ensure PIN is in sessionStorage for sub-page auto-login
+        if (session.pin) sessionStorage.setItem('nch_pin', session.pin);
         showDashboard(session);
       } else {
         document.getElementById('loginOverlay').style.display = 'flex';
