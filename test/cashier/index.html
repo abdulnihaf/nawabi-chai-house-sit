@@ -169,6 +169,33 @@
     .toast.ok{border-color:var(--green);color:var(--green)}
     .toast.err{border-color:var(--red);color:var(--red)}
 
+    /* ── SHIFT OVERVIEW (admin/gm) ── */
+    .overview-panel{background:var(--card);border:2px solid var(--purple);border-radius:16px;padding:20px;margin-bottom:20px;display:none}
+    .overview-panel.show{display:block}
+    .overview-panel h3{font-size:17px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .ov-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+    .ov-card{background:var(--bg2);border-radius:10px;padding:14px;text-align:center}
+    .ov-card .ov-val{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .ov-card .ov-label{font-size:11px;color:var(--text2);margin-top:4px}
+    .ov-card.full{grid-column:1/-1}
+    .ov-runner-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+    .ov-runner-table th{text-align:left;font-size:11px;color:var(--text2);padding:8px 6px;border-bottom:2px solid var(--border);text-transform:uppercase;letter-spacing:0.3px}
+    .ov-runner-table td{padding:10px 6px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px}
+    .ov-runner-table td:first-child{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px}
+    .ov-runner-table tr:last-child td{border-bottom:none}
+    .ov-runner-table .ov-total-row td{border-top:2px solid var(--border);font-weight:700;font-size:14px}
+    .ov-err-badge{display:inline-block;background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px}
+    .ov-ok-badge{color:var(--green);font-size:11px}
+    .ov-collect-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg2);border-radius:8px;margin-top:8px}
+    .ov-collect-row .ov-c-label{font-size:13px;color:var(--text2)}
+    .ov-collect-row .ov-c-val{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px}
+    .ov-razorpay{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+    .ov-razorpay h4{font-size:13px;color:var(--blue);margin-bottom:10px}
+    .ov-rz-row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px solid rgba(45,58,79,.3)}
+    .ov-rz-row:last-child{border-bottom:none}
+    .ov-rz-row .rz-name{color:var(--text2)}
+    .ov-rz-row .rz-val{font-family:'JetBrains Mono',monospace;color:var(--blue);font-weight:600}
+
     /* ── HISTORY SECTION ── */
     .hist-tabs{display:flex;gap:6px;margin-bottom:16px}
     .hist-tab{flex:1;padding:12px 8px;border-radius:10px;background:var(--bg2);border:2px solid var(--border);color:var(--text2);font-size:13px;font-weight:600;text-align:center;cursor:pointer;font-family:inherit;min-height:44px}
@@ -228,6 +255,12 @@
     <!-- RUNNER GRID -->
     <div class="section-label">Runners</div>
     <div class="runner-grid" id="runnerGrid"></div>
+
+    <!-- SHIFT OVERVIEW (admin/gm only) -->
+    <div class="overview-panel" id="overviewPanel">
+      <h3>📊 Shift Overview</h3>
+      <div id="overviewContent"><div class="loading"><span class="spinner"></span>Loading shift data...</div></div>
+    </div>
 
     <!-- RUNNER PANEL -->
     <div class="runner-panel" id="runnerPanel">
@@ -434,7 +467,7 @@ async function doLogin() {
     currentSlot = data.slot;
     $('pinMsg').textContent = '✓ Welcome, ' + data.name;
     $('pinMsg').className = 'pin-msg ok';
-    $('userName').textContent = data.name;
+    $('userName').textContent = data.name + (role !== 'cashier' ? ' (' + role.toUpperCase() + ')' : '');
 
     setTimeout(() => {
       $('pinScreen').classList.add('hidden');
@@ -489,6 +522,13 @@ function initDashboard() {
   if (CASH_COLLECTOR_PINS.has(currentPin)) {
     $('collectPanel').style.display = 'block';
     loadCollections();
+  }
+  // Show shift overview for admin/gm/manager/supervisor
+  const overviewRoles = new Set(['admin', 'gm', 'manager', 'supervisor']);
+  const userRole = sessionStorage.getItem('nch_role') || '';
+  if (overviewRoles.has(userRole) || CASH_COLLECTOR_PINS.has(currentPin)) {
+    $('overviewPanel').classList.add('show');
+    loadShiftOverview();
   }
   renderStatusBar();
   // Load settlement history by default
@@ -1496,11 +1536,265 @@ function renderCollectionHistory(collections) {
   $('histContent').innerHTML = html;
 }
 
+// ── SHIFT OVERVIEW ──
+async function loadShiftOverview() {
+  try {
+    // Get today's shift boundaries (6 AM IST to now)
+    const now = new Date();
+    const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    const todayIST = new Date(istNow);
+    todayIST.setUTCHours(0, 30, 0, 0); // 6:00 AM IST = 00:30 UTC
+    if (istNow.getUTCHours() < 0 || (istNow.getUTCHours() === 0 && istNow.getUTCMinutes() < 30)) {
+      todayIST.setUTCDate(todayIST.getUTCDate() - 1);
+    }
+    const fromIST = new Date(todayIST.getTime() + 5 * 60 * 60 * 1000); // back to IST string
+    const fromStr = todayIST.getFullYear() + '-' + String(todayIST.getMonth()+1).padStart(2,'0') + '-' + String(todayIST.getDate()).padStart(2,'0') + 'T06:00:00';
+
+    // Fetch live dashboard data + counter balance + collection history in parallel
+    const [dashRes, balRes, collRes, errRes] = await Promise.all([
+      fetch('/api/nch-data?from=' + encodeURIComponent(fromStr)),
+      fetch('/api/settlement?action=counter-balance'),
+      fetch('/api/settlement?action=collection-history&limit=10'),
+      fetch('/api/validator?action=scan-recent')
+    ]);
+
+    const dashData = await dashRes.json();
+    const balData = await balRes.json();
+    const collData = await collRes.json();
+
+    if (!dashData.success || !dashData.data) {
+      $('overviewContent').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load shift data</div>';
+      return;
+    }
+
+    const d = dashData.data;
+    const bal = balData.success ? (balData.balance || {}) : {};
+    const recon = d.shiftReconciliation || {};
+    const gt = d.grandTotal || {};
+
+    // ── Calculate totals from API response ──
+    const totalRevenue = gt.allSales || recon.totalSales || 0;
+    const totalCash = gt.cashCollected || 0;
+    const totalUPI = gt.upiCollected || 0;
+    const totalCard = gt.cardCollected || 0;
+    const totalComp = gt.complimentary || 0;
+    const orderCount = dashData.counts?.orders || 0;
+
+    // Runner breakdown (array from API)
+    const runnerArr = d.runners || [];
+    const mainCounter = d.mainCounter || {};
+    const runnerCounter = d.runnerCounter || {};
+
+    // Razorpay breakdown
+    const rzRunnerObj = d.razorpay || {};
+    const rzCounter = d.razorpayCounter || {};
+    const rzRunnerCounter = d.razorpayRunnerCounter || {};
+    const verifiedUPI = recon.verifiedUPI || {};
+    const rzTotal = verifiedUPI.total || (rzRunnerObj.amount||0) + (rzCounter.amount||0) + (rzRunnerCounter.amount||0);
+
+    // Counter balance from D1
+    const pettyCash = bal.pettyCash || bal.petty_cash || 0;
+    const counterCash = bal.counterCash || bal.counter_cash || 0;
+    const runnerCashBal = bal.runnerCash || bal.runner_cash || 0;
+    const totalAtCounter = bal.total || 0;
+    const totalExpenses = bal.totalExpenses || bal.total_expenses || 0;
+
+    // Balance check
+    const balCheck = recon.balanceCheck || {};
+    const reconVariance = balCheck.variance || 0;
+
+    // Today's collections
+    const todayCollections = (collData.success && collData.collections) ?
+      collData.collections.filter(c => {
+        const cDate = new Date(c.collected_at);
+        const cIST = new Date(cDate.getTime() + 5.5 * 60 * 60 * 1000);
+        return cIST.toDateString() === istNow.toDateString();
+      }) : [];
+    const totalCollected = todayCollections.reduce((s, c) => s + (c.amount || 0), 0);
+
+    // ── Build HTML ──
+    let html = '';
+
+    // Summary cards
+    html += '<div class="ov-summary">';
+    html += `<div class="ov-card full"><div class="ov-val" style="color:var(--green);font-size:28px">${fmt(totalRevenue)}</div><div class="ov-label">Total Revenue (${orderCount} orders)</div></div>`;
+    html += `<div class="ov-card"><div class="ov-val" style="color:var(--yellow)">${fmt(totalCash)}</div><div class="ov-label">Cash</div></div>`;
+    html += `<div class="ov-card"><div class="ov-val" style="color:var(--blue)">${fmt(totalUPI)}</div><div class="ov-label">UPI (Odoo)</div></div>`;
+    if (totalCard > 0) html += `<div class="ov-card"><div class="ov-val" style="color:var(--text)">${fmt(totalCard)}</div><div class="ov-label">Card</div></div>`;
+    html += `<div class="ov-card"><div class="ov-val" style="color:var(--text2)">${fmt(totalComp)}</div><div class="ov-label">Complimentary</div></div>`;
+    html += '</div>';
+
+    // Shift balance check
+    if (Math.abs(reconVariance) > 1) {
+      const balColor = reconVariance > 0 ? 'var(--red)' : 'var(--orange)';
+      html += `<div style="background:rgba(239,68,68,0.1);border:1px solid ${balColor};border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:${balColor}">
+        ⚠️ ${balCheck.explanation || 'Variance: ' + fmt(Math.abs(reconVariance))}
+      </div>`;
+    } else {
+      html += `<div style="background:rgba(34,197,94,0.1);border:1px solid var(--green);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--green)">
+        ✓ Shift balanced — all cash accounted
+      </div>`;
+    }
+
+    // Runner table
+    html += '<div style="overflow-x:auto"><table class="ov-runner-table">';
+    html += '<thead><tr><th>Runner</th><th>Tokens</th><th>Sales</th><th>UPI</th><th>Cash Due</th><th>Status</th></tr></thead><tbody>';
+
+    let grandTokens = 0, grandSales = 0, grandUPI = 0, grandCash = 0;
+    const runnerNames = {64:'Farzaib', 65:'Ritiqu', 66:'Anshu', 67:'Shabeer', 68:'Dhanush'};
+    const slotCodes = {64:'RUN001', 65:'RUN002', 66:'RUN003', 67:'RUN004', 68:'RUN005'};
+
+    // Build runner data from both API + local cache
+    for (const rid of [64, 65, 66, 67, 68]) {
+      const apiRunner = runnerArr.find(r => r.id === rid) || {};
+      const cached = runnerDataCache[rid]?.data;
+      const tokens = cached?.tokens_amount || apiRunner.tokens || 0;
+      const sales = cached?.sales_amount || apiRunner.sales || 0;
+      const upi = cached?.upi_amount || apiRunner.upi || 0;
+      const cashDue = cached?.cash_to_collect || apiRunner.cashToCollect || (tokens + sales - upi);
+      const errors = cached?.pending_errors || [];
+      const settled = runnerSettlementStatus[rid] === 'settled';
+
+      grandTokens += tokens;
+      grandSales += sales;
+      grandUPI += upi;
+      grandCash += cashDue;
+
+      const statusHtml = errors.length > 0
+        ? `<span class="ov-err-badge">${errors.length} err</span>`
+        : settled
+          ? '<span class="ov-ok-badge">✓ Settled</span>'
+          : cashDue > 0 ? `<span style="color:var(--yellow);font-size:11px">Pending</span>` : '<span class="ov-ok-badge">—</span>';
+
+      html += `<tr>
+        <td>${runnerNames[rid] || 'Runner ' + rid}</td>
+        <td>${fmt(tokens)}</td>
+        <td>${fmt(sales)}</td>
+        <td style="color:var(--blue)">${fmt(upi)}</td>
+        <td style="color:${cashDue >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(cashDue)}</td>
+        <td>${statusHtml}</td>
+      </tr>`;
+    }
+
+    // Counter row
+    const cSales = mainCounter.sales || 0;
+    const cUPI = mainCounter.upi || 0;
+    const cCash = mainCounter.cash || 0;
+    html += `<tr style="background:rgba(234,179,8,0.05)">
+      <td style="color:var(--yellow)">Counter</td>
+      <td>—</td>
+      <td>${fmt(cSales)}</td>
+      <td style="color:var(--blue)">${fmt(cUPI)}</td>
+      <td style="color:var(--yellow)">${fmt(cCash)}</td>
+      <td><span class="ov-ok-badge">POS</span></td>
+    </tr>`;
+
+    // Runner Counter row (if has data)
+    const rcSales = runnerCounter.sales || 0;
+    const rcUPI = runnerCounter.upi || 0;
+    const rcCash = runnerCounter.cash || 0;
+    if (rcSales > 0 || rcUPI > 0) {
+      html += `<tr style="background:rgba(168,85,247,0.05)">
+        <td style="color:var(--purple)">Runner POS</td>
+        <td>—</td>
+        <td>${fmt(rcSales)}</td>
+        <td style="color:var(--blue)">${fmt(rcUPI)}</td>
+        <td style="color:var(--purple)">${fmt(rcCash)}</td>
+        <td><span class="ov-ok-badge">POS</span></td>
+      </tr>`;
+    }
+
+    // Totals row
+    html += `<tr class="ov-total-row">
+      <td>TOTAL</td>
+      <td>${fmt(grandTokens)}</td>
+      <td>${fmt(grandSales + cSales + rcSales)}</td>
+      <td style="color:var(--blue)">${fmt(grandUPI + cUPI + rcUPI)}</td>
+      <td style="color:var(--green)">${fmt(grandCash + cCash + rcCash)}</td>
+      <td></td>
+    </tr>`;
+    html += '</tbody></table></div>';
+
+    // Razorpay UPI verification
+    if (rzTotal > 0) {
+      html += '<div class="ov-razorpay">';
+      html += '<h4>💳 Razorpay UPI Verified</h4>';
+
+      // Runner QR payments
+      const rzRunnerPayments = rzRunnerObj.payments || [];
+      const rzByRunner = {};
+      for (const p of rzRunnerPayments) {
+        const key = p.barcode || p.runner || 'Unknown';
+        rzByRunner[key] = (rzByRunner[key] || 0) + (p.amount || 0);
+      }
+      for (const rid of [64, 65, 66, 67, 68]) {
+        const slot = slotCodes[rid];
+        const rzAmt = rzByRunner[slot] || 0;
+        if (rzAmt > 0) {
+          html += `<div class="ov-rz-row"><span class="rz-name">${runnerNames[rid]} QR</span><span class="rz-val">${fmt(rzAmt)}</span></div>`;
+        }
+      }
+      // Counter QR
+      if ((rzCounter.amount||0) > 0) {
+        html += `<div class="ov-rz-row"><span class="rz-name" style="color:var(--yellow)">Counter QR</span><span class="rz-val">${fmt(rzCounter.amount)}</span></div>`;
+      }
+      // Runner Counter QR
+      if ((rzRunnerCounter.amount||0) > 0) {
+        html += `<div class="ov-rz-row"><span class="rz-name" style="color:var(--purple)">Runner Counter QR</span><span class="rz-val">${fmt(rzRunnerCounter.amount)}</span></div>`;
+      }
+      html += `<div class="ov-rz-row" style="border-top:2px solid var(--border);padding-top:8px;margin-top:4px"><span class="rz-name" style="color:var(--text);font-weight:700">Total Razorpay</span><span class="rz-val" style="font-size:15px">${fmt(rzTotal)}</span></div>`;
+
+      // UPI verification status
+      const upiV = d.verification || {};
+      if (upiV.cashCounter) {
+        const ccV = upiV.cashCounter;
+        const vColor = Math.abs(ccV.variance||0) <= 1 ? 'var(--green)' : 'var(--red)';
+        html += `<div style="margin-top:8px;font-size:11px;color:${vColor}">Counter: Odoo ${fmt(ccV.odooUPI||0)} vs Razorpay ${fmt(ccV.razorpayUPI||0)} ${Math.abs(ccV.variance||0) <= 1 ? '✓' : '⚠️ Δ' + fmt(Math.abs(ccV.variance||0))}</div>`;
+      }
+      html += '</div>';
+    }
+
+    // Cross-payments
+    const crossPayments = d.crossPayments || [];
+    if (crossPayments.length > 0) {
+      html += '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
+      html += '<h4 style="font-size:13px;color:var(--orange);margin-bottom:8px">🔄 Cross-Payments (' + crossPayments.length + ')</h4>';
+      for (const cp of crossPayments.slice(0, 10)) {
+        const desc = cp.description || `${cp.orderName}: ₹${cp.amount} via ${cp.paidVia}`;
+        html += `<div style="font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid rgba(45,58,79,.3)">${desc}</div>`;
+      }
+      if (crossPayments.length > 10) html += `<div style="font-size:11px;color:var(--text2);padding:4px 0">...and ${crossPayments.length - 10} more</div>`;
+      html += '</div>';
+    }
+
+    // Cash at counter + collections
+    html += '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">';
+    html += '<h4 style="font-size:13px;color:var(--yellow);margin-bottom:10px">💰 Cash Position</h4>';
+    html += `<div class="ov-collect-row"><span class="ov-c-label">Cash at Counter</span><span class="ov-c-val" style="color:var(--yellow)">${fmt(totalAtCounter)}</span></div>`;
+    html += `<div class="ov-collect-row"><span class="ov-c-label">Petty Cash Balance</span><span class="ov-c-val" style="color:var(--orange)">${fmt(pettyCash)}</span></div>`;
+    if (totalExpenses > 0) {
+      html += `<div class="ov-collect-row"><span class="ov-c-label">Today's Expenses</span><span class="ov-c-val" style="color:var(--red)">${fmt(totalExpenses)}</span></div>`;
+    }
+    if (totalCollected > 0) {
+      html += `<div class="ov-collect-row"><span class="ov-c-label">Collected Today</span><span class="ov-c-val" style="color:var(--green)">${fmt(totalCollected)}</span></div>`;
+    }
+    html += '</div>';
+
+    $('overviewContent').innerHTML = html;
+
+  } catch (e) {
+    console.error('Shift overview error:', e);
+    $('overviewContent').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load: ' + e.message + '</div>';
+  }
+}
+
 // Auto-scan + refresh runner data every 60s
 setInterval(() => {
   if (currentUser) {
     fetch('/api/validator?action=scan-recent').catch(() => {});
     loadAllRunnerStatus();
+    // Refresh overview if visible
+    if ($('overviewPanel').classList.contains('show')) loadShiftOverview();
   }
 }, 60000);
 </script>
