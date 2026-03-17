@@ -81,6 +81,8 @@ export async function onRequest(context) {
       case 'petty-expense': return await pettyExpense(context, DB, cors);
       case 'petty-fund': return await pettyFund(context, DB, cors);
       case 'get-petty': return await getPetty(url, DB, cors);
+      case 'resolve-discrepancy': return await resolveDiscrepancy(context, DB, cors);
+      case 'create-cross-qr-tag': return await createCrossQrTag(context, DB, cors);
       default: return json({success: false, error: `Unknown action: ${action}`}, cors, 400);
     }
   } catch (e) {
@@ -374,11 +376,9 @@ async function pettyExpense(context, DB, cors) {
     return json({success: false, error: `Amount exceeds max ₹${category.max_amount} for ${category.name}`}, cors, 400);
   }
 
-  // Check balance
+  // Check balance — warn but allow negative (Naveen reimburses)
   const bal = await DB.prepare('SELECT current_balance FROM petty_cash_balance WHERE id = 1').first();
-  if (bal && amt > bal.current_balance) {
-    return json({success: false, error: `Insufficient petty cash. Balance: ₹${bal.current_balance}`}, cors, 400);
-  }
+  const willGoNegative = bal && amt > bal.current_balance;
 
   const now = new Date().toISOString();
   // Truncate photo to max 500KB base64 if provided
@@ -395,7 +395,9 @@ async function pettyExpense(context, DB, cors) {
   ]);
 
   const newBal = await DB.prepare('SELECT current_balance FROM petty_cash_balance WHERE id = 1').first();
-  return json({success: true, amount: amt, category: category.name, balance: newBal?.current_balance || 0}, cors);
+  const result = {success: true, amount: amt, category: category.name, balance: newBal?.current_balance || 0};
+  if (willGoNegative) result.warning = `Petty cash is now negative (₹${newBal?.current_balance}). Naveen needs to reimburse.`;
+  return json(result, cors);
 }
 
 async function pettyFund(context, DB, cors) {
@@ -539,6 +541,94 @@ async function getCollections(url, DB, cors) {
     total_collected: totalCollected,
     total_in_transit: totalInTransit
   }, cors);
+}
+
+// GAP 2 FIX: Resolve UPI discrepancies from the UI
+async function resolveDiscrepancy(context, DB, cors) {
+  const body = await context.request.json();
+  const {pin, discrepancy_id, resolution} = body;
+
+  const staff = verifyPin(pin);
+  if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
+  if (!CAN_FIX_ERRORS.has(staff.role)) return json({success: false, error: 'Only cashier/admin/GM can resolve discrepancies'}, cors, 403);
+
+  if (!discrepancy_id) return json({success: false, error: 'discrepancy_id required'}, cors, 400);
+  if (!resolution) return json({success: false, error: 'resolution required (investigated, cross_qr, false_alarm, adjusted)'}, cors, 400);
+
+  const disc = await DB.prepare('SELECT * FROM payment_discrepancies WHERE id = ?').bind(discrepancy_id).first();
+  if (!disc) return json({success: false, error: 'Discrepancy not found'}, cors, 404);
+  if (disc.status !== 'pending') return json({success: false, error: `Already ${disc.status}`}, cors, 400);
+
+  const validResolutions = new Set(['investigated', 'cross_qr', 'false_alarm', 'adjusted']);
+  if (!validResolutions.has(resolution)) return json({success: false, error: 'Invalid resolution type'}, cors, 400);
+
+  const note = body.note || '';
+  await DB.batch([
+    DB.prepare(`UPDATE payment_discrepancies SET status = 'resolved', resolved_by = ?, resolved_at = datetime('now'), resolution_action = ? WHERE id = ?`)
+      .bind(staff.slot, `${resolution}: ${note}`, discrepancy_id),
+    DB.prepare(`INSERT INTO rectification_log (ref_type, ref_id, action_type, before_state, after_state, impact_description, performed_by, performed_by_name, pin_verified, performed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`)
+      .bind('payment_discrepancy', discrepancy_id, 'resolve_discrepancy', 'pending', 'resolved',
+        `${disc.expected_entity} ${disc.disc_type} ₹${disc.amount} resolved as ${resolution}. ${note}`,
+        staff.slot, staff.name)
+  ]);
+
+  return json({success: true, resolution, discrepancy_id}, cors);
+}
+
+// GAP 5 FIX: Create cross-QR tags when customer pays wrong QR
+async function createCrossQrTag(context, DB, cors) {
+  const body = await context.request.json();
+  const {pin, amount, source_entity, dest_entity, note} = body;
+
+  const staff = verifyPin(pin);
+  if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
+  if (!CAN_FIX_ERRORS.has(staff.role)) return json({success: false, error: 'Only cashier/admin/GM can create cross-QR tags'}, cors, 403);
+
+  if (!amount || amount <= 0) return json({success: false, error: 'amount required (positive number)'}, cors, 400);
+  if (!source_entity) return json({success: false, error: 'source_entity required (COUNTER, RUNNER_COUNTER, RUN001-RUN005)'}, cors, 400);
+  if (!dest_entity) return json({success: false, error: 'dest_entity required (COUNTER, RUNNER_COUNTER, RUN001-RUN005)'}, cors, 400);
+  if (source_entity === dest_entity) return json({success: false, error: 'source and dest cannot be the same'}, cors, 400);
+
+  const validEntities = new Set(['COUNTER', 'RUNNER_COUNTER', 'RUN001', 'RUN002', 'RUN003', 'RUN004', 'RUN005']);
+  if (!validEntities.has(source_entity)) return json({success: false, error: `Invalid source_entity: ${source_entity}`}, cors, 400);
+  if (!validEntities.has(dest_entity)) return json({success: false, error: `Invalid dest_entity: ${dest_entity}`}, cors, 400);
+
+  // Determine dest runner slot (if applicable)
+  const destRunnerSlot = dest_entity.startsWith('RUN') ? dest_entity : null;
+
+  // Verify source QR has excess (from latest snapshot)
+  try {
+    const snap = await DB.prepare(
+      `SELECT razorpay_total, pos_upi_total, excess FROM upi_qr_snapshots WHERE qr_entity_code = ? ORDER BY snapshot_time DESC LIMIT 1`
+    ).bind(source_entity).first();
+
+    if (snap && snap.excess < amount) {
+      return json({
+        success: false,
+        error: `Source ${source_entity} only has ₹${Math.round(snap.excess)} excess. Cannot tag ₹${amount}.`,
+        available_excess: snap.excess
+      }, cors, 400);
+    }
+  } catch (e) { /* snapshot table may not exist — proceed without verification */ }
+
+  // Create the tag
+  const impactDesc = `₹${amount} from ${source_entity} QR → ${dest_entity}. ${destRunnerSlot ? destRunnerSlot + ' cashToCollect ↓ ₹' + amount : 'Counter excess ↓ ₹' + amount}`;
+
+  await DB.batch([
+    DB.prepare(`INSERT INTO cross_qr_tags (amount, source_qr, source_entity, dest_entity, dest_runner_slot, source_excess_at_tag, tagged_by, tagged_by_name, pin_verified, impact, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'pending')`)
+      .bind(amount, source_entity, source_entity, dest_entity, destRunnerSlot, amount, staff.slot, staff.name, impactDesc),
+    DB.prepare(`INSERT INTO rectification_log (ref_type, ref_id, action_type, before_state, after_state, impact_description, performed_by, performed_by_name, pin_verified, performed_at) VALUES ('cross_qr_tag', 0, 'tag_cross_qr', 'none', 'pending', ?, ?, ?, 1, datetime('now'))`)
+      .bind(impactDesc, staff.slot, staff.name)
+  ]);
+
+  // If there's a matching pending discrepancy on the source, resolve it
+  try {
+    await DB.prepare(
+      `UPDATE payment_discrepancies SET status = 'tagged', resolved_by = ?, resolved_at = datetime('now'), resolution_action = ? WHERE status = 'pending' AND expected_entity = ? AND disc_type = 'excess' AND amount <= ?`
+    ).bind(staff.slot, `cross-qr-tag to ${dest_entity}: ₹${amount}. ${note || ''}`, source_entity, amount * 1.5).run();
+  } catch (e) { /* non-critical */ }
+
+  return json({success: true, tag: {amount, source_entity, dest_entity, impact: impactDesc}}, cors);
 }
 
 function verifyPin(pin) {

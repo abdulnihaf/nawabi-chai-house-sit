@@ -311,7 +311,8 @@ CREATE TABLE IF NOT EXISTS petty_cash (
     recorded_by TEXT NOT NULL,
     recorded_by_name TEXT,
     pin_verified INTEGER DEFAULT 0,
-    recorded_at TEXT DEFAULT (datetime('now'))
+    recorded_at TEXT DEFAULT (datetime('now')),
+    receipt_photo TEXT                 -- base64 encoded photo (max ~500KB)
 );
 
 -- Petty cash balance view helper
@@ -348,6 +349,19 @@ CREATE TABLE IF NOT EXISTS validator_state (
     value TEXT,
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ============================================================
+-- CASH COLLECTIONS MIGRATION (adds new columns to existing table from schema.sql)
+-- ============================================================
+
+-- Add new columns to cash_collections if they don't exist (safe to re-run)
+-- These columns support the new rectify.js collect-cash flow
+ALTER TABLE cash_collections ADD COLUMN collected_by_name TEXT;
+ALTER TABLE cash_collections ADD COLUMN pin_verified INTEGER DEFAULT 0;
+ALTER TABLE cash_collections ADD COLUMN status TEXT DEFAULT 'collected';
+ALTER TABLE cash_collections ADD COLUMN received_by TEXT;
+ALTER TABLE cash_collections ADD COLUMN received_by_name TEXT;
+ALTER TABLE cash_collections ADD COLUMN received_at TEXT;
 
 -- ============================================================
 -- SEED DATA
@@ -391,8 +405,8 @@ INSERT OR REPLACE INTO v_runner_slots (slot_code, partner_id, current_person, ac
 -- Tomorrow if Nafees leaves, just update CASH001.current_person + phone + pin
 INSERT OR REPLACE INTO v_staff_slots (slot_code, role, current_person, phone, pin, odoo_uid, partner_id, qr_code_id, barcode) VALUES
     -- Cashiers
-    ('CASH001', 'cashier', 'Nafees',   '919019627629',  '7115', NULL, NULL, NULL, NULL),
-    ('CASH002', 'cashier', 'Kismat',   '918637895699',  '3946', NULL, NULL, NULL, NULL),
+    ('CASH001', 'cashier', 'Kesmat',   '918637895699',  '7115', NULL, NULL, NULL, NULL),
+    ('CASH002', 'cashier', 'Nafees',   '919019627629',  '8241', NULL, NULL, NULL, NULL),
     -- Runners (mirror v_runner_slots but with phone + pin)
     ('RUN001',  'runner',  'Farzaib',  NULL,             '3678', NULL, 64, NULL, NULL),
     ('RUN002',  'runner',  'Ritiqu',   '919181204403',   '4421', NULL, 65, NULL, NULL),

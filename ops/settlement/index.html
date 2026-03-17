@@ -243,6 +243,36 @@
     .rzp-verify-btn:disabled{opacity:0.5;cursor:not-allowed}
     .rzp-last-check{font-size:11px;color:var(--text2);text-align:center;margin-top:8px}
     .counter-errors-banner{background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:13px;color:var(--red);font-weight:600;display:flex;align-items:center;gap:8px}
+    /* ── ERROR SUMMARY BAR ── */
+    .error-summary-bar{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-radius:12px;margin-bottom:8px;cursor:pointer;transition:all 0.2s;background:var(--bg2);border:1px solid var(--border)}
+    .error-summary-bar:active{transform:scale(0.98)}
+    .error-summary-bar.has-errors{background:rgba(239,68,68,0.1);border-color:var(--red)}
+    .error-summary-bar.all-clear{background:rgba(34,197,94,0.06);border-color:rgba(34,197,94,0.3)}
+    .esb-left{display:flex;align-items:center;gap:10px}
+    .esb-left .esb-icon{font-size:20px}
+    .esb-left .esb-text{font-size:14px;font-weight:600}
+    .esb-arrow{font-size:12px;color:var(--text2)}
+    .scan-status{font-size:11px;color:var(--text2);margin-bottom:14px;padding:0 4px}
+    /* ── RUNNER CARD STATES ── */
+    .runner-card.has-errors{border-color:var(--orange);background:rgba(249,115,22,0.06)}
+    .runner-card.settled{border-color:var(--green);background:rgba(34,197,94,0.06)}
+    .runner-card.negative-cash{border-color:var(--red);background:rgba(239,68,68,0.06)}
+    .runner-card .r-badge{font-size:10px;padding:2px 8px;border-radius:10px;min-width:24px;text-align:center;letter-spacing:0.3px}
+    @keyframes errPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(1.08)}}
+    .runner-card .r-badge.show{display:block;animation:errPulse 2s infinite}
+    /* ── CONSOLIDATED ERROR LIST ── */
+    .error-list-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:sticky;top:0;background:var(--card);padding-bottom:12px;z-index:1}
+    .error-list-header h3{font-size:17px}
+    .error-list-close{background:var(--bg2);border:1px solid var(--border);color:var(--text2);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;font-family:inherit}
+    .error-group-header{font-size:13px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;padding:12px 0 8px;border-bottom:1px solid var(--border);margin-top:16px;display:flex;justify-content:space-between;align-items:center}
+    .error-group-header:first-child{margin-top:0}
+    .error-group-header .egh-count{font-size:11px;color:var(--orange);background:rgba(249,115,22,0.15);padding:2px 8px;border-radius:6px}
+    .disc-card{background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid var(--red)}
+    .disc-card .dc-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--red);margin-bottom:6px}
+    .disc-card .dc-entity{font-weight:600;font-size:14px;margin-bottom:4px}
+    .disc-card .dc-amount{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--red);margin-bottom:6px}
+    .disc-card .dc-desc{font-size:12px;color:var(--text2);line-height:1.4}
+    .all-clear-msg{text-align:center;padding:40px 20px;color:var(--green);font-weight:600;font-size:15px}
   </style>
 </head>
 <body>
@@ -275,6 +305,13 @@
   </div>
 
   <div class="content">
+    <!-- ERROR SUMMARY BAR -->
+    <div class="error-summary-bar" id="errorSummaryBar" onclick="openConsolidatedErrors()">
+      <div class="esb-left"><span class="esb-icon" id="esbIcon">—</span> <span class="esb-text" id="esbText">Checking...</span></div>
+      <span class="esb-arrow">View all ›</span>
+    </div>
+    <div class="scan-status" id="scanStatus"></div>
+
     <!-- RUNNER GRID -->
     <div class="section-label">Runners</div>
     <div class="runner-grid" id="runnerGrid"></div>
@@ -306,8 +343,8 @@
     <!-- RAZORPAY UPI VERIFICATION -->
     <div class="rzp-panel" id="rzpPanel">
       <h3>🔍 UPI Verification (Razorpay)</h3>
-      <div id="rzpContent"><div style="font-size:13px;color:var(--text2)">Click verify to cross-check UPI amounts against Razorpay</div></div>
-      <button class="rzp-verify-btn" id="rzpVerifyBtn" onclick="runRazorpayVerify()">Verify UPI Now</button>
+      <div id="rzpContent"><div style="font-size:13px;color:var(--text2)">Verifying UPI payments against Razorpay...</div></div>
+      <button class="rzp-verify-btn" id="rzpVerifyBtn" onclick="runRazorpayVerify()">Re-verify UPI</button>
       <div class="rzp-last-check" id="rzpLastCheck"></div>
     </div>
 
@@ -375,6 +412,17 @@
     <!-- SETTLEMENT STATUS -->
     <div class="section-label" style="margin-top:24px">Settlement Status</div>
     <div class="status-bar" id="statusBar"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ CONSOLIDATED ERROR LIST ═══════════════ -->
+<div class="overlay" id="errorListOverlay">
+  <div class="dialog" style="max-width:600px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
+    <div class="error-list-header">
+      <h3 id="errorListTitle">All Errors</h3>
+      <button class="error-list-close" onclick="closeErrorList()">✕</button>
+    </div>
+    <div id="errorListContent" style="overflow-y:auto;flex:1;padding-bottom:20px"></div>
   </div>
 </div>
 
@@ -449,6 +497,14 @@ let runnerDataCache = {};      // id → { data, timestamp }
 let runnerSettlementStatus = {}; // id → 'settled' | 'pending'
 let selectedExpenseCode = null;
 
+// ── ERROR SUMMARY STATE ──
+let globalErrorCount = 0;
+let counterErrorCount = 0;
+let upiDiscrepancyCount = 0;
+let lastScanResult = null;
+let activeIntervals = []; // Track intervals for cleanup on logout
+const SLOT_TO_ID = { RUN001: 64, RUN002: 65, RUN003: 66, RUN004: 67, RUN005: 68 };
+
 // ── PIN INPUT ──
 const pins = Array.from($('pinInput').querySelectorAll('input'));
 pins.forEach((input, i) => {
@@ -497,6 +553,7 @@ async function doLogin() {
     currentUser = data.name;
     currentPin = pin;
     currentSlot = data.slot;
+    sessionStorage.setItem('nch_role', role);
     $('pinMsg').textContent = '✓ Welcome, ' + data.name;
     $('pinMsg').className = 'pin-msg ok';
     $('userName').textContent = data.name + (role !== 'cashier' ? ' (' + role.toUpperCase() + ')' : '');
@@ -520,6 +577,10 @@ function showPinError(msg) {
 }
 
 function logout() {
+  // Clear all intervals
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals = [];
+  // Clear state
   currentUser = null;
   currentPin = null;
   currentSlot = null;
@@ -527,6 +588,22 @@ function logout() {
   runnerDataCache = {};
   runnerSettlementStatus = {};
   selectedExpenseCode = null;
+  globalErrorCount = 0;
+  counterErrorCount = 0;
+  upiDiscrepancyCount = 0;
+  lastScanResult = null;
+  rzpVerifyData = null;
+  historyCache = {};
+  activeHistTab = 'settlements';
+  selectedPettyCode = null;
+  pettyPhotoBase64 = null;
+  sessionStorage.removeItem('nch_role');
+  // Reset panel visibility
+  $('runnerPanel').classList.remove('show');
+  $('overviewPanel').classList.remove('show');
+  $('pettyPanel').style.display = 'none';
+  $('collectPanel').style.display = 'none';
+  // Reset UI
   $('dashboard').classList.remove('show');
   $('pinScreen').classList.remove('hidden');
   $('pinMsg').textContent = '';
@@ -565,17 +642,19 @@ function initDashboard() {
   renderStatusBar();
   // Load settlement history by default
   loadHistTab('settlements');
-  // Trigger background validation scan on dashboard load
-  fetch('/api/validator?action=scan-recent').catch(() => {});
-  // Check counter errors
+  // Run scan + counter errors + Razorpay verify on load
+  runScanRecent();
   checkCounterErrors();
-  // Show Razorpay verification panel for cashiers/admin/GM
   $('rzpPanel').classList.add('show');
-  // Auto-run Razorpay verify every 5 minutes
-  setInterval(() => {
-    runRazorpayVerify();
-    checkCounterErrors();
-  }, 5 * 60 * 1000);
+  runRazorpayVerify();
+  // Clear any previous intervals (prevents doubling on re-login)
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals = [];
+  // Intervals: 60s scan, 5min Razorpay+counter, 30s scan-status text
+  activeIntervals.push(setInterval(() => { if (currentUser) runScanRecent(); }, 60000));
+  activeIntervals.push(setInterval(() => { if (currentUser) { runRazorpayVerify(); checkCounterErrors(); } }, 5 * 60 * 1000));
+  activeIntervals.push(setInterval(updateScanStatus, 30000));
+  activeIntervals.push(setInterval(() => { if (currentUser && $('overviewPanel').classList.contains('show')) loadShiftOverview(); }, 60000));
 }
 
 // ── RUNNER GRID ──
@@ -592,11 +671,9 @@ function renderRunnerGrid() {
 }
 
 async function loadAllRunnerStatus() {
-  for (const r of RUNNERS) {
-    loadRunnerLive(r.id, true);
-  }
-  // Also refresh status chips
-  setTimeout(renderStatusBar, 2000);
+  await Promise.all(RUNNERS.map(r => loadRunnerLive(r.id, true)));
+  recalcGlobalErrorCount();
+  renderStatusBar();
 }
 
 async function loadRunnerLive(runnerId, bgOnly = false) {
@@ -627,19 +704,26 @@ async function loadRunnerLive(runnerId, bgOnly = false) {
 
     runnerDataCache[runnerId] = { data: merged, timestamp: Date.now() };
 
-    // Determine status
-    const errors = merged.pending_errors;
+    // Determine status + card visual state
+    // GAP 4: Filter out non-blocking warnings from error count
+    const errors = merged.pending_errors.filter(e => e.error_code !== 'unknown_product_warning');
     const cash = merged.cash_to_collect;
     const statusEl = $('rs-' + runnerId);
     const badgeEl = $('rb-' + runnerId);
+    const cardEl = $('rc-' + runnerId);
+
+    // Clear previous state classes
+    if (cardEl) cardEl.classList.remove('has-errors', 'settled', 'negative-cash');
 
     if (errors.length > 0) {
       statusEl.textContent = '🟡';
-      badgeEl.textContent = errors.length;
+      badgeEl.textContent = errors.length + ' ERR';
       badgeEl.classList.add('show');
+      if (cardEl) cardEl.classList.add('has-errors');
     } else if (cash < 0) {
       statusEl.textContent = '🔴';
       badgeEl.classList.remove('show');
+      if (cardEl) cardEl.classList.add('negative-cash');
     } else {
       statusEl.textContent = '🟢';
       badgeEl.classList.remove('show');
@@ -710,7 +794,8 @@ function renderRunnerPanel(runnerId) {
   const sales = d.sales_amount || 0;
   const upi = d.upi_amount || 0;
   const cash = d.cash_to_collect || 0;
-  const errors = d.pending_errors || [];
+  // Filter out non-blocking warnings from error display
+  const errors = (d.pending_errors || []).filter(e => e.error_code !== 'unknown_product_warning');
 
   // Stats
   $('rpStats').innerHTML = `
@@ -829,7 +914,8 @@ async function applyFix(runnerId, idx) {
   const cached = runnerDataCache[runnerId];
   if (!cached) return;
 
-  const errors = cached.data.pending_errors || [];
+  // Use the FILTERED array (same as what renderRunnerPanel renders)
+  const errors = (cached.data.pending_errors || []).filter(e => e.error_code !== 'unknown_product_warning');
   const err = errors[idx];
   if (!err) return;
 
@@ -870,8 +956,9 @@ async function applyFix(runnerId, idx) {
       // Reload runner data
       await loadRunnerLive(runnerId);
       renderRunnerPanel(runnerId);
-      // Refresh counter error banner (fix may have resolved counter errors too)
+      // Refresh counter error banner + global count
       checkCounterErrors();
+      recalcGlobalErrorCount();
     } else {
       toast(data.error || 'Fix failed', 'err');
       if (card) card.style.opacity = '1';
@@ -999,9 +1086,10 @@ async function doSettle(runnerId) {
   try {
     await loadRunnerLive(runnerId);
     const fresh = runnerDataCache[runnerId]?.data;
-    if ((fresh?.pending_errors || []).length > 0) {
+    const blockingErrors = (fresh?.pending_errors || []).filter(e => e.error_code !== 'unknown_product_warning');
+    if (blockingErrors.length > 0) {
       closeConfirm();
-      toast(`${fresh.pending_errors.length} error(s) found — fix before settling`, 'err');
+      toast(`${blockingErrors.length} error(s) found — fix before settling`, 'err');
       renderRunnerPanel(runnerId);
       return;
     }
@@ -1112,12 +1200,14 @@ async function checkCounterErrors() {
     const res = await fetch('/api/validator?action=get-counter-errors');
     const data = await res.json();
     const cnt = data.counter_errors || 0;
+    counterErrorCount = cnt;
     const banner = $('counterErrorsBanner');
     if (cnt > 0) {
       banner.innerHTML = `<div class="counter-errors-banner">⚠️ ${cnt} validation error${cnt > 1 ? 's' : ''} on Cash Counter — fix before counter settlement</div>`;
     } else {
       banner.innerHTML = '';
     }
+    recalcGlobalErrorCount();
   } catch (e) { /* non-critical */ }
 }
 
@@ -1141,9 +1231,11 @@ async function runRazorpayVerify() {
     }
 
     rzpVerifyData = data;
+    upiDiscrepancyCount = (data.discrepancies || []).length;
+    recalcGlobalErrorCount();
     renderRzpResults(data);
 
-    btn.textContent = 'Verify UPI Now';
+    btn.textContent = 'Re-verify UPI';
     btn.disabled = false;
     $('rzpLastCheck').textContent = 'Last checked: ' + new Date().toLocaleTimeString('en-IN');
   } catch (e) {
@@ -1158,39 +1250,369 @@ function renderRzpResults(data) {
   const discrepancies = data.discrepancies || [];
   const discEntities = new Set(discrepancies.map(d => d.entity));
 
-  const fmt = v => '₹' + Math.round(v).toLocaleString('en-IN');
-  let html = '<div class="rzp-grid">';
+  const f = v => '₹' + Math.round(v).toLocaleString('en-IN');
 
-  for (const s of snapshots) {
+  // Split into counter QRs (verification) vs runner QRs (informational)
+  const counterSnaps = snapshots.filter(s => !s.is_runner_qr);
+  const runnerSnaps = snapshots.filter(s => s.is_runner_qr);
+
+  let html = '';
+
+  // ── COUNTER QR VERIFICATION (Razorpay vs POS UPI) ──
+  html += '<div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Counter QR Verification</div>';
+  html += '<div class="rzp-grid">';
+  for (const s of counterSnaps) {
     const hasDisc = discEntities.has(s.entity);
     const cls = hasDisc ? 'has-disc' : 'ok';
     const statusIcon = hasDisc ? '⚠️' : '✓';
-    const label = s.entity === 'COUNTER' ? 'Counter QR' :
-                  s.entity === 'RUNNER_COUNTER' ? 'Runner Ctr QR' :
-                  s.entity;
-
+    const label = s.entity === 'COUNTER' ? 'Counter QR' : 'Runner Ctr QR';
     html += `<div class="rzp-row ${cls}">
       <span class="rzp-entity">${label}</span>
       <span class="rzp-amounts">
-        <span title="Razorpay actual">R:${fmt(s.razorpay)}</span>
-        <span title="POS UPI">P:${fmt(s.pos_upi)}</span>
+        <span title="Razorpay actual">Rzp: ${f(s.razorpay)}</span>
+        <span title="POS UPI record">POS: ${f(s.pos_upi)}</span>
       </span>
       <span class="rzp-status" style="color:${hasDisc ? 'var(--red)' : 'var(--green)'}">${statusIcon}</span>
     </div>`;
   }
   html += '</div>';
 
+  // Counter discrepancy details
   if (discrepancies.length > 0) {
-    html += `<div style="margin-top:12px;padding:10px;background:rgba(239,68,68,0.08);border-radius:8px;font-size:12px;color:var(--red)">`;
+    html += '<div style="margin-top:10px;padding:10px;background:rgba(239,68,68,0.08);border-radius:8px;font-size:12px;color:var(--red)">';
     for (const d of discrepancies) {
-      html += `<div style="margin-bottom:6px"><strong>${d.entity}:</strong> ${d.type === 'deficit' ? 'Deficit' : 'Excess'} ${fmt(d.amount)} — ${d.desc.split('.').slice(1, 2).join('').trim() || d.desc}</div>`;
+      const shortDesc = d.type === 'deficit'
+        ? `POS says ${f(d.amount)} more UPI than Razorpay received`
+        : `Razorpay received ${f(d.amount)} more than POS UPI`;
+      html += `<div style="margin-bottom:6px"><strong>${d.entity}:</strong> ${shortDesc}</div>`;
     }
     html += '</div>';
   } else {
-    html += `<div style="margin-top:10px;text-align:center;font-size:13px;color:var(--green);font-weight:600">✓ All UPI amounts verified — no discrepancies</div>`;
+    html += '<div style="margin-top:8px;text-align:center;font-size:13px;color:var(--green);font-weight:600">✓ Counter UPI verified — no discrepancies</div>';
+  }
+
+  // ── RUNNER QR SUMMARY (informational — UPI collected reduces cash obligation) ──
+  const activeRunners = runnerSnaps.filter(s => s.razorpay > 0);
+  if (activeRunners.length > 0 || runnerSnaps.length > 0) {
+    const totalRunnerUPI = runnerSnaps.reduce((s, r) => s + r.razorpay, 0);
+    html += '<div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 8px">Runner UPI Collected</div>';
+    html += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">UPI on runner QRs reduces their cash settlement. Not a discrepancy.</div>';
+    html += '<div class="rzp-grid">';
+    for (const s of runnerSnaps) {
+      const runner = RUNNERS.find(r => r.code === s.entity);
+      const name = runner ? runner.name : s.entity;
+      const upiAmt = s.razorpay;
+      html += `<div class="rzp-row ok">
+        <span class="rzp-entity">${name}</span>
+        <span class="rzp-amounts"><span>${f(upiAmt)}</span><span style="color:var(--text2);font-size:11px">${s.rzp_count} txn${s.rzp_count !== 1 ? 's' : ''}</span></span>
+        <span class="rzp-status" style="color:${upiAmt > 0 ? 'var(--blue)' : 'var(--text2)'}">${upiAmt > 0 ? '💳' : '—'}</span>
+      </div>`;
+    }
+    html += '</div>';
+    if (totalRunnerUPI > 0) {
+      html += `<div style="margin-top:6px;text-align:right;font-size:13px;color:var(--blue);font-weight:600">Total runner UPI: ${f(totalRunnerUPI)}</div>`;
+    }
   }
 
   $('rzpContent').innerHTML = html;
+}
+
+// ── ERROR SUMMARY BAR + CONSOLIDATED ERROR LIST ──
+
+function recalcGlobalErrorCount() {
+  // Sum runner errors from cache (exclude non-blocking warnings)
+  let runnerErrors = 0;
+  for (const key in runnerDataCache) {
+    const d = runnerDataCache[key]?.data;
+    if (d && d.pending_errors) {
+      runnerErrors += d.pending_errors.filter(e => e.error_code !== 'unknown_product_warning').length;
+    }
+  }
+  globalErrorCount = runnerErrors + counterErrorCount + upiDiscrepancyCount;
+  updateErrorSummaryBar();
+}
+
+function updateErrorSummaryBar() {
+  const bar = $('errorSummaryBar');
+  const icon = $('esbIcon');
+  const text = $('esbText');
+  if (!bar) return;
+
+  bar.classList.remove('has-errors', 'all-clear');
+
+  if (globalErrorCount > 0) {
+    bar.classList.add('has-errors');
+    icon.textContent = '⚠️';
+    text.textContent = globalErrorCount + ' error' + (globalErrorCount > 1 ? 's' : '') + ' to fix';
+  } else {
+    bar.classList.add('all-clear');
+    icon.textContent = '✅';
+    text.textContent = 'All clear — no errors';
+  }
+}
+
+async function runScanRecent() {
+  try {
+    const res = await fetch('/api/validator?action=scan-recent');
+    const data = await res.json();
+    if (data.success) {
+      lastScanResult = { orders_checked: data.orders_checked || 0, timestamp: Date.now() };
+      updateScanStatus();
+      // Show auto-fix toast if applicable
+      const autoFixed = data.errors_auto_fixed || 0;
+      const autoReconciled = data.errors_reconciled || 0;
+      if (autoFixed > 0 || autoReconciled > 0) {
+        const parts = [];
+        if (autoFixed > 0) parts.push(autoFixed + ' auto-fixed');
+        if (autoReconciled > 0) parts.push(autoReconciled + ' auto-resolved');
+        toast('🔧 ' + parts.join(', '));
+      }
+    }
+    // Refresh runner data + counter errors after scan
+    loadAllRunnerStatus();
+    checkCounterErrors();
+  } catch (e) { /* non-critical */ }
+}
+
+function updateScanStatus() {
+  const el = $('scanStatus');
+  if (!el || !lastScanResult) return;
+  const ago = Math.round((Date.now() - lastScanResult.timestamp) / 60000);
+  const agoText = ago < 1 ? 'Just now' : ago + ' min ago';
+  el.textContent = 'Last scan: ' + agoText + ' · ' + lastScanResult.orders_checked + ' orders checked';
+}
+
+async function openConsolidatedErrors() {
+  const overlay = $('errorListOverlay');
+  const content = $('errorListContent');
+  overlay.classList.add('show');
+  content.innerHTML = '<div class="loading"><span class="spinner"></span>Loading all errors...</div>';
+
+  try {
+    // Fetch 3 sources in parallel
+    const [errRes, discRes, counterRes] = await Promise.all([
+      fetch('/api/rectify?action=get-all-errors&pin=' + currentPin),
+      fetch('/api/validator?action=get-discrepancies'),
+      fetch('/api/validator?action=get-counter-errors')
+    ]);
+    const [errData, discData, counterData] = await Promise.all([errRes.json(), discRes.json(), counterRes.json()]);
+
+    renderConsolidatedErrors(
+      errData.success ? errData.grouped : {},
+      discData.discrepancies || [],
+      counterData.counter_errors || 0,
+      errData.total || 0
+    );
+  } catch (e) {
+    content.innerHTML = '<div style="color:var(--red);text-align:center;padding:30px">Failed to load errors: ' + e.message + '</div>';
+  }
+}
+
+function renderConsolidatedErrors(grouped, discrepancies, counterErrs, totalRunnerErrors) {
+  const content = $('errorListContent');
+  const total = totalRunnerErrors + counterErrs + discrepancies.length;
+  $('errorListTitle').textContent = total > 0 ? total + ' Error' + (total > 1 ? 's' : '') : 'All Errors';
+
+  if (total === 0) {
+    content.innerHTML = '<div class="all-clear-msg">✅ All clear — no errors found</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Runner errors grouped by slot (skip 'unassigned' — handled separately below)
+  for (const [slot, errors] of Object.entries(grouped)) {
+    if (slot === 'unassigned' || !errors || errors.length === 0) continue;
+    const runner = RUNNERS.find(r => r.code === slot);
+    const name = runner ? runner.name : slot;
+    html += `<div class="error-group-header">${name} (${slot}) <span class="egh-count">${errors.length} error${errors.length > 1 ? 's' : ''}</span></div>`;
+    errors.forEach((err, idx) => {
+      const fixOptions = getFixOptionsForError(err);
+      html += `<div class="disc-card" style="border-left-color:var(--orange)">
+        <div class="dc-type">${(err.error_code || 'VALIDATION').replace(/_/g,' ').toUpperCase()}</div>
+        <div class="dc-entity">${err.order_ref || 'Order #' + err.order_id}</div>
+        <div class="dc-desc">${humanizeError(err)}</div>
+        ${fixOptions ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="cl-fix-${slot}-${idx}" style="flex:1;min-width:140px;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:12px">
+            <option value="">Select fix...</option>
+            ${fixOptions}
+          </select>
+          <button onclick="applyConsolidatedFix('${slot}',${idx},${err.id})" style="padding:8px 14px;border-radius:8px;background:var(--green);color:#fff;border:none;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap">Apply</button>
+        </div>` : ''}
+      </div>`;
+    });
+  }
+
+  // Unassigned / counter errors
+  if (grouped.unassigned && grouped.unassigned.length > 0) {
+    html += `<div class="error-group-header">COUNTER / UNASSIGNED <span class="egh-count">${grouped.unassigned.length}</span></div>`;
+    grouped.unassigned.forEach((err, idx) => {
+      const uFixOptions = getFixOptionsForError(err);
+      html += `<div class="disc-card" style="border-left-color:var(--yellow)">
+        <div class="dc-type">${(err.error_code || 'VALIDATION').replace(/_/g,' ').toUpperCase()}</div>
+        <div class="dc-entity">${err.order_ref || 'Order #' + err.order_id}</div>
+        <div class="dc-desc">${humanizeError(err)}</div>
+        ${uFixOptions ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="cl-fix-unassigned-${idx}" style="flex:1;min-width:140px;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:12px">
+            <option value="">Select fix...</option>
+            ${uFixOptions}
+          </select>
+          <button onclick="applyConsolidatedFix('unassigned',${idx},${err.id})" style="padding:8px 14px;border-radius:8px;background:var(--green);color:#fff;border:none;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap">Apply</button>
+        </div>` : ''}
+      </div>`;
+    });
+  } else if (counterErrs > 0) {
+    html += `<div class="error-group-header">COUNTER <span class="egh-count">${counterErrs}</span></div>`;
+    html += `<div class="disc-card" style="border-left-color:var(--yellow)">
+      <div class="dc-type">COUNTER ERRORS</div>
+      <div class="dc-desc">${counterErrs} validation error${counterErrs > 1 ? 's' : ''} on Cash Counter orders — view in Rectify panel for details</div>
+    </div>`;
+  }
+
+  // UPI discrepancies — with resolve + cross-QR tag actions
+  if (discrepancies.length > 0) {
+    html += `<div class="error-group-header">UPI MISMATCHES <span class="egh-count">${discrepancies.length}</span></div>`;
+    for (let di = 0; di < discrepancies.length; di++) {
+      const d = discrepancies[di];
+      const discType = d.type || d.disc_type || 'unknown';
+      const amtText = discType === 'deficit' ? 'Deficit: ₹' + Math.round(d.amount).toLocaleString('en-IN') : 'Excess: ₹' + Math.round(d.amount).toLocaleString('en-IN');
+      html += `<div class="disc-card">
+        <div class="dc-type">UPI MISMATCH</div>
+        <div class="dc-entity">${d.entity || d.expected_entity}</div>
+        <div class="dc-amount">${amtText}</div>
+        <div class="dc-desc">${d.desc || d.order_ref || 'Razorpay vs POS UPI amount mismatch'}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <select id="disc-resolve-${di}" style="flex:1;min-width:120px;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:12px">
+            <option value="">Select action...</option>
+            <option value="investigated">Investigated — OK</option>
+            <option value="false_alarm">False Alarm</option>
+            <option value="adjusted">Adjusted in POS</option>
+            <option value="cross_qr">Cross-QR (paid wrong QR)</option>
+          </select>
+          <button onclick="resolveDiscrepancy(${d.id},${di})" style="padding:8px 14px;border-radius:8px;background:var(--green);color:#fff;border:none;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap">Resolve</button>
+        </div>
+      </div>`;
+    }
+  }
+
+  content.innerHTML = html;
+}
+
+function getFixOptionsForError(err) {
+  const code = err.error_code || '';
+  if (!code) return '';
+  // Fix options based on actual DB error_code values
+  if (code === 'invalid_tuple') {
+    return `
+      <option value="remove_runner">Remove runner from order</option>
+      <option value="change_method">Change payment method</option>
+      <option value="assign_runner">Assign correct runner</option>`;
+  }
+  if (code === 'invalid_partner') {
+    return `
+      <option value="remove_runner">Remove runner from order</option>
+      <option value="assign_runner">Assign correct runner</option>`;
+  }
+  if (code === 'invalid_product_method') {
+    return `
+      <option value="change_method">Change payment method</option>
+      <option value="remove_runner">Remove runner from order</option>`;
+  }
+  if (code === 'unknown_product_warning') {
+    return ''; // Non-blocking, no fix needed
+  }
+  // Fallback for any other error types
+  return `
+    <option value="remove_runner">Remove runner</option>
+    <option value="change_method">Change method</option>
+    <option value="assign_runner">Assign runner</option>`;
+}
+
+async function applyConsolidatedFix(slot, idx, errorId) {
+  const sel = document.getElementById('cl-fix-' + slot + '-' + idx);
+  if (!sel || !sel.value) {
+    if (sel) {
+      sel.style.borderColor = 'var(--red)';
+      setTimeout(() => sel.style.borderColor = '', 1500);
+    }
+    return;
+  }
+
+  const runnerId = SLOT_TO_ID[slot];
+  const fixAction = sel.value;
+
+  // Build fix_data based on action — for consolidated list, use defaults
+  // (change_method needs a method ID, assign_runner needs a slot)
+  let fixData = {};
+  if (fixAction === 'change_method') {
+    // Default to Cash (37) — the most common correction
+    fixData = { payment_method_id: 37 };
+  } else if (fixAction === 'assign_runner') {
+    // Default to current slot if it's a runner slot
+    fixData = { runner_slot: slot !== 'unassigned' ? slot : 'RUN001' };
+  }
+  // remove_runner needs no extra data
+
+  // Disable button while applying
+  const btn = sel.nextElementSibling;
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying...'; }
+
+  try {
+    const res = await fetch('/api/rectify?action=fix-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: currentPin, error_id: errorId, fix_action: fixAction, fix_data: fixData })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(data.odoo_updated ? '✓ Fixed in Odoo!' : '✓ Fix applied', 'ok');
+      // Refresh the consolidated list
+      openConsolidatedErrors();
+      // Refresh runner data in background
+      if (runnerId) loadRunnerLive(runnerId, true);
+      checkCounterErrors();
+      recalcGlobalErrorCount();
+    } else {
+      toast('❌ ' + (data.error || 'Fix failed'), 'err');
+      if (btn) { btn.disabled = false; btn.textContent = 'Apply'; }
+    }
+  } catch (e) {
+    toast('❌ Network error', 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply'; }
+  }
+}
+
+function closeErrorList() {
+  $('errorListOverlay').classList.remove('show');
+}
+
+async function resolveDiscrepancy(discId, idx) {
+  const sel = document.getElementById('disc-resolve-' + idx);
+  if (!sel || !sel.value) {
+    if (sel) {
+      sel.style.borderColor = 'var(--red)';
+      setTimeout(() => sel.style.borderColor = '', 1500);
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/rectify?action=resolve-discrepancy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: currentPin, discrepancy_id: discId, resolution: sel.value, note: '' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast('✓ Discrepancy resolved', 'ok');
+      openConsolidatedErrors();
+      runRazorpayVerify();
+    } else {
+      toast('❌ ' + (data.error || 'Failed'), 'err');
+    }
+  } catch (e) {
+    toast('❌ Network error', 'err');
+  }
 }
 
 // ── EXPENSE PANEL ──
@@ -1273,7 +1695,7 @@ async function loadExpenses() {
         total += e.amount;
         return `
           <div class="exp-item">
-            <span class="exp-cat">${e.reason || e.category || '—'}</span>
+            <span class="exp-cat">${e.category_name || e.reason || e.description || '—'}</span>
             <span class="exp-amt">${fmt(e.amount)}</span>
           </div>
         `;
@@ -1386,7 +1808,11 @@ async function submitPettyExpense() {
 
     if (data.success) {
       const cat = PETTY_CATEGORIES.find(c => c.code === selectedPettyCode);
-      toast(fmt(amount) + ' recorded for ' + cat.label, 'ok');
+      if (data.warning) {
+        toast(data.warning, 'err');
+      } else {
+        toast(fmt(amount) + ' recorded for ' + cat.label, 'ok');
+      }
       $('pettyAmount').value = '';
       $('pettyPhoto').value = '';
       $('pettyPhotoPreview').innerHTML = '';
@@ -1690,7 +2116,7 @@ function renderExpenseHistory(expenses) {
     for (const e of group.items) {
       dayTotal += e.amount || 0;
       html += `<div class="hist-row">
-        <span class="hr-name">${e.reason || '—'}</span>
+        <span class="hr-name">${e.reason || e.category_name || e.description || '—'}</span>
         <span style="font-size:12px;color:var(--text2)">${e.recorded_by || ''}</span>
         <span class="hr-cash" style="color:var(--red)">${fmt(e.amount||0)}</span>
       </div>`;
@@ -1711,19 +2137,14 @@ function renderCollectionHistory(collections) {
   for (const group of groups) {
     html += `<div class="hist-date">${group.label}</div>`;
     for (const c of group.items) {
-      const disc = c.discrepancy || 0;
-      const discText = disc === 0 ? '<span style="color:var(--green)">No discrepancy</span>'
-        : `<span style="color:var(--red)">Discrepancy: ${fmt(disc)}</span>`;
+      const collector = c.collected_by_name || c.collected_by || '—';
+      const receiver = c.received_by_name || c.received_by || '';
       html += `<div class="hist-collect-row">
         <div class="hist-collect-main">
-          <span><strong>${c.collected_by || '—'}</strong> collected <strong class="mono" style="color:var(--green)">${fmt(c.amount||0)}</strong></span>
+          <span><strong>${collector}</strong> collected <strong class="mono" style="color:var(--green)">${fmt(c.amount||0)}</strong></span>
+          ${receiver ? `<span style="font-size:12px;color:var(--text2)">→ ${receiver}</span>` : ''}
         </div>
-        <div class="hist-collect-detail">
-          <span>Petty left: <strong class="mono">${fmt(c.petty_cash||0)}</strong></span>
-          <span>Runners: <strong class="mono">${fmt(c.runner_cash||0)}</strong></span>
-          <span>Counter: <strong class="mono">${fmt(c.counter_cash||0)}</strong></span>
-          <span>${discText}</span>
-        </div>
+        ${c.notes ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">${c.notes}</div>` : ''}
       </div>`;
     }
   }
@@ -1739,10 +2160,10 @@ async function loadShiftOverview() {
     const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
     const todayIST = new Date(istNow);
     todayIST.setUTCHours(0, 30, 0, 0); // 6:00 AM IST = 00:30 UTC
-    if (istNow.getUTCHours() < 0 || (istNow.getUTCHours() === 0 && istNow.getUTCMinutes() < 30)) {
+    // istNow's UTC hours represent IST hours; if before 6 AM IST, use previous day's shift
+    if (istNow.getUTCHours() < 6) {
       todayIST.setUTCDate(todayIST.getUTCDate() - 1);
     }
-    const fromIST = new Date(todayIST.getTime() + 5 * 60 * 60 * 1000); // back to IST string
     const fromStr = todayIST.getFullYear() + '-' + String(todayIST.getMonth()+1).padStart(2,'0') + '-' + String(todayIST.getDate()).padStart(2,'0') + 'T06:00:00';
 
     // Fetch live dashboard data + counter balance + collection history in parallel
@@ -1983,15 +2404,7 @@ async function loadShiftOverview() {
   }
 }
 
-// Auto-scan + refresh runner data every 60s
-setInterval(() => {
-  if (currentUser) {
-    fetch('/api/validator?action=scan-recent').catch(() => {});
-    loadAllRunnerStatus();
-    // Refresh overview if visible
-    if ($('overviewPanel').classList.contains('show')) loadShiftOverview();
-  }
-}, 60000);
+// Note: All intervals are now managed in initDashboard() and cleared on logout
 </script>
 </body>
 </html>

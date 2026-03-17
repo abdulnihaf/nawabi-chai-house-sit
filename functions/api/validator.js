@@ -38,7 +38,7 @@ const POS = { CASH_COUNTER: 27, RUNNER_COUNTER: 28 };
 // Maps slot_code → current assignment. Update here when staff changes.
 const STAFF_SLOTS = {
   // Cashiers
-  'CASH001': { role: 'cashier', person: 'Kismat',   phone: '918637895699', pin: '7115' },
+  'CASH001': { role: 'cashier', person: 'Kesmat',   phone: '918637895699', pin: '7115' },
   'CASH002': { role: 'cashier', person: 'Nafees',   phone: '919019627629', pin: '8241' },
   // Runners
   'RUN001':  { role: 'runner',  person: 'Farzaib',  phone: null,           pin: '3678', partner_id: 64 },
@@ -506,7 +506,7 @@ export async function onRequest(context) {
                 // This specific error no longer applies — auto-resolve
                 resolveStmts.push(
                   DB.prepare(
-                    `UPDATE validation_errors SET status = 'resolved', resolved_at = datetime('now'), fix_action = 'auto-reconciled' WHERE id = ?`
+                    `UPDATE validation_errors SET status = 'rectified', rectified_at = datetime('now'), rectification_action = 'auto-reconciled' WHERE id = ?`
                   ).bind(dbErr.id)
                 );
               }
@@ -547,14 +547,27 @@ export async function onRequest(context) {
     if (action === 'razorpay-verify') {
       if (!RZP_KEY || !RZP_SECRET) return json({ success: false, error: 'Razorpay keys not configured' }, cors);
 
-      // Get current shift period (start of today IST → now)
+      // GAP 1 FIX: Use actual shift period (last counter settlement), not start-of-day
       const now = new Date();
-      const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-      const todayIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
       const nowISTStr = toIST(now);
+      let shiftFromIST;
+      try {
+        const lastSettle = await DB.prepare(
+          `SELECT settled_at FROM settlements WHERE runner_id = 'counter' ORDER BY settled_at DESC LIMIT 1`
+        ).first();
+        if (lastSettle?.settled_at) {
+          // Convert stored ISO to IST string
+          shiftFromIST = toIST(new Date(lastSettle.settled_at));
+        }
+      } catch (e) { /* table may not exist */ }
+      // Fallback to start of today IST if no counter settlement found
+      if (!shiftFromIST) {
+        const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+        shiftFromIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
+      }
 
       // Convert to unix timestamps for Razorpay API
-      const fromUnix = Math.floor(new Date(todayIST.replace(' ', 'T') + '+05:30').getTime() / 1000);
+      const fromUnix = Math.floor(new Date(shiftFromIST.replace(' ', 'T') + '+05:30').getTime() / 1000);
       const toUnix = Math.floor(now.getTime() / 1000);
 
       const auth = btoa(RZP_KEY + ':' + RZP_SECRET);
@@ -567,7 +580,7 @@ export async function onRequest(context) {
       ]);
 
       // 2. Fetch Odoo orders for the same period to get POS UPI totals
-      const orders = await fetchOdooOrders(ODOO_API_KEY, todayIST, nowISTStr);
+      const orders = await fetchOdooOrders(ODOO_API_KEY, shiftFromIST, nowISTStr);
 
       // 3. Calculate POS UPI totals per entity
       const posUPI = { COUNTER: 0, RUNNER_COUNTER: 0 };
@@ -609,15 +622,23 @@ export async function onRequest(context) {
       });
 
       // 5. Build snapshots and detect discrepancies
+      // NOTE: Only COUNTER and RUNNER_COUNTER QRs have meaningful POS UPI comparison.
+      // Runner personal QRs have NO POS UPI equivalent — runner UPI reduces their cash
+      // obligation (cashInHand = tokens + sales - upiTotal). So runner QR amounts are
+      // informational only, not discrepancies.
       const snapshotTime = nowISTStr;
-      const entities = ['COUNTER', 'RUNNER_COUNTER', ...RUNNER_QRS.map(r => r.label)];
+      const counterEntities = ['COUNTER', 'RUNNER_COUNTER'];
+      const runnerLabels = RUNNER_QRS.map(r => r.label);
+      const allEntities = [...counterEntities, ...runnerLabels];
       const snapshots = [];
       const discrepancies = [];
       const TOLERANCE = 1; // ₹1 tolerance for rounding
 
-      for (const entity of entities) {
+      for (const entity of allEntities) {
         const rzpTotal = Math.round((rzpTotals[entity] || 0) * 100) / 100;
-        const posTotal = Math.round((posUPI[entity] || 0) * 100) / 100;
+        const isRunnerQR = runnerLabels.includes(entity);
+        // Runner QRs have no POS UPI equivalent — always 0, not a discrepancy
+        const posTotal = isRunnerQR ? 0 : Math.round((posUPI[entity] || 0) * 100) / 100;
         const excess = Math.round((rzpTotal - posTotal) * 100) / 100;
         const deficit = Math.round((posTotal - rzpTotal) * 100) / 100;
 
@@ -625,23 +646,24 @@ export async function onRequest(context) {
           entity, snapshotTime, rzpTotal, posTotal,
           excess: excess > 0 ? excess : 0,
           deficit: deficit > 0 ? deficit : 0,
-          rzpCount: rzpCounts[entity] || 0
+          rzpCount: rzpCounts[entity] || 0,
+          isRunnerQR
         });
 
-        // Deficit: POS says more UPI than Razorpay received — possible fake UPI / wrong QR
-        if (deficit > TOLERANCE) {
-          discrepancies.push({
-            entity, type: 'deficit', amount: deficit,
-            desc: `${entity}: POS UPI ₹${posTotal} but Razorpay only received ₹${rzpTotal}. Deficit: ₹${deficit}. Possible: order marked UPI but paid cash, or payment went to different QR.`
-          });
-        }
-
-        // Excess: Razorpay received more than POS UPI — cross-QR payment or unrecorded UPI
-        if (excess > TOLERANCE) {
-          discrepancies.push({
-            entity, type: 'excess', amount: excess,
-            desc: `${entity}: Razorpay received ₹${rzpTotal} but POS UPI only ₹${posTotal}. Excess: ₹${excess}. Possible: customer paid to wrong QR, or order marked Cash but paid UPI.`
-          });
+        // Only check discrepancies for counter QRs — runner QRs are handled by settlement formula
+        if (!isRunnerQR) {
+          if (deficit > TOLERANCE) {
+            discrepancies.push({
+              entity, type: 'deficit', amount: deficit,
+              desc: `${entity}: POS UPI ₹${posTotal} but Razorpay only received ₹${rzpTotal}. Deficit: ₹${deficit}. Possible: order marked UPI but paid cash, or payment went to different QR.`
+            });
+          }
+          if (excess > TOLERANCE) {
+            discrepancies.push({
+              entity, type: 'excess', amount: excess,
+              desc: `${entity}: Razorpay received ₹${rzpTotal} but POS UPI only ₹${posTotal}. Excess: ₹${excess}. Possible: customer paid to wrong QR, or order marked Cash but paid UPI.`
+            });
+          }
         }
       }
 
@@ -656,54 +678,41 @@ export async function onRequest(context) {
         snapshotsWritten = stmts.length;
       } catch (e) { /* snapshots table may not exist */ }
 
-      // 7. Write discrepancies to D1
+      // 7. GAP 3 FIX: Replace stale discrepancies instead of accumulating.
+      // Delete ALL pending counter discrepancies, then insert only current ones.
+      // This ensures each verify run gives a clean, accurate slate.
       let discWritten = 0;
-      try {
-        if (discrepancies.length > 0) {
-          const stmts = discrepancies.map(d =>
-            DB.prepare(`INSERT OR IGNORE INTO payment_discrepancies (disc_type, amount, expected_entity, actual_entity, detected_at, status, assigned_role, order_ref) VALUES (?, ?, ?, ?, datetime('now'), 'pending', 'cashier', ?)`)
-              .bind(d.type, d.amount, d.entity, d.entity, d.desc)
-          );
-          const results = await DB.batch(stmts);
-          discWritten = results.filter(r => r.meta?.changes > 0).length;
-        }
-      } catch (e) { /* table may not exist */ }
-
-      // 8. Auto-resolve: if a previously flagged discrepancy no longer exists (within tolerance), resolve it
       let autoResolved = 0;
       try {
-        const pendingDiscs = await DB.prepare(
-          `SELECT id, expected_entity, disc_type, amount FROM payment_discrepancies WHERE status = 'pending'`
-        ).all();
-        const resolveStmts = [];
-        for (const pd of (pendingDiscs?.results || [])) {
-          const entity = pd.expected_entity;
-          const snap = snapshots.find(s => s.entity === entity);
-          if (!snap) continue;
-          // If the discrepancy type no longer applies (within tolerance), auto-resolve
-          if (pd.disc_type === 'deficit' && snap.deficit <= TOLERANCE) {
-            resolveStmts.push(DB.prepare(`UPDATE payment_discrepancies SET status = 'resolved', resolved_at = datetime('now'), resolution_action = 'auto-resolved: deficit within tolerance' WHERE id = ?`).bind(pd.id));
-          }
-          if (pd.disc_type === 'excess' && snap.excess <= TOLERANCE) {
-            resolveStmts.push(DB.prepare(`UPDATE payment_discrepancies SET status = 'resolved', resolved_at = datetime('now'), resolution_action = 'auto-resolved: excess within tolerance' WHERE id = ?`).bind(pd.id));
-          }
+        const stmts = [];
+        // Clear all pending counter discrepancies (runner QRs never create discrepancies)
+        stmts.push(
+          DB.prepare(`UPDATE payment_discrepancies SET status = 'superseded', resolved_at = datetime('now'), resolution_action = 'superseded by new verify run' WHERE status = 'pending'`)
+        );
+        // Insert only current discrepancies
+        for (const d of discrepancies) {
+          stmts.push(
+            DB.prepare(`INSERT INTO payment_discrepancies (disc_type, amount, expected_entity, actual_entity, detected_at, status, assigned_role, order_ref) VALUES (?, ?, ?, ?, datetime('now'), 'pending', 'cashier', ?)`)
+              .bind(d.type, d.amount, d.entity, d.entity, d.desc)
+          );
         }
-        if (resolveStmts.length > 0) {
-          await DB.batch(resolveStmts);
-          autoResolved = resolveStmts.length;
-        }
-      } catch (e) { /* non-critical */ }
+        const results = await DB.batch(stmts);
+        // First result is the UPDATE (count of superseded), rest are INSERTs
+        autoResolved = results[0]?.meta?.changes || 0;
+        discWritten = discrepancies.length;
+      } catch (e) { /* table may not exist */ }
 
       return json({
         success: true,
-        period: { from: todayIST, to: nowISTStr },
+        period: { from: shiftFromIST, to: nowISTStr },
         snapshots: snapshots.map(s => ({
           entity: s.entity,
           razorpay: s.rzpTotal,
           pos_upi: s.posTotal,
           excess: s.excess,
           deficit: s.deficit,
-          rzp_count: s.rzpCount
+          rzp_count: s.rzpCount,
+          is_runner_qr: !!s.isRunnerQR
         })),
         discrepancies,
         snapshots_written: snapshotsWritten,
@@ -727,8 +736,9 @@ export async function onRequest(context) {
     // ── GET-COUNTER-ERRORS — return pending validation errors for counter (no runner) ──
     if (action === 'get-counter-errors') {
       try {
+        // GAP 4: Exclude unknown_product_warning — those are non-blocking
         const pending = await DB.prepare(
-          `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27`
+          `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND error_code != 'unknown_product_warning' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27`
         ).first();
         return json({ success: true, counter_errors: pending?.cnt || 0 }, cors);
       } catch (e) {
@@ -901,13 +911,40 @@ function validateOrder(order) {
 
       if (!VALID_PM.has(pmKey)) {
         const cat = PRODUCT_CATEGORIES[line.product_id] || 'UNKNOWN';
+        const isUnknownProduct = !PRODUCT_CATEGORIES[line.product_id];
+        const isUniversalMethod = [PM.CASH, PM.UPI, PM.CARD, PM.COMP].includes(methodId);
+
+        // GAP 4 FIX: Unknown product on a universal method (Cash/UPI/Card/Comp)
+        // is a warning, not blocking — the financial flow is correct, just product
+        // not in registry. Only block for Token Issue / Runner Ledger mismatches.
+        if (isUnknownProduct && isUniversalMethod) {
+          // Still log it but as a non-blocking warning
+          errors.push({
+            order_id: order.id,
+            order_ref: order.name || order.pos_reference,
+            error_code: 'unknown_product_warning',
+            description: `Unknown product ID ${line.product_id} ("${line.product_name}") not in registry. Financial flow is OK (${methodName}). Add to v_products for full tracking.`,
+            pos_config_id: posId, pos_config_name: posName,
+            payment_method_id: methodId, payment_method_name: methodName,
+            odoo_payment_id: payment.id || null,
+            runner_partner_id: partnerId || null, runner_slot: runnerSlot,
+            product_ids: [line.product_id], product_names: [line.product_name],
+            cashier_uid: order.user_id,
+            cashier_name: order.cashier_name || `User ${order.user_id}`,
+            order_amount: order.amount_total, order_time: order.date_order,
+            assigned_to: (order.cashier_name || `User ${order.user_id}`).toLowerCase(),
+            assigned_role: 'cashier'
+          });
+          continue;
+        }
+
         let description;
         if (methodId === PM.TOKEN_ISSUE) {
           description = `"${line.product_name}" (${cat}) with Token Issue. Only BEV/HLM products allowed with Token Issue.`;
         } else if (methodId === PM.RUNNER_LEDGER) {
           description = `"${line.product_name}" (${cat}) with Runner Ledger. Only SNK/WTR/PKG products allowed with Runner Ledger.`;
-        } else if (!PRODUCT_CATEGORIES[line.product_id]) {
-          description = `Unknown product ID ${line.product_id} ("${line.product_name}") not in registry. Add to v_products.`;
+        } else if (isUnknownProduct) {
+          description = `Unknown product ID ${line.product_id} ("${line.product_name}") with ${methodName}. Add to v_products.`;
         } else {
           description = `"${line.product_name}" (${cat}) with ${methodName} — not a defined valid combination.`;
         }
@@ -1161,10 +1198,11 @@ function toIST(date) {
 // ============================================================
 
 async function fetchQrPayments(auth, qrId, fromUnix, toUnix) {
+  // GAP 7 FIX: Increased from 10 to 50 pages (5000 payments max per QR per shift)
   const allItems = [];
   let skip = 0;
   const PAGE_SIZE = 100;
-  const MAX_PAGES = 10;
+  const MAX_PAGES = 50;
 
   for (let page = 0; page < MAX_PAGES; page++) {
     try {

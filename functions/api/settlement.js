@@ -15,25 +15,25 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
 
   // PIN verification — matches Odoo POS employee PINs
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Kesmat', '3946': 'Jafar', '3678': 'Farzaib', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer', '4421': 'Ritiqu', '5503': 'Anshu', '6604': 'Shabeer', '7705': 'Dhanush'};
   // Users who can collect cash from counter (owner/manager level)
   const COLLECTORS = ['Naveen', 'Nihaf', 'Tanveer', 'Basheer'];
   const RUNNERS = {
     'counter': {id: 'counter', name: 'Cash Counter', barcode: 'POS-27'},
-    64: {id: 64, name: 'FAROOQ', barcode: 'RUN001'},
-    65: {id: 65, name: 'AMIN', barcode: 'RUN002'},
-    66: {id: 66, name: 'NCH Runner 03', barcode: 'RUN003'},
-    67: {id: 67, name: 'NCH Runner 04', barcode: 'RUN004'},
-    68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005'}
+    64: {id: 64, name: 'Farzaib', barcode: 'RUN001'},
+    65: {id: 65, name: 'Ritiqu', barcode: 'RUN002'},
+    66: {id: 66, name: 'Anshu', barcode: 'RUN003'},
+    67: {id: 67, name: 'Shabeer', barcode: 'RUN004'},
+    68: {id: 68, name: 'Dhanush', barcode: 'RUN005'}
   };
 
   // Runner-specific PINs for Runner Live Dashboard (maps PIN → specific runner)
   const RUNNER_PINS = {
-    '3678': {runner_id: 64, name: 'FAROOQ', barcode: 'RUN001'},
-    '4421': {runner_id: 65, name: 'AMIN', barcode: 'RUN002'},
-    '5503': {runner_id: 66, name: 'NCH Runner 03', barcode: 'RUN003'},
-    '6604': {runner_id: 67, name: 'NCH Runner 04', barcode: 'RUN004'},
-    '7705': {runner_id: 68, name: 'NCH Runner 05', barcode: 'RUN005'}
+    '3678': {runner_id: 64, name: 'Farzaib', barcode: 'RUN001'},
+    '4421': {runner_id: 65, name: 'Ritiqu', barcode: 'RUN002'},
+    '5503': {runner_id: 66, name: 'Anshu', barcode: 'RUN003'},
+    '6604': {runner_id: 67, name: 'Shabeer', barcode: 'RUN004'},
+    '7705': {runner_id: 68, name: 'Dhanush', barcode: 'RUN005'}
   };
 
   // Runner QR codes for live UPI tracking (new QR IDs for RUN001/RUN002)
@@ -138,16 +138,20 @@ export async function onRequest(context) {
         }), {headers: corsHeaders});
       }
 
-      // Validation error gate — block settlement if pending errors exist
-      // Wrapped in try/catch: if validation_errors table doesn't exist (ops/ hasn't run
-      // validator schema), settlement proceeds normally. Zero impact on production.
+      // Validation error gate — block settlement if pending errors exist FOR THIS SHIFT
+      // GAP 6 FIX: Only check errors with order_time >= period_start (current shift only).
+      // Errors from previous shifts don't block the current shift's settlement.
+      // Wrapped in try/catch: if validation_errors table doesn't exist, settlement proceeds.
       try {
         const slot = RUNNER_SLOT_MAP[parseInt(runner_id)] || RUNNER_SLOT_MAP[runner_id];
+        // Get current shift start time for filtering
+        const shiftStart = period_start || '2026-02-04T17:00:00Z';
+
         if (slot) {
-          // Runner settlement: check errors assigned to this runner's slot
+          // Runner settlement: check errors assigned to this runner's slot within this shift
           const pending = await DB.prepare(
-            `SELECT COUNT(*) as cnt FROM validation_errors WHERE runner_slot = ? AND status = 'pending'`
-          ).bind(slot).first();
+            `SELECT COUNT(*) as cnt FROM validation_errors WHERE runner_slot = ? AND status = 'pending' AND error_code != 'unknown_product_warning' AND order_time >= ?`
+          ).bind(slot, shiftStart).first();
           if (pending && pending.cnt > 0) {
             return new Response(JSON.stringify({
               success: false,
@@ -156,10 +160,10 @@ export async function onRequest(context) {
             }), {headers: corsHeaders});
           }
         } else if (String(runner_id) === 'counter') {
-          // Counter settlement: check errors with no runner (counter-side errors)
+          // Counter settlement: check errors with no runner (counter-side errors) within this shift
           const pending = await DB.prepare(
-            `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27`
-          ).first();
+            `SELECT COUNT(*) as cnt FROM validation_errors WHERE status = 'pending' AND error_code != 'unknown_product_warning' AND (runner_slot IS NULL OR runner_slot = '') AND pos_config_id = 27 AND order_time >= ?`
+          ).bind(shiftStart).first();
           if (pending && pending.cnt > 0) {
             return new Response(JSON.stringify({
               success: false,
@@ -167,7 +171,7 @@ export async function onRequest(context) {
               pending_errors: pending.cnt
             }), {headers: corsHeaders});
           }
-          // Also check UPI discrepancies
+          // Also check UPI discrepancies (these are always current-shift since GAP 3 fix clears stale ones)
           try {
             const discPending = await DB.prepare(
               `SELECT COUNT(*) as cnt FROM payment_discrepancies WHERE status = 'pending' AND (expected_entity = 'COUNTER' OR expected_entity = 'RUNNER_COUNTER')`
@@ -229,7 +233,13 @@ export async function onRequest(context) {
     if (action === 'expense-history') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
       const limit = url.searchParams.get('limit') || 200;
-      const results = await DB.prepare('SELECT * FROM counter_expenses ORDER BY recorded_at DESC LIMIT ?').bind(parseInt(limit)).all();
+      const results = await DB.prepare(
+        `SELECT id, amount, recorded_at, recorded_by, reason as category_name FROM counter_expenses
+         UNION ALL
+         SELECT ce.id, ce.amount, ce.recorded_at, ce.recorded_by_name as recorded_by, vc.name as category_name
+         FROM counter_expenses_v2 ce LEFT JOIN v_expense_categories vc ON ce.category_code = vc.code
+         ORDER BY recorded_at DESC LIMIT ?`
+      ).bind(parseInt(limit)).all();
       return new Response(JSON.stringify({success: true, expenses: results.results}), {headers: corsHeaders});
     }
 
@@ -299,10 +309,13 @@ export async function onRequest(context) {
         });
       }
 
-      // Get all expenses since last collection
+      // Get all expenses since last collection (from both old and new tables)
       const expensesResult = await DB.prepare(
-        'SELECT * FROM counter_expenses WHERE recorded_at > ? ORDER BY recorded_at ASC'
-      ).bind(sinceTime).all();
+        `SELECT amount, recorded_at, reason as category_name FROM counter_expenses WHERE recorded_at > ?
+         UNION ALL
+         SELECT ce.amount, ce.recorded_at, vc.name as category_name FROM counter_expenses_v2 ce LEFT JOIN v_expense_categories vc ON ce.category_code = vc.code WHERE ce.recorded_at > ?
+         ORDER BY recorded_at ASC`
+      ).bind(sinceTime, sinceTime).all();
 
       let totalExpenses = 0;
       const expenseList = [];
@@ -371,10 +384,13 @@ export async function onRequest(context) {
         ids.push(s.id);
       }
 
-      // Get all expenses in this period (already recorded by cashiers)
+      // Get all expenses in this period (from both old and new tables)
       const expensesResult = await DB.prepare(
-        'SELECT amount FROM counter_expenses WHERE recorded_at > ? ORDER BY recorded_at ASC'
-      ).bind(periodStart).all();
+        `SELECT amount FROM counter_expenses WHERE recorded_at > ?
+         UNION ALL
+         SELECT amount FROM counter_expenses_v2 WHERE recorded_at > ?
+         ORDER BY 1`
+      ).bind(periodStart, periodStart).all();
       let totalExpenses = 0;
       for (const e of expensesResult.results) totalExpenses += e.amount;
 
@@ -899,8 +915,9 @@ export async function onRequest(context) {
         const slot = RUNNER_SLOT_MAP[runnerId];
         if (slot && DB) {
           const errResults = await DB.prepare(
-            `SELECT id, order_id, order_ref, error_type, description, payment_method_name,
-             order_amount, detected_at, odoo_payment_id
+            `SELECT id, order_id, order_ref, error_code, description, payment_method_name,
+             order_amount, detected_at, odoo_payment_id, runner_slot, runner_partner_id,
+             pos_config_name, product_names, cashier_name, order_time
              FROM validation_errors WHERE runner_slot = ? AND status = 'pending'
              ORDER BY detected_at DESC`
           ).bind(slot).all();
