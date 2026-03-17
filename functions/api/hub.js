@@ -211,6 +211,56 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, sent: results.length}), {headers: corsHeaders});
     }
 
+    // ── Push to Slots (used by wa-alerts.js for alert delivery) ──
+    if (action === 'push-to-slots') {
+      if (context.request.method !== 'POST') {
+        return new Response(JSON.stringify({error: 'POST required'}), {status: 405, headers: corsHeaders});
+      }
+
+      const body = await context.request.json();
+      const {slots, title, body: message, tag, url: pushUrl} = body;
+
+      if (!slots || !Array.isArray(slots) || !title) {
+        return new Response(JSON.stringify({error: 'slots (array) and title required'}), {status: 400, headers: corsHeaders});
+      }
+
+      if (!DB) {
+        return new Response(JSON.stringify({error: 'DB not configured'}), {status: 500, headers: corsHeaders});
+      }
+
+      const results = [];
+      for (const slotCode of slots) {
+        try {
+          // Resolve slot_code → person name → staff_id → fcm_token
+          const slot = await DB.prepare(
+            'SELECT current_person FROM v_staff_slots WHERE slot_code = ?'
+          ).bind(slotCode).first();
+          if (!slot || !slot.current_person) continue;
+
+          const staffId = slot.current_person.toLowerCase().replace(/\s+/g, '_');
+          const tokenRow = await DB.prepare(
+            'SELECT fcm_token FROM fcm_tokens WHERE staff_id = ?'
+          ).bind(staffId).first();
+          if (!tokenRow || !tokenRow.fcm_token) {
+            results.push({slot: slotCode, staff: staffId, sent: false, reason: 'no_fcm_token'});
+            continue;
+          }
+
+          const r = await sendFcmPush(context.env, tokenRow.fcm_token, {
+            title,
+            body: message || '',
+            tag: tag || 'nch_alert',
+            url: pushUrl || 'https://nawabichaihouse.com/ops/'
+          });
+          results.push({slot: slotCode, staff: staffId, sent: r.success, fcm: r});
+        } catch (e) {
+          results.push({slot: slotCode, sent: false, error: e.message});
+        }
+      }
+
+      return new Response(JSON.stringify({success: true, results, sent: results.filter(r => r.sent).length}), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({error: 'Unknown action: ' + action}), {status: 400, headers: corsHeaders});
 
   } catch (err) {
