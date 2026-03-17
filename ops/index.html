@@ -216,6 +216,16 @@
     }
     function fmt(n) { return n != null ? Math.round(n).toLocaleString('en-IN') : '0'; }
 
+    // ── Today's shift start (6 AM IST) ──
+    function getShiftFrom() {
+      const now = new Date();
+      const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const todayIST = new Date(istNow);
+      todayIST.setUTCHours(0, 30, 0, 0); // 6:00 AM IST = 00:30 UTC
+      if (istNow.getUTCHours() < 6) todayIST.setUTCDate(todayIST.getUTCDate() - 1);
+      return todayIST.getFullYear() + '-' + String(todayIST.getMonth()+1).padStart(2,'0') + '-' + String(todayIST.getDate()).padStart(2,'0') + 'T06:00:00';
+    }
+
     // ── Dashboard Config per Role ──
     const DASH_CONFIG = {
       cashier: ['attention', 'runners', 'counter-petty'],
@@ -341,10 +351,11 @@
 
       const pin = sessionStorage.getItem('nch_pin');
 
-      // Fire all API calls in parallel
+      // Fire all API calls in parallel (shift-aware: 6AM IST to now)
+      const shiftFrom = getShiftFrom();
       const [nchData, counterBal, errData, pettyData, collectData] = await Promise.all([
         widgets.some(w => ['kpi','runners','recon'].includes(w))
-          ? cachedFetch('/api/nch-data') : Promise.resolve(null),
+          ? cachedFetch('/api/nch-data?from=' + encodeURIComponent(shiftFrom)) : Promise.resolve(null),
         widgets.some(w => ['attention','counter','counter-petty','cash-ops'].includes(w))
           ? cachedFetch('/api/settlement?action=counter-balance') : Promise.resolve(null),
         widgets.includes('attention') && pin
