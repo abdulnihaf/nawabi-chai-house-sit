@@ -360,9 +360,12 @@ export async function onRequest(context) {
         lastScan = row?.value || null;
       } catch (e) { /* table may not exist yet */ }
 
-      // Default to 1 hour ago if no cursor
+      // Default to start of today IST if no cursor (covers early-morning orders)
       if (!lastScan) {
-        lastScan = toIST(new Date(Date.now() - 60 * 60 * 1000));
+        const now = new Date();
+        const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+        const startOfDayIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
+        lastScan = startOfDayIST;
       }
       const nowIST = toIST(new Date());
 
@@ -401,6 +404,54 @@ export async function onRequest(context) {
         written = results.filter(r => r.meta?.changes > 0).length;
       }
 
+      // ── Auto-reconciliation: re-check existing pending errors against current Odoo state ──
+      // If someone fixed an order directly in Odoo, the D1 error stays 'pending' forever.
+      // This re-validates those orders and auto-resolves errors that no longer apply.
+      let reconciled = 0;
+      try {
+        const pendingRows = await DB.prepare(
+          `SELECT DISTINCT order_id FROM validation_errors WHERE status = 'pending' LIMIT 100`
+        ).all();
+        const pendingOrderIds = (pendingRows?.results || []).map(r => r.order_id);
+
+        if (pendingOrderIds.length > 0) {
+          // Fetch these specific orders from Odoo by ID
+          const reconOrders = await fetchOdooOrdersByIds(ODOO_API_KEY, pendingOrderIds);
+          const reconOrderMap = {};
+          for (const o of reconOrders) reconOrderMap[o.id] = o;
+
+          // For each pending order, re-validate. If no errors match, resolve them.
+          const resolveStmts = [];
+          for (const orderId of pendingOrderIds) {
+            const order = reconOrderMap[orderId];
+            if (!order) continue; // order not found in Odoo — leave pending
+            const currentErrors = validateOrder(order);
+            const currentCodes = new Set(currentErrors.map(e => e.error_code));
+
+            // Get all pending error codes for this order
+            const dbErrors = await DB.prepare(
+              `SELECT id, error_code FROM validation_errors WHERE order_id = ? AND status = 'pending'`
+            ).bind(orderId).all();
+
+            for (const dbErr of (dbErrors?.results || [])) {
+              if (!currentCodes.has(dbErr.error_code)) {
+                // This specific error no longer applies — auto-resolve
+                resolveStmts.push(
+                  DB.prepare(
+                    `UPDATE validation_errors SET status = 'resolved', resolved_at = datetime('now'), fix_action = 'auto-reconciled' WHERE id = ?`
+                  ).bind(dbErr.id)
+                );
+              }
+            }
+          }
+
+          if (resolveStmts.length > 0) {
+            await DB.batch(resolveStmts);
+            reconciled = resolveStmts.length;
+          }
+        }
+      } catch (e) { /* reconciliation non-critical — don't break scan */ }
+
       // Update cursor
       try {
         await DB.prepare(
@@ -415,7 +466,8 @@ export async function onRequest(context) {
         orders_checked: orders.length,
         valid: validCount,
         invalid: invalidCount,
-        errors_written: written
+        errors_written: written,
+        errors_reconciled: reconciled
       }, cors);
     }
 
@@ -777,6 +829,49 @@ async function fetchOdooOrderById(apiKey, orderId) {
     cashier_name: order.user_id?.[1] || null,
     payments, lines
   }];
+}
+
+async function fetchOdooOrdersByIds(apiKey, orderIds) {
+  if (!orderIds.length) return [];
+  const orders = await odooRpc(apiKey, 'pos.order', 'search_read',
+    [['id', 'in', orderIds]],
+    ['id', 'name', 'pos_reference', 'date_order', 'amount_total',
+     'config_id', 'partner_id', 'user_id', 'session_id',
+     'payment_ids', 'lines'],
+    orderIds.length
+  );
+  if (!orders.length) return [];
+
+  const allPaymentIds = [], allLineIds = [];
+  for (const o of orders) {
+    if (o.payment_ids?.length) allPaymentIds.push(...o.payment_ids);
+    if (o.lines?.length) allLineIds.push(...o.lines);
+  }
+
+  const paymentMap = {};
+  if (allPaymentIds.length) {
+    const pd = await odooRpc(apiKey, 'pos.payment', 'search_read',
+      [['id', 'in', allPaymentIds]], ['id', 'amount', 'payment_method_id'], allPaymentIds.length);
+    for (const p of pd) paymentMap[p.id] = { id: p.id, amount: p.amount, method_id: p.payment_method_id?.[0] || p.payment_method_id, method_name: p.payment_method_id?.[1] || null };
+  }
+
+  const lineMap = {};
+  if (allLineIds.length) {
+    const ld = await odooRpc(apiKey, 'pos.order.line', 'search_read',
+      [['id', 'in', allLineIds]], ['id', 'product_id', 'qty', 'price_subtotal_incl', 'full_product_name'], allLineIds.length);
+    for (const l of ld) lineMap[l.id] = { id: l.id, product_id: l.product_id?.[0] || l.product_id, product_name: l.full_product_name || l.product_id?.[1] || null, qty: l.qty, amount: l.price_subtotal_incl };
+  }
+
+  return orders.map(order => ({
+    id: order.id, name: order.name, pos_reference: order.pos_reference,
+    date_order: order.date_order, amount_total: order.amount_total,
+    config_id: order.config_id?.[0] || order.config_id,
+    partner_id: order.partner_id?.[0] || order.partner_id || null,
+    user_id: order.user_id?.[0] || order.user_id,
+    cashier_name: order.user_id?.[1] || null,
+    payments: (order.payment_ids || []).map(id => paymentMap[id]).filter(Boolean),
+    lines: (order.lines || []).map(id => lineMap[id]).filter(Boolean)
+  }));
 }
 
 // ============================================================

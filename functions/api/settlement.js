@@ -142,7 +142,7 @@ export async function onRequest(context) {
       // Wrapped in try/catch: if validation_errors table doesn't exist (ops/ hasn't run
       // validator schema), settlement proceeds normally. Zero impact on production.
       try {
-        const slot = RUNNER_SLOT_MAP[runner_id];
+        const slot = RUNNER_SLOT_MAP[parseInt(runner_id)] || RUNNER_SLOT_MAP[runner_id];
         if (slot) {
           const pending = await DB.prepare(
             `SELECT COUNT(*) as cnt FROM validation_errors WHERE runner_slot = ? AND status = 'pending'`
