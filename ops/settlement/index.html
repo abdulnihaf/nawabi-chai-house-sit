@@ -910,16 +910,38 @@ function confirmSettle(runnerId) {
       <span class="dr-val" style="color:var(--blue)">${fmt(d.upi_amount || 0)}</span>
     </div>
     <div class="dialog-row">
-      <span class="dr-label">Cash to Collect</span>
-      <span class="dr-val" style="color:${cash >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:20px">${fmt(cash)}</span>
+      <span class="dr-label">Expected Cash</span>
+      <span class="dr-val" style="color:${cash >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:18px">${fmt(cash)}</span>
+    </div>
+    <div style="margin:16px 0 8px">
+      <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">Actual cash received from runner</label>
+      <input type="number" id="settleActualCash" value="${Math.max(0, Math.round(cash))}" inputmode="numeric"
+        style="width:100%;padding:14px;font-size:22px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);text-align:center"
+        oninput="updateSettleVariance(${Math.round(cash)})">
+      <div id="settleVariance" style="text-align:center;font-size:13px;font-weight:600;margin-top:8px;min-height:20px"></div>
     </div>
     ${cash < 0 ? '<div class="dialog-warn">Runner owes less than expected. Verify UPI amount before settling.</div>' : ''}
     <div class="dialog-buttons">
       <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
-      <button class="btn-confirm" id="btnDoSettle" onclick="doSettle(${runnerId})">Settle ${fmt(cash)}</button>
+      <button class="btn-confirm" id="btnDoSettle" onclick="doSettle(${runnerId})">Settle</button>
     </div>
   `;
   $('confirmOverlay').classList.add('show');
+  updateSettleVariance(Math.round(cash));
+}
+
+function updateSettleVariance(expected) {
+  const actual = parseInt($('settleActualCash')?.value) || 0;
+  const diff = actual - expected;
+  const el = $('settleVariance');
+  if (!el) return;
+  if (diff === 0) {
+    el.innerHTML = '<span style="color:var(--green)">✓ Exact amount</span>';
+  } else if (diff > 0) {
+    el.innerHTML = `<span style="color:var(--green)">+${fmt(diff)} extra cash</span>`;
+  } else {
+    el.innerHTML = `<span style="color:var(--red)">${fmt(diff)} short</span>`;
+  }
 }
 
 function closeConfirm() {
@@ -954,6 +976,13 @@ async function doSettle(runnerId) {
 
   try {
     const now = new Date().toISOString();
+    const expectedCash = d.cash_to_collect || 0;
+    const actualCash = parseInt($('settleActualCash')?.value) || 0;
+    const variance = actualCash - Math.round(expectedCash);
+    let notes = '';
+    if (variance > 0) notes = `Extra cash: +₹${variance}`;
+    else if (variance < 0) notes = `Short: ₹${Math.abs(variance)}`;
+
     const res = await fetch('/api/settlement?action=settle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -966,7 +995,8 @@ async function doSettle(runnerId) {
         tokens_amount: d.tokens_amount || 0,
         sales_amount: d.sales_amount || 0,
         upi_amount: d.upi_amount || 0,
-        cash_settled: d.cash_to_collect || 0
+        cash_settled: actualCash,
+        notes: notes || null
       })
     });
     const result = await res.json();
