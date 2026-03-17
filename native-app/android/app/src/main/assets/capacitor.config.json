@@ -3,7 +3,7 @@
   "appName": "NCH Ops",
   "webDir": "www",
   "server": {
-    "url": "https://nawabichaihouse.com/ops/",
+    "url": "https://nawabichaihouse.com/test/",
     "cleartext": false
   },
   "plugins": {
