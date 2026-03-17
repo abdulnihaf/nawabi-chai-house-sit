@@ -827,6 +827,11 @@ function renderRunnerPanel(runnerId) {
         ${errors.map((err, i) => renderErrorCard(err, i, runnerId)).join('')}
       </div>
     `;
+    // Auto-expand recommended fix panels
+    errors.forEach((err, i) => {
+      const sel = $('fix-action-' + runnerId + '-' + i);
+      if (sel && sel.value) onFixActionChange(runnerId, i);
+    });
   } else {
     $('rpErrors').innerHTML = '';
   }
@@ -853,6 +858,7 @@ function renderErrorCard(err, idx, runnerId) {
   const orderTime = err.order_time ? formatTime(new Date(err.order_time)) : '';
   const cashier = err.cashier_name || '';
   const method = err.payment_method_name || '';
+  const recommended = getRecommendedFix(err);
 
   return `
     <div class="error-card" id="ec-${runnerId}-${idx}">
@@ -861,19 +867,40 @@ function renderErrorCard(err, idx, runnerId) {
         Order: <strong>${err.order_ref || '—'}</strong> &nbsp;|&nbsp; ${fmt(err.order_amount || 0)}
         ${orderTime ? ' &nbsp;|&nbsp; ' + orderTime : ''}
         ${cashier ? ' &nbsp;|&nbsp; by ' + cashier : ''}
-        ${method ? '<br>Payment: <strong>' + method + '</strong>' : ''}
       </div>
       <div class="ec-actions">
         <select id="fix-action-${runnerId}-${idx}" onchange="onFixActionChange(${runnerId}, ${idx})">
           <option value="">Choose fix...</option>
-          <option value="remove_runner">Remove runner from order</option>
-          <option value="assign_runner">Assign correct runner</option>
-          <option value="change_method">Change payment method</option>
+          <option value="remove_runner" ${recommended === 'remove_runner' ? 'selected' : ''}>Remove runner from order</option>
+          <option value="assign_runner" ${recommended === 'assign_runner' ? 'selected' : ''}>Assign correct runner</option>
+          <option value="change_method" ${recommended === 'change_method' ? 'selected' : ''}>Change payment method</option>
         </select>
       </div>
       <div id="fix-extra-${runnerId}-${idx}"></div>
     </div>
   `;
+}
+
+function getRecommendedFix(err) {
+  const type = err.error_code || '';
+  const method = err.payment_method_name || '';
+  const pos = err.pos_config_name || '';
+  const slot = err.runner_slot || '';
+  const isCashCounter = pos.toLowerCase().includes('cash') || !pos.toLowerCase().includes('runner');
+
+  if (type === 'invalid_partner') return 'remove_runner';
+  if (type === 'invalid_product_method') return 'change_method';
+  if (type === 'invalid_tuple') {
+    // Runner on a counter walk-in order → remove runner
+    if (slot && isCashCounter && ['Cash', 'UPI', 'Card'].includes(method)) return 'remove_runner';
+    // Wrong method on Runner Counter → change method
+    if (['UPI', 'Cash', 'Card'].includes(method) && !isCashCounter) return 'change_method';
+    // Runner Ledger on Cash Counter → change method
+    if (method === 'Runner Ledger' && isCashCounter) return 'change_method';
+    // No runner on Runner Counter → assign
+    if (!slot && !isCashCounter) return 'assign_runner';
+  }
+  return '';
 }
 
 function onFixActionChange(runnerId, idx) {
@@ -973,35 +1000,57 @@ function humanizeError(err) {
   const type = err.error_code || err.error_type || err.type || '';
   const desc = err.description || '';
   const method = err.payment_method_name || '';
+  const pos = err.pos_config_name || '';
+  const slot = err.runner_slot || '';
   const products = err.product_names ? (Array.isArray(err.product_names) ? err.product_names : JSON.parse(err.product_names || '[]')) : [];
   const productStr = products.length > 0 ? products.join(', ') : '';
+  const isRunnerCounter = pos.toLowerCase().includes('runner');
+  const isCashCounter = pos.toLowerCase().includes('cash') || !isRunnerCounter;
 
-  // Build clear, specific error messages
   if (type === 'invalid_partner') {
-    return `Unknown person (ID ${err.runner_partner_id}) selected on this order. Should be a runner (RUN001-005) or no one.`;
+    const runner = RUNNERS.find(r => r.id === err.runner_partner_id);
+    const personName = runner ? runner.name : 'someone not in our runner list';
+    return `<strong>Wrong person selected:</strong> "${personName}" (ID ${err.runner_partner_id}) was picked as runner, but they're not one of our 5 runners.<br><em>Fix: Remove the runner, or pick the correct runner who delivered this order.</em>`;
   }
+
   if (type === 'invalid_tuple') {
-    const runnerSlot = err.runner_slot || 'None';
-    return `Wrong setup: "${method}" payment on "${err.pos_config_name || 'Unknown POS'}" with runner ${runnerSlot}. This combination is not allowed.`;
+    // Explain in plain terms what combination is wrong and WHY
+    if (method === 'Token Issue' && isCashCounter && slot) {
+      return `<strong>Token on Cash Counter:</strong> You gave a token (${method}) from Cash Counter to ${slot}. Tokens should only be issued from Cash Counter — this is correct. But check: did the runner actually take this order?<br><em>Fix: If the runner didn't take it, remove the runner. If payment was actually Cash, change payment to Cash.</em>`;
+    }
+    if (method === 'Runner Ledger' && isCashCounter) {
+      return `<strong>Runner Ledger on Cash Counter:</strong> Runner Ledger can only be used on Runner Counter (the delivery POS), not Cash Counter.<br><em>Fix: Change payment to Cash or UPI (whatever the customer actually paid).</em>`;
+    }
+    if (method === 'UPI' && isRunnerCounter && slot) {
+      return `<strong>UPI on Runner Counter:</strong> Runner Counter orders should use "Runner Ledger" or "Token Issue", not UPI. UPI is only for Cash Counter (when customer pays at counter QR).<br><em>Fix: Change payment to Runner Ledger (if runner collected cash) or Token Issue (if it was chai/coffee via token).</em>`;
+    }
+    if (method === 'Cash' && isRunnerCounter && slot) {
+      return `<strong>Cash on Runner Counter:</strong> Runner Counter orders should use "Runner Ledger" (runner collects cash) or "Token Issue" (token for chai). Don't use "Cash" on Runner Counter.<br><em>Fix: Change payment to Runner Ledger.</em>`;
+    }
+    if (!slot && isRunnerCounter) {
+      return `<strong>No runner selected:</strong> This order is on Runner Counter but no runner was picked. Every Runner Counter order needs a runner.<br><em>Fix: Assign the runner who delivered this order.</em>`;
+    }
+    if (slot && isCashCounter && (method === 'Cash' || method === 'UPI' || method === 'Card')) {
+      return `<strong>Runner on a counter order:</strong> This is a Cash Counter ${method} order, but runner ${slot} is selected. Counter walk-in orders shouldn't have a runner.<br><em>Fix: Remove the runner (it was probably left selected by mistake).</em>`;
+    }
+    // Generic fallback for other invalid tuples
+    return `<strong>Invalid combination:</strong> "${method}" on "${pos}" with ${slot || 'no runner'} is not allowed.<br><em>Fix: Either change the payment method, remove/change the runner, or check which counter this should be on.</em>`;
   }
+
   if (type === 'invalid_product_method') {
-    return `"${productStr || 'Item'}" sold with "${method}" — not allowed. ${method === 'Token Issue' ? 'Token Issue is only for Chai/Coffee/Tea/Haleem.' : method === 'Runner Ledger' ? 'Runner Ledger is only for snacks/water/packaging.' : ''}`;
+    if (method === 'Token Issue') {
+      return `<strong>Wrong item on token:</strong> "${productStr}" was sold with Token Issue, but tokens are only for <strong>Chai, Coffee, Tea, and Haleem</strong>. Snacks and other items can't be given as tokens.<br><em>Fix: Change payment to Runner Ledger (if runner delivered) or Cash (if counter sale).</em>`;
+    }
+    if (method === 'Runner Ledger') {
+      return `<strong>Wrong item on Runner Ledger:</strong> "${productStr}" was sold with Runner Ledger, but Runner Ledger is only for <strong>snacks, water, and packaging</strong>. Chai/coffee go via Token Issue.<br><em>Fix: Change payment to Token Issue (if it was a token) or Cash.</em>`;
+    }
+    return `<strong>Item+payment mismatch:</strong> "${productStr}" can't be sold with "${method}".<br><em>Fix: Change the payment method to match what actually happened.</em>`;
   }
-  if (type === 'C2_TOKEN_WRONG_RUNNER') {
-    return `Token was given to the wrong runner. Check which runner actually delivered this order.`;
+
+  if (type === 'unknown_product_warning') {
+    return `<strong>Unknown item:</strong> "${productStr || 'New product'}" is not in our system yet. This is just a warning — it won't block settlement.`;
   }
-  if (type === 'runner_missing') {
-    return `No runner assigned. "${method}" payment requires a runner to be selected.`;
-  }
-  if (type === 'payment_mismatch') {
-    return `Payment amount doesn't match order total. ${desc}`;
-  }
-  if (type === 'duplicate_payment') {
-    return `Duplicate payment detected on this order. ${desc}`;
-  }
-  if (type === 'wrong_counter') {
-    return `Order punched on wrong counter. ${desc}`;
-  }
+
   if (desc) return desc;
   return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
