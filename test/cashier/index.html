@@ -448,6 +448,8 @@ function initDashboard() {
     loadCollections();
   }
   renderStatusBar();
+  // Trigger background validation scan on dashboard load
+  fetch('/api/validator?action=scan-recent').catch(() => {});
 }
 
 // ── RUNNER GRID ──
@@ -816,8 +818,24 @@ async function doSettle(runnerId) {
   const d = cached.data;
   const runner = RUNNERS.find(r => r.id === runnerId);
   const btn = $('btnDoSettle');
-  btn.textContent = 'Settling...';
+  btn.textContent = 'Checking...';
   btn.disabled = true;
+
+  // Pre-settlement check: refresh data to catch any new errors
+  try {
+    await loadRunnerLive(runnerId);
+    const fresh = runnerDataCache[runnerId]?.data;
+    if ((fresh?.pending_errors || []).length > 0) {
+      closeConfirm();
+      toast(`${fresh.pending_errors.length} error(s) found — fix before settling`, 'err');
+      renderRunnerPanel(runnerId);
+      return;
+    }
+  } catch (e) {
+    // Pre-check failed — server-side gate is the backstop
+  }
+
+  btn.textContent = 'Settling...';
 
   try {
     const now = new Date().toISOString();
@@ -1236,9 +1254,12 @@ async function confirmCashReceived(collectionId) {
   }
 }
 
-// Auto-refresh runner data every 60s
+// Auto-scan + refresh runner data every 60s
 setInterval(() => {
-  if (currentUser) loadAllRunnerStatus();
+  if (currentUser) {
+    fetch('/api/validator?action=scan-recent').catch(() => {});
+    loadAllRunnerStatus();
+  }
 }, 60000);
 </script>
 </body>

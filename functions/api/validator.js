@@ -351,7 +351,75 @@ export async function onRequest(context) {
       }, cors);
     }
 
-    return json({ success: false, error: 'Unknown action. Use: validate, scan, check, get-my-errors, get-overview' }, cors);
+    // ── SCAN-RECENT — cursor-based incremental scan (called by cashier page on load + every 60s) ──
+    if (action === 'scan-recent') {
+      // Read last scan cursor
+      let lastScan = null;
+      try {
+        const row = await DB.prepare(`SELECT value FROM validator_state WHERE key = 'last_scan_time'`).first();
+        lastScan = row?.value || null;
+      } catch (e) { /* table may not exist yet */ }
+
+      // Default to 1 hour ago if no cursor
+      if (!lastScan) {
+        lastScan = toIST(new Date(Date.now() - 60 * 60 * 1000));
+      }
+      const nowIST = toIST(new Date());
+
+      const orders = await fetchOdooOrders(ODOO_API_KEY, lastScan, nowIST);
+
+      let validCount = 0, invalidCount = 0;
+      const allErrors = [];
+      for (const order of orders) {
+        const errs = validateOrder(order);
+        if (errs.length === 0) validCount++;
+        else { invalidCount++; allErrors.push(...errs); }
+      }
+
+      // Write errors to D1 — same batched INSERT OR IGNORE pattern
+      let written = 0;
+      if (allErrors.length > 0) {
+        const stmts = allErrors.map(err =>
+          DB.prepare(`
+            INSERT OR IGNORE INTO validation_errors
+            (order_id, order_ref, error_code, description, pos_config_id, pos_config_name,
+             payment_method_id, payment_method_name, odoo_payment_id, runner_partner_id, runner_slot,
+             product_ids, product_names, cashier_uid, cashier_name, order_amount, order_time,
+             assigned_to, assigned_role)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            err.order_id, err.order_ref, err.error_code, err.description,
+            err.pos_config_id, err.pos_config_name,
+            err.payment_method_id, err.payment_method_name, err.odoo_payment_id,
+            err.runner_partner_id, err.runner_slot,
+            JSON.stringify(err.product_ids), JSON.stringify(err.product_names),
+            err.cashier_uid, err.cashier_name, err.order_amount, err.order_time,
+            err.assigned_to, err.assigned_role
+          )
+        );
+        const results = await DB.batch(stmts);
+        written = results.filter(r => r.meta?.changes > 0).length;
+      }
+
+      // Update cursor
+      try {
+        await DB.prepare(
+          `INSERT OR REPLACE INTO validator_state (key, value, updated_at) VALUES ('last_scan_time', ?, datetime('now'))`
+        ).bind(nowIST).run();
+      } catch (e) { /* cursor update non-critical */ }
+
+      return json({
+        success: true,
+        scan_from: lastScan,
+        scan_to: nowIST,
+        orders_checked: orders.length,
+        valid: validCount,
+        invalid: invalidCount,
+        errors_written: written
+      }, cors);
+    }
+
+    return json({ success: false, error: 'Unknown action. Use: validate, scan, scan-recent, check, get-my-errors, get-overview' }, cors);
 
   } catch (e) {
     return json({ success: false, error: e.message, stack: e.stack }, cors, 500);
@@ -719,6 +787,13 @@ function istToUtc(istDateStr) {
   // Input: "YYYY-MM-DD HH:MM:SS" in IST → subtract 5:30 for UTC
   const d = new Date(istDateStr.replace(' ', 'T') + '+05:30');
   return d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+}
+
+function toIST(date) {
+  // Convert any date to IST string "YYYY-MM-DD HH:MM:SS"
+  const d = new Date(date);
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  return ist.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
 }
 
 function json(data, cors, status = 200) {

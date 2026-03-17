@@ -48,6 +48,9 @@ export async function onRequest(context) {
   // Partner aliases — duplicate Odoo contacts that map to known runners
   const PARTNER_ALIASES = {90: 64, 37: 64};
 
+  // Runner partner_id → slot code (for validation error gate)
+  const RUNNER_SLOT_MAP = {64:'RUN001', 65:'RUN002', 66:'RUN003', 67:'RUN004', 68:'RUN005'};
+
   // Token product name mapping (shared by runner-live and runner-performance)
   const TOKEN_PRODUCT_NAMES = {
     1028: 'Irani Chai', 1102: 'Coffee', 1103: 'Lemon Tea',
@@ -133,6 +136,27 @@ export async function onRequest(context) {
           success: false,
           error: 'You already settled this ' + (runner_id === 'counter' ? 'counter' : 'runner') + ' at ' + timeStr + '. Wait a few minutes if you need to re-settle.'
         }), {headers: corsHeaders});
+      }
+
+      // Validation error gate — block settlement if pending errors exist
+      // Wrapped in try/catch: if validation_errors table doesn't exist (ops/ hasn't run
+      // validator schema), settlement proceeds normally. Zero impact on production.
+      try {
+        const slot = RUNNER_SLOT_MAP[runner_id];
+        if (slot) {
+          const pending = await DB.prepare(
+            `SELECT COUNT(*) as cnt FROM validation_errors WHERE runner_slot = ? AND status = 'pending'`
+          ).bind(slot).first();
+          if (pending && pending.cnt > 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Cannot settle: ${pending.cnt} validation error(s) pending for ${slot}. Fix all errors before settling.`,
+              pending_errors: pending.cnt
+            }), {headers: corsHeaders});
+          }
+        }
+      } catch (e) {
+        // Table doesn't exist or query fails — proceed with settlement (backward compat)
       }
 
       const settledAt = new Date().toISOString();
