@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCH Shift Reconciliation</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1a;--bg2:#111827;--card:#1a2234;--border:#2d3a4f;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--orange:#f97316}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .container{max-width:1200px;margin:0 auto;padding:20px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+    .header h1{font-size:24px;font-weight:700;display:flex;align-items:center;gap:10px}
+    .header h1::before{content:'';width:6px;height:28px;background:linear-gradient(180deg,var(--cyan),var(--blue));border-radius:3px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .btn{padding:8px 16px;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .btn-primary{background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff}
+    .btn svg{width:14px;height:14px}
+
+    /* Filter bar */
+    .filter-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+    .filter-group{display:flex;flex-direction:column;gap:4px}
+    .filter-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    input[type="date"],input[type="time"]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace}
+    input:focus{outline:none;border-color:var(--cyan)}
+    input::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+    .live-toggle{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+    .live-toggle.active{background:rgba(16,185,129,.15);border-color:var(--green)}
+    .live-switch{width:32px;height:18px;background:var(--border);border-radius:9px;position:relative}
+    .live-toggle.active .live-switch{background:var(--green)}
+    .live-switch::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:all .2s}
+    .live-toggle.active .live-switch::after{left:16px}
+    .live-toggle span{font-size:12px;color:var(--text2)}
+    .live-toggle.active span{color:var(--green)}
+    .quick-btns{display:flex;gap:6px;margin-left:auto}
+    .quick-btn{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer}
+    .quick-btn:hover,.quick-btn.active{border-color:var(--cyan);color:var(--text)}
+    .quick-btn.active{background:var(--cyan);color:#fff}
+
+    /* Summary cards */
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+    .summary-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+    .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .summary-card .value{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .summary-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+
+    /* Sections */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+    .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+    .section-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';width:3px;height:14px;background:var(--cyan);border-radius:2px}
+
+    /* Balance equation */
+    .recon-eq{display:grid;gap:6px;font-size:13px}
+    .recon-line{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+    .recon-line:last-child{border-bottom:none}
+    .recon-line .lbl{color:var(--text2)}
+    .recon-line .val{font-weight:600;font-family:'JetBrains Mono',monospace}
+    .recon-line.total{font-weight:700;border-top:2px solid var(--border);padding-top:10px}
+    .recon-variance{text-align:center;padding:12px;border-radius:8px;margin-top:10px;font-weight:600;font-size:14px}
+    .recon-variance.balanced{background:rgba(16,185,129,.1);color:var(--green)}
+    .recon-variance.unbalanced{background:rgba(239,68,68,.1);color:var(--red)}
+
+    /* UPI verification */
+    .upi-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg2);border-radius:8px;margin-bottom:8px}
+    .upi-row .name{font-size:13px;font-weight:500}
+    .upi-row .amounts{display:flex;gap:16px;font-size:13px;font-family:'JetBrains Mono',monospace}
+    .upi-row .amounts .odoo{color:var(--text2)}
+    .upi-row .amounts .rzp{color:var(--green);font-weight:600}
+    .upi-row .var-badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
+    .var-badge.ok{background:rgba(16,185,129,.15);color:var(--green)}
+    .var-badge.warn{background:rgba(239,68,68,.15);color:var(--red)}
+
+    /* Runner table */
+    .runner-table{width:100%;border-collapse:collapse;font-size:13px}
+    .runner-table th{text-align:left;padding:8px 10px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
+    .runner-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-family:'JetBrains Mono',monospace}
+    .runner-table tr:last-child td{border-bottom:none}
+    .runner-table .name-cell{font-family:'Plus Jakarta Sans',sans-serif;font-weight:500}
+    .runner-table .cash-cell{font-weight:700}
+    .cash-positive{color:var(--orange)}
+    .cash-negative{color:var(--green)}
+    .cash-zero{color:var(--green)}
+    .runner-table .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+    /* Cross-payments */
+    .cross-item{padding:10px 12px;background:var(--bg2);border-radius:8px;margin-bottom:8px;font-size:13px;border-left:3px solid var(--purple)}
+    .cross-item.probable{border-left-color:var(--blue);opacity:.8}
+    .cross-item .desc{margin-bottom:4px}
+    .cross-item .impact{color:var(--text2);font-size:11px}
+
+    /* Variance sources */
+    .var-source{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg2);border-radius:8px;margin-bottom:8px}
+    .var-source .source-lbl{font-size:13px;flex:1}
+    .var-source .source-amt{font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--red)}
+    .var-source .source-count{font-size:11px;color:var(--text2);margin-left:8px}
+    .var-source .fixable{font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(16,185,129,.15);color:var(--green);margin-left:8px}
+
+    /* Discrepancies */
+    .disc-item{padding:10px 12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;margin-bottom:8px;font-size:13px}
+    .disc-item .disc-type{font-size:10px;color:var(--red);text-transform:uppercase;font-weight:600;margin-bottom:4px}
+
+    .error{background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;display:none}
+    .error.show{display:block}
+    .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,15,26,.95);display:flex;align-items:center;justify-content:center;z-index:100}
+    .loading.hidden{display:none}
+    .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty{text-align:center;padding:20px;color:var(--muted);font-size:13px}
+
+    @media(max-width:1024px){.grid-2{grid-template-columns:1fr}.summary-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){.summary-grid{grid-template-columns:1fr}.filter-bar{flex-direction:column}.quick-btns{margin-left:0;width:100%;flex-wrap:wrap}.runner-table{font-size:11px}.runner-table th,.runner-table td{padding:6px 6px}}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div class="container">
+    <header class="header">
+      <h1>Shift Reconciliation</h1>
+      <div class="header-right">
+        <div class="status"><div class="status-dot" id="dot"></div><span id="statusText">Loading...</span></div>
+        <button class="btn btn-primary" onclick="refresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+      </div>
+    </header>
+
+    <div class="filter-bar">
+      <div class="filter-group"><span class="filter-label">Shift Start</span><input type="date" id="fromDate"><input type="time" id="fromTime"></div>
+      <div class="filter-group"><span class="filter-label">Shift End</span><input type="date" id="toDate"><input type="time" id="toTime"></div>
+      <div class="live-toggle active" id="liveToggle" onclick="toggleLive()"><div class="live-switch"></div><span>Live</span></div>
+      <button class="btn btn-primary" onclick="applyFilter()">Apply</button>
+      <div class="quick-btns">
+        <button class="quick-btn" onclick="quick('12h',this)">Last 12h</button>
+        <button class="quick-btn active" onclick="quick('24h',this)">Last 24h</button>
+        <button class="quick-btn" onclick="quick('today',this)">Today</button>
+        <button class="quick-btn" onclick="quick('yesterday',this)">Yesterday</button>
+      </div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <!-- Summary cards -->
+    <div class="summary-grid" id="summaryGrid">
+      <div class="summary-card"><div class="label">Total Sales</div><div class="value" id="totalSales">--</div><div class="sub" id="totalOrders">-- orders</div></div>
+      <div class="summary-card"><div class="label">Expected Cash</div><div class="value" id="expectedCash" style="color:var(--orange)">--</div><div class="sub">Sales - UPI - Card - Comp</div></div>
+      <div class="summary-card"><div class="label">Accounted Cash</div><div class="value" id="accountedCash">--</div><div class="sub">Counter + Runners</div></div>
+      <div class="summary-card"><div class="label">Verified UPI</div><div class="value" id="verifiedUPI" style="color:var(--green)">--</div><div class="sub" id="upiCount">-- payments</div></div>
+      <div class="summary-card"><div class="label">Card</div><div class="value" id="cardTotal">--</div></div>
+      <div class="summary-card"><div class="label">Variance</div><div class="value" id="variance">--</div><div class="sub" id="varianceLabel">--</div></div>
+    </div>
+
+    <!-- Balance Equation + UPI Verification -->
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">Balance Equation</div>
+        <div class="recon-eq" id="balanceEq"></div>
+        <div class="recon-variance" id="balanceStatus"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">UPI Cross-Verification</div>
+        <div id="upiVerify"></div>
+      </div>
+    </div>
+
+    <!-- Runner Breakdown -->
+    <div class="section">
+      <div class="section-title">Runner Breakdown</div>
+      <div style="overflow-x:auto">
+        <table class="runner-table" id="runnerTable">
+          <thead><tr><th>Runner</th><th>Tokens</th><th>Sales</th><th>UPI (QR)</th><th>Cross-Pay</th><th>Cash Due</th></tr></thead>
+          <tbody id="runnerBody"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cash Breakdown -->
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">Cash Breakdown</div>
+        <div class="recon-eq" id="cashBreakdown"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Variance Sources</div>
+        <div id="varianceSources"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Cross-Payments -->
+    <div class="section" id="crossPaySection" style="display:none">
+      <div class="section-title">Cross-Payments <span id="crossCount" style="font-size:12px;color:var(--text2);font-weight:400;margin-left:auto"></span></div>
+      <div id="crossPayments"></div>
+    </div>
+
+    <!-- Discrepancies -->
+    <div class="section" id="discSection" style="display:none">
+      <div class="section-title">Discrepancies <span id="discCount" style="font-size:12px;color:var(--red);font-weight:400;margin-left:auto"></span></div>
+      <div id="discrepancies"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/nch-data';
+    let isLive = true, timer = null;
+    const $ = id => document.getElementById(id);
+    const fmt = n => n != null ? Math.round(n).toLocaleString('en-IN') : '0';
+    const fmtR = n => '₹' + fmt(n);
+    const fmtT = t => new Date(t).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true});
+    const dateStr = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const timeStr = d => d.toTimeString().slice(0,5);
+
+    function init() {
+      // Default: last 24 hours (rolling — no hardcoded shift time)
+      const now = new Date();
+      const from = new Date(now.getTime() - 24*60*60*1000);
+      $('fromDate').value = dateStr(from);
+      $('fromTime').value = timeStr(from);
+      $('toDate').value = dateStr(now);
+      $('toTime').value = timeStr(now);
+    }
+
+    function toggleLive() {
+      isLive = !isLive;
+      $('liveToggle').classList.toggle('active', isLive);
+      $('toDate').disabled = isLive; $('toTime').disabled = isLive;
+      if (isLive) { const now = new Date(); $('toDate').value = dateStr(now); $('toTime').value = timeStr(now); startTimer(); }
+      else { stopTimer(); }
+    }
+
+    function quick(range, btn) {
+      document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const now = new Date(), from = new Date();
+      if (range === '12h') {
+        from.setTime(now.getTime() - 12*60*60*1000);
+        isLive = true;
+      } else if (range === '24h') {
+        from.setTime(now.getTime() - 24*60*60*1000);
+        isLive = true;
+      } else if (range === 'today') {
+        from.setHours(0,0,0,0);
+        isLive = true;
+      } else if (range === 'yesterday') {
+        from.setDate(from.getDate()-1); from.setHours(0,0,0,0);
+        now.setDate(now.getDate()-1); now.setHours(23,59,0,0);
+        isLive = false;
+      }
+
+      $('fromDate').value = dateStr(from); $('fromTime').value = timeStr(from);
+      if (range === 'yesterday') {
+        $('toDate').value = dateStr(now); $('toTime').value = '23:59';
+        $('liveToggle').classList.remove('active'); $('toDate').disabled = false; $('toTime').disabled = false;
+        stopTimer();
+      } else {
+        $('liveToggle').classList.add('active'); $('toDate').disabled = true; $('toTime').disabled = true;
+        const n = new Date(); $('toDate').value = dateStr(n); $('toTime').value = timeStr(n);
+        startTimer();
+      }
+      refresh();
+    }
+
+    function applyFilter() {
+      document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+      refresh();
+    }
+
+    function buildUrl() {
+      let url = API + '?from=' + $('fromDate').value + 'T' + $('fromTime').value + ':00';
+      if (!isLive) url += '&to=' + $('toDate').value + 'T' + $('toTime').value + ':00';
+      return url;
+    }
+
+    function update(data) {
+      const d = data.data;
+      const recon = d.shiftReconciliation;
+      const bc = recon.balanceCheck;
+      const verify = recon.upiVerification;
+
+      // Summary cards
+      $('totalSales').textContent = fmtR(recon.totalSales);
+      $('totalOrders').textContent = d.summary.totalOrders + ' orders · ' + d.summary.activeRunners + ' runners';
+      $('expectedCash').textContent = fmtR(recon.expectedTotalCash);
+      $('accountedCash').textContent = fmtR(bc.accountedCash);
+      $('accountedCash').style.color = bc.isBalanced ? 'var(--green)' : 'var(--red)';
+      $('verifiedUPI').textContent = fmtR(recon.verifiedUPI.total);
+      $('upiCount').textContent = (data.counts.razorpay || 0) + ' payments';
+      $('cardTotal').textContent = fmtR(recon.card);
+
+      const v = bc.variance;
+      $('variance').textContent = fmtR(Math.abs(v));
+      $('variance').style.color = bc.isBalanced ? 'var(--green)' : 'var(--red)';
+      $('varianceLabel').textContent = bc.isBalanced ? 'Shift Balanced' : (v > 0 ? 'Cash short' : 'Cash excess');
+
+      // Balance equation
+      $('balanceEq').innerHTML = `
+        <div class="recon-line"><span class="lbl">Total Sales</span><span class="val">${fmtR(recon.totalSales)}</span></div>
+        <div class="recon-line"><span class="lbl">&minus; Verified UPI (Razorpay)</span><span class="val" style="color:var(--green)">${fmtR(recon.verifiedUPI.total)}</span></div>
+        <div class="recon-line"><span class="lbl">&minus; Card</span><span class="val">${fmtR(recon.card)}</span></div>
+        <div class="recon-line"><span class="lbl">&minus; Complimentary</span><span class="val">${fmtR(recon.complimentary)}</span></div>
+        <div class="recon-line total"><span class="lbl">= Expected Cash</span><span class="val" style="color:var(--orange)">${fmtR(recon.expectedTotalCash)}</span></div>
+        <div class="recon-line"><span class="lbl">Counter Drawer</span><span class="val">${fmtR(recon.cashBreakdown.counterDrawer)}</span></div>
+        <div class="recon-line"><span class="lbl">Runner Cash Total</span><span class="val">${fmtR(recon.cashBreakdown.totalRunnerCash)}</span></div>
+        <div class="recon-line total"><span class="lbl">= Accounted Cash</span><span class="val">${fmtR(bc.accountedCash)}</span></div>
+      `;
+      $('balanceStatus').className = 'recon-variance ' + (bc.isBalanced ? 'balanced' : 'unbalanced');
+      $('balanceStatus').textContent = bc.isBalanced ? 'Shift Balanced' :
+        (v > 0 ? '₹' + fmt(Math.abs(v)) + ' cash unaccounted' : '₹' + fmt(Math.abs(v)) + ' extra cash');
+
+      // UPI verification
+      const counterV = verify.cashCounter;
+      const rcV = verify.runnerCounter;
+      $('upiVerify').innerHTML = `
+        ${upiRow('Cash Counter QR', counterV.odooUPI, recon.verifiedUPI.counterQR, counterV.variance)}
+        ${upiRow('Runner Counter QR', rcV.odooUPI, recon.verifiedUPI.runnerCounterQR, rcV.variance)}
+        ${Object.entries(recon.verifiedUPI.runnerQRs || {}).map(([barcode, amt]) => {
+          const runner = d.runners.find(r => r.barcode === barcode);
+          return upiRow((runner ? runner.name : barcode) + ' QR', null, amt, null);
+        }).join('')}
+        <div style="margin-top:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;display:flex;justify-content:space-between;font-weight:600">
+          <span>Total UPI (Razorpay)</span>
+          <span style="color:var(--green);font-family:'JetBrains Mono',monospace">${fmtR(recon.verifiedUPI.total)}</span>
+        </div>
+      `;
+
+      // Runner breakdown
+      const runners = recon.cashBreakdown.runnerCashObligations || [];
+      if (runners.length) {
+        $('runnerBody').innerHTML = runners.map(r => {
+          const cash = r.cashToCollect;
+          const cashCls = cash <= 0 ? 'cash-zero' : cash > 1500 ? 'cash-positive' : cash > 500 ? 'cash-positive' : '';
+          const dotColor = cash <= 0 ? 'var(--green)' : cash > 1500 ? 'var(--red)' : cash > 500 ? 'var(--orange)' : 'var(--green)';
+          return `<tr>
+            <td class="name-cell"><span class="status-dot" style="background:${dotColor}"></span>${r.name}</td>
+            <td>${fmtR(r.tokens)}</td>
+            <td>${fmtR(r.sales)}</td>
+            <td style="color:var(--green)">${fmtR(r.upi)}</td>
+            <td style="color:var(--purple)">${r.crossPaymentCredit > 0 ? fmtR(r.crossPaymentCredit) : '—'}</td>
+            <td class="cash-cell ${cashCls}">${fmtR(cash)}</td>
+          </tr>`;
+        }).join('');
+      } else {
+        $('runnerBody').innerHTML = '<tr><td colspan="6" class="empty">No runner activity</td></tr>';
+      }
+
+      // Cash breakdown
+      $('cashBreakdown').innerHTML = `
+        <div class="recon-line"><span class="lbl">Counter Cash (PM 37)</span><span class="val">${fmtR(d.mainCounter.cash)}</span></div>
+        <div class="recon-line"><span class="lbl">Counter UPI (PM 38)</span><span class="val">${fmtR(d.mainCounter.upi)}</span></div>
+        <div class="recon-line"><span class="lbl">Counter Card (PM 39)</span><span class="val">${fmtR(d.mainCounter.card)}</span></div>
+        <div class="recon-line"><span class="lbl">Token Issue</span><span class="val">${fmtR(d.mainCounter.tokenIssue)}</span></div>
+        <div class="recon-line"><span class="lbl">Complimentary</span><span class="val">${fmtR(d.mainCounter.complimentary)}</span></div>
+        <div class="recon-line"><span class="lbl">Runner Counter UPI</span><span class="val">${fmtR(d.runnerCounter.upi)}</span></div>
+        <div class="recon-line"><span class="lbl">Runner Counter Direct</span><span class="val">${fmtR(d.runnerCounter.total)}</span></div>
+        <div class="recon-line total"><span class="lbl">Counter Orders</span><span class="val">${d.mainCounter.orderCount}</span></div>
+        <div class="recon-line"><span class="lbl">Runner Counter Orders</span><span class="val">${d.runnerCounter.orderCount}</span></div>
+      `;
+
+      // Variance sources
+      const sources = recon.varianceSources || [];
+      if (sources.length) {
+        $('varianceSources').innerHTML = sources.map(s => `
+          <div class="var-source">
+            <span class="source-lbl">${s.label}</span>
+            ${s.fixable ? '<span class="fixable">Fixable</span>' : ''}
+            <span class="source-count">${s.count}x</span>
+            <span class="source-amt">${fmtR(Math.abs(s.amount))}</span>
+          </div>
+        `).join('');
+      } else {
+        $('varianceSources').innerHTML = bc.isBalanced
+          ? '<div class="empty" style="color:var(--green)">No variance — shift is balanced</div>'
+          : '<div class="empty">No classified sources</div>';
+      }
+
+      // Cross-payments
+      const crossPay = recon.crossPayments || [];
+      if (crossPay.length) {
+        $('crossPaySection').style.display = 'block';
+        $('crossCount').textContent = crossPay.length + ' detected';
+        $('crossPayments').innerHTML = crossPay.map(cp => `
+          <div class="cross-item ${cp.isProbable ? 'probable' : ''}">
+            <div class="desc">${cp.description}</div>
+            <div class="impact">${cp.runnerCashImpact} · ${cp.isProbable ? 'Probable (heuristic)' : 'Confirmed'}</div>
+          </div>
+        `).join('');
+      } else {
+        $('crossPaySection').style.display = 'none';
+      }
+
+      // Discrepancies
+      const discs = d.discrepancies || [];
+      if (discs.length) {
+        $('discSection').style.display = 'block';
+        $('discCount').textContent = discs.length + ' critical';
+        $('discrepancies').innerHTML = discs.map(disc => `
+          <div class="disc-item">
+            <div class="disc-type">${disc.type.replace(/_/g, ' ')}</div>
+            <div>${disc.message}</div>
+          </div>
+        `).join('');
+      } else {
+        $('discSection').style.display = 'none';
+      }
+
+      // Status
+      $('dot').style.background = 'var(--green)';
+      $('statusText').textContent = (isLive ? 'Live · ' : '') + fmtT(data.timestamp);
+      if (isLive) { const now = new Date(); $('toDate').value = dateStr(now); $('toTime').value = timeStr(now); }
+    }
+
+    function upiRow(name, odoo, rzp, variance) {
+      const hasVar = variance != null && Math.abs(variance) > 1;
+      return `<div class="upi-row">
+        <span class="name">${name}</span>
+        <span class="amounts">
+          ${odoo != null ? '<span class="odoo">Odoo: ' + fmtR(odoo) + '</span>' : ''}
+          <span class="rzp">Rzp: ${fmtR(rzp)}</span>
+        </span>
+        ${variance != null ? `<span class="var-badge ${hasVar ? 'warn' : 'ok'}">${hasVar ? fmtR(Math.abs(variance)) + ' var' : 'OK'}</span>` : ''}
+      </div>`;
+    }
+
+    function startTimer() { stopTimer(); if (isLive) timer = setInterval(refresh, 30000); }
+    function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+
+    async function refresh() {
+      $('dot').style.background = 'var(--yellow)'; $('statusText').textContent = 'Loading...'; $('error').classList.remove('show');
+      try {
+        const res = await fetch(buildUrl());
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'API error');
+        update(data);
+        $('loading').classList.add('hidden');
+      } catch(e) {
+        $('error').textContent = e.message; $('error').classList.add('show');
+        $('dot').style.background = 'var(--red)'; $('statusText').textContent = 'Error';
+        $('loading').classList.add('hidden');
+      }
+    }
+
+    init(); refresh(); startTimer();
+  </script>
+</body>
+</html>

@@ -199,6 +199,7 @@
       <a href="/ops/inventory-overview/" class="card" data-page="inventory-overview"><div class="card-icon blue">&#x1F4E6;</div><span class="arrow">&#x2192;</span><h2>Inventory Overview</h2><p>Stock levels, consumption analysis, and purchase tracking.</p></a>
       <a href="/ops/runner-intel/" class="card" data-page="runner-intel"><div class="card-icon purple">&#x1F9E0;</div><span class="arrow">&#x2192;</span><h2>Runner Intelligence</h2><p>Owner performance tracking and runner analytics.</p></a>
       <a href="/ops/consumption/" class="card" data-page="consumption"><div class="card-icon teal">&#x1F4C8;</div><span class="arrow">&#x2192;</span><h2>Consumption</h2><p>Inventory consumption tracking and analysis.</p></a>
+      <a href="/ops/shift/" class="card" data-page="shift"><div class="card-icon teal">&#x23F1;&#xFE0F;</div><span class="arrow">&#x2192;</span><h2>Shift Reconciliation</h2><p>Flexible shift tracking — cash, UPI, runner breakdown & variance.</p></a>
       <a href="/ops/cash-analysis/" class="card" data-page="cash-analysis"><div class="card-icon purple">&#x1F4B5;</div><span class="arrow">&#x2192;</span><h2>Cash Analysis</h2><p>Cash flow analysis dashboard.</p></a>
     </div>
   </div>
@@ -497,9 +498,10 @@
     // ── Counter + Petty (Cashier) ──
     function renderCounterPetty(ctx) {
       const counterTotal = ctx.counterBal?.total_unsettled || ctx.counterBal?.total || 0;
-      const pettyBal = ctx.pettyData?.balance?.current_balance ?? ctx.pettyData?.current_balance ?? '—';
-      const pettyNum = typeof pettyBal === 'number' ? pettyBal : 0;
-      const pettyCls = pettyNum < 0 ? 'red' : pettyNum < 200 ? 'orange' : '';
+      const petty = ctx.pettyData;
+      const pettyBal = typeof petty?.balance === 'number' ? petty.balance : 0;
+      const pettyCls = pettyBal < 0 ? 'red' : pettyBal < 200 ? 'orange' : '';
+      const lastFund = petty?.last_funded_by ? `Last: +${fmt(petty.last_funded_amount)} by ${petty.last_funded_by}` : '';
 
       return `<div class="widget">
         <div class="widget-hdr"><h3>Cash Status</h3></div>
@@ -509,8 +511,9 @@
             <div class="cash-sub">Counter Cash</div>
           </div>
           <div class="cash-card">
-            <div class="cash-big ${pettyCls}">${typeof pettyBal==='number' ? fmt(pettyBal) : pettyBal}</div>
+            <div class="cash-big ${pettyCls}">${fmt(pettyBal)}</div>
             <div class="cash-sub">Petty Cash</div>
+            ${lastFund ? `<div style="font-size:10px;color:var(--green);margin-top:4px">${lastFund}</div>` : ''}
           </div>
         </div>
       </div>`;
@@ -594,30 +597,39 @@
     function renderPettyControl(ctx) {
       const petty = ctx.pettyData;
       if (!petty) return '';
-      const bal = petty.balance?.current_balance ?? petty.current_balance ?? 0;
-      const txns = petty.today_expenses || petty.transactions || [];
-      const totalSpent = petty.today_total || txns.reduce((s,t) => s + (t.amount||0), 0);
+      const bal = typeof petty.balance === 'number' ? petty.balance : 0;
+      const txns = petty.transactions || [];
+      const expenses = txns.filter(t => t.transaction_type === 'expense');
+      const funds = txns.filter(t => t.transaction_type === 'fund_add');
+      const totalSpent = petty.today_expenses || 0;
       const balCls = bal < 0 ? 'red' : bal < 200 ? 'orange' : '';
 
       let txnRows = '';
-      for (const t of txns.slice(0, 5)) {
-        txnRows += `<div class="petty-txn">
-          <span class="cat">${t.category_name || t.description || '—'}</span>
-          <span class="amt">-${fmt(t.amount)}</span>
-        </div>`;
+      for (const t of txns.slice(0, 8)) {
+        if (t.transaction_type === 'fund_add') {
+          txnRows += `<div class="petty-txn">
+            <span class="cat" style="color:var(--green)">+Fund <small style="color:var(--text2)">by ${t.recorded_by_name || '?'}</small></span>
+            <span class="amt" style="color:var(--green)">+${fmt(t.amount)}</span>
+          </div>`;
+        } else {
+          txnRows += `<div class="petty-txn">
+            <span class="cat">${t.category_name || t.description || '—'} <small style="color:var(--text2)">${t.recorded_by_name || ''}</small></span>
+            <span class="amt">-${fmt(t.amount)}</span>
+          </div>`;
+        }
       }
-      if (!txnRows) txnRows = '<div style="text-align:center;padding:8px;color:var(--text2);font-size:13px">No expenses today</div>';
+      if (!txnRows) txnRows = '<div style="text-align:center;padding:8px;color:var(--text2);font-size:13px">No transactions today</div>';
 
       return `<div class="widget">
         <div class="widget-hdr"><h3>Petty Cash</h3></div>
         <div style="text-align:center;padding:8px 0">
           <div class="cash-big ${balCls}">${fmt(bal)}</div>
-          <div class="cash-sub">${totalSpent > 0 ? fmt(totalSpent) + ' spent today' : 'Current balance'}</div>
+          <div class="cash-sub">${totalSpent > 0 ? fmt(totalSpent) + ' spent today · ' + expenses.length + ' expense' + (expenses.length!==1?'s':'') : 'Current balance'}</div>
         </div>
-        ${txnRows ? `<div style="margin-top:8px">${txnRows}</div>` : ''}
+        <div style="margin-top:8px">${txnRows}</div>
         <div class="fund-row">
-          <input type="number" class="fund-input" id="fundAmt" placeholder="Amount" min="100">
-          <button class="fund-btn" onclick="fundPetty()">Fund</button>
+          <input type="number" class="fund-input" id="fundAmt" placeholder="Reimburse amount" min="100">
+          <button class="fund-btn" onclick="fundPetty()">Reimburse</button>
         </div>
       </div>`;
     }

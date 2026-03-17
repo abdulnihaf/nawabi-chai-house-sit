@@ -42,8 +42,8 @@ export async function onRequest(context) {
   // Pages visible per role (non-admin)
   const ROLE_PAGES = {
     runner:     ['runner'],
-    cashier:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter'],
-    manager:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'inventory', 'live', 'sales', 'token-settlement', 'staffing'],
+    cashier:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'shift'],
+    manager:    ['settlement', 'runner', 'runner-intel', 'kitchen-ops', 'chai-counter', 'daily-pnl', 'inventory', 'live', 'sales', 'token-settlement', 'staffing', 'shift'],
     staff:      ['chai-counter', 'kitchen-ops']
   };
 

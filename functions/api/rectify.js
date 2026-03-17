@@ -355,7 +355,7 @@ async function disputeError(context, DB, cors) {
 // ── PETTY CASH ── (separate fund held by cashiers/Tanveer/Basheer, NOT mixed with counter cash)
 // Petty cash holders: Cashiers + Tanveer + Basheer
 const PETTY_CASH_HOLDERS = new Set(['CASH001', 'CASH002', 'GM001', 'MGR001']);
-const CAN_FUND_PETTY = new Set(['admin', 'gm', 'manager']); // Only these can add funds
+const CAN_FUND_PETTY = new Set(['admin']); // Only Naveen (admin) reimburses petty cash
 
 async function pettyExpense(context, DB, cors) {
   const body = await context.request.json();
@@ -409,7 +409,7 @@ async function pettyFund(context, DB, cors) {
   const staff = verifyPin(pin);
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
   if (!CAN_FUND_PETTY.has(staff.role)) {
-    return json({success: false, error: 'Only GM/Manager/Admin can fund petty cash'}, cors, 403);
+    return json({success: false, error: 'Only admin can fund petty cash'}, cors, 403);
   }
 
   const amt = parseFloat(amount);
