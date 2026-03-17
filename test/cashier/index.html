@@ -163,6 +163,31 @@
     .toast.show{opacity:1}
     .toast.ok{border-color:var(--green);color:var(--green)}
     .toast.err{border-color:var(--red);color:var(--red)}
+
+    /* ── HISTORY SECTION ── */
+    .hist-tabs{display:flex;gap:6px;margin-bottom:16px}
+    .hist-tab{flex:1;padding:12px 8px;border-radius:10px;background:var(--bg2);border:2px solid var(--border);color:var(--text2);font-size:13px;font-weight:600;text-align:center;cursor:pointer;font-family:inherit;min-height:44px}
+    .hist-tab.active{border-color:var(--purple);color:var(--purple);background:rgba(168,85,247,0.1)}
+    .hist-tab:active{transform:scale(0.97)}
+    .hist-content{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;max-height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .hist-date{font-size:12px;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:12px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px}
+    .hist-date:first-child{padding-top:0}
+    .hist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(45,58,79,0.5);font-size:13px;gap:8px}
+    .hist-row:last-child{border-bottom:none}
+    .hist-row .hr-name{font-weight:600;min-width:70px;white-space:nowrap}
+    .hist-row .hr-amounts{display:flex;gap:10px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+    .hist-row .hr-amounts span{white-space:nowrap}
+    .hist-row .hr-cash{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px;min-width:60px;text-align:right}
+    .hist-row .hr-variance{font-size:11px;font-weight:600;min-width:80px;text-align:right}
+    .hist-row .hr-variance.short{color:var(--red)}
+    .hist-row .hr-variance.extra{color:var(--green)}
+    .hist-row .hr-variance.ok{color:var(--text2)}
+    .hist-row.counter{background:rgba(234,179,8,0.05);border-radius:8px;padding:10px 8px;margin:4px 0}
+    .hist-day-total{display:flex;justify-content:space-between;padding:10px 0;font-weight:700;font-size:14px;border-top:2px solid var(--border);margin-top:4px}
+    .hist-collect-row{padding:12px 0;border-bottom:1px solid rgba(45,58,79,0.5)}
+    .hist-collect-row:last-child{border-bottom:none}
+    .hist-collect-main{display:flex;justify-content:space-between;align-items:center;font-size:14px}
+    .hist-collect-detail{font-size:12px;color:var(--text2);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
   </style>
 </head>
 <body>
@@ -262,6 +287,19 @@
       </div>
       <!-- In-transit collections -->
       <div id="inTransitList" style="margin-top:16px"></div>
+    </div>
+
+    <!-- HISTORY SECTION -->
+    <div class="section-label" style="margin-top:24px">History</div>
+    <div id="historySection">
+      <div class="hist-tabs">
+        <button class="hist-tab active" id="htab-settlements" onclick="switchHistTab('settlements')">Settlements</button>
+        <button class="hist-tab" id="htab-expenses" onclick="switchHistTab('expenses')">Expenses</button>
+        <button class="hist-tab" id="htab-collections" onclick="switchHistTab('collections')">Collections</button>
+      </div>
+      <div class="hist-content" id="histContent">
+        <div class="loading"><span class="spinner"></span>Loading...</div>
+      </div>
     </div>
 
     <!-- SETTLEMENT STATUS -->
@@ -448,6 +486,8 @@ function initDashboard() {
     loadCollections();
   }
   renderStatusBar();
+  // Load settlement history by default
+  loadHistTab('settlements');
   // Trigger background validation scan on dashboard load
   fetch('/api/validator?action=scan-recent').catch(() => {});
 }
@@ -865,6 +905,9 @@ async function doSettle(runnerId) {
       renderRunnerPanel(runnerId);
       renderStatusBar();
       loadCounterData();
+      // Refresh history if loaded
+      delete historyCache.settlements;
+      if (activeHistTab === 'settlements') loadHistTab('settlements');
     } else {
       toast(result.error || 'Settlement failed', 'err');
       btn.textContent = 'Retry';
@@ -973,6 +1016,9 @@ async function submitExpense() {
       }
       selectedExpenseCode = null;
       loadExpenses();
+      loadCounterData();
+      delete historyCache.expenses;
+      if (activeHistTab === 'expenses') loadHistTab('expenses');
     } else {
       toast(data.error || 'Failed', 'err');
     }
@@ -1190,6 +1236,8 @@ async function doCollectCash() {
       $('collectAmount').value = '';
       loadCollections();
       loadCounterData();
+      delete historyCache.collections;
+      if (activeHistTab === 'collections') loadHistTab('collections');
     } else {
       toast(data.error || 'Failed', 'err');
     }
@@ -1252,6 +1300,195 @@ async function confirmCashReceived(collectionId) {
   } catch (e) {
     toast('Connection error', 'err');
   }
+}
+
+// ── HISTORY SECTION ──
+let historyCache = {}; // tab → data
+let activeHistTab = 'settlements';
+
+function switchHistTab(tab) {
+  activeHistTab = tab;
+  document.querySelectorAll('.hist-tab').forEach(t => t.classList.remove('active'));
+  $('htab-' + tab).classList.add('active');
+  if (historyCache[tab]) {
+    renderHistTab(tab, historyCache[tab]);
+  } else {
+    $('histContent').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+    loadHistTab(tab);
+  }
+}
+
+async function loadHistTab(tab) {
+  try {
+    let data;
+    if (tab === 'settlements') {
+      const res = await fetch('/api/settlement?action=history&limit=200');
+      data = await res.json();
+      if (data.success) historyCache.settlements = data.settlements || [];
+    } else if (tab === 'expenses') {
+      const res = await fetch('/api/settlement?action=expense-history&limit=300');
+      data = await res.json();
+      if (data.success) historyCache.expenses = data.expenses || [];
+    } else if (tab === 'collections') {
+      const res = await fetch('/api/settlement?action=collection-history&limit=100');
+      data = await res.json();
+      if (data.success) historyCache.collections = data.collections || [];
+    }
+    if (activeHistTab === tab) renderHistTab(tab, historyCache[tab] || []);
+  } catch (e) {
+    if (activeHistTab === tab) $('histContent').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load</div>';
+  }
+}
+
+function toISTDate(utcStr) {
+  const d = new Date(utcStr);
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  return ist;
+}
+
+function fmtDate(d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function dateLabel(d) {
+  const today = toISTDate(new Date().toISOString());
+  const todayStr = fmtDate(today);
+  const dStr = fmtDate(d);
+  if (dStr === todayStr) return dStr + ' (Today)';
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (dStr === fmtDate(yesterday)) return dStr + ' (Yesterday)';
+  return dStr;
+}
+
+function groupByDate(items, dateField) {
+  const groups = {};
+  for (const item of items) {
+    const ist = toISTDate(item[dateField]);
+    const key = fmtDate(ist);
+    if (!groups[key]) groups[key] = { label: dateLabel(ist), items: [] };
+    groups[key].items.push(item);
+  }
+  return Object.values(groups);
+}
+
+function parseVariance(notes) {
+  if (!notes) return { type: 'ok', text: '' };
+  const shortMatch = notes.match(/Short:\s*(?:₹|Rs\.?)?(\d[\d,]*)/);
+  if (shortMatch) return { type: 'short', text: 'Short ₹' + shortMatch[1] };
+  const extraMatch = notes.match(/Extra cash:\s*\+?(?:₹|Rs\.?)?(\d[\d,]*)/);
+  if (extraMatch) return { type: 'extra', text: 'Extra +₹' + extraMatch[1] };
+  return { type: 'ok', text: '' };
+}
+
+function renderHistTab(tab, data) {
+  if (!data || data.length === 0) {
+    $('histContent').innerHTML = '<div style="text-align:center;padding:32px;color:var(--text2)">No records yet</div>';
+    return;
+  }
+
+  if (tab === 'settlements') renderSettlementHistory(data);
+  else if (tab === 'expenses') renderExpenseHistory(data);
+  else if (tab === 'collections') renderCollectionHistory(data);
+}
+
+function renderSettlementHistory(settlements) {
+  const groups = groupByDate(settlements, 'settled_at');
+  let html = '';
+
+  for (const group of groups) {
+    html += `<div class="hist-date">${group.label}</div>`;
+    const runners = group.items.filter(s => s.runner_id !== 'counter');
+    const counters = group.items.filter(s => s.runner_id === 'counter');
+    let dayRunnerCash = 0, dayCounterCash = 0;
+
+    for (const s of runners) {
+      const v = parseVariance(s.notes);
+      dayRunnerCash += s.cash_settled || 0;
+      html += `<div class="hist-row">
+        <span class="hr-name">${s.runner_name || 'Runner'}</span>
+        <span class="hr-amounts">
+          <span>T:${fmt(s.tokens_amount||0)}</span>
+          <span>S:${fmt(s.sales_amount||0)}</span>
+          <span style="color:var(--blue)">U:${fmt(s.upi_amount||0)}</span>
+        </span>
+        <span class="hr-cash" style="color:var(--green)">${fmt(s.cash_settled||0)}</span>
+        <span class="hr-variance ${v.type}">${v.text || '—'}</span>
+      </div>`;
+    }
+
+    for (const s of counters) {
+      dayCounterCash += s.cash_settled || 0;
+      html += `<div class="hist-row counter">
+        <span class="hr-name" style="color:var(--yellow)">Counter</span>
+        <span class="hr-amounts">
+          <span>Sales:${fmt(s.sales_amount||0)}</span>
+          <span style="color:var(--blue)">UPI:${fmt(s.upi_amount||0)}</span>
+        </span>
+        <span class="hr-cash" style="color:var(--yellow)">${fmt(s.cash_settled||0)}</span>
+        <span class="hr-variance ok"></span>
+      </div>`;
+    }
+
+    const dayTotal = dayRunnerCash + dayCounterCash;
+    html += `<div class="hist-day-total">
+      <span>Day Total</span>
+      <span class="mono" style="color:var(--green)">${fmt(dayTotal)}</span>
+    </div>`;
+  }
+
+  $('histContent').innerHTML = html;
+}
+
+function renderExpenseHistory(expenses) {
+  const groups = groupByDate(expenses, 'recorded_at');
+  let html = '';
+
+  for (const group of groups) {
+    html += `<div class="hist-date">${group.label}</div>`;
+    let dayTotal = 0;
+    for (const e of group.items) {
+      dayTotal += e.amount || 0;
+      html += `<div class="hist-row">
+        <span class="hr-name">${e.reason || '—'}</span>
+        <span style="font-size:12px;color:var(--text2)">${e.recorded_by || ''}</span>
+        <span class="hr-cash" style="color:var(--red)">${fmt(e.amount||0)}</span>
+      </div>`;
+    }
+    html += `<div class="hist-day-total">
+      <span>Day Total</span>
+      <span class="mono" style="color:var(--red)">${fmt(dayTotal)}</span>
+    </div>`;
+  }
+
+  $('histContent').innerHTML = html;
+}
+
+function renderCollectionHistory(collections) {
+  const groups = groupByDate(collections, 'collected_at');
+  let html = '';
+
+  for (const group of groups) {
+    html += `<div class="hist-date">${group.label}</div>`;
+    for (const c of group.items) {
+      const disc = c.discrepancy || 0;
+      const discText = disc === 0 ? '<span style="color:var(--green)">No discrepancy</span>'
+        : `<span style="color:var(--red)">Discrepancy: ${fmt(disc)}</span>`;
+      html += `<div class="hist-collect-row">
+        <div class="hist-collect-main">
+          <span><strong>${c.collected_by || '—'}</strong> collected <strong class="mono" style="color:var(--green)">${fmt(c.amount||0)}</strong></span>
+        </div>
+        <div class="hist-collect-detail">
+          <span>Petty left: <strong class="mono">${fmt(c.petty_cash||0)}</strong></span>
+          <span>Runners: <strong class="mono">${fmt(c.runner_cash||0)}</strong></span>
+          <span>Counter: <strong class="mono">${fmt(c.counter_cash||0)}</strong></span>
+          <span>${discText}</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  $('histContent').innerHTML = html;
 }
 
 // Auto-scan + refresh runner data every 60s

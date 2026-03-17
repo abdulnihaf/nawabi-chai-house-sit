@@ -199,6 +199,14 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, settlements: results.results}), {headers: corsHeaders});
     }
 
+    // === EXPENSE HISTORY (read-only) ===
+    if (action === 'expense-history') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+      const limit = url.searchParams.get('limit') || 200;
+      const results = await DB.prepare('SELECT * FROM counter_expenses ORDER BY recorded_at DESC LIMIT ?').bind(parseInt(limit)).all();
+      return new Response(JSON.stringify({success: true, expenses: results.results}), {headers: corsHeaders});
+    }
+
     // === EXPENSE RECORDING (by cashier, at the time of expense) ===
 
     if (action === 'record-expense' && context.request.method === 'POST') {
