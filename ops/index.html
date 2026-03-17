@@ -600,15 +600,28 @@
       const bal = typeof petty.balance === 'number' ? petty.balance : 0;
       const txns = petty.transactions || [];
       const expenses = txns.filter(t => t.transaction_type === 'expense');
-      const funds = txns.filter(t => t.transaction_type === 'fund_add');
       const totalSpent = petty.today_expenses || 0;
       const balCls = bal < 0 ? 'red' : bal < 200 ? 'orange' : '';
 
+      // Per-person breakdown
+      const persons = petty.per_person || [];
+      let personRows = '';
+      for (const p of persons) {
+        if (p.given === 0 && p.spent === 0) continue;
+        const holdCls = p.holding < 0 ? 'color:var(--red)' : p.holding === 0 ? 'color:var(--text2)' : 'color:var(--green)';
+        personRows += `<div class="petty-txn">
+          <span class="cat">${p.name}</span>
+          <span style="font-size:11px;color:var(--text2)">Given ${fmt(p.given)}</span>
+          <span style="font-size:11px;color:var(--red)">Spent ${fmt(p.spent)}</span>
+          <span class="amt" style="${holdCls}">${fmt(p.holding)}</span>
+        </div>`;
+      }
+
       let txnRows = '';
-      for (const t of txns.slice(0, 8)) {
+      for (const t of txns.slice(0, 6)) {
         if (t.transaction_type === 'fund_add') {
           txnRows += `<div class="petty-txn">
-            <span class="cat" style="color:var(--green)">+Fund <small style="color:var(--text2)">by ${t.recorded_by_name || '?'}</small></span>
+            <span class="cat" style="color:var(--green)">+Cash to ${t.given_to_name || '?'} <small style="color:var(--text2)">by ${t.recorded_by_name || '?'}</small></span>
             <span class="amt" style="color:var(--green)">+${fmt(t.amount)}</span>
           </div>`;
         } else {
@@ -626,10 +639,17 @@
           <div class="cash-big ${balCls}">${fmt(bal)}</div>
           <div class="cash-sub">${totalSpent > 0 ? fmt(totalSpent) + ' spent today · ' + expenses.length + ' expense' + (expenses.length!==1?'s':'') : 'Current balance'}</div>
         </div>
+        ${personRows ? `<div style="margin:8px 0;padding:8px;background:var(--bg2);border-radius:8px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600">STAFF HOLDINGS</div>${personRows}</div>` : ''}
         <div style="margin-top:8px">${txnRows}</div>
         <div class="fund-row">
-          <input type="number" class="fund-input" id="fundAmt" placeholder="Reimburse amount" min="100">
-          <button class="fund-btn" onclick="fundPetty()">Reimburse</button>
+          <select id="fundTo" style="background:var(--bg2);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px;font-size:13px;flex:0 0 auto">
+            <option value="CASH001">Kesmat</option>
+            <option value="CASH002">Nafees</option>
+            <option value="GM001">Basheer</option>
+            <option value="MGR001">Tanveer</option>
+          </select>
+          <input type="number" class="fund-input" id="fundAmt" placeholder="Amount" min="100">
+          <button class="fund-btn" onclick="fundPetty()">Give Cash</button>
         </div>
       </div>`;
     }
@@ -656,6 +676,7 @@
 
     async function fundPetty() {
       const input = document.getElementById('fundAmt');
+      const givenTo = document.getElementById('fundTo')?.value;
       const amt = parseInt(input.value);
       if (!amt || amt < 1) { input.style.borderColor = 'var(--red)'; return; }
       const btn = input.nextElementSibling;
@@ -664,11 +685,11 @@
       try {
         const res = await fetch('/api/rectify?action=petty-fund', {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ pin, amount: amt })
+          body: JSON.stringify({ pin, amount: amt, given_to: givenTo })
         });
         const data = await res.json();
         if (data.success) {
-          btn.textContent = 'Added!'; input.value = '';
+          btn.textContent = `Gave ₹${amt}!`; input.value = '';
           setTimeout(() => { _cache = {}; initRoleDashboard(_currentSession); }, 1500);
         } else {
           btn.textContent = data.error || 'Failed'; btn.disabled = false;
