@@ -13,6 +13,10 @@ const RUNNER_SLOTS = {
 };
 const VALID_RUNNER_IDS = new Set([64, 65, 66, 67, 68]);
 
+// Partner aliases — duplicate Odoo contacts that map to known runners.
+// These are auto-fixable: invalid_partner errors with known alias → auto-correct in Odoo.
+const PARTNER_ALIASES = {90: 64, 37: 64};
+
 // Payment method IDs
 const PM = { CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMP: 49 };
 
@@ -404,6 +408,53 @@ export async function onRequest(context) {
         written = results.filter(r => r.meta?.changes > 0).length;
       }
 
+      // ── Auto-fix: known partner aliases (e.g., partner 90 → runner 64) ──
+      // When an order has invalid_partner and the partner is a known alias, auto-correct in Odoo.
+      let autoFixed = 0;
+      try {
+        const aliasErrors = await DB.prepare(
+          `SELECT id, order_id, runner_partner_id, payment_method_id, pos_config_id, order_ref
+           FROM validation_errors WHERE status = 'pending' AND error_code = 'invalid_partner' LIMIT 50`
+        ).all();
+
+        const autoFixStmts = [];
+        for (const err of (aliasErrors?.results || [])) {
+          const correctId = PARTNER_ALIASES[err.runner_partner_id];
+          if (!correctId) continue; // Not a known alias — needs manual fix
+
+          // Verify the fix would produce a valid tuple
+          const expectedMWR = `${err.payment_method_id}:${err.pos_config_id}:${correctId}`;
+          if (!VALID_MWR.has(expectedMWR)) continue; // Fix wouldn't be valid — skip
+
+          // Write to Odoo: change partner_id to the correct runner
+          try {
+            const writeRes = await fetch(ODOO_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0', method: 'call',
+                params: {
+                  service: 'object', method: 'execute_kw',
+                  args: [ODOO_DB, ODOO_UID, context.env.ODOO_API_KEY, 'pos.order', 'write', [[err.order_id], { partner_id: correctId }]]
+                },
+                id: Date.now()
+              })
+            });
+            const writeData = await writeRes.json();
+            if (writeData.result === true) {
+              // Odoo updated — mark as auto-fixed in D1
+              autoFixStmts.push(
+                DB.prepare(
+                  `UPDATE validation_errors SET status = 'rectified', rectified_by = 'SYSTEM', rectified_at = datetime('now'), rectification_action = 'auto-fix-alias' WHERE id = ?`
+                ).bind(err.id)
+              );
+              autoFixed++;
+            }
+          } catch (e) { /* Odoo write failed — leave for manual fix */ }
+        }
+        if (autoFixStmts.length > 0) await DB.batch(autoFixStmts);
+      } catch (e) { /* Auto-fix non-critical */ }
+
       // ── Auto-reconciliation: re-check existing pending errors against current Odoo state ──
       // If someone fixed an order directly in Odoo, the D1 error stays 'pending' forever.
       // This re-validates those orders and auto-resolves errors that no longer apply.
@@ -467,6 +518,7 @@ export async function onRequest(context) {
         valid: validCount,
         invalid: invalidCount,
         errors_written: written,
+        errors_auto_fixed: autoFixed,
         errors_reconciled: reconciled
       }, cors);
     }
