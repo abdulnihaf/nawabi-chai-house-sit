@@ -210,13 +210,15 @@
     .hist-content{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;max-height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
     .hist-date{font-size:12px;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:12px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px}
     .hist-date:first-child{padding-top:0}
-    .hist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(45,58,79,0.5);font-size:13px;gap:8px}
+    .hist-row{display:grid;grid-template-columns:1fr;gap:2px;padding:10px 0;border-bottom:1px solid rgba(45,58,79,0.5);font-size:13px}
     .hist-row:last-child{border-bottom:none}
-    .hist-row .hr-name{font-weight:600;min-width:70px;white-space:nowrap}
+    .hist-row .hr-top{display:flex;justify-content:space-between;align-items:center}
+    .hist-row .hr-name{font-weight:600;white-space:nowrap}
+    .hist-row .hr-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px}
     .hist-row .hr-amounts{display:flex;gap:6px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text2)}
     .hist-row .hr-amounts span{white-space:nowrap}
-    .hist-row .hr-cash{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px;min-width:60px;text-align:right}
-    .hist-row .hr-variance{font-size:11px;font-weight:600;min-width:80px;text-align:right}
+    .hist-row .hr-cash{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:14px}
+    .hist-row .hr-variance{font-size:11px;font-weight:600;text-align:right;white-space:nowrap}
     .hist-row .hr-variance.short{color:var(--red)}
     .hist-row .hr-variance.extra{color:var(--green)}
     .hist-row .hr-variance.ok{color:var(--text2)}
@@ -1511,27 +1513,35 @@ function renderSettlementHistory(settlements) {
       const v = parseVariance(s.notes);
       dayRunnerCash += s.cash_settled || 0;
       html += `<div class="hist-row">
-        <span class="hr-name">${s.runner_name || 'Runner'}</span>
-        <span class="hr-amounts">
-          <span>T:${fmt(s.tokens_amount||0)}</span>
-          <span>S:${fmt(s.sales_amount||0)}</span>
-          <span style="color:var(--blue)">U:${fmt(s.upi_amount||0)}</span>
-        </span>
-        <span class="hr-cash" style="color:var(--green)">${fmt(s.cash_settled||0)}</span>
-        <span class="hr-variance ${v.type}">${v.text || '—'}</span>
+        <div class="hr-top">
+          <span class="hr-name">${s.runner_name || 'Runner'}</span>
+          <span class="hr-cash" style="color:var(--green)">${fmt(s.cash_settled||0)}</span>
+        </div>
+        <div class="hr-bottom">
+          <span class="hr-amounts">
+            <span>T:${fmt(s.tokens_amount||0)}</span>
+            <span>S:${fmt(s.sales_amount||0)}</span>
+            <span style="color:var(--blue)">U:${fmt(s.upi_amount||0)}</span>
+          </span>
+          <span class="hr-variance ${v.type}">${v.text || '—'}</span>
+        </div>
       </div>`;
     }
 
     for (const s of counters) {
       dayCounterCash += s.cash_settled || 0;
       html += `<div class="hist-row counter">
-        <span class="hr-name" style="color:var(--yellow)">Counter</span>
-        <span class="hr-amounts">
-          <span>Sales:${fmt(s.sales_amount||0)}</span>
-          <span style="color:var(--blue)">UPI:${fmt(s.upi_amount||0)}</span>
-        </span>
-        <span class="hr-cash" style="color:var(--yellow)">${fmt(s.cash_settled||0)}</span>
-        <span class="hr-variance ok"></span>
+        <div class="hr-top">
+          <span class="hr-name" style="color:var(--yellow)">Counter</span>
+          <span class="hr-cash" style="color:var(--yellow)">${fmt(s.cash_settled||0)}</span>
+        </div>
+        <div class="hr-bottom">
+          <span class="hr-amounts">
+            <span>Sales:${fmt(s.sales_amount||0)}</span>
+            <span style="color:var(--blue)">UPI:${fmt(s.upi_amount||0)}</span>
+          </span>
+          <span class="hr-variance ok"></span>
+        </div>
       </div>`;
     }
 
