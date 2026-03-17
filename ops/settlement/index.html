@@ -179,11 +179,17 @@
     .ov-card .ov-label{font-size:11px;color:var(--text2);margin-top:4px}
     .ov-card.full{grid-column:1/-1}
     .ov-runner-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
-    .ov-runner-table th{text-align:left;font-size:11px;color:var(--text2);padding:8px 6px;border-bottom:2px solid var(--border);text-transform:uppercase;letter-spacing:0.3px}
-    .ov-runner-table td{padding:10px 6px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px}
-    .ov-runner-table td:first-child{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px}
+    .ov-runner-table th{text-align:right;font-size:10px;color:var(--text2);padding:8px 4px;border-bottom:2px solid var(--border);text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap}
+    .ov-runner-table th:first-child{text-align:left}
+    .ov-runner-table td{padding:10px 4px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;white-space:nowrap}
+    .ov-runner-table td:first-child{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:12px;text-align:left}
     .ov-runner-table tr:last-child td{border-bottom:none}
-    .ov-runner-table .ov-total-row td{border-top:2px solid var(--border);font-weight:700;font-size:14px}
+    .ov-runner-table .ov-total-row td{border-top:2px solid var(--border);font-weight:700;font-size:12px}
+    @media(max-width:420px){
+      .ov-runner-table .hide-mobile{display:none}
+      .ov-runner-table td{font-size:10px;padding:8px 3px}
+      .ov-runner-table td:first-child{font-size:11px;max-width:60px;overflow:hidden;text-overflow:ellipsis}
+    }
     .ov-err-badge{display:inline-block;background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px}
     .ov-ok-badge{color:var(--green);font-size:11px}
     .ov-collect-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg2);border-radius:8px;margin-top:8px}
@@ -207,7 +213,7 @@
     .hist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(45,58,79,0.5);font-size:13px;gap:8px}
     .hist-row:last-child{border-bottom:none}
     .hist-row .hr-name{font-weight:600;min-width:70px;white-space:nowrap}
-    .hist-row .hr-amounts{display:flex;gap:10px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+    .hist-row .hr-amounts{display:flex;gap:6px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text2)}
     .hist-row .hr-amounts span{white-space:nowrap}
     .hist-row .hr-cash{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px;min-width:60px;text-align:right}
     .hist-row .hr-variance{font-size:11px;font-weight:600;min-width:80px;text-align:right}
@@ -724,16 +730,24 @@ function renderRunnerPanel(runnerId) {
 function renderErrorCard(err, idx, runnerId) {
   const desc = humanizeError(err);
   const errId = err.id || err.error_id || idx;
+  const orderTime = err.order_time ? formatTime(new Date(err.order_time)) : '';
+  const cashier = err.cashier_name || '';
+  const method = err.payment_method_name || '';
 
   return `
     <div class="error-card" id="ec-${runnerId}-${idx}">
       <div class="ec-desc">${desc}</div>
-      <div class="ec-meta">Order: ${err.order_ref || '—'} &nbsp;|&nbsp; ${fmt(err.order_amount || 0)}</div>
+      <div class="ec-meta">
+        Order: <strong>${err.order_ref || '—'}</strong> &nbsp;|&nbsp; ${fmt(err.order_amount || 0)}
+        ${orderTime ? ' &nbsp;|&nbsp; ' + orderTime : ''}
+        ${cashier ? ' &nbsp;|&nbsp; by ' + cashier : ''}
+        ${method ? '<br>Payment: <strong>' + method + '</strong>' : ''}
+      </div>
       <div class="ec-actions">
         <select id="fix-action-${runnerId}-${idx}" onchange="onFixActionChange(${runnerId}, ${idx})">
           <option value="">Choose fix...</option>
-          <option value="remove_runner">Remove runner</option>
-          <option value="assign_runner">Assign to correct runner</option>
+          <option value="remove_runner">Remove runner from order</option>
+          <option value="assign_runner">Assign correct runner</option>
           <option value="change_method">Change payment method</option>
         </select>
       </div>
@@ -834,20 +848,36 @@ async function applyFix(runnerId, idx) {
 function humanizeError(err) {
   const type = err.error_code || err.error_type || err.type || '';
   const desc = err.description || '';
+  const method = err.payment_method_name || '';
+  const products = err.product_names ? (Array.isArray(err.product_names) ? err.product_names : JSON.parse(err.product_names || '[]')) : [];
+  const productStr = products.length > 0 ? products.join(', ') : '';
 
-  // Convert technical error types to plain language
-  const map = {
-    'C2_TOKEN_WRONG_RUNNER': 'Token was given to the wrong runner',
-    'invalid_tuple': 'Wrong combination of payment + counter + runner',
-    'invalid_partner': 'Order linked to an unknown person',
-    'invalid_product_method': 'Product sold with wrong payment type',
-    'runner_missing': 'Runner not assigned to this order',
-    'payment_mismatch': 'Payment amount does not match order',
-    'duplicate_payment': 'Duplicate payment detected',
-    'wrong_counter': 'Order punched on the wrong counter'
-  };
-
-  if (map[type]) return map[type];
+  // Build clear, specific error messages
+  if (type === 'invalid_partner') {
+    return `Unknown person (ID ${err.runner_partner_id}) selected on this order. Should be a runner (RUN001-005) or no one.`;
+  }
+  if (type === 'invalid_tuple') {
+    const runnerSlot = err.runner_slot || 'None';
+    return `Wrong setup: "${method}" payment on "${err.pos_config_name || 'Unknown POS'}" with runner ${runnerSlot}. This combination is not allowed.`;
+  }
+  if (type === 'invalid_product_method') {
+    return `"${productStr || 'Item'}" sold with "${method}" — not allowed. ${method === 'Token Issue' ? 'Token Issue is only for Chai/Coffee/Tea/Haleem.' : method === 'Runner Ledger' ? 'Runner Ledger is only for snacks/water/packaging.' : ''}`;
+  }
+  if (type === 'C2_TOKEN_WRONG_RUNNER') {
+    return `Token was given to the wrong runner. Check which runner actually delivered this order.`;
+  }
+  if (type === 'runner_missing') {
+    return `No runner assigned. "${method}" payment requires a runner to be selected.`;
+  }
+  if (type === 'payment_mismatch') {
+    return `Payment amount doesn't match order total. ${desc}`;
+  }
+  if (type === 'duplicate_payment') {
+    return `Duplicate payment detected on this order. ${desc}`;
+  }
+  if (type === 'wrong_counter') {
+    return `Order punched on wrong counter. ${desc}`;
+  }
   if (desc) return desc;
   return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -1638,7 +1668,7 @@ async function loadShiftOverview() {
 
     // Runner table
     html += '<div style="overflow-x:auto"><table class="ov-runner-table">';
-    html += '<thead><tr><th>Runner</th><th>Tokens</th><th>Sales</th><th>UPI</th><th>Cash Due</th><th>Status</th></tr></thead><tbody>';
+    html += '<thead><tr><th>Runner</th><th class="hide-mobile">Tokens</th><th class="hide-mobile">Sales</th><th>UPI</th><th>Cash</th><th>Status</th></tr></thead><tbody>';
 
     let grandTokens = 0, grandSales = 0, grandUPI = 0, grandCash = 0;
     const runnerNames = {64:'Farzaib', 65:'Ritiqu', 66:'Anshu', 67:'Shabeer', 68:'Dhanush'};
@@ -1668,8 +1698,8 @@ async function loadShiftOverview() {
 
       html += `<tr>
         <td>${runnerNames[rid] || 'Runner ' + rid}</td>
-        <td>${fmt(tokens)}</td>
-        <td>${fmt(sales)}</td>
+        <td class="hide-mobile">${fmt(tokens)}</td>
+        <td class="hide-mobile">${fmt(sales)}</td>
         <td style="color:var(--blue)">${fmt(upi)}</td>
         <td style="color:${cashDue >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(cashDue)}</td>
         <td>${statusHtml}</td>
@@ -1682,8 +1712,8 @@ async function loadShiftOverview() {
     const cCash = mainCounter.cash || 0;
     html += `<tr style="background:rgba(234,179,8,0.05)">
       <td style="color:var(--yellow)">Counter</td>
-      <td>—</td>
-      <td>${fmt(cSales)}</td>
+      <td class="hide-mobile">—</td>
+      <td class="hide-mobile">${fmt(cSales)}</td>
       <td style="color:var(--blue)">${fmt(cUPI)}</td>
       <td style="color:var(--yellow)">${fmt(cCash)}</td>
       <td><span class="ov-ok-badge">POS</span></td>
@@ -1696,8 +1726,8 @@ async function loadShiftOverview() {
     if (rcSales > 0 || rcUPI > 0) {
       html += `<tr style="background:rgba(168,85,247,0.05)">
         <td style="color:var(--purple)">Runner POS</td>
-        <td>—</td>
-        <td>${fmt(rcSales)}</td>
+        <td class="hide-mobile">—</td>
+        <td class="hide-mobile">${fmt(rcSales)}</td>
         <td style="color:var(--blue)">${fmt(rcUPI)}</td>
         <td style="color:var(--purple)">${fmt(rcCash)}</td>
         <td><span class="ov-ok-badge">POS</span></td>
@@ -1707,8 +1737,8 @@ async function loadShiftOverview() {
     // Totals row
     html += `<tr class="ov-total-row">
       <td>TOTAL</td>
-      <td>${fmt(grandTokens)}</td>
-      <td>${fmt(grandSales + cSales + rcSales)}</td>
+      <td class="hide-mobile">${fmt(grandTokens)}</td>
+      <td class="hide-mobile">${fmt(grandSales + cSales + rcSales)}</td>
       <td style="color:var(--blue)">${fmt(grandUPI + cUPI + rcUPI)}</td>
       <td style="color:var(--green)">${fmt(grandCash + cCash + rcCash)}</td>
       <td></td>
