@@ -385,21 +385,42 @@
       }
     }
 
-    // ── KPI Widget (Manager/Admin/CFO) ──
+    // ── KPI Widget (Manager/Admin/CFO) — Cash & UPI Reconciliation ──
     function renderKPI(ctx) {
       const d = ctx.nchData?.data;
-      if (!d) return '<div class="widget"><p style="color:var(--text2);font-size:13px">Loading sales data...</p></div>';
-      const gt = d.grandTotal || {};
+      if (!d) return '<div class="widget"><p style="color:var(--text2);font-size:13px">Loading data...</p></div>';
+      const recon = d.shiftReconciliation || {};
+      const verify = recon.upiVerification || {};
+      const bc = recon.balanceCheck || {};
       const orders = ctx.nchData?.counts?.orders || 0;
+
+      // UPI: recorded in Odoo vs actually received in Razorpay
+      const counterV = verify.cashCounter || {};
+      const rcV = verify.runnerCounter || {};
+      const odooUPI = (counterV.odooUPI || 0) + (rcV.odooUPI || 0);
+      const rzpUPI = (recon.verifiedUPI?.total || 0);
+      const upiVar = Math.round((odooUPI - rzpUPI) * 100) / 100;
+      const upiOk = Math.abs(upiVar) <= 1;
+
+      // Cash: expected vs accounted
+      const cashVar = bc.variance || 0;
+      const cashOk = bc.isBalanced;
+
       return `<div class="widget">
-        <div class="widget-hdr"><h3>Today's Numbers</h3></div>
-        <div class="stat-grid cols-3">
-          <div class="stat-item"><div class="stat-val">${fmt(gt.allSales)}</div><div class="stat-lbl">Revenue</div></div>
-          <div class="stat-item"><div class="stat-val">${orders}</div><div class="stat-lbl">Orders</div></div>
-          <div class="stat-item"><div class="stat-val">${fmt(gt.avgOrderValue)}</div><div class="stat-lbl">AOV</div></div>
-          <div class="stat-item"><div class="stat-val orange">${fmt(gt.cashToCollect)}</div><div class="stat-lbl">Cash Pending</div></div>
-          <div class="stat-item"><div class="stat-val green">${fmt(gt.upiCollected)}</div><div class="stat-lbl">UPI</div></div>
-          <div class="stat-item"><div class="stat-val">${fmt(gt.cardCollected)}</div><div class="stat-lbl">Card</div></div>
+        <div class="widget-hdr"><h3>Cash & UPI Status</h3><span style="font-size:12px;color:var(--text2)">${orders} orders</span></div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-val orange">${fmt(bc.expectedCash || recon.expectedTotalCash)}</div><div class="stat-lbl">Expected Cash</div></div>
+          <div class="stat-item"><div class="stat-val ${cashOk?'green':'red'}">${fmt(bc.accountedCash)}</div><div class="stat-lbl">Accounted Cash</div></div>
+          <div class="stat-item"><div class="stat-val">${fmt(odooUPI)}</div><div class="stat-lbl">UPI Recorded</div></div>
+          <div class="stat-item"><div class="stat-val ${upiOk?'green':'red'}">${fmt(rzpUPI)}</div><div class="stat-lbl">UPI Received</div></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <div class="recon-variance ${cashOk?'balanced':'unbalanced'}" style="flex:1;margin:0;padding:8px;font-size:12px">
+            Cash: ${cashOk ? 'Balanced' : (cashVar > 0 ? fmt(Math.abs(cashVar)) + ' short' : fmt(Math.abs(cashVar)) + ' excess')}
+          </div>
+          <div class="recon-variance ${upiOk?'balanced':'unbalanced'}" style="flex:1;margin:0;padding:8px;font-size:12px">
+            UPI: ${upiOk ? 'Matched' : fmt(Math.abs(upiVar)) + ' variance'}
+          </div>
         </div>
       </div>`;
     }
