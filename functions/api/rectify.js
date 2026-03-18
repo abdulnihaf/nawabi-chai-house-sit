@@ -505,7 +505,7 @@ async function getPetty(url, DB, cors) {
 // Flow: Collector takes cash from counter → if Naveen, it's "collected". Otherwise "in_transit" until Naveen confirms.
 async function collectCash(context, DB, cors) {
   const body = await context.request.json();
-  const {pin, amount, notes} = body;
+  const {pin, amount, petty_cash, notes} = body;
 
   const staff = verifyPin(pin);
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
@@ -520,15 +520,57 @@ async function collectCash(context, DB, cors) {
   const isFinalDest = staff.slot === CASH_FINAL_DEST; // Naveen
   const status = isFinalDest ? 'collected' : 'in_transit';
 
+  // Get last collection for period_start and previous petty cash
+  const lastCollection = await DB.prepare(
+    'SELECT collected_at, petty_cash FROM cash_collections ORDER BY collected_at DESC LIMIT 1'
+  ).first();
+  const baseline = '2026-02-04T17:00:00';
+  const periodStart = lastCollection ? lastCollection.collected_at : baseline;
+  const prevPettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
+
+  // Get all settlements in this period
+  const settlements = await DB.prepare(
+    'SELECT id, runner_id, cash_settled FROM settlements WHERE settled_at > ? ORDER BY settled_at ASC'
+  ).bind(periodStart).all();
+
+  let runnerCash = 0;
+  let counterCash = 0;
+  const ids = [];
+  for (const s of settlements.results) {
+    if (s.runner_id === 'counter') counterCash += s.cash_settled;
+    else runnerCash += s.cash_settled;
+    ids.push(s.id);
+  }
+
+  // Get all expenses in this period
+  let totalExpenses = 0;
+  try {
+    const expensesResult = await DB.prepare(
+      `SELECT amount FROM counter_expenses WHERE recorded_at > ?
+       UNION ALL
+       SELECT amount FROM counter_expenses_v2 WHERE recorded_at > ?
+       ORDER BY 1`
+    ).bind(periodStart, periodStart).all();
+    for (const e of expensesResult.results) totalExpenses += e.amount;
+  } catch (e) { /* tables may not exist */ }
+
+  const pettyCashLeft = petty_cash || 0;
+  const expected = prevPettyCash + runnerCash + counterCash - totalExpenses;
+  const accounted = amt + pettyCashLeft;
+  const discrepancy = expected - accounted;
+
   const result = await DB.prepare(
-    `INSERT INTO cash_collections (amount, collected_by, collected_by_name, collected_at, pin_verified, status, received_by, received_by_name, received_at, notes)
-     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`
+    `INSERT INTO cash_collections (amount, collected_by, collected_by_name, collected_at, pin_verified, status,
+     received_by, received_by_name, received_at, notes,
+     period_start, period_end, petty_cash, runner_cash, counter_cash, expenses, expected, discrepancy, prev_petty_cash, settlement_ids)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     amt, staff.slot, staff.name, now, status,
     isFinalDest ? staff.slot : null,
     isFinalDest ? staff.name : null,
     isFinalDest ? now : null,
-    notes || null
+    notes || null,
+    periodStart, now, pettyCashLeft, runnerCash, counterCash, totalExpenses, expected, discrepancy, prevPettyCash, ids.join(',')
   ).run();
 
   // Fire C1 alert if in_transit (non-blocking)
@@ -551,6 +593,9 @@ async function collectCash(context, DB, cors) {
     amount: amt,
     collected_by: staff.name,
     status,
+    expected,
+    discrepancy,
+    settlements_covered: ids.length,
     message: isFinalDest
       ? `₹${amt} collected by ${staff.name} — final.`
       : `₹${amt} collected by ${staff.name} — in transit to Naveen.`
