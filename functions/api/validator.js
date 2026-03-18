@@ -810,7 +810,7 @@ const VALID_MWR = new Set([
 // ── ALL VALID (P, M) PAIRS ──
 // Key format: "productId:methodId"
 // Cash(37), UPI(38), Card(39), Comp(49) = ALL products
-// Token Issue(48) = BEV + HLM only (3 BEV + 5 HLM = 8 products)
+// Token Issue(48) = ALL products (runner can take any item from Cash Counter)
 // Runner Ledger(40) = SNK + WTR + PKG only (9 SNK + 1 WTR + 5 PKG = 15 products)
 const VALID_PM = new Set([
   // ── Cash(37): all 23 products ──
@@ -837,9 +837,12 @@ const VALID_PM = new Set([
   '1029:49','1030:49','1031:49','1033:49','1115:49','1117:49','1118:49','1392:49','1394:49',
   '1094:49',
   '1111:49','1401:49','1402:49','1403:49','1423:49',
-  // ── Token Issue(48): BEV + HLM only (8 products) ──
+  // ── Token Issue(48): ALL products (runner takes any item from counter) ──
   '1028:48','1102:48','1103:48',                                              // BEV
   '1395:48','1396:48','1397:48','1398:48','1400:48',                          // HLM
+  '1029:48','1030:48','1031:48','1033:48','1115:48','1117:48','1118:48','1392:48','1394:48', // SNK
+  '1094:48',                                                                   // WTR
+  '1111:48','1401:48','1402:48','1403:48','1423:48',                          // PKG
   // ── Runner Ledger(40): SNK + WTR + PKG only (15 products) ──
   '1029:40','1030:40','1031:40','1033:40','1115:40','1117:40','1118:40','1392:40','1394:40', // SNK
   '1094:40',                                                                   // WTR
