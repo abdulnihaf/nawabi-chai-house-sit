@@ -554,8 +554,9 @@ async function collectCash(context, DB, cors) {
     for (const e of expensesResult.results) totalExpenses += e.amount;
   } catch (e) { /* tables may not exist */ }
 
-  const pettyCashLeft = petty_cash || 0;
   const expected = prevPettyCash + runnerCash + counterCash - totalExpenses;
+  // If frontend doesn't send petty_cash, auto-calculate: whatever isn't collected stays at counter
+  const pettyCashLeft = (petty_cash != null) ? petty_cash : Math.max(0, expected - amt);
   const accounted = amt + pettyCashLeft;
   const discrepancy = expected - accounted;
 
