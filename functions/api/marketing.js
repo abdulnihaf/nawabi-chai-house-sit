@@ -227,13 +227,13 @@ async function getReviews(url, env) {
   }
 
   // No snapshot today — try fetching from Google Places API
-  if (!env.GOOGLE_PLACES_API_KEY) {
+  if (!env.GOOGLE_PLACES_KEY_MARKETING) {
     return json({ success: true, rating: '--', totalReviews: '--', newToday: '--', thisWeek: '--', note: 'Google API key not configured' });
   }
 
   try {
     const resp = await fetch(
-      `https://places.googleapis.com/v1/places/${NCH_PLACE_ID}?fields=rating,userRatingCount&key=${env.GOOGLE_PLACES_API_KEY}`
+      `https://places.googleapis.com/v1/places/${NCH_PLACE_ID}?fields=rating,userRatingCount&key=${env.GOOGLE_PLACES_KEY_MARKETING}`
     );
     const data = await resp.json();
 
