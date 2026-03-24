@@ -53,6 +53,14 @@ export async function onRequest(context) {
       case 'get-publish-log':
         return await getPublishLog(url, env);
 
+      // ─── GMB ANALYTICS ───
+      case 'gmb-performance':
+        return await gmbPerformance(url, env);
+      case 'gmb-auth':
+        return await gmbAuthRedirect(url, env);
+      case 'gmb-callback':
+        return gmbCallback(url, env);
+
       default:
         return json({ success: false, error: 'Unknown action' }, 400);
     }
@@ -309,6 +317,227 @@ async function getPublishLog(url, env) {
   ).bind(brand, limit).all();
 
   return json({ success: true, log: rows.results || [] });
+}
+
+// ═══════════════════════════════════════════════════
+// GMB ANALYTICS (Google Business Profile Performance)
+// ═══════════════════════════════════════════════════
+
+async function gmbPerformance(url, env) {
+  const brand = url.searchParams.get('brand') || 'nch';
+  const days = parseInt(url.searchParams.get('days') || '7');
+
+  // Check for stored refresh token
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    return json({ success: false, needsAuth: true, error: 'GOOGLE_CLIENT_ID/SECRET not configured' });
+  }
+
+  let refreshToken;
+  try {
+    const row = await env.DB.prepare('SELECT refresh_token FROM gmb_tokens WHERE brand = ?').bind(brand).first();
+    if (!row) return json({ success: false, needsAuth: true, error: 'GMB not connected' });
+    refreshToken = row.refresh_token;
+  } catch {
+    return json({ success: false, needsAuth: true, error: 'gmb_tokens table not found — run migration' });
+  }
+
+  // Refresh access token
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const tokenData = await tokenResp.json();
+  if (!tokenData.access_token) {
+    return json({ success: false, needsAuth: true, error: 'Token refresh failed: ' + (tokenData.error_description || tokenData.error) });
+  }
+  const accessToken = tokenData.access_token;
+
+  // Get location name (cached in D1)
+  let locationName;
+  try {
+    const cached = await env.DB.prepare('SELECT location_name FROM gmb_locations WHERE brand = ?').bind(brand).first();
+    if (cached) {
+      locationName = cached.location_name;
+    } else {
+      locationName = await discoverGMBLocation(accessToken, brand, env);
+    }
+  } catch {
+    locationName = await discoverGMBLocation(accessToken, brand, env);
+  }
+
+  if (!locationName) {
+    return json({ success: false, error: 'Could not find GMB location for ' + brand });
+  }
+
+  // Fetch performance metrics
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const perfResp = await fetch(
+    `https://businessprofileperformance.googleapis.com/v1/${locationName}:fetchMultiDailyMetricsTimeSeries`,
+    {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dailyMetrics: [
+          'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
+          'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+          'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
+          'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
+          'CALL_CLICKS',
+          'WEBSITE_CLICKS',
+          'BUSINESS_DIRECTION_REQUESTS',
+        ],
+        dailyRange: {
+          startDate: { year: startDate.getFullYear(), month: startDate.getMonth() + 1, day: startDate.getDate() },
+          endDate: { year: endDate.getFullYear(), month: endDate.getMonth() + 1, day: endDate.getDate() },
+        },
+      }),
+    }
+  );
+  const perfData = await perfResp.json();
+
+  if (perfData.error) {
+    return json({ success: false, error: perfData.error.message || 'GMB API error' });
+  }
+
+  // Process response into flat metrics
+  const metrics = {
+    desktop_maps: 0, desktop_search: 0, mobile_maps: 0, mobile_search: 0,
+    calls: 0, website_clicks: 0, directions: 0, daily_search: [],
+  };
+
+  const metricMap = {
+    BUSINESS_IMPRESSIONS_DESKTOP_MAPS: 'desktop_maps',
+    BUSINESS_IMPRESSIONS_DESKTOP_SEARCH: 'desktop_search',
+    BUSINESS_IMPRESSIONS_MOBILE_MAPS: 'mobile_maps',
+    BUSINESS_IMPRESSIONS_MOBILE_SEARCH: 'mobile_search',
+    CALL_CLICKS: 'calls',
+    WEBSITE_CLICKS: 'website_clicks',
+    BUSINESS_DIRECTION_REQUESTS: 'directions',
+  };
+
+  for (const series of (perfData.multiDailyMetricTimeSeries || [])) {
+    const metricKey = metricMap[series.dailyMetric];
+    if (!metricKey) continue;
+    const dailyValues = series.dailySubEntityType?.[0]?.timeSeries?.datedValues || [];
+    let total = 0;
+    for (const dv of dailyValues) {
+      const val = parseInt(dv.value || '0');
+      total += val;
+      if (metricKey === 'desktop_search' || metricKey === 'mobile_search') {
+        const dateStr = `${dv.date.year}-${String(dv.date.month).padStart(2,'0')}-${String(dv.date.day).padStart(2,'0')}`;
+        const existing = metrics.daily_search.find(d => d.date === dateStr);
+        if (existing) existing.value += val;
+        else metrics.daily_search.push({ date: dateStr, value: val });
+      }
+    }
+    metrics[metricKey] = total;
+  }
+
+  metrics.daily_search.sort((a, b) => a.date.localeCompare(b.date));
+
+  return json({ success: true, data: metrics });
+}
+
+async function discoverGMBLocation(accessToken, brand, env) {
+  // Get accounts
+  const acctResp = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+  const acctData = await acctResp.json();
+  if (!acctData.accounts?.length) return null;
+
+  // Try each account for locations
+  for (const account of acctData.accounts) {
+    const locResp = await fetch(
+      `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title`,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    );
+    const locData = await locResp.json();
+    if (locData.locations?.length) {
+      const loc = locData.locations[0];
+      // Cache it
+      try {
+        await env.DB.prepare(
+          'INSERT OR REPLACE INTO gmb_locations (brand, location_name, account_name, updated_at) VALUES (?, ?, ?, datetime("now"))'
+        ).bind(brand, loc.name, account.name).run();
+      } catch { /* table might not exist yet */ }
+      return loc.name;
+    }
+  }
+  return null;
+}
+
+async function gmbAuthRedirect(url, env) {
+  const brand = url.searchParams.get('brand') || 'nch';
+  if (!env.GOOGLE_CLIENT_ID) {
+    return json({ success: false, error: 'GOOGLE_CLIENT_ID not configured' }, 400);
+  }
+  const redirectUri = `${url.origin}/api/marketing?action=gmb-callback&brand=${brand}`;
+  const scope = 'https://www.googleapis.com/auth/business.manage';
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+  return Response.redirect(authUrl, 302);
+}
+
+async function gmbCallback(url, env) {
+  const code = url.searchParams.get('code');
+  const brand = url.searchParams.get('brand') || 'nch';
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    return new Response(`<html><body><h2>Authorization Failed</h2><p>${error}</p><a href="/ops/marketing/organic/analytics/?brand=${brand}">Back to Analytics</a></body></html>`, {
+      headers: { 'Content-Type': 'text/html', ...CORS },
+    });
+  }
+
+  if (!code) {
+    return json({ success: false, error: 'Missing authorization code' }, 400);
+  }
+
+  const redirectUri = `${url.origin}/api/marketing?action=gmb-callback&brand=${brand}`;
+
+  // Exchange code for tokens
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+  const tokens = await tokenResp.json();
+
+  if (tokens.error) {
+    return new Response(`<html><body><h2>Token Exchange Failed</h2><p>${tokens.error_description || tokens.error}</p><a href="/ops/marketing/organic/analytics/?brand=${brand}">Back</a></body></html>`, {
+      headers: { 'Content-Type': 'text/html', ...CORS },
+    });
+  }
+
+  if (tokens.refresh_token) {
+    try {
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO gmb_tokens (brand, refresh_token, access_token, token_expires_at, updated_at) VALUES (?, ?, ?, datetime("now", "+3500 seconds"), datetime("now"))'
+      ).bind(brand, tokens.refresh_token, tokens.access_token || null).run();
+    } catch (e) {
+      return new Response(`<html><body><h2>Database Error</h2><p>${e.message}</p><p>Run the marketing-analytics migration first.</p></body></html>`, {
+        headers: { 'Content-Type': 'text/html', ...CORS },
+      });
+    }
+  }
+
+  // Redirect back to analytics
+  return Response.redirect(`${url.origin}/ops/marketing/organic/analytics/?brand=${brand}&gmb=connected`, 302);
 }
 
 // ═══════════════════════════════════════════════════

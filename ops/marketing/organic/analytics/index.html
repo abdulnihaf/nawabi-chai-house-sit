@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f1a; --bg2: #111827; --card: #1a2234; --border: #2d3a4f;
+      --text: #f1f5f9; --text2: #94a3b8; --muted: #64748b;
+      --green: #10b981; --green-dim: rgba(16,185,129,.12);
+      --red: #ef4444; --red-dim: rgba(239,68,68,.12);
+      --orange: #f97316; --yellow: #f59e0b; --blue: #3b82f6;
+      --purple: #8b5cf6; --pink: #ec4899; --cyan: #06b6d4;
+      --chamoisee: #AC7E54; --wheat: #E9D1A9; --golden: #D4A44C;
+      --brand-grad: linear-gradient(135deg, #AC7E54, #D4A44C);
+      --fb: #1877F2; --goog: #34A853;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .mono { font-family:'JetBrains Mono',monospace; }
+    .container { max-width:1280px; margin:0 auto; padding:16px; }
+
+    /* Header */
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+    .header h1 { font-size:20px; font-weight:700; display:flex; align-items:center; gap:10px; }
+    .header h1::before { content:''; width:5px; height:24px; background:var(--brand-grad); border-radius:3px; }
+    .hdr-right { display:flex; align-items:center; gap:8px; }
+    .btn-sm { padding:5px 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; font-size:12px; color:var(--muted); text-decoration:none; cursor:pointer; }
+    .btn-sm:hover { border-color:var(--chamoisee); color:var(--text2); }
+
+    /* Period bar */
+    .period-bar { display:flex; align-items:center; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+    .pbtn { padding:5px 12px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; font-family:'JetBrains Mono',monospace; }
+    .pbtn.on { background:var(--chamoisee); color:#fff; border-color:var(--chamoisee); }
+    .pbtn:hover:not(.on) { border-color:var(--chamoisee); }
+    .refresh-area { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted); }
+    .live-dot { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* Cards */
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:14px; }
+    .card-head { display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .card-icon { font-size:18px; }
+    .card-title { font-size:14px; font-weight:700; }
+    .card-badge { font-size:11px; color:var(--muted); background:var(--bg); padding:3px 8px; border-radius:6px; }
+    .card-q { font-size:11px; color:var(--wheat); font-style:italic; margin-left:auto; }
+
+    /* KPI row */
+    .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+    .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .kpi-top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .kpi-val { font-size:22px; font-weight:700; font-family:'JetBrains Mono',monospace; line-height:1; }
+    .kpi-chg { font-size:10px; font-weight:600; padding:2px 5px; border-radius:4px; white-space:nowrap; }
+    .kpi-chg.up { background:var(--green-dim); color:var(--green); }
+    .kpi-chg.down { background:var(--red-dim); color:var(--red); }
+    .kpi-chg.flat { background:rgba(100,116,139,.12); color:var(--muted); }
+    .kpi-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:4px 0 6px; }
+    .kpi svg { display:block; width:100%; height:26px; }
+    .kpi svg polyline { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+    /* Health Score */
+    .health { display:flex; gap:20px; align-items:center; flex-wrap:wrap; }
+    .health-score { width:90px; height:90px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-direction:column; flex-shrink:0; border:3px solid var(--border); }
+    .health-num { font-size:32px; font-weight:700; font-family:'JetBrains Mono',monospace; line-height:1; }
+    .health-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; }
+    .health-right { flex:1; min-width:200px; }
+    .health-msg { font-size:14px; font-weight:600; margin-bottom:10px; }
+    .health-bars { display:grid; gap:6px; }
+    .hbar { display:flex; align-items:center; gap:8px; font-size:11px; }
+    .hbar-label { width:75px; color:var(--text2); }
+    .hbar-track { flex:1; height:6px; background:var(--bg); border-radius:3px; overflow:hidden; }
+    .hbar-fill { height:100%; border-radius:3px; transition:width .6s; }
+    .hbar-val { width:28px; text-align:right; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+
+    /* Funnel */
+    .funnel { display:flex; gap:4px; align-items:flex-end; height:56px; margin:12px 0; }
+    .funnel-step { flex:1; border-radius:4px 4px 0 0; position:relative; min-height:6px; transition:height .4s; }
+    .funnel-step .ftip { text-align:center; font-size:10px; color:var(--text2); margin-top:4px; }
+    .funnel-labels { display:flex; gap:4px; }
+    .funnel-labels span { flex:1; text-align:center; font-size:9px; color:var(--muted); }
+
+    /* Metrics grid */
+    .mgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+    .mbox { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; }
+    .mbox-val { font-size:18px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+    .mbox-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin:2px 0; }
+    .mbox-sub { font-size:11px; color:var(--text2); }
+    .mbox svg { display:block; width:100%; height:22px; margin-top:4px; }
+    .mbox svg polyline { fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+
+    /* Bar chart */
+    .bars { display:flex; align-items:flex-end; gap:2px; height:70px; }
+    .bars .b { flex:1; border-radius:2px 2px 0 0; min-height:2px; position:relative; cursor:crosshair; }
+    .bars .b:hover { opacity:.8; }
+    .bars .b .bt { display:none; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--border); padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; color:var(--text); z-index:2; }
+    .bars .b:hover .bt { display:block; }
+    .bar-dates { display:flex; gap:2px; margin-top:3px; }
+    .bar-dates span { flex:1; text-align:center; font-size:8px; color:var(--muted); }
+
+    /* Dual chart (sales correlation) */
+    .dual-chart { position:relative; height:100px; margin:10px 0; }
+    .dual-chart svg { width:100%; height:100%; }
+
+    /* Posts grid */
+    .pgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .pcard { background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .pcard img { width:100%; height:120px; object-fit:cover; display:block; }
+    .pcard .pbody { padding:8px 10px; }
+    .pcard .pcap { font-size:11px; color:var(--text2); line-height:1.3; max-height:32px; overflow:hidden; }
+    .pcard .pstats { display:flex; gap:8px; font-size:11px; color:var(--muted); margin-top:4px; }
+
+    /* Reviews */
+    .rev-grid { display:grid; grid-template-columns:auto 1fr; gap:20px; align-items:center; }
+    .rev-big { text-align:center; }
+    .rev-num { font-size:38px; font-weight:700; color:var(--golden); line-height:1; }
+    .rev-stars { font-size:14px; color:var(--golden); margin:4px 0; }
+    .rev-total { font-size:12px; color:var(--text2); }
+    .sbar { display:flex; align-items:center; gap:6px; margin-bottom:3px; font-size:11px; }
+    .sbar-n { width:14px; text-align:right; color:var(--muted); }
+    .sbar-track { flex:1; height:7px; background:var(--bg2); border-radius:4px; overflow:hidden; }
+    .sbar-fill { height:100%; border-radius:4px; }
+    .sbar-c { width:24px; text-align:right; color:var(--text2); }
+
+    /* Discovery breakdown */
+    .disc-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .disc { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
+    .disc-val { font-size:18px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+    .disc-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+
+    /* Collapsible details */
+    .details-card { background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:14px; }
+    .details-card summary { padding:14px 18px; cursor:pointer; font-size:13px; font-weight:600; color:var(--text2); list-style:none; display:flex; align-items:center; gap:8px; }
+    .details-card summary::after { content:'▸'; margin-left:auto; font-size:12px; color:var(--muted); }
+    .details-card[open] summary::after { content:'▾'; }
+    .details-card .detail-body { padding:0 18px 18px; }
+
+    /* Recommendations */
+    .rec { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .rec:last-child { border-bottom:none; }
+    .rec-icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+    .rec-body { flex:1; }
+    .rec-title { font-size:13px; font-weight:600; }
+    .rec-sub { font-size:12px; color:var(--text2); margin-top:2px; }
+
+    /* GMB setup */
+    .setup-box { text-align:center; padding:24px; }
+    .setup-box p { font-size:13px; color:var(--text2); margin-bottom:12px; }
+    .setup-steps { text-align:left; font-size:12px; color:var(--text2); background:var(--bg); border-radius:8px; padding:14px; line-height:1.8; margin-top:12px; }
+    .setup-steps code { background:rgba(172,126,84,.12); color:var(--wheat); padding:1px 5px; border-radius:3px; font-size:11px; }
+
+    /* Insight box */
+    .insight { background:rgba(172,126,84,.06); border:1px solid rgba(172,126,84,.2); border-radius:8px; padding:10px 14px; margin-top:12px; font-size:12px; color:var(--wheat); line-height:1.5; }
+    .insight strong { color:var(--text); }
+
+    /* Correlation badge */
+    .corr-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; }
+
+    /* Loading / Error */
+    .loading { color:var(--muted); font-size:13px; text-align:center; padding:20px; }
+    .loading::after { content:''; display:inline-block; width:12px; height:12px; border:2px solid var(--muted); border-top-color:var(--chamoisee); border-radius:50%; margin-left:8px; animation:spin .6s linear infinite; vertical-align:middle; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .err { color:var(--red); font-size:12px; text-align:center; padding:14px; }
+
+    /* Section label */
+    .slbl { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin:16px 0 6px; }
+
+    /* Side by side */
+    .side { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+    /* Responsive */
+    @media(max-width:1024px) { .kpi-row{grid-template-columns:repeat(2,1fr)} .pgrid{grid-template-columns:repeat(2,1fr)} .disc-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:768px) { .kpi-row{grid-template-columns:1fr 1fr} .mgrid{grid-template-columns:1fr 1fr} .side{grid-template-columns:1fr} .pgrid{grid-template-columns:1fr 1fr} .rev-grid{grid-template-columns:1fr} .health{flex-direction:column;text-align:center} }
+    @media(max-width:480px) { .container{padding:10px} .kpi-row{grid-template-columns:1fr 1fr} .mgrid{grid-template-columns:1fr} .pgrid{grid-template-columns:1fr} .disc-grid{grid-template-columns:1fr 1fr} .kpi-val{font-size:18px} }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <h1 id="title">Analytics</h1>
+    <div class="hdr-right">
+      <a class="btn-sm" href="/ops/marketing/organic/">&larr; Content</a>
+      <a class="btn-sm" href="/ops/marketing/">&larr; Hub</a>
+    </div>
+  </header>
+
+  <div class="period-bar">
+    <button class="pbtn on" data-d="7" onclick="setPeriod(7)">7D</button>
+    <button class="pbtn" data-d="28" onclick="setPeriod(28)">28D</button>
+    <button class="pbtn" data-d="90" onclick="setPeriod(90)">90D</button>
+    <div class="refresh-area">
+      <span class="live-dot"></span>
+      <span id="updatedAt">Loading...</span>
+      <button class="btn-sm" onclick="refreshAll()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- B: Health Score -->
+  <div class="card" id="healthCard"><div class="loading">Calculating marketing health</div></div>
+
+  <!-- C: Discovery Funnel -->
+  <div class="slbl">Discovery</div>
+  <div class="kpi-row" id="discoveryKpis"></div>
+  <div class="card" id="funnelCard"><div class="loading">Loading funnel</div></div>
+
+  <!-- D: Content Performance -->
+  <div class="slbl">Content Performance</div>
+  <div class="card" id="contentCard"><div class="loading">Loading content</div></div>
+
+  <!-- E: Audience Growth -->
+  <div class="slbl">Audience Growth</div>
+  <div class="card" id="audienceCard"><div class="loading">Loading audience</div></div>
+
+  <!-- F: Social-to-Sales Correlation -->
+  <div class="slbl">Social vs Sales</div>
+  <div class="card" id="salesCard"><div class="loading">Loading sales correlation</div></div>
+
+  <!-- G: Google Presence -->
+  <div class="slbl">Google Presence</div>
+  <div class="card" id="googleCard"><div class="loading">Loading Google data</div></div>
+
+  <!-- H: Platform Deep Dives -->
+  <div class="slbl">Platform Details</div>
+  <details class="details-card" id="igDetails"><summary>Instagram Details</summary><div class="detail-body"><div class="loading">Loading</div></div></details>
+  <details class="details-card" id="fbDetails"><summary>Facebook Details</summary><div class="detail-body"><div class="loading">Loading</div></div></details>
+  <details class="details-card" id="gmbDetails"><summary>Google Business Profile Details</summary><div class="detail-body"><div class="loading">Loading</div></div></details>
+
+  <!-- I: Recommendations -->
+  <div class="slbl">This Week's Priorities</div>
+  <div class="card" id="recsCard"><div class="loading">Generating recommendations</div></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+const hostname = location.hostname;
+const urlBrand = new URLSearchParams(location.search).get('brand');
+const BK = urlBrand || (hostname.includes('hamza') ? 'he' : 'nch');
+
+const BRANDS = {
+  nch: {
+    name: 'Nawabi Chai House', short: 'NCH',
+    igId: '17841478912278724', fbId: '989339677591071',
+    token: 'EAAdjKyLVeusBQ5W4XrV2JNvYmUJXAnXYkPNwsu3oZBoTp3u3ETjRdC41dX4frN3xtiRtSrUP9X0eGLSPAKxxuuSxWQL20ffMZBA4PMdVAdmix1JFk9TmqFdGeMZBiZAZAJq32HE4lAslCqclCIl4swEBi9Ov9DdqThN2QJezGzj4zH05a0ky14caD2KEPJCs3SrnmlvbgGZCbLfZBHKVBy4yFZB6',
+    placeId: 'ChIJq-hENv8XrjsRCjNPpTGIogY', igHandle: '@nawabichaihouse',
+  },
+  he: {
+    name: 'Hamza Express', short: 'HE',
+    igId: '17841478543111221', fbId: '886791574518359',
+    token: '', // TODO: add HE permanent page token
+    placeId: '', igHandle: '@hamzaexpress',
+  }
+};
+const B = BRANDS[BK];
+const META = 'https://graph.facebook.com/v24.0';
+const API = '/api/marketing';
+
+document.getElementById('title').textContent = B.short + ' Analytics';
+document.title = B.short + ' Analytics';
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let days = 7;
+let igAcct = null, igM = {}, igMprev = {}, igMedia = [];
+let fbPage = null, fbM = {}, fbMprev = {};
+let gmbData = null, reviewData = null, calendarData = null;
+let salesDays = []; // [{date, revenue, orders, aov}]
+
+// ═══════════════════════════════════════════════════════════════
+// API HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function mget(path, params = {}) {
+  if (!B.token) throw new Error('Token not configured');
+  const u = new URL(META + path);
+  u.searchParams.set('access_token', B.token);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v));
+  const r = await fetch(u);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message);
+  return d;
+}
+
+function drange(n) {
+  const until = new Date(); until.setHours(0,0,0,0);
+  const since = new Date(until); since.setDate(since.getDate() - n);
+  return { since: Math.floor(since/1000), until: Math.floor(until/1000), sinceDate: since, untilDate: until };
+}
+
+function procInsights(data) {
+  const out = {};
+  if (!data?.data) return out;
+  for (const item of data.data) {
+    const vals = (item.values||[]).map(v => ({ date: (v.end_time||'').split('T')[0], value: typeof v.value === 'number' ? v.value : 0 }));
+    out[item.name] = { values: vals, total: vals.reduce((s,v) => s + v.value, 0) };
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DATA FETCHING
+// ═══════════════════════════════════════════════════════════════
+async function fetchIG() {
+  if (!B.token) return;
+  const { since, until } = drange(days);
+  const prev = drange(days * 2);
+  const [acct, ins, media, pins] = await Promise.allSettled([
+    mget(`/${B.igId}`, { fields: 'followers_count,follows_count,media_count,username,profile_picture_url' }),
+    mget(`/${B.igId}/insights`, { metric: 'impressions,reach,total_interactions,accounts_engaged,follows_and_unfollows,profile_views', period: 'day', metric_type: 'time_series', since, until }),
+    mget(`/${B.igId}/media`, { fields: 'id,caption,media_type,timestamp,like_count,comments_count,media_url,permalink,thumbnail_url', limit: 25 }),
+    mget(`/${B.igId}/insights`, { metric: 'impressions,reach,total_interactions,accounts_engaged,follows_and_unfollows,profile_views', period: 'day', metric_type: 'time_series', since: prev.since, until: since }),
+  ]);
+  igAcct = acct.status === 'fulfilled' ? acct.value : null;
+  igM = ins.status === 'fulfilled' ? procInsights(ins.value) : {};
+  igMedia = media.status === 'fulfilled' ? (media.value.data || []) : [];
+  igMprev = pins.status === 'fulfilled' ? procInsights(pins.value) : {};
+}
+
+async function fetchFB() {
+  if (!B.token) return;
+  const { since, until } = drange(days);
+  const prev = drange(days * 2);
+  const [pg, ins, pins] = await Promise.allSettled([
+    mget(`/${B.fbId}`, { fields: 'name,fan_count,followers_count' }),
+    mget(`/${B.fbId}/insights`, { metric: 'page_impressions,page_impressions_unique,page_engaged_users,page_post_engagements,page_views_total,page_fan_adds', period: 'day', since, until }),
+    mget(`/${B.fbId}/insights`, { metric: 'page_impressions,page_impressions_unique,page_engaged_users,page_post_engagements,page_views_total,page_fan_adds', period: 'day', since: prev.since, until: since }),
+  ]);
+  fbPage = pg.status === 'fulfilled' ? pg.value : null;
+  fbM = ins.status === 'fulfilled' ? procInsights(ins.value) : {};
+  fbMprev = pins.status === 'fulfilled' ? procInsights(pins.value) : {};
+}
+
+async function fetchGMB() {
+  try {
+    const r = await fetch(`${API}?action=gmb-performance&brand=${BK}&days=${days}`);
+    const d = await r.json();
+    gmbData = d.success ? d.data : (d.needsAuth ? { needsAuth: true } : null);
+  } catch { gmbData = null; }
+}
+
+async function fetchReviews() {
+  try {
+    const r = await fetch(`${API}?action=get-reviews&brand=${BK}`);
+    const d = await r.json();
+    reviewData = d.success ? d : null;
+  } catch { reviewData = null; }
+}
+
+async function fetchCalendar() {
+  try {
+    const monday = getMonday(new Date());
+    const wk = monday.toISOString().slice(0,10);
+    const r = await fetch(`${API}?action=get-week&brand=${BK}&week=${wk}`);
+    const d = await r.json();
+    calendarData = d.success ? d.posts : [];
+  } catch { calendarData = []; }
+}
+
+async function fetchSales() {
+  salesDays = [];
+  const { sinceDate } = drange(days);
+  const calls = [];
+  for (let i = 0; i < Math.min(days, 14); i++) {
+    const d = new Date(sinceDate);
+    d.setDate(d.getDate() + i);
+    const ds = d.toISOString().slice(0,10);
+    const from = ds + ' 00:00:00';
+    const to = ds + ' 23:59:59';
+    calls.push(
+      fetch(`/api/nch-data?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+        .then(r => r.json())
+        .then(j => ({ date: ds, revenue: j.data?.totalSales || 0, orders: j.data?.totalOrders || 0, aov: j.data?.averageOrderValue || 0 }))
+        .catch(() => ({ date: ds, revenue: 0, orders: 0, aov: 0 }))
+    );
+  }
+  salesDays = await Promise.all(calls);
+  salesDays.sort((a,b) => a.date.localeCompare(b.date));
+}
+
+function getMonday(d) { const dt = new Date(d); const day = dt.getDay(); dt.setDate(dt.getDate() - day + (day === 0 ? -6 : 1)); dt.setHours(0,0,0,0); return dt; }
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════
+function fmt(n) { if (n == null || isNaN(n)) return '--'; if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M'; if (Math.abs(n) >= 1e4) return (n/1e3).toFixed(1)+'K'; if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'K'; return String(Math.round(n)); }
+function fmtX(n) { return n == null || isNaN(n) ? '--' : n.toLocaleString('en-IN'); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function chg(cur, prev) {
+  if (cur == null) return { text: '--', cls: 'flat' };
+  if (!prev || prev === 0) return cur > 0 ? { text: '+' + fmt(cur), cls: 'up' } : { text: '0', cls: 'flat' };
+  // For small bases (<50), use absolute change instead of misleading percentages
+  if (Math.abs(prev) < 50) {
+    const diff = cur - prev;
+    return diff > 0 ? { text: '+' + fmt(diff), cls: 'up' } : diff < 0 ? { text: fmt(diff), cls: 'down' } : { text: '0', cls: 'flat' };
+  }
+  const pct = ((cur - prev) / prev * 100).toFixed(0);
+  return pct > 0 ? { text: '+' + pct + '%', cls: 'up' } : pct < 0 ? { text: pct + '%', cls: 'down' } : { text: '0%', cls: 'flat' };
+}
+
+function spark(vals, color = 'var(--chamoisee)', w = 110, h = 26) {
+  if (!vals || !vals.length) return '';
+  const nums = vals.map(v => typeof v === 'object' ? v.value : v);
+  const max = Math.max(...nums, 1);
+  const pts = nums.map((v, i) => {
+    const x = nums.length === 1 ? w/2 : (i/(nums.length-1)) * w;
+    const y = h - 2 - (v/max)*(h-4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" style="stroke:${color}"/></svg>`;
+}
+
+function barChart(vals, color = 'var(--chamoisee)') {
+  if (!vals || !vals.length) return '<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">No data yet</div>';
+  const max = Math.max(...vals.map(v => v.value), 1);
+  const bars = vals.map(v => {
+    const h = Math.max(2, (v.value/max)*100);
+    return `<div class="b" style="height:${h}%;background:${color}"><div class="bt mono">${fmtX(v.value)} &middot; ${v.date.slice(5)}</div></div>`;
+  }).join('');
+  const lbls = vals.map((v,i) => {
+    const show = vals.length <= 7 || i % Math.ceil(vals.length/7) === 0;
+    return `<span>${show ? v.date.slice(8) : ''}</span>`;
+  }).join('');
+  return `<div class="bars">${bars}</div><div class="bar-dates">${lbls}</div>`;
+}
+
+function pearson(x, y) {
+  const n = Math.min(x.length, y.length);
+  if (n < 3) return null;
+  const mx = x.slice(0,n).reduce((s,v)=>s+v,0)/n;
+  const my = y.slice(0,n).reduce((s,v)=>s+v,0)/n;
+  let num=0, dx=0, dy=0;
+  for (let i=0; i<n; i++) { const a=x[i]-mx, b=y[i]-my; num+=a*b; dx+=a*a; dy+=b*b; }
+  const den = Math.sqrt(dx*dy);
+  return den === 0 ? 0 : num/den;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: B — HEALTH SCORE
+// ═══════════════════════════════════════════════════════════════
+function renderHealth() {
+  const el = document.getElementById('healthCard');
+
+  // Discovery score (0-100): combined reach + GMB normalized
+  const totalReach = (igM.reach?.total||0) + (fbM.page_impressions_unique?.total||0);
+  const gmbViews = gmbData && !gmbData?.needsAuth ? ((gmbData.desktop_search||0)+(gmbData.mobile_search||0)+(gmbData.desktop_maps||0)+(gmbData.mobile_maps||0)) : 0;
+  const discScore = Math.min(100, Math.round((totalReach + gmbViews) / (days * 50) * 100)); // 50/day = good for new biz
+
+  // Engagement score: engagement rate vs 3-6% benchmark
+  const interactions = (igM.total_interactions?.total||0) + (fbM.page_post_engagements?.total||0);
+  const engRate = totalReach > 0 ? (interactions / totalReach * 100) : 0;
+  const engScore = Math.min(100, Math.round(engRate / 5 * 100)); // 5% = perfect
+
+  // Growth score: followers per day
+  const followGrowth = (igM.follows_and_unfollows?.total||0) + (fbM.page_fan_adds?.total||0);
+  const growthPerDay = followGrowth / Math.max(days, 1);
+  const growthScore = Math.min(100, Math.round(growthPerDay / 5 * 100)); // 5/day = great for new biz
+
+  // Reputation score: rating + velocity
+  const rating = reviewData?.rating || 0;
+  const revWeek = reviewData?.thisWeek || 0;
+  const repScore = Math.min(100, Math.round((rating/5*60) + (revWeek/3*40))); // 5.0 + 3/wk = perfect
+
+  // Content score: publish rate
+  const planned = calendarData?.length || 21;
+  const published = calendarData?.filter(p => p.status_ig === 'done' || p.status_fb === 'done' || p.status_google === 'done').length || 0;
+  const contentScore = planned > 0 ? Math.round(published / planned * 100) : 0;
+
+  // Composite
+  const score = Math.round(discScore*.25 + engScore*.20 + growthScore*.25 + repScore*.15 + contentScore*.15);
+
+  // Color + message
+  let scoreColor, msg;
+  if (score >= 80) { scoreColor = 'var(--green)'; msg = 'Exceptional start. Consider boosting your top posts with paid promotion.'; }
+  else if (score >= 60) { scoreColor = 'var(--green)'; msg = 'Strong progress. Keep the content calendar running consistently.'; }
+  else if (score >= 40) { scoreColor = 'var(--yellow)'; msg = 'Momentum is building. Double down on your best-performing content types.'; }
+  else { scoreColor = 'var(--orange)'; msg = 'Focus on publishing consistently. You\'re in the foundation-building phase.'; }
+
+  const bars = [
+    { label: 'Discovery', val: discScore, color: 'var(--blue)' },
+    { label: 'Engagement', val: engScore, color: 'var(--green)' },
+    { label: 'Growth', val: growthScore, color: 'var(--purple)' },
+    { label: 'Reputation', val: repScore, color: 'var(--golden)' },
+    { label: 'Content', val: contentScore, color: 'var(--cyan)' },
+  ];
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#9889;</span><span class="card-title">Marketing Health</span><span class="card-q">"Is my marketing working?"</span></div>
+    <div class="health">
+      <div class="health-score" style="border-color:${scoreColor}">
+        <div class="health-num" style="color:${scoreColor}">${score}</div>
+        <div class="health-lbl">Score</div>
+      </div>
+      <div class="health-right">
+        <div class="health-msg">${msg}</div>
+        <div class="health-bars">
+          ${bars.map(b => `<div class="hbar"><span class="hbar-label">${b.label}</span><div class="hbar-track"><div class="hbar-fill" style="width:${b.val}%;background:${b.color}"></div></div><span class="hbar-val mono">${b.val}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: C — DISCOVERY FUNNEL
+// ═══════════════════════════════════════════════════════════════
+function renderDiscovery() {
+  const igReach = igM.reach?.total || 0;
+  const fbReach = fbM.page_impressions_unique?.total || 0;
+  const gmbViews = gmbData && !gmbData?.needsAuth ? ((gmbData.desktop_search||0)+(gmbData.mobile_search||0)+(gmbData.desktop_maps||0)+(gmbData.mobile_maps||0)) : 0;
+  const totalDisc = igReach + fbReach + gmbViews;
+  const socialReach = igReach + fbReach;
+  const profileViews = (igM.profile_views?.total||0) + (fbM.page_views_total?.total||0);
+  const gmbActions = gmbData && !gmbData?.needsAuth ? ((gmbData.calls||0)+(gmbData.directions||0)+(gmbData.website_clicks||0)) : 0;
+  const interactions = (igM.total_interactions?.total||0) + (fbM.page_post_engagements?.total||0);
+
+  const prevDisc = (igMprev.reach?.total||0) + (fbMprev.page_impressions_unique?.total||0);
+  const prevSocial = (igMprev.reach?.total||0) + (fbMprev.page_impressions_unique?.total||0);
+  const prevProfile = (igMprev.profile_views?.total||0) + (fbMprev.page_views_total?.total||0);
+
+  const kpis = [
+    { val: totalDisc, label: 'Total Discovery', prev: prevDisc, color: 'var(--chamoisee)', vals: igM.reach?.values },
+    { val: socialReach, label: 'Social Reach', prev: prevSocial, color: 'var(--blue)', vals: igM.reach?.values },
+    { val: gmbViews, label: 'Google Discovery', prev: null, color: 'var(--goog)', vals: null },
+    { val: profileViews, label: 'Profile Views', prev: prevProfile, color: 'var(--orange)', vals: igM.profile_views?.values },
+  ];
+
+  document.getElementById('discoveryKpis').innerHTML = kpis.map(k => {
+    const c = chg(k.val, k.prev);
+    return `<div class="kpi">
+      <div class="kpi-top"><div class="kpi-val">${fmt(k.val)}</div><span class="kpi-chg ${c.cls}">${c.text}</span></div>
+      <div class="kpi-label">${k.label}</div>
+      ${spark(k.vals, k.color)}
+    </div>`;
+  }).join('');
+
+  // Funnel
+  const funnelSteps = [
+    { label: 'Saw Content', val: totalDisc, color: 'var(--blue)' },
+    { label: 'Engaged', val: interactions, color: 'var(--green)' },
+    { label: 'Visited Profile', val: profileViews, color: 'var(--orange)' },
+    { label: 'Took Action', val: gmbActions + (igM.profile_views?.total ? Math.round(igM.profile_views.total * 0.1) : 0), color: 'var(--chamoisee)' },
+  ];
+  const maxF = funnelSteps[0].val || 1;
+
+  let insightText = '';
+  if (interactions > 0 && profileViews === 0) insightText = 'People engage with your content but don\'t visit your profile. <strong>Add stronger CTAs</strong> like "Link in bio" to drive profile visits.';
+  else if (totalDisc > 0 && interactions/totalDisc < 0.03) insightText = 'Content is reaching people but engagement is low. <strong>Try asking questions in captions</strong> or posting more Reels/videos.';
+  else if (totalDisc > 100) insightText = `<strong>${fmt(totalDisc)} people discovered ${B.short}</strong> in the last ${days} days. ${(interactions/totalDisc*100).toFixed(1)}% engaged with your content.`;
+  else insightText = 'Discovery data will become more meaningful as you publish more content consistently.';
+
+  document.getElementById('funnelCard').innerHTML = `
+    <div class="card-head"><span class="card-icon">&#128269;</span><span class="card-title">Discovery Funnel</span><span class="card-q">"Are more people discovering us?"</span></div>
+    <div style="display:flex;gap:8px;height:60px;align-items:flex-end;margin:8px 0">
+      ${funnelSteps.map(s => {
+        const h = Math.max(6, (s.val/maxF)*100);
+        const pct = totalDisc > 0 ? (s.val/totalDisc*100).toFixed(1)+'%' : '--';
+        return `<div style="flex:1;text-align:center"><div style="background:${s.color};height:${h}%;border-radius:4px 4px 0 0;min-height:6px;margin:0 auto;width:80%"></div></div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:8px">
+      ${funnelSteps.map(s => `<div style="flex:1;text-align:center"><div class="mono" style="font-size:13px;font-weight:700">${fmt(s.val)}</div><div style="font-size:9px;color:var(--muted)">${s.label}</div>${totalDisc > 0 ? `<div style="font-size:10px;color:var(--text2)">${(s.val/totalDisc*100).toFixed(1)}%</div>` : ''}</div>`).join('')}
+    </div>
+    <div class="insight">${insightText}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: D — CONTENT PERFORMANCE
+// ═══════════════════════════════════════════════════════════════
+function renderContent() {
+  const el = document.getElementById('contentCard');
+  const cal = calendarData || [];
+  const media = igMedia || [];
+
+  const planned = cal.length || 21;
+  const publishedIG = cal.filter(p => p.status_ig === 'done').length;
+  const publishedFB = cal.filter(p => p.status_fb === 'done').length;
+  const publishedG = cal.filter(p => p.status_google === 'done').length;
+  const publishedAny = cal.filter(p => p.status_ig === 'done' || p.status_fb === 'done' || p.status_google === 'done').length;
+  const publishRate = planned > 0 ? Math.round(publishedAny/planned*100) : 0;
+
+  // Best performing content type
+  const typeStats = {};
+  media.forEach(p => {
+    const t = p.media_type || 'IMAGE';
+    if (!typeStats[t]) typeStats[t] = { count: 0, eng: 0 };
+    typeStats[t].count++;
+    typeStats[t].eng += (p.like_count||0) + (p.comments_count||0);
+  });
+  const types = Object.entries(typeStats).map(([t,s]) => ({ type: t, avgEng: s.count > 0 ? s.eng/s.count : 0 })).sort((a,b) => b.avgEng - a.avgEng);
+  const bestType = types[0]?.type || '--';
+
+  // Best day
+  const dayStats = {};
+  media.forEach(p => {
+    const d = new Date(p.timestamp);
+    const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+    if (!dayStats[day]) dayStats[day] = { count: 0, eng: 0 };
+    dayStats[day].count++;
+    dayStats[day].eng += (p.like_count||0) + (p.comments_count||0);
+  });
+  const bestDay = Object.entries(dayStats).sort((a,b) => (b[1].eng/b[1].count) - (a[1].eng/a[1].count))[0]?.[0] || '--';
+
+  // Avg engagement
+  const totalEng = media.reduce((s,p) => s + (p.like_count||0) + (p.comments_count||0), 0);
+  const avgEng = media.length > 0 ? (totalEng/media.length).toFixed(1) : '--';
+
+  // Top posts
+  const sorted = [...media].sort((a,b) => ((b.like_count||0)+(b.comments_count||0)) - ((a.like_count||0)+(a.comments_count||0)));
+  const top = sorted.slice(0, 4);
+
+  const typeLabel = { IMAGE: 'Photo', VIDEO: 'Video', CAROUSEL_ALBUM: 'Carousel' };
+
+  let insight = '';
+  if (publishRate < 50) insight = `Only ${publishRate}% of planned content published. <strong>Publishing consistently is the #1 driver</strong> of organic growth for a new business.`;
+  else if (types.length > 1 && types[0].avgEng > types[1].avgEng * 2) insight = `<strong>${typeLabel[bestType] || bestType}s get ${(types[0].avgEng/Math.max(types[1].avgEng,1)).toFixed(1)}x more engagement</strong> than other formats. Increase ${typeLabel[bestType]?.toLowerCase() || bestType} posts.`;
+  else if (media.length > 3) insight = `Avg <strong>${avgEng} interactions per post</strong>. ${bestDay} posts perform best. Schedule your most important content on ${bestDay}s.`;
+  else insight = 'Post more content to generate meaningful performance insights.';
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#128200;</span><span class="card-title">Content Performance</span><span class="card-q">"Is my content resonating?"</span></div>
+    <div class="side">
+      <div>
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Published: <strong>${publishedAny}/${planned}</strong> (${publishRate}%)</span></div>
+          <div style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;width:${publishRate}%;background:var(--brand-grad);border-radius:4px"></div></div>
+        </div>
+        <div class="mgrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="mbox"><div class="mbox-val">${avgEng}</div><div class="mbox-label">Avg Engagement</div><div class="mbox-sub">per post</div></div>
+          <div class="mbox"><div class="mbox-val">${bestDay}</div><div class="mbox-label">Best Day</div><div class="mbox-sub">highest engagement</div></div>
+          <div class="mbox"><div class="mbox-val">${typeLabel[bestType] || bestType}</div><div class="mbox-label">Best Format</div><div class="mbox-sub">${types[0] ? types[0].avgEng.toFixed(1)+' avg' : '--'}</div></div>
+          <div class="mbox"><div class="mbox-val">${publishedIG}/${publishedFB}/${publishedG}</div><div class="mbox-label">IG / FB / Google</div><div class="mbox-sub">platform completion</div></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">TOP POSTS BY ENGAGEMENT</div>
+        <div class="pgrid" style="grid-template-columns:1fr 1fr">
+          ${top.length === 0 ? '<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--muted);font-size:12px">No posts yet</div>' :
+            top.map(p => {
+              const img = p.thumbnail_url || p.media_url || '';
+              return `<div class="pcard">
+                ${img ? `<img src="${img}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div style="height:80px;background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">${typeLabel[p.media_type]||'Post'}</div>`}
+                <div class="pbody"><div class="pstats"><span>&#10084; ${p.like_count||0}</span><span>&#128172; ${p.comments_count||0}</span></div></div>
+              </div>`;
+            }).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="insight">${insight}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: E — AUDIENCE GROWTH
+// ═══════════════════════════════════════════════════════════════
+function renderAudience() {
+  const el = document.getElementById('audienceCard');
+  const igFollowers = igAcct?.followers_count ?? 0;
+  const fbFans = fbPage?.fan_count ?? 0;
+  const igGrowthVals = igM.follows_and_unfollows?.values || [];
+  const igGrowthTotal = igM.follows_and_unfollows?.total || 0;
+  const fbGrowthTotal = fbM.page_fan_adds?.total || 0;
+  const totalGrowth = igGrowthTotal + fbGrowthTotal;
+  const velocity = (totalGrowth / Math.max(days, 1)).toFixed(1);
+
+  // Milestone projection
+  const target500 = igFollowers < 500 ? Math.ceil((500 - igFollowers) / Math.max(parseFloat(velocity), 0.1) / 7) : 0;
+  const target1000 = igFollowers < 1000 ? Math.ceil((1000 - igFollowers) / Math.max(parseFloat(velocity), 0.1) / 7) : 0;
+
+  let milestone = '';
+  if (igFollowers < 500 && parseFloat(velocity) > 0) milestone = `At this rate: <strong>500 followers in ~${target500} weeks</strong> (unlocks IG Story links)`;
+  else if (igFollowers < 1000 && parseFloat(velocity) > 0) milestone = `At this rate: <strong>1,000 followers in ~${target1000} weeks</strong>`;
+  else if (parseFloat(velocity) <= 0) milestone = 'Publish more content consistently to start growing your audience.';
+  else milestone = `Growing at <strong>${velocity}/day</strong>. Strong momentum!`;
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#128200;</span><span class="card-title">Audience Growth</span><span class="card-q">"Are we building an audience?"</span></div>
+    <div class="side">
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">DAILY NET FOLLOWERS (IG)</div>
+        ${barChart(igGrowthVals, 'var(--purple)')}
+      </div>
+      <div>
+        <div class="mgrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="mbox"><div class="mbox-val">${fmtX(igFollowers)}</div><div class="mbox-label">IG Followers</div><div class="mbox-sub">${igGrowthTotal >= 0 ? '+' : ''}${igGrowthTotal} this period</div></div>
+          <div class="mbox"><div class="mbox-val">${fmtX(fbFans)}</div><div class="mbox-label">FB Fans</div><div class="mbox-sub">${fbGrowthTotal >= 0 ? '+' : ''}${fbGrowthTotal} this period</div></div>
+          <div class="mbox"><div class="mbox-val">${velocity}</div><div class="mbox-label">Per Day</div><div class="mbox-sub">growth velocity</div></div>
+          <div class="mbox"><div class="mbox-val">${igMedia.length}</div><div class="mbox-label">Posts</div><div class="mbox-sub">on Instagram</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="insight">${milestone}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: F — SOCIAL vs SALES CORRELATION
+// ═══════════════════════════════════════════════════════════════
+function renderSales() {
+  const el = document.getElementById('salesCard');
+  const reachVals = igM.reach?.values || [];
+
+  if (salesDays.length === 0 && reachVals.length === 0) {
+    el.innerHTML = `<div class="card-head"><span class="card-icon">&#128176;</span><span class="card-title">Social vs Sales</span><span class="card-q">"Does social activity drive sales?"</span></div>
+      <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Sales data will appear once both social and POS data are available for the same dates.</div>`;
+    return;
+  }
+
+  // Match dates between social reach and sales
+  const reachByDate = {};
+  reachVals.forEach(v => { reachByDate[v.date] = v.value; });
+
+  const matched = salesDays.filter(s => reachByDate[s.date] != null).map(s => ({
+    date: s.date, revenue: s.revenue, reach: reachByDate[s.date] || 0, orders: s.orders
+  }));
+
+  // Correlation
+  const r = matched.length >= 3 ? pearson(matched.map(m => m.reach), matched.map(m => m.revenue)) : null;
+  let corrLabel = '', corrColor = '', corrMsg = '';
+  if (r == null) { corrLabel = 'Insufficient data'; corrColor = 'var(--muted)'; corrMsg = 'Need at least 3 days of overlapping data.'; }
+  else if (r > 0.6) { corrLabel = `Strong (r=${r.toFixed(2)})`; corrColor = 'var(--green)'; corrMsg = 'Days with higher social reach tend to have higher sales. <strong>Keep posting consistently.</strong>'; }
+  else if (r > 0.3) { corrLabel = `Moderate (r=${r.toFixed(2)})`; corrColor = 'var(--yellow)'; corrMsg = 'Some link between social activity and sales. <strong>Try posting closer to peak sales hours.</strong>'; }
+  else { corrLabel = `Weak (r=${r?.toFixed(2) || '--'})`; corrColor = 'var(--orange)'; corrMsg = 'Weak correlation so far. Normal for Week 1 — track this over 4 weeks.'; }
+
+  // Dual bar chart
+  const maxRev = Math.max(...matched.map(m => m.revenue), 1);
+  const maxReach = Math.max(...matched.map(m => m.reach), 1);
+
+  const chartBars = matched.map(m => {
+    const revH = Math.max(3, (m.revenue/maxRev)*100);
+    const reachH = Math.max(3, (m.reach/maxReach)*100);
+    return `<div style="flex:1;display:flex;gap:1px;align-items:flex-end;height:70px">
+      <div class="b" style="flex:1;height:${revH}%;background:var(--blue);border-radius:2px 0 0 0"><div class="bt mono">${B.short === 'NCH' ? '₹' : '₹'}${fmtX(m.revenue)}</div></div>
+      <div class="b" style="flex:1;height:${reachH}%;background:var(--orange);border-radius:0 2px 0 0"><div class="bt mono">${fmtX(m.reach)} reach</div></div>
+    </div>`;
+  }).join('');
+  const chartLabels = matched.map(m => `<span>${m.date.slice(8)}</span>`).join('');
+
+  // Today summary
+  const today = salesDays[salesDays.length - 1];
+  const todayReach = reachVals[reachVals.length - 1]?.value || 0;
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#128176;</span><span class="card-title">Social vs Sales</span><span class="card-q">"Does social activity drive sales?"</span>
+      <span class="corr-badge" style="background:${corrColor}22;color:${corrColor}">${corrLabel}</span>
+    </div>
+    <div style="display:flex;gap:4px;align-items:flex-end;height:70px">${chartBars}</div>
+    <div class="bar-dates" style="display:flex;gap:4px">${chartLabels}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;font-size:10px;color:var(--muted)"><span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--blue)"></span> Revenue</span><span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--orange)"></span> Social Reach</span></div>
+    ${today ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+      <div class="mbox"><div class="mbox-val" style="color:var(--blue)">${B.short === 'NCH' ? '₹' : '₹'}${fmtX(today.revenue)}</div><div class="mbox-label">Today's Revenue</div><div class="mbox-sub">${today.orders} orders &middot; ₹${Math.round(today.aov)} AOV</div></div>
+      <div class="mbox"><div class="mbox-val" style="color:var(--orange)">${fmtX(todayReach)}</div><div class="mbox-label">Today's Reach</div><div class="mbox-sub">${fmtX(igM.total_interactions?.values?.slice(-1)[0]?.value || 0)} interactions</div></div>
+    </div>` : ''}
+    <div class="insight">${corrMsg}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: G — GOOGLE PRESENCE (Reviews + GMB merged)
+// ═══════════════════════════════════════════════════════════════
+function renderGoogle() {
+  const el = document.getElementById('googleCard');
+  const r = reviewData;
+  const g = gmbData;
+
+  const rating = r?.rating || '--';
+  const total = r?.totalReviews || 0;
+  const newToday = r?.newToday ?? 0;
+  const thisWeek = r?.thisWeek ?? 0;
+  const stars = r?.stars || {};
+  const totalStars = Object.values(stars).reduce((s,v) => s + v, 0) || 1;
+
+  // Next milestone
+  let milestone = '';
+  if (total < 50) milestone = `<strong>${50 - total} more reviews</strong> to hit 50 — a key social proof milestone for Shivajinagar searches.`;
+  else if (total < 100) milestone = `<strong>${100 - total} more</strong> to hit 100 reviews. You're building serious credibility.`;
+  else milestone = `<strong>${total} reviews</strong> at ${rating}★ — strong reputation.`;
+
+  // GMB section
+  let gmbHtml = '';
+  if (g && !g.needsAuth) {
+    const totalSearch = (g.desktop_search||0) + (g.mobile_search||0);
+    const totalMaps = (g.desktop_maps||0) + (g.mobile_maps||0);
+    const totalDisc = totalSearch + totalMaps;
+    const totalAct = (g.calls||0) + (g.directions||0) + (g.website_clicks||0);
+    const convRate = totalDisc > 0 ? (totalAct/totalDisc*100).toFixed(1) : 0;
+
+    gmbHtml = `
+      <div style="font-size:11px;color:var(--muted);margin:16px 0 6px">HOW PEOPLE FIND YOU ON GOOGLE</div>
+      <div class="disc-grid">
+        <div class="disc"><div class="disc-val" style="color:var(--blue)">${fmt(totalSearch)}</div><div class="disc-lbl">Search Views</div></div>
+        <div class="disc"><div class="disc-val" style="color:var(--goog)">${fmt(totalMaps)}</div><div class="disc-lbl">Map Views</div></div>
+        <div class="disc"><div class="disc-val" style="color:var(--green)">${fmt(g.calls||0)}</div><div class="disc-lbl">Calls</div></div>
+        <div class="disc"><div class="disc-val" style="color:var(--orange)">${fmt(g.directions||0)}</div><div class="disc-lbl">Directions</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--text2);padding:8px;background:var(--bg);border-radius:6px">
+        <span>Website Clicks: <strong>${fmt(g.website_clicks||0)}</strong></span>
+        <span>Discovery &rarr; Action: <strong>${convRate}%</strong></span>
+      </div>`;
+  } else if (g?.needsAuth) {
+    gmbHtml = `
+      <div style="font-size:11px;color:var(--muted);margin:16px 0 6px">GOOGLE BUSINESS PROFILE</div>
+      <div class="setup-box">
+        <p>Connect Google Business Profile to see search views, map views, call clicks &amp; direction requests.</p>
+        <div class="setup-steps">
+          <strong>Setup (one-time):</strong><br>
+          1. Create a <strong>Web Application</strong> OAuth client in Google Cloud Console<br>
+          2. Set redirect URI: <code>${location.origin}/api/marketing?action=gmb-callback</code><br>
+          3. Add Worker secrets: <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code><br>
+          4. Visit <code>/api/marketing?action=gmb-auth&brand=${BK}</code> to authorize
+        </div>
+      </div>`;
+  }
+
+  const sColors = { 5:'var(--green)', 4:'var(--green)', 3:'var(--yellow)', 2:'var(--orange)', 1:'var(--red)' };
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#127760;</span><span class="card-title">Google Presence</span><span class="card-q">"What does Google think of us?"</span>
+      <span class="card-badge" style="color:var(--green)">+${thisWeek} this week</span>
+    </div>
+    <div class="rev-grid">
+      <div class="rev-big">
+        <div class="rev-num mono">${rating}</div>
+        <div class="rev-stars">${typeof rating === 'number' ? '&#9733;'.repeat(Math.round(rating)) + '&#9734;'.repeat(5 - Math.round(rating)) : ''}</div>
+        <div class="rev-total">${fmtX(total)} reviews</div>
+      </div>
+      <div class="stars-dist">
+        ${[5,4,3,2,1].map(s => {
+          const c = stars[s] || 0;
+          const pct = (c/totalStars*100).toFixed(0);
+          return `<div class="sbar"><span class="sbar-n mono">${s}</span><div class="sbar-track"><div class="sbar-fill" style="width:${pct}%;background:${sColors[s]}"></div></div><span class="sbar-c mono">${c}</span></div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="insight">${milestone}</div>
+    ${gmbHtml}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: H — PLATFORM DEEP DIVES (collapsible)
+// ═══════════════════════════════════════════════════════════════
+function renderPlatformDetails() {
+  // Instagram details
+  const igBody = document.querySelector('#igDetails .detail-body');
+  const m = igM;
+  igBody.innerHTML = `
+    <div class="mgrid">
+      <div class="mbox"><div class="mbox-val">${fmt(m.reach?.total)}</div><div class="mbox-label">Reach</div>${spark(m.reach?.values, 'var(--blue)', 100, 22).replace('kpi-spark','mbox svg')}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(m.impressions?.total)}</div><div class="mbox-label">Impressions</div>${spark(m.impressions?.values, 'var(--cyan)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(m.total_interactions?.total)}</div><div class="mbox-label">Interactions</div>${spark(m.total_interactions?.values, 'var(--green)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(m.accounts_engaged?.total)}</div><div class="mbox-label">Engaged Accounts</div>${spark(m.accounts_engaged?.values, 'var(--pink)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(m.profile_views?.total)}</div><div class="mbox-label">Profile Views</div>${spark(m.profile_views?.values, 'var(--orange)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${(m.follows_and_unfollows?.total||0) >= 0 ? '+' : ''}${fmt(m.follows_and_unfollows?.total)}</div><div class="mbox-label">Net Followers</div>${spark(m.follows_and_unfollows?.values, 'var(--purple)', 100, 22)}</div>
+    </div>
+    <div style="margin-top:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">DAILY REACH</div>${barChart(m.reach?.values || [], 'var(--blue)')}</div>`;
+
+  // Facebook details
+  const fbBody = document.querySelector('#fbDetails .detail-body');
+  const f = fbM;
+  fbBody.innerHTML = `
+    <div class="mgrid">
+      <div class="mbox"><div class="mbox-val">${fmt(f.page_impressions_unique?.total)}</div><div class="mbox-label">Page Reach</div>${spark(f.page_impressions_unique?.values, 'var(--fb)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(f.page_impressions?.total)}</div><div class="mbox-label">Page Impressions</div>${spark(f.page_impressions?.values, 'var(--blue)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(f.page_engaged_users?.total)}</div><div class="mbox-label">Engaged Users</div>${spark(f.page_engaged_users?.values, 'var(--green)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(f.page_post_engagements?.total)}</div><div class="mbox-label">Post Engagements</div>${spark(f.page_post_engagements?.values, 'var(--cyan)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${fmt(f.page_views_total?.total)}</div><div class="mbox-label">Page Views</div>${spark(f.page_views_total?.values, 'var(--orange)', 100, 22)}</div>
+      <div class="mbox"><div class="mbox-val">${(f.page_fan_adds?.total||0) >= 0 ? '+' : ''}${fmt(f.page_fan_adds?.total)}</div><div class="mbox-label">New Fans</div>${spark(f.page_fan_adds?.values, 'var(--purple)', 100, 22)}</div>
+    </div>
+    <div style="margin-top:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">DAILY PAGE REACH</div>${barChart(f.page_impressions_unique?.values || [], 'var(--fb)')}</div>`;
+
+  // GMB details
+  const gmbBody = document.querySelector('#gmbDetails .detail-body');
+  const g = gmbData;
+  if (g && !g.needsAuth) {
+    gmbBody.innerHTML = `
+      <div class="mgrid">
+        <div class="mbox"><div class="mbox-val">${fmt(g.mobile_search||0)}</div><div class="mbox-label">Mobile Search</div><div class="mbox-sub">Google Search on phones</div></div>
+        <div class="mbox"><div class="mbox-val">${fmt(g.desktop_search||0)}</div><div class="mbox-label">Desktop Search</div><div class="mbox-sub">Google Search on computers</div></div>
+        <div class="mbox"><div class="mbox-val">${fmt(g.mobile_maps||0)}</div><div class="mbox-label">Mobile Maps</div><div class="mbox-sub">Google Maps on phones</div></div>
+        <div class="mbox"><div class="mbox-val">${fmt(g.desktop_maps||0)}</div><div class="mbox-label">Desktop Maps</div><div class="mbox-sub">Google Maps on computers</div></div>
+        <div class="mbox"><div class="mbox-val">${fmt(g.calls||0)}</div><div class="mbox-label">Call Clicks</div><div class="mbox-sub">Tapped phone number</div></div>
+        <div class="mbox"><div class="mbox-val">${fmt(g.website_clicks||0)}</div><div class="mbox-label">Website Clicks</div><div class="mbox-sub">Clicked website link</div></div>
+      </div>
+      ${g.daily_search ? `<div style="margin-top:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">DAILY SEARCH VIEWS</div>${barChart(g.daily_search, 'var(--goog)')}</div>` : ''}`;
+  } else {
+    gmbBody.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">GMB not connected. See setup instructions in Google Presence section above.</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: I — RECOMMENDATIONS
+// ═══════════════════════════════════════════════════════════════
+function renderRecs() {
+  const el = document.getElementById('recsCard');
+  const recs = [];
+
+  // Content calendar gaps
+  const cal = calendarData || [];
+  const planned = cal.length || 21;
+  const published = cal.filter(p => p.status_ig === 'done' || p.status_fb === 'done' || p.status_google === 'done').length;
+  if (planned > 0 && published/planned < 0.8) {
+    recs.push({ icon: '&#128204;', color: 'var(--red-dim)', title: `Publish remaining ${planned - published} posts from content calendar`, sub: `You're at ${Math.round(published/planned*100)}% completion. Consistent publishing is the #1 growth driver.` });
+  }
+
+  // Review velocity
+  const total = reviewData?.totalReviews || 0;
+  if (total < 50) {
+    recs.push({ icon: '&#11088;', color: 'var(--golden)22', title: `Ask ${Math.min(5, 50-total)} customers for Google reviews today`, sub: `At ${total} reviews, ${50 - total} more will hit the 50-review milestone for Shivajinagar searches.` });
+  }
+
+  // Content type insight
+  const typeStats = {};
+  (igMedia||[]).forEach(p => {
+    const t = p.media_type || 'IMAGE';
+    if (!typeStats[t]) typeStats[t] = { count: 0, eng: 0 };
+    typeStats[t].count++;
+    typeStats[t].eng += (p.like_count||0) + (p.comments_count||0);
+  });
+  const types = Object.entries(typeStats).map(([t,s]) => ({ type: t, avg: s.count > 0 ? s.eng/s.count : 0, count: s.count })).sort((a,b) => b.avg - a.avg);
+  if (types.length > 1 && types[0].avg > types[1].avg * 1.5) {
+    const tl = { IMAGE:'Photos', VIDEO:'Reels/Videos', CAROUSEL_ALBUM:'Carousels' };
+    recs.push({ icon: '&#127775;', color: 'var(--purple)22', title: `Post more ${tl[types[0].type]||types[0].type}`, sub: `${tl[types[0].type]||types[0].type} get ${(types[0].avg/Math.max(types[1].avg,1)).toFixed(1)}x engagement. Current: ${types[0].count} out of ${igMedia.length} posts.` });
+  }
+
+  // FB fans = 0
+  if ((fbPage?.fan_count || 0) === 0) {
+    recs.push({ icon: '&#128216;', color: 'var(--fb)22', title: 'Start cross-posting to Facebook', sub: '0 FB fans. Sharing IG content to FB costs nothing and doubles your reach potential.' });
+  }
+
+  // GMB not connected
+  if (!gmbData || gmbData.needsAuth) {
+    recs.push({ icon: '&#128205;', color: 'var(--goog)22', title: 'Connect Google Business Profile', sub: 'See search impressions, map views, call clicks, and direction requests.' });
+  }
+
+  // Low engagement
+  const totalReach = (igM.reach?.total||0) + (fbM.page_impressions_unique?.total||0);
+  const interactions = (igM.total_interactions?.total||0) + (fbM.page_post_engagements?.total||0);
+  if (totalReach > 50 && interactions/totalReach < 0.03) {
+    recs.push({ icon: '&#128172;', color: 'var(--green-dim)', title: 'Boost engagement with interactive content', sub: `${(interactions/totalReach*100).toFixed(1)}% engagement rate (industry avg: 3-6%). Try questions, polls, or behind-the-scenes Reels.` });
+  }
+
+  if (recs.length === 0) {
+    recs.push({ icon: '&#9989;', color: 'var(--green-dim)', title: 'Looking good!', sub: 'Keep the content calendar running and monitor weekly trends.' });
+  }
+
+  el.innerHTML = `
+    <div class="card-head"><span class="card-icon">&#127919;</span><span class="card-title">This Week's Priorities</span><span class="card-badge">Auto-generated</span></div>
+    ${recs.map((r, i) => `<div class="rec">
+      <div class="rec-icon" style="background:${r.color}">${r.icon}</div>
+      <div class="rec-body"><div class="rec-title">${r.title}</div><div class="rec-sub">${r.sub}</div></div>
+    </div>`).join('')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MASTER RENDER
+// ═══════════════════════════════════════════════════════════════
+function renderAll() {
+  renderHealth();
+  renderDiscovery();
+  renderContent();
+  renderAudience();
+  renderSales();
+  renderGoogle();
+  renderPlatformDetails();
+  renderRecs();
+  document.getElementById('updatedAt').textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PERIOD + REFRESH
+// ═══════════════════════════════════════════════════════════════
+function setPeriod(d) {
+  days = d;
+  document.querySelectorAll('.pbtn').forEach(b => b.classList.toggle('on', parseInt(b.dataset.d) === d));
+  refreshAll();
+}
+
+async function refreshAll() {
+  // Set loading states
+  ['healthCard','funnelCard','contentCard','audienceCard','salesCard','googleCard','recsCard'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="loading">Loading</div>';
+  });
+  document.getElementById('discoveryKpis').innerHTML = '<div class="kpi"><div class="loading">Loading</div></div>'.repeat(4);
+
+  await Promise.allSettled([fetchIG(), fetchFB(), fetchGMB(), fetchReviews(), fetchCalendar(), fetchSales()]);
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+(async function init() {
+  await refreshAll();
+  setInterval(refreshAll, 5 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
