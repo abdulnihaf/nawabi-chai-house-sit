@@ -192,7 +192,7 @@ async function getImage(url, env) {
 // ═══════════════════════════════════════════════════
 
 // NCH Google Place ID — resolved from coordinates/name
-const NCH_PLACE_ID = 'ChIJTxkNkHdmrjsRkZADcTUidxY'; // TODO: verify this Place ID
+const NCH_PLACE_ID = 'ChIJq-hENv8XrjsRCjNPpTGIogY'; // Verified — 5.0★, 26 reviews
 
 async function getReviews(url, env) {
   const brand = url.searchParams.get('brand') || 'nch';
