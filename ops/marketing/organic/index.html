@@ -909,13 +909,13 @@ async function changeWeek(delta) {
 // ═══════════════════════════════════════════════════
 // GOOGLE REVIEWS (placeholder — connects to /api/marketing)
 // ═══════════════════════════════════════════════════
-let reviewData = { rating: '--', total: '--', newToday: '--', thisWeek: '--' };
+let reviewData = { rating: '--', total: '--', newToday: '--', thisWeek: '--', lastUpdated: null };
 
 async function refreshReviews() {
   const btn = document.querySelector('#reviewsCard .btn');
   if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
   try {
-    const resp = await fetch('/api/marketing?action=get-reviews');
+    const resp = await fetch('/api/marketing?action=get-reviews&refresh=1');
     if (!resp.ok) throw new Error('API unavailable');
     const data = await resp.json();
     if (data.success) {
@@ -924,6 +924,7 @@ async function refreshReviews() {
         total: data.totalReviews || '--',
         newToday: data.newToday ?? '--',
         thisWeek: data.thisWeek ?? '--',
+        lastUpdated: data.lastUpdated || null,
       };
     }
     if (btn) { btn.textContent = 'Updated!'; setTimeout(() => { btn.textContent = 'Refresh'; btn.disabled = false; }, 1500); }
@@ -934,11 +935,15 @@ async function refreshReviews() {
 }
 
 function renderReviews() {
+  const ts = reviewData.lastUpdated
+    ? new Date(reviewData.lastUpdated).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true, day: 'numeric', month: 'short' })
+    : '';
   document.getElementById('reviewsStats').innerHTML = `
     <div class="rev-stat"><div class="rv" style="color:var(--golden)">${reviewData.rating}</div><div class="rl">Rating</div></div>
     <div class="rev-stat"><div class="rv">${reviewData.total}</div><div class="rl">Total Reviews</div></div>
     <div class="rev-stat"><div class="rv" style="color:var(--green)">${reviewData.newToday}</div><div class="rl">New Today</div></div>
     <div class="rev-stat"><div class="rv">${reviewData.thisWeek}</div><div class="rl">This Week</div></div>
+    ${ts ? `<div style="width:100%;text-align:right;font-size:10px;color:var(--muted);margin-top:4px">Last updated: ${ts}</div>` : ''}
   `;
 }
 

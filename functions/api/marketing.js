@@ -50,8 +50,6 @@ export async function onRequest(context) {
       // ─── POST LOG ───
       case 'log-publish':
         return await logPublish(request, env);
-      case 'debug-env':
-        return json({ success: true, hasDB: !!env.DB, hasR2: !!env.MARKETING_IMAGES, hasPlacesKey: !!env.GOOGLE_PLACES_KEY_MARKETING, envKeys: Object.keys(env).filter(k => k.includes('GOOGLE')) });
       case 'get-publish-log':
         return await getPublishLog(url, env);
 
@@ -192,75 +190,89 @@ async function getImage(url, env) {
 // ═══════════════════════════════════════════════════
 
 // NCH Google Place ID — resolved from coordinates/name
-const NCH_PLACE_ID = 'ChIJq-hENv8XrjsRCjNPpTGIogY'; // Verified — 5.0★, 26 reviews
+const NCH_PLACE_ID = 'ChIJq-hENv8XrjsRCjNPpTGIogY'; // Verified — 5.0★, 22 reviews
+
+// IST date helpers (UTC+5:30)
+function istNow() {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+}
+function istDateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+function istToday() {
+  return istDateStr(istNow());
+}
 
 async function getReviews(url, env) {
   const brand = url.searchParams.get('brand') || 'nch';
-  const today = new Date().toISOString().slice(0, 10);
+  const forceRefresh = url.searchParams.get('refresh') === '1';
+  const today = istToday();
 
-  // Try to get today's snapshot from DB first
-  const existing = await env.DB.prepare(
-    'SELECT * FROM review_snapshots WHERE brand = ? AND snapshot_date = ?'
-  ).bind(brand, today).first();
-
-  // Get yesterday's snapshot for "new today" calculation
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const yesterdaySnap = await env.DB.prepare(
-    'SELECT * FROM review_snapshots WHERE brand = ? AND snapshot_date = ?'
-  ).bind(brand, yesterday).first();
-
-  // Get week start snapshot for "this week" calculation
-  const weekStart = getMonday(new Date()).toISOString().slice(0, 10);
-  const weekSnap = await env.DB.prepare(
-    'SELECT * FROM review_snapshots WHERE brand = ? AND snapshot_date <= ? ORDER BY snapshot_date ASC LIMIT 1'
-  ).bind(brand, weekStart).first();
-
-  if (existing) {
-    const newToday = yesterdaySnap ? existing.total_reviews - yesterdaySnap.total_reviews : 0;
-    const thisWeek = weekSnap ? existing.total_reviews - weekSnap.total_reviews : 0;
-    return json({
-      success: true,
-      rating: existing.average_rating,
-      totalReviews: existing.total_reviews,
-      newToday,
-      thisWeek,
-      stars: { 5: existing.stars_5, 4: existing.stars_4, 3: existing.stars_3, 2: existing.stars_2, 1: existing.stars_1 },
-    });
-  }
-
-  // No snapshot today — try fetching from Google Places API
   if (!env.GOOGLE_PLACES_KEY_MARKETING) {
     return json({ success: true, rating: '--', totalReviews: '--', newToday: '--', thisWeek: '--', note: 'Google API key not configured' });
   }
 
+  // Always fetch live from Google Places API
+  let liveRating = null, liveCount = null, lastUpdated = null;
   try {
+    const placeId = brand === 'nch' ? NCH_PLACE_ID : NCH_PLACE_ID;
     const resp = await fetch(
-      `https://places.googleapis.com/v1/places/${NCH_PLACE_ID}?fields=rating,userRatingCount&key=${env.GOOGLE_PLACES_KEY_MARKETING}`
+      `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount&key=${env.GOOGLE_PLACES_KEY_MARKETING}`
     );
     const data = await resp.json();
-
     if (data.rating) {
-      // Store today's snapshot
+      liveRating = data.rating;
+      liveCount = data.userRatingCount || 0;
+      lastUpdated = new Date().toISOString();
+
+      // Save/update today's snapshot (IST day boundary)
       await env.DB.prepare(
         `INSERT OR REPLACE INTO review_snapshots (brand, snapshot_date, total_reviews, average_rating) VALUES (?, ?, ?, ?)`
-      ).bind(brand, today, data.userRatingCount || 0, data.rating).run();
-
-      const newToday = yesterdaySnap ? (data.userRatingCount || 0) - yesterdaySnap.total_reviews : 0;
-      const thisWeek = weekSnap ? (data.userRatingCount || 0) - weekSnap.total_reviews : 0;
-
-      return json({
-        success: true,
-        rating: data.rating,
-        totalReviews: data.userRatingCount || 0,
-        newToday,
-        thisWeek,
-      });
+      ).bind(brand, today, liveCount, liveRating).run();
     }
-
-    return json({ success: true, rating: '--', totalReviews: '--', newToday: '--', thisWeek: '--', note: 'Could not fetch reviews' });
   } catch (e) {
-    return json({ success: true, rating: '--', totalReviews: '--', newToday: '--', thisWeek: '--', note: e.message });
+    // If live fetch fails, fall back to today's cached snapshot
+    const existing = await env.DB.prepare(
+      'SELECT * FROM review_snapshots WHERE brand = ? AND snapshot_date = ? LIMIT 1'
+    ).bind(brand, today).first();
+    if (existing) {
+      liveRating = existing.average_rating;
+      liveCount = existing.total_reviews;
+      lastUpdated = existing.snapshot_date + 'T00:00:00+05:30';
+    }
   }
+
+  if (liveRating === null) {
+    return json({ success: true, rating: '--', totalReviews: '--', newToday: '--', thisWeek: '--', note: 'Could not fetch reviews' });
+  }
+
+  // "New Today": compare live count vs end-of-yesterday snapshot (IST 12am boundary)
+  const yesterdayIST = istDateStr(new Date(istNow().getTime() - 86400000));
+  const yesterdaySnap = await env.DB.prepare(
+    'SELECT total_reviews FROM review_snapshots WHERE brand = ? AND snapshot_date = ? LIMIT 1'
+  ).bind(brand, yesterdayIST).first();
+  const newToday = yesterdaySnap ? liveCount - yesterdaySnap.total_reviews : 0;
+
+  // "This Week": compare live count vs Monday's snapshot
+  const istD = istNow();
+  const day = istD.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(istD);
+  monday.setUTCDate(monday.getUTCDate() + mondayOffset);
+  const mondayStr = istDateStr(monday);
+  const weekSnap = await env.DB.prepare(
+    'SELECT total_reviews FROM review_snapshots WHERE brand = ? AND snapshot_date <= ? ORDER BY snapshot_date DESC LIMIT 1'
+  ).bind(brand, mondayStr).first();
+  const thisWeek = weekSnap ? liveCount - weekSnap.total_reviews : 0;
+
+  return json({
+    success: true,
+    rating: liveRating,
+    totalReviews: liveCount,
+    newToday,
+    thisWeek,
+    lastUpdated,
+  });
 }
 
 async function getReviewLog(url, env) {
