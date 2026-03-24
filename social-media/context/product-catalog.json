@@ -1,0 +1,43 @@
+{
+  "brand": "Nawabi Chai House",
+  "photoBasePath": "../products/",
+  "referenceBasePath": "../reference/",
+  "totalProducts": 6,
+  "menu": {
+    "chai": [
+      { "name": "Nawabi Irani Chai", "price": 40, "photo": "Nawabi-Irani-Chai.jpeg", "description": "Signature strong decoction, full cream milk, brewed Hyderabadi way" },
+      { "name": "Cutting Chai", "price": 30, "photo": null, "description": "Half portion, full flavor" },
+      { "name": "Kadak Chai", "price": 45, "photo": null, "description": "Extra strong, extra brew, for purists" },
+      { "name": "Sulaimani", "price": 35, "photo": "Sulaimani.jpeg", "description": "Black tea with lemon, no milk" },
+      { "name": "Masala Chai", "price": 45, "photo": null, "description": "Ginger, cardamom, spices" }
+    ],
+    "classics": [
+      { "name": "Osmania Biscuit (2 pcs)", "price": 30, "photo": "Osmania-Biscuit.jpeg", "description": "Sweet-salty Hyderabadi legend, made for dunking" },
+      { "name": "Bun Maska", "price": 40, "photo": "Bun-Maska.jpeg", "description": "Soft bun, generous Amul butter, served warm" },
+      { "name": "Malai Bun", "price": 50, "photo": null, "description": "Bun topped with fresh cream" },
+      { "name": "Khari Biscuit", "price": 25, "photo": null, "description": "Flaky, crispy puff biscuit" },
+      { "name": "Toast Butter", "price": 35, "photo": null, "description": "Crispy bread, buttered generously" }
+    ],
+    "bites": [
+      { "name": "Bun Omelette", "price": 60, "photo": null, "description": "Fluffy eggs, soft bun, touch of masala" },
+      { "name": "Irani Samosa", "price": 25, "photo": null, "description": "Crispy, spiced potato" },
+      { "name": "Keema Pav", "price": 120, "photo": null, "description": "Spiced minced meat with fresh pav" },
+      { "name": "Egg Puff", "price": 40, "photo": null, "description": "Boiled egg wrapped in crispy pastry" },
+      { "name": "Chicken Cutlet", "price": null, "photo": "Chicken-Cutlet.jpeg", "description": "Crispy fried chicken cutlet with spiced filling" }
+    ],
+    "other": [
+      { "name": "Coffee", "price": null, "photo": "Coffee.jpeg", "description": "Filter coffee" }
+    ]
+  },
+  "referenceImages": {
+    "logo": "1-NCH-Logo.svg",
+    "logoWithBG": "2-NCH-Logo-With-BG.png"
+  },
+  "brandColors": {
+    "chamoisee": "#AC7E54",
+    "wheat": "#E9D1A9",
+    "golden": "#D4A44C",
+    "deepBrown": "#5C4033",
+    "cream": "#F5E6D3"
+  }
+}

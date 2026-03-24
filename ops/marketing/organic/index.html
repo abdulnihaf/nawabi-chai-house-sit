@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH Organic Marketing</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f1a;
+      --bg2: #111827;
+      --card: #1a2234;
+      --border: #2d3a4f;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --muted: #64748b;
+      --green: #10b981;
+      --green-dim: rgba(16,185,129,.12);
+      --red: #ef4444;
+      --orange: #f97316;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --pink: #ec4899;
+      --cyan: #06b6d4;
+      --chamoisee: #AC7E54;
+      --wheat: #E9D1A9;
+      --golden: #D4A44C;
+      --brand-grad: linear-gradient(135deg, #AC7E54, #D4A44C);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .header h1::before { content: ''; width: 5px; height: 24px; background: var(--brand-grad); border-radius: 3px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .date-badge { padding: 5px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--wheat); }
+    .back-btn { padding: 5px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--muted); text-decoration: none; }
+    .back-btn:hover { border-color: var(--chamoisee); color: var(--text2); }
+
+    /* How This Works */
+    .guide-toggle { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; cursor: pointer; }
+    .guide-toggle summary { font-size: 14px; font-weight: 600; color: var(--wheat); list-style: none; display: flex; align-items: center; gap: 8px; }
+    .guide-toggle summary::after { content: ' ▸'; font-size: 12px; color: var(--muted); }
+    .guide-toggle[open] summary::after { content: ' ▾'; }
+    .guide-content { margin-top: 12px; font-size: 13px; color: var(--text2); line-height: 1.8; }
+    .guide-content ol, .guide-content ul { padding-left: 20px; }
+    .guide-content li { margin-bottom: 4px; }
+    .guide-content strong { color: var(--text); }
+
+    /* Auth bar */
+    .auth-bar { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; margin-bottom: 16px; }
+    .auth-item { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+
+    /* Week Selector */
+    .week-selector { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px; }
+    .week-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .week-btn:hover { border-color: var(--chamoisee); }
+    .week-label { font-size: 15px; font-weight: 600; color: var(--wheat); font-family: 'JetBrains Mono', monospace; min-width: 220px; text-align: center; }
+
+    /* Status Row */
+    .status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .status-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; text-align: center; }
+    .status-card .value { font-size: 24px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .status-card .value .of { color: var(--muted); font-size: 14px; }
+    .status-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+
+    /* Google Reviews Card */
+    .reviews-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .reviews-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .reviews-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .reviews-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .rev-stat { text-align: center; }
+    .rev-stat .rv { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .rev-stat .rl { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+    .stars-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); margin-top: 10px; }
+    .stars-bar .bar { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .stars-bar .bar-fill { height: 100%; border-radius: 3px; }
+
+    /* Next Post Banner */
+    .next-banner { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--wheat); border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .next-banner .next-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .next-banner .next-title { font-size: 18px; font-weight: 700; color: var(--wheat); }
+    .next-banner .next-obj { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .next-banner .start-btn { padding: 12px 24px; background: var(--brand-grad); border: none; border-radius: 10px; color: white; font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .next-banner .start-btn:hover { opacity: .9; }
+
+    /* Section Title */
+    .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 10px; }
+
+    /* Post Tracker Table */
+    .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; padding: 10px 12px; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid rgba(45,58,79,.5); }
+    tbody tr.row-done { opacity: .6; }
+    tbody tr.row-next { background: rgba(172,126,84,.06); }
+    .day-divider td { background: var(--bg2); font-weight: 600; font-size: 12px; color: var(--wheat); padding: 6px 12px; }
+    .status-icon { font-size: 16px; cursor: pointer; user-select: none; }
+    .status-icon:active { transform: scale(1.2); }
+    .slot-tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .slot-morning { background: rgba(249,115,22,.12); color: var(--orange); }
+    .slot-afternoon { background: rgba(59,130,246,.12); color: var(--blue); }
+    .slot-evening { background: rgba(139,92,246,.12); color: var(--purple); }
+    .obj-tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+    .obj-AWARENESS { background: rgba(59,130,246,.15); color: var(--blue); }
+    .obj-DESIRE { background: rgba(236,72,153,.15); color: var(--pink); }
+    .obj-ACTION { background: rgba(16,185,129,.15); color: var(--green); }
+    .obj-TRUST { background: rgba(139,92,246,.15); color: var(--purple); }
+
+    /* Workflow Section */
+    .workflow { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .workflow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .workflow-title { font-size: 16px; font-weight: 700; }
+    .workflow-obj { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .platform-tabs { display: flex; gap: 6px; }
+    .platform-tab { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); font-size: 13px; font-weight: 500; cursor: pointer; position: relative; }
+    .platform-tab.active { background: var(--chamoisee); color: white; border-color: var(--chamoisee); }
+    .platform-tab.tab-done::after { content: '\2713'; position: absolute; top: -4px; right: -4px; background: var(--green); color: white; font-size: 9px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+    /* Steps */
+    .step { margin-bottom: 20px; }
+    .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--brand-grad); color: white; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-label { font-size: 14px; font-weight: 600; }
+    .step-body { margin-left: 38px; }
+    .step-instructions { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--text2); line-height: 1.7; margin-bottom: 10px; }
+    .step-instructions ol { padding-left: 18px; }
+    .step-instructions li { margin-bottom: 3px; }
+    .step-instructions code { background: rgba(172,126,84,.12); color: var(--wheat); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .step-note { background: rgba(249,115,22,.08); border: 1px solid rgba(249,115,22,.2); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: var(--orange); margin-bottom: 10px; }
+
+    /* Prompt area */
+    .prompt-toggle { font-size: 12px; color: var(--wheat); cursor: pointer; background: none; border: none; padding: 4px 0; margin-bottom: 6px; }
+    .prompt-area { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 11px; font-family: 'JetBrains Mono', monospace; resize: vertical; line-height: 1.5; }
+
+    /* Buttons */
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-brand { background: var(--brand-grad); color: white; }
+    .btn-ig { background: linear-gradient(135deg,#833AB4,#E1306C,#F77737); color: white; }
+    .btn-fb { background: #1877F2; color: white; }
+    .btn-google { background: #34A853; color: white; }
+    .btn-outline { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+    .btn-purple { background: var(--purple); color: white; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+    /* Image upload */
+    .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: border-color .2s; }
+    .upload-zone:hover { border-color: var(--wheat); }
+    .upload-zone input { display: none; }
+    .upload-zone .upload-label { font-size: 13px; color: var(--text2); }
+    .upload-preview { margin-top: 10px; display: none; }
+    .upload-preview img { max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid var(--border); }
+
+    /* Caption */
+    .caption-area { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; resize: vertical; line-height: 1.6; min-height: 120px; }
+
+    /* Publish status */
+    .publish-status { margin-top: 10px; font-size: 13px; padding: 8px 12px; border-radius: 8px; }
+
+    /* Post History */
+    .log-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; overflow-x: auto; }
+    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .log-empty { text-align: center; padding: 16px; color: var(--muted); font-size: 13px; }
+
+    /* Quick Actions */
+    .actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .action-btn { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: var(--text); font-size: 13px; transition: border-color .2s; }
+    .action-btn:hover { border-color: var(--wheat); }
+    .action-btn .act-icon { font-size: 18px; }
+    .action-btn .act-label { font-weight: 500; }
+    .action-btn .act-sub { font-size: 11px; color: var(--muted); }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--green); color: var(--green); padding: 10px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+    .toast.show { opacity: 1; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .status-row { grid-template-columns: 1fr; }
+      .reviews-stats { grid-template-columns: repeat(2, 1fr); }
+      .actions-grid { grid-template-columns: 1fr 1fr; }
+      .next-banner { flex-direction: column; align-items: stretch; text-align: center; }
+      .platform-tabs { justify-content: center; }
+      .step-body { margin-left: 0; }
+      .auth-bar { flex-direction: column; gap: 6px; }
+    }
+    @media (max-width: 480px) {
+      .container { padding: 10px; }
+      .actions-grid { grid-template-columns: 1fr; }
+      table { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- HEADER -->
+    <header class="header">
+      <h1>NCH Organic Marketing</h1>
+      <div class="header-right">
+        <div class="date-badge" id="dateBadge"></div>
+        <a class="back-btn" href="/ops/marketing/">&larr; Hub</a>
+      </div>
+    </header>
+
+    <!-- HOW THIS WORKS -->
+    <details class="guide-toggle" id="guideToggle">
+      <summary>How This Works</summary>
+      <div class="guide-content">
+        <p>This dashboard manages <strong>weekly organic posting</strong> for Nawabi Chai House across <strong>Instagram</strong>, <strong>Facebook</strong>, and <strong>Google Business</strong>.</p>
+        <p style="margin:8px 0"><strong>Weekly workflow (one day of work):</strong></p>
+        <ol>
+          <li>Review the <strong>21 posts</strong> for the week (3 per day &times; 7 days)</li>
+          <li>Generate all images in <strong>AI Studio</strong> using the prompts provided</li>
+          <li>Upload each image and publish to all 3 platforms using the <strong>4-step workflow</strong></li>
+          <li>Instagram &amp; Facebook publish <strong>automatically</strong> from here</li>
+          <li>Google Posts are <strong>manual</strong> (copy + paste into Google Business)</li>
+        </ol>
+        <p style="margin:10px 0"><strong>Reference images for AI Studio:</strong></p>
+        <ul>
+          <li><code>NCH Logo</code> &mdash; Brand logo</li>
+          <li><code>Menu/Design reference</code> &mdash; Style guide</li>
+          <li><code>Social post reference</code> &mdash; Existing post style</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- AUTH BAR -->
+    <div class="auth-bar">
+      <div class="auth-item"><span style="color:var(--green)">&#9679;</span> Meta API (IG + FB)</div>
+      <div class="auth-item"><span style="color:var(--yellow)">&#9679;</span> Google Posts (manual)</div>
+      <div class="auth-item" style="margin-left:auto;color:var(--muted)">@nawabichaihouse</div>
+    </div>
+
+    <!-- WEEK SELECTOR -->
+    <div class="week-selector">
+      <button class="week-btn" onclick="changeWeek(-1)">&larr;</button>
+      <div class="week-label" id="weekLabel"></div>
+      <button class="week-btn" onclick="changeWeek(1)">&rarr;</button>
+    </div>
+
+    <!-- STATUS ROW -->
+    <div class="status-row" id="statusRow"></div>
+
+    <!-- GOOGLE REVIEWS -->
+    <div class="reviews-card" id="reviewsCard">
+      <div class="reviews-header">
+        <span class="reviews-title">Google Reviews</span>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="refreshReviews()">Refresh</button>
+      </div>
+      <div class="reviews-stats" id="reviewsStats">
+        <div class="rev-stat"><div class="rv" style="color:var(--golden)">--</div><div class="rl">Rating</div></div>
+        <div class="rev-stat"><div class="rv">--</div><div class="rl">Total Reviews</div></div>
+        <div class="rev-stat"><div class="rv" style="color:var(--green)">--</div><div class="rl">New Today</div></div>
+        <div class="rev-stat"><div class="rv">--</div><div class="rl">This Week</div></div>
+      </div>
+    </div>
+
+    <!-- NEXT POST BANNER -->
+    <div class="next-banner" id="nextBanner"></div>
+
+    <!-- GUIDED WORKFLOW -->
+    <div class="section-title">Posting Workflow</div>
+    <div class="workflow" id="workflow"></div>
+
+    <!-- POST TRACKER -->
+    <div class="section-title">Weekly Post Tracker</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Day</th>
+            <th>Slot</th>
+            <th>Content</th>
+            <th>Obj</th>
+            <th>IG</th>
+            <th>FB</th>
+            <th>Google</th>
+          </tr>
+        </thead>
+        <tbody id="postTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- POST HISTORY -->
+    <div class="section-title">Post History</div>
+    <div class="log-card">
+      <div class="log-header">
+        <span style="font-size:12px;color:var(--muted)" id="logCount">0 posts</span>
+        <button onclick="exportLog()" class="btn btn-outline" style="padding:5px 12px;font-size:11px">Export JSON</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px" id="logTable">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">DATE</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">POST</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">PLATFORM</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">STATUS</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div id="logEmpty" class="log-empty">No posts logged yet.</div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="section-title">Quick Links</div>
+    <div class="actions-grid">
+      <a class="action-btn" href="https://aistudio.google.com" target="_blank"><span class="act-icon">&#9889;</span><div><div class="act-label">AI Studio</div><div class="act-sub">Generate images</div></div></a>
+      <a class="action-btn" href="https://business.google.com" target="_blank"><span class="act-icon">&#128205;</span><div><div class="act-label">Google Business</div><div class="act-sub">Google posts</div></div></a>
+      <a class="action-btn" href="https://business.facebook.com" target="_blank"><span class="act-icon">&#128202;</span><div><div class="act-label">Meta Business</div><div class="act-sub">Analytics</div></div></a>
+      <a class="action-btn" href="https://instagram.com/nawabichaihouse" target="_blank"><span class="act-icon">&#128248;</span><div><div class="act-label">Instagram</div><div class="act-sub">@nawabichaihouse</div></div></a>
+      <a class="action-btn" href="https://nawabichaihouse.com" target="_blank"><span class="act-icon">&#127760;</span><div><div class="act-label">Website</div><div class="act-sub">nawabichaihouse.com</div></div></a>
+      <a class="action-btn" href="https://wa.me/918008002045" target="_blank"><span class="act-icon">&#128172;</span><div><div class="act-label">WhatsApp</div><div class="act-sub">8008002045</div></div></a>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// BRAND CONFIG — Nawabi Chai House only
+// ═══════════════════════════════════════════════════
+const BRAND = {
+  name: 'Nawabi Chai House',
+  shortName: 'NCH',
+  fbPageId: '989339677591071',        // Meta Business Page ID
+  igAccountId: '17841478912278724',   // IG Business Account ID
+  igHandle: '@nawabichaihouse',
+  phone: '8008002045',
+  address: '#22, 3rd Floor, H.K.P. Road, Shivajinagar, Bangalore 560051',
+  hours: '7 AM - 11 PM',
+  website: 'https://nawabichaihouse.com',
+  hashtags: '#NawabiChaiHouse #IraniChai #BangaloreChai #Shivajinagar #OsmaniaBiscuit #BunMaska',
+};
+
+// Meta Graph API — HN Hotels Private Limited portfolio (ID: 2590924097967277)
+const META_TOKEN = 'EAAdjKyLVeusBQ5W4XrV2JNvYmUJXAnXYkPNwsu3oZBoTp3u3ETjRdC41dX4frN3xtiRtSrUP9X0eGLSPAKxxuuSxWQL20ffMZBA4PMdVAdmix1JFk9TmqFdGeMZBiZAZAJq32HE4lAslCqclCIl4swEBi9Ov9DdqThN2QJezGzj4zH05a0ky14caD2KEPJCs3SrnmlvbgGZCbLfZBHKVBy4yFZB6';
+const FB_PAGE_ID = BRAND.fbPageId;
+let IG_ACCOUNT_ID = BRAND.igAccountId; // Hardcoded — no need to fetch
+
+// ═══════════════════════════════════════════════════
+// STATE MANAGEMENT — D1 backend with localStorage fallback
+// ═══════════════════════════════════════════════════
+const API = '/api/marketing';
+const STORAGE_PREFIX = 'nch_organic_';
+const LOG_KEY = 'nch_post_log_v1';
+
+let currentWeekStart = getMonday(new Date());
+let currentPlatform = 'instagram';
+let useAPI = true; // Will fallback to localStorage if API unavailable
+
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+  dt.setDate(diff);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+function weekKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function storageKey() {
+  return STORAGE_PREFIX + 'week_' + weekKey(currentWeekStart);
+}
+
+// ═══════════════════════════════════════════════════
+// CONTENT INTELLIGENCE — Weekly post definitions
+// Each week's 21 posts (3/day × 7 days) with titles, objectives, prompts, captions
+// Product photos: Documents/NCH Product Photos/ → Irani Chai.jpeg, Bun Maska.jpeg,
+//   Chicken Cutlet.jpeg, Osmania Biscuit.jpeg, Lemon Tea.jpeg, Coffee.jpeg
+// ═══════════════════════════════════════════════════
+
+const PROMPT_BASE = `You are a professional social media designer for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. family legacy since 1918).
+
+BRAND IDENTITY:
+- Colors: Chamoisee Brown #AC7E54 (primary), Wheat #E9D1A9 (warm), Golden Amber #D4A44C (accent), Deep Brown #5C4033 (text), Cream #F5E6D3 (bg)
+- Typography: Cinzel Decorative for headlines, classic serif for body
+- Style: Heritage-rich, ornamental thin borders, warm cream-brown palette, Victorian-era elegance
+- Mood: Nostalgic, warm, sensory, inviting — NEVER salesy or loud
+
+REFERENCE IMAGES:
+- Image 1: NCH brand logo (use in corner, subtle)
+- Image 2: Product photo (use as hero — maintain its warm, real photography feel)
+
+DESIGN RULES:
+- Hero product photo takes 60-70% of canvas
+- Thin ornamental border frame in #AC7E54 or #D4A44C
+- Headline in Cinzel Decorative, cream or wheat color
+- Subtext smaller, light serif
+- Logo small in bottom-right corner
+- Background: gradient from #5C4033 to #AC7E54 or soft cream
+- DO: Warm lighting, heritage feel, readable at phone size, real food photography
+- DON'T: Neon, gradients, modern/minimal flat design, stock art, emojis in design, cluttered text`;
+
+// Post content definitions — slot 0=morning, 1=afternoon, 2=evening
+const WEEK_1_POSTS = [
+  // ─── DAY 1 (Mon) ───
+  { title: 'Your Chai Adda Has Arrived', objective: 'AWARENESS',
+    photo: 'Irani Chai.jpeg', headline: 'Your Chai Adda\nHas Arrived', subtext: 'Nawabi Chai House — Shivajinagar',
+    concept: 'Brand identity launch. Hero: steaming Irani chai cup with NCH branding visible. Warm, inviting, establishes who we are.',
+    ig_caption: `Before Bangalore had coffee chains, it had chai addas.\n\nA place where the morning starts slow. Where the guy behind the counter knows your order. Where conversations don't need an agenda.\n\nNawabi Chai House. Shivajinagar. Now open.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM\n📞 8008002045\n\n#NawabiChaiHouse #IraniChai #BangaloreChai #Shivajinagar #ChaiAdda`,
+    fb_caption: `Before Bangalore had coffee chains, it had chai addas.\n\nA counter where mornings start slow. Where the person behind it knows everyone's order. Where a ₹40 cup of Irani chai comes with something no café can sell — a pause.\n\nNawabi Chai House is now open in Shivajinagar. From the family behind Hamza Hotel (since 1918), this is our invitation to sit, sip, and stay a while.\n\nCome for the chai. Stay for the conversation.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar, Bangalore 560051\n⏰ Open 7 AM – 11 PM, all days\n📞 8008002045 | wa.me/918008002045`,
+    google_caption: `Nawabi Chai House — your neighborhood Irani chai adda in Shivajinagar, Bangalore. Authentic Hyderabadi-style chai, Osmania biscuits, and Bun Maska. Open 7 AM – 11 PM daily. #22, H.K.P. Road, 3rd Floor. Call 8008002045.` },
+
+  { title: 'The Pour — Irani Chai', objective: 'DESIRE',
+    photo: 'Irani Chai.jpeg', headline: 'Irani Chai', subtext: 'Strong decoction. Full cream milk. Brewed the Hyderabadi way.',
+    concept: 'Signature product close-up. Steam rising from branded cup. Sensory — you can almost smell it. Warm amber lighting.',
+    ig_caption: `Strong decoction. Full cream milk. Brewed the Hyderabadi way.\n\nThis isn't tea. This is Irani chai — the kind that makes you close your eyes on the first sip.\n\n₹40. Every single morning.\n\n📍 Nawabi Chai House, Shivajinagar\n⏰ 7 AM – 11 PM\n\n#IraniChai #NawabiChaiHouse #BangaloreChai #ChaiLovers #Shivajinagar`,
+    fb_caption: `There's chai. And then there's Irani chai.\n\nThe kind brewed slow — strong decoction meeting full cream milk in a way that makes you forget whatever you were rushing to do. It's ₹40. It's served in a cup that knows your name. And it's waiting for you at Nawabi Chai House.\n\nShivajinagar. 7 AM – 11 PM. Every day.\n\n📍 #22, 3rd Floor, H.K.P. Road\n📞 wa.me/918008002045`,
+    google_caption: `Authentic Irani chai at Nawabi Chai House — strong decoction, full cream milk, brewed the Hyderabadi way. ₹40 per cup. Shivajinagar, Bangalore. Open 7 AM – 11 PM daily.` },
+
+  { title: 'The Counter', objective: 'AWARENESS',
+    photo: 'Irani Chai.jpeg', headline: 'The Counter', subtext: 'Where mornings begin.',
+    concept: 'Interior/ambiance shot. Show the warm arched interiors, the steel counter, the warm lighting. AI Studio should generate a warm heritage café interior with NCH branding elements. No product — just the place.',
+    ig_caption: `Some places serve food. Some places serve a feeling.\n\nThe arches. The warm light. The steel counter where mornings begin and evenings slow down. This is Nawabi Chai House.\n\nCome see it for yourself.\n\n📍 Shivajinagar, Bangalore\n⏰ 7 AM – 11 PM\n\n#NawabiChaiHouse #ChaiAdda #Shivajinagar #BangaloreCafe #HeritageCafe`,
+    fb_caption: `Some places you visit. Some places you belong to.\n\nNawabi Chai House isn't just a chai spot — it's the counter where your morning starts, the corner where conversations stretch past an hour, the warm light that doesn't ask you to leave.\n\nShivajinagar. Come find your spot.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 8008002045`,
+    google_caption: `Visit Nawabi Chai House in Shivajinagar — a warm, heritage-style chai adda with arched interiors and a welcoming counter. Open 7 AM – 11 PM. #22, H.K.P. Road, Bangalore.` },
+
+  // ─── DAY 2 (Tue) ───
+  { title: '1918 — Same Family, New Chapter', objective: 'TRUST',
+    photo: 'Irani Chai.jpeg', headline: '1918', subtext: 'Same family. Same fire. New chapter.',
+    concept: 'Heritage story. Vintage-feel design with "1918" as large typography. Show the lineage: Hamza Hotel → Nawabi Chai House. Sepia/warm tones, aged paper texture.',
+    ig_caption: `1918. Shivajinagar. One family. One kitchen.\n\nFour generations later, the fire hasn't gone out. Hamza Hotel became a name this neighborhood trusted. Now, from that same family comes Nawabi Chai House — a chai adda built on the same values.\n\nReal ingredients. Honest portions. A counter that knows you.\n\n📍 Nawabi Chai House, H.K.P. Road, Shivajinagar\n\n#Since1918 #NawabiChaiHouse #HamzaHotel #Shivajinagar #BangaloreHeritage`,
+    fb_caption: `1918. H.K.P. Road. Shivajinagar.\n\nOne family opened a small kitchen. They called it Hamza Hotel. Russell Market was being built down the road. The neighborhood was still finding its name.\n\nFour generations later, the kitchen is still here. The same family. The same fire. But now, alongside the legacy of Hamza Hotel, comes something new — Nawabi Chai House.\n\nA chai adda. Not a franchise. Not a chain. Just a counter, a cup, and a conversation.\n\nFrom our family to your morning.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n📞 8008002045`,
+    google_caption: `Nawabi Chai House — from the family behind Hamza Hotel (since 1918) in Shivajinagar, Bangalore. Four generations of heritage, now serving authentic Irani chai. Visit us at H.K.P. Road.` },
+
+  { title: 'Osmania Biscuit — The Dunk', objective: 'DESIRE',
+    photo: 'Osmania Biscuit.jpeg', headline: 'Osmania Biscuit', subtext: 'Sweet-salty. Made for dunking.',
+    concept: 'Product spotlight. Osmania biscuit being dunked into chai — or resting beside a cup. Close-up. The crumble, the texture, the moment before it meets the chai.',
+    ig_caption: `Sweet. Salty. Crumbly. Perfect.\n\nThe Osmania biscuit wasn't made to be eaten alone. It was made to be dunked — slowly, deliberately — into a cup of Irani chai. And then everything makes sense.\n\n₹30 for 2 pieces. ₹70 with a chai. ₹0 regrets.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#OsmaniaBiscuit #IraniChai #NawabiChaiHouse #DunkIt #BangaloreFood`,
+    fb_caption: `The Osmania biscuit has one job. And it does it perfectly.\n\nSweet-salty, crumbly, and designed for exactly one thing — being dunked into a hot cup of Irani chai. The biscuit softens. The chai gets richer. And for a moment, nothing else matters.\n\n2 pieces. ₹30. The perfect chai companion.\n\n📍 Nawabi Chai House, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
+    google_caption: `Osmania Biscuit at Nawabi Chai House — the iconic sweet-salty Hyderabadi biscuit, perfect for dunking in Irani chai. ₹30 for 2 pieces. Shivajinagar, Bangalore. Open daily.` },
+
+  { title: 'Bun Maska — Warm & Buttered', objective: 'DESIRE',
+    photo: 'Bun Maska.jpeg', headline: 'Bun Maska', subtext: 'Soft bun. Generous butter. Served warm.',
+    concept: 'Product spotlight. Close-up of Bun Maska on branded plate — butter glistening, bun split open. The warmth is visible.',
+    ig_caption: `Soft bun. Split open. Generous Amul butter. Served warm.\n\nThe Bun Maska doesn't try to be fancy. It doesn't need to. It's comfort in its simplest form — and it's been that way since the first Irani cafés.\n\n₹40. Warm. Waiting.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#BunMaska #NawabiChaiHouse #IraniCafe #BangaloreBreakfast #ComfortFood`,
+    fb_caption: `There's a reason the Bun Maska has survived every food trend for a hundred years.\n\nSoft bun. Split open. A generous spread of Amul butter that melts the moment it touches warm bread. No pretense. No reinvention. Just comfort.\n\nPair it with an Irani chai and you have a ₹80 breakfast that feels like a ₹800 morning.\n\nNawabi Chai House. Shivajinagar. 7 AM – 11 PM.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
+    google_caption: `Bun Maska at Nawabi Chai House — soft warm bun with generous Amul butter, a classic Irani café staple. ₹40. Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
+
+  // ─── DAY 3 (Wed) ───
+  { title: "Shivajinagar's New Morning", objective: 'TRUST',
+    photo: 'Irani Chai.jpeg', headline: "Shivajinagar's\nNew Morning", subtext: 'Your neighborhood chai adda.',
+    concept: 'Community connection. Design that evokes the neighborhood — Russell Market vibes, morning energy. Chai cup in foreground, warm background suggesting a bustling morning.',
+    ig_caption: `Russell Market vendors grabbing their first cup. Office workers on their way to MG Road. Students from the college down the street. Shopkeepers who've been here longer than the buildings.\n\nShivajinagar has always had its own rhythm. Now it has a chai adda that matches.\n\n📍 Nawabi Chai House, H.K.P. Road\n\n#Shivajinagar #RussellMarket #NawabiChaiHouse #BangaloreLocal #MorningChai`,
+    fb_caption: `Every morning, Shivajinagar wakes up the same way.\n\nThe Russell Market gates open. The fruit sellers arrange their stalls. The auto drivers line up on H.K.P. Road. And somewhere in all of it, someone needs a chai.\n\nThat's where we come in. Not as something new — but as something this neighborhood was waiting for. A chai adda that understands the pace of this place.\n\nNawabi Chai House. Your neighborhood. Your morning.\n\n📍 #22, 3rd Floor, H.K.P. Road\n📞 8008002045`,
+    google_caption: `Nawabi Chai House — Shivajinagar's new morning chai adda near Russell Market. Authentic Irani chai, Osmania biscuits, and breakfast bites. H.K.P. Road, Bangalore.` },
+
+  { title: 'How We Brew', objective: 'DESIRE',
+    photo: 'Irani Chai.jpeg', headline: 'How We Brew', subtext: 'Decoction meets milk. Your morning meets meaning.',
+    concept: 'Behind the scenes. Show the chai-making process — decoction brewing, milk steaming, the pour. Warm, close-up, sensory. AI Studio can create a stylized BTS look with steam and warm tones.',
+    ig_caption: `Step 1: Strong tea decoction — brewed slow, never rushed.\nStep 2: Full cream milk — heated until it remembers its purpose.\nStep 3: The pour — decoction meets milk, and your morning begins.\n\nThat's it. No shortcuts. No syrups. No machines.\n\nJust chai, the way it was meant to be.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChaiMaking #IraniChai #NawabiChaiHouse #BehindTheScenes #BrewedRight`,
+    fb_caption: `There's no machine. No timer. No app.\n\nJust a stove, a pot, and someone who's been doing this long enough to know when the decoction is ready by the colour alone.\n\nStrong tea leaves. Full cream milk. A slow pour that turns two simple things into something you'll come back for tomorrow.\n\nThat's how we brew at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
+    google_caption: `See how Nawabi Chai House brews authentic Irani chai — strong decoction, full cream milk, no shortcuts. Handcrafted daily in Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
+
+  { title: 'The ₹60 Breakfast', objective: 'ACTION',
+    photo: 'Osmania Biscuit.jpeg', headline: '₹60 Breakfast', subtext: 'Cutting Chai + Osmania Biscuit. Every morning.',
+    concept: 'Value proposition. Show cutting chai + Osmania biscuit together as a combo. Emphasize affordability. Clean, appetizing, with price prominent.',
+    ig_caption: `Cutting Chai — ₹30.\nOsmania Biscuit — ₹30.\nA complete morning — ₹60.\n\nNo app needed. No waiting. No guilt. Just walk in, sit down, and start your day the way Shivajinagar does.\n\n📍 Nawabi Chai House, H.K.P. Road\n⏰ Open from 7 AM\n\n#BangaloreBreakfast #CuttingChai #NawabiChaiHouse #Affordable #MorningRitual`,
+    fb_caption: `₹60.\n\nThat's a Cutting Chai (₹30) and an Osmania Biscuit (₹30). That's your morning sorted. That's the dunk, the sip, and the five minutes of peace before the day starts.\n\nNo fancy menu. No hidden charges. Just an honest breakfast at an honest price.\n\nNawabi Chai House. Shivajinagar. From 7 AM.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
+    google_caption: `₹60 breakfast at Nawabi Chai House — Cutting Chai + Osmania Biscuit combo. Start your morning in Shivajinagar, Bangalore. Open from 7 AM daily. H.K.P. Road.` },
+
+  // ─── DAY 4 (Thu) ───
+  { title: 'The 8:30 AM Regular', objective: 'TRUST',
+    photo: 'Irani Chai.jpeg', headline: 'The 8:30 AM\nRegular', subtext: "The one who doesn't need to order.",
+    concept: 'Community/people post. Warm, candid feel — a regular customer at the counter. AI Studio should create a warm scene of someone at a heritage chai counter, comfortable, familiar.',
+    ig_caption: `He walks in at 8:30. Every morning. Same seat. Same order.\n\nExcept he doesn't order anymore. The cup is already being poured.\n\nThat's not service. That's what happens when a chai adda becomes part of your routine.\n\nBecome a regular.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChaiAdda #NawabiChaiHouse #MorningRoutine #Shivajinagar #Regulars`,
+    fb_caption: `There's a moment when a café becomes your spot.\n\nYou stop ordering. They stop asking. The chai arrives before you sit down. The biscuit follows without a word.\n\nAt Nawabi Chai House, we're not trying to serve a thousand people. We're trying to know the fifty who come back every day.\n\nBecome one of them.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
+    google_caption: `Nawabi Chai House — where regulars don't need to order. Your daily Irani chai adda in Shivajinagar, Bangalore. Open 7 AM – 11 PM. H.K.P. Road.` },
+
+  { title: 'Not Just Chai', objective: 'AWARENESS',
+    photo: 'Chicken Cutlet.jpeg', headline: 'Not Just Chai', subtext: 'Cutlets. Samosas. Bun Omelette. Keema Pav.',
+    concept: 'Menu breadth. Hero: Chicken Cutlet cross-section with ketchup. Show that NCH has bites beyond chai. Crispy, appetizing, inviting.',
+    ig_caption: `Yes, the chai is why you come. But the Chicken Cutlet is why you stay.\n\nCrispy outside. Spiced filling inside. Served with ketchup and zero pretense.\n\nAlso on the menu: Irani Samosa (₹25), Bun Omelette (₹60), Keema Pav (₹120), Egg Puff (₹40).\n\nNot just a chai house.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChickenCutlet #NawabiChaiHouse #BangaloreSnacks #Shivajinagar #NotJustChai`,
+    fb_caption: `You know us for the chai. But have you met the cutlet?\n\nCrispy, golden, filled with spiced chicken — cracked open to reveal everything good about a proper cutlet. Served with ketchup. Served with chai. Served with the understanding that sometimes, breakfast needs a sidekick.\n\nOur full bites menu:\n🔸 Chicken Cutlet\n🔸 Irani Samosa — ₹25\n🔸 Bun Omelette — ₹60\n🔸 Keema Pav — ₹120\n🔸 Egg Puff — ₹40\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
+    google_caption: `Beyond chai — Nawabi Chai House serves Chicken Cutlet, Irani Samosa, Bun Omelette, Keema Pav, and Egg Puff. Full breakfast menu in Shivajinagar, Bangalore.` },
+
+  { title: 'Kadak Chai — For Purists', objective: 'DESIRE',
+    photo: 'Irani Chai.jpeg', headline: 'Kadak Chai', subtext: 'Extra strong. Extra brew. For purists.',
+    concept: 'Product spotlight. Dark, rich chai — stronger colour than regular Irani chai. Moody, intense. The cup should look deeper, darker. ₹45.',
+    ig_caption: `Some mornings need more.\n\nMore brew. More strength. More of that moment when the first sip hits and your eyes close involuntarily.\n\nKadak Chai. ₹45. For the ones who take their mornings seriously.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#KadakChai #StrongChai #NawabiChaiHouse #ChaiPurist #MorningFuel`,
+    fb_caption: `Regular chai is for regular mornings.\n\nBut Mondays? Deadlines? That meeting you're not ready for? Those mornings need Kadak Chai.\n\nExtra strong. Extra brew. The kind that doesn't just wake you up — it reminds you who you are.\n\n₹45 at Nawabi Chai House.\n\n📍 Shivajinagar | ⏰ From 7 AM | 📞 8008002045`,
+    google_caption: `Kadak Chai at Nawabi Chai House — extra strong, extra brew, for chai purists. ₹45. Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
+
+  // ─── DAY 5 (Fri) ───
+  { title: 'Weekend. No Rush.', objective: 'AWARENESS',
+    photo: 'Irani Chai.jpeg', headline: 'Weekend.\nNo Rush.', subtext: 'Saturday mornings were made for this.',
+    concept: 'Weekend vibe. Relaxed, warm. A chai cup on a table, light streaming in, no urgency. Peaceful, inviting. The feeling of having nowhere to be.',
+    ig_caption: `No alarm. No rush. No reason to leave.\n\nSaturday mornings were made for long chai, slow conversations, and the kind of silence that feels like company.\n\nYour table is waiting.\n\n📍 Nawabi Chai House, Shivajinagar\n⏰ Open from 7 AM\n\n#WeekendVibes #SaturdayMorning #NawabiChaiHouse #SlowMorning #ChaiTime`,
+    fb_caption: `Saturday.\n\nThe alarm didn't go off. The chai is hot. The biscuit is crumbly. And for the next hour, the only appointment you have is with this table.\n\nNawabi Chai House on weekends is a different place. Slower. Warmer. Fuller. The kind of morning where one cup turns into two and nobody minds.\n\nCome. Sit. Stay.\n\n📍 H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
+    google_caption: `Weekend mornings at Nawabi Chai House — slow chai, warm ambiance, no rush. Perfect Saturday spot in Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
+
+  { title: 'The Full Spread', objective: 'DESIRE',
+    photo: 'Bun Maska.jpeg', headline: 'The Full Spread', subtext: 'Chai. Biscuit. Bun. The works.',
+    concept: 'Multi-product composite. Show a table with chai, Osmania biscuit, Bun Maska — the complete NCH experience. Abundance, warmth, invitation to try everything.',
+    ig_caption: `Irani Chai. Osmania Biscuit. Bun Maska. Kadak Chai. Sulaimani.\n\nYou don't have to choose. Bring a friend. Order everything. Spend ₹200 between two people and walk away wondering why you waited this long.\n\nThe full Nawabi spread.\n\n📍 Shivajinagar, Bangalore\n\n#NawabiChaiHouse #ChaiSpread #BangaloreBreakfast #FoodTable #TryEverything`,
+    fb_caption: `Here's the thing about Nawabi Chai House — everything on the menu goes with everything else.\n\nIrani Chai + Osmania Biscuit = ₹70\nKadak Chai + Bun Maska = ₹85\nSulaimani + Chicken Cutlet = the afternoon sorted\n\nBring a friend. Order the table. Split ₹200 and walk out with full stomachs and a new favorite spot.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 8008002045`,
+    google_caption: `The full Nawabi Chai House spread — Irani Chai, Osmania Biscuit, Bun Maska, and more. Complete breakfast under ₹200 for two. Shivajinagar, Bangalore.` },
+
+  { title: 'From Hyderabad to Bangalore', objective: 'TRUST',
+    photo: 'Irani Chai.jpeg', headline: 'From Hyderabad\nto Bangalore', subtext: 'The Irani café tradition, now in Shivajinagar.',
+    concept: 'Cultural story. Evoke Hyderabad Irani café culture — Charminar reference, old café vibes. Show the lineage of tradition being carried to Bangalore. Heritage design with travel/journey feel.',
+    ig_caption: `Hyderabad has Charminar. The narrow lanes. The Irani cafés where chai costs nothing and conversations cost even less.\n\nWe didn't copy that. We grew up in it.\n\nNawabi Chai House brings that chai adda culture to Shivajinagar — not as imitation, but as inheritance.\n\n📍 H.K.P. Road, Shivajinagar\n\n#IraniCafe #Hyderabad #NawabiChaiHouse #ChaiCulture #Shivajinagar`,
+    fb_caption: `If you've ever been to an Irani café near Charminar in Hyderabad, you know the feeling.\n\nThe heavy wooden tables. The chai that arrives without asking. The biscuit that exists only to be dunked. The conversations that start with strangers and end with friends.\n\nNawabi Chai House didn't study that culture. Our family lived it — since 1918. And now, in Shivajinagar, we're bringing it to Bangalore.\n\nSame chai. Same spirit. Different city.\n\n📍 #22, H.K.P. Road | 📞 wa.me/918008002045`,
+    google_caption: `Nawabi Chai House brings authentic Hyderabadi Irani café culture to Shivajinagar, Bangalore. Heritage chai adda from a family with roots since 1918. H.K.P. Road.` },
+
+  // ─── DAY 6 (Sat) ───
+  { title: 'Sulaimani — No Milk, All Soul', objective: 'DESIRE',
+    photo: 'Lemon Tea.jpeg', headline: 'Sulaimani', subtext: 'Black tea. Lemon. No milk. All soul.',
+    concept: 'Product spotlight. The transparent glass with golden Sulaimani, lemon slice floating. Light, bright, different from the brown chai posts. Fresh energy.',
+    ig_caption: `Not every chai needs milk.\n\nSulaimani — black tea with lemon, light and golden, the kind that clears your head and warms your chest at the same time.\n\nFor the afternoons when you need clarity, not caffeine.\n\n₹35.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#Sulaimani #LemonTea #NawabiChaiHouse #BlackTea #AfternoonChai`,
+    fb_caption: `If Irani Chai is the morning, Sulaimani is the afternoon.\n\nBlack tea. A slice of lemon. No milk. No heaviness. Just a golden, warm cup that clears the fog of a long day and gives you back the second half.\n\nThe Hyderabadi tradition of Sulaimani has always been about lightness — in the cup and in the moment.\n\n₹35 at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
+    google_caption: `Sulaimani at Nawabi Chai House — traditional black tea with lemon, a Hyderabadi specialty. Light, refreshing, no milk. ₹35. Shivajinagar, Bangalore.` },
+
+  { title: 'The Family Behind the Counter', objective: 'TRUST',
+    photo: 'Irani Chai.jpeg', headline: 'Four Generations', subtext: 'Same family. Same values. Since 1918.',
+    concept: 'Personal/family story. Warm, personal feel. Could show a chai cup with "Since 1918" text. Heritage, generational trust. AI Studio: warm portrait-style composition.',
+    ig_caption: `First generation: Opened Hamza Hotel in 1918.\nSecond generation: Fed Shivajinagar through decades of change.\nThird generation: Kept the fire burning.\nFourth generation: Opened Nawabi Chai House.\n\nSame family. Same values. New chapter.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#FamilyBusiness #Since1918 #NawabiChaiHouse #HamzaHotel #FourGenerations`,
+    fb_caption: `In 1918, our family opened a small kitchen on H.K.P. Road. They called it Hamza Hotel.\n\nThrough British rule, independence, the renaming of Blackpally to Shivajinagar, the building of Russell Market — the kitchen stayed. The family stayed.\n\nNow, four generations later, we've added a chai house to the legacy. Not because the world needed another café. But because this neighborhood deserved a proper chai adda.\n\nNawabi Chai House. From our family to your morning.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
+    google_caption: `Four generations of hospitality — Nawabi Chai House by the family behind Hamza Hotel (since 1918). Authentic Irani chai in Shivajinagar, Bangalore.` },
+
+  { title: 'Khari & Chai at Sundown', objective: 'DESIRE',
+    photo: 'Irani Chai.jpeg', headline: 'Khari & Chai', subtext: 'Flaky. Crispy. The evening ritual.',
+    concept: 'Evening pairing. Khari biscuit (flaky puff) with a cup of chai. Warm evening light, golden hour feel. AI Studio: create a warm sunset-lit scene with crispy khari and chai.',
+    ig_caption: `The evening has its own chai ritual.\n\nKhari Biscuit — flaky, crispy, lighter than air. Paired with a cup of Irani chai as the sun drops behind Shivajinagar.\n\n₹25 for the Khari. ₹40 for the chai. Priceless for the pause.\n\n📍 Nawabi Chai House\n⏰ Open till 11 PM\n\n#KhariBiscuit #EveningChai #NawabiChaiHouse #Shivajinagar #ChaiRitual`,
+    fb_caption: `Morning chai is a necessity. Evening chai is a choice.\n\nAnd when you choose it with a Khari Biscuit — flaky, crispy, and impossibly light — the evening becomes something worth staying for.\n\nThe sun drops. The chai steams. The khari crumbles. And Shivajinagar slows down for a moment.\n\nNawabi Chai House. Come for the evening cup.\n\n📍 H.K.P. Road | ⏰ Till 11 PM | 📞 wa.me/918008002045`,
+    google_caption: `Khari Biscuit & Irani Chai — the perfect evening snack at Nawabi Chai House. Flaky, crispy, ₹25. Shivajinagar, Bangalore. Open till 11 PM.` },
+
+  // ─── DAY 7 (Sun) ───
+  { title: 'Monday Morning Ritual', objective: 'AWARENESS',
+    photo: 'Irani Chai.jpeg', headline: 'Monday Morning\nRitual', subtext: 'Start the week right.',
+    concept: 'Monday motivation through chai. Warm, energizing, the first cup of the week. Clean design, focused, purposeful.',
+    ig_caption: `Monday doesn't have to be difficult.\n\nIt just needs to start right — with a cup that's strong enough for the week ahead and a spot that doesn't rush you out the door.\n\nNawabi Chai House. Your Monday morning ritual.\n\n📍 Shivajinagar, from 7 AM\n\n#MondayMorning #MorningRitual #NawabiChaiHouse #StartTheWeek #IraniChai`,
+    fb_caption: `Every Monday, the city resets.\n\nAlarms go off. Routines resume. The week stretches out ahead like a long road.\n\nBut before all of that — before the emails, the meetings, the traffic — there's a cup of Irani chai at Nawabi Chai House. Strong. Warm. Familiar. The same cup that was here last Monday and will be here next.\n\nStart the week with something good.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ From 7 AM | 📞 8008002045`,
+    google_caption: `Start your Monday at Nawabi Chai House — Irani chai from 7 AM in Shivajinagar, Bangalore. The best way to begin your week. H.K.P. Road.` },
+
+  { title: 'Masala Chai — Spiced Right', objective: 'DESIRE',
+    photo: 'Irani Chai.jpeg', headline: 'Masala Chai', subtext: 'Ginger. Cardamom. Warmth.',
+    concept: 'Product spotlight. Masala chai with visible spice warmth. Ginger, cardamom icons or real spices around the cup. Warm, aromatic, inviting.',
+    ig_caption: `Ginger for the kick. Cardamom for the soul. Milk for the warmth.\n\nMasala Chai at Nawabi Chai House — spiced the way your grandmother would approve of. No shortcuts. No powder. Just real spices in a real cup.\n\n₹45.\n\n📍 Shivajinagar, Bangalore\n\n#MasalaChai #SpicedChai #NawabiChaiHouse #GingerTea #ChaiLovers`,
+    fb_caption: `There's masala chai. And then there's masala chai with actual masala.\n\nFresh ginger. Whole cardamom. A blend that's been in our kitchen longer than most recipes have been written down. No premixed powder. No artificial anything.\n\nThe kind of masala chai that makes you wonder what you've been drinking all this time.\n\n₹45 at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
+    google_caption: `Masala Chai at Nawabi Chai House — fresh ginger, cardamom, real spices. No premix, no shortcuts. ₹45. Shivajinagar, Bangalore.` },
+
+  { title: 'Come for the Chai. Stay for the Hour.', objective: 'ACTION',
+    photo: 'Irani Chai.jpeg', headline: 'Come for the Chai.\nStay for the Hour.', subtext: 'Nawabi Chai House — Shivajinagar, Bangalore',
+    concept: 'Week wrap / open invitation. Warm, welcoming, the definitive NCH image. Chai, ambiance, brand — everything together. The post that makes someone decide to visit.',
+    ig_caption: `You came for the chai. You stayed for the conversation. You'll come back for both.\n\nNawabi Chai House. Shivajinagar. Open every day, 7 AM to 11 PM.\n\nThe counter is waiting.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n📞 8008002045\n🌐 nawabichaihouse.com\n\n#NawabiChaiHouse #IraniChai #Shivajinagar #BangaloreChai #ChaiAdda`,
+    fb_caption: `Come for the Irani Chai.\nStay for the Osmania Biscuit.\nReturn for the Bun Maska.\nKeep coming back for the feeling.\n\nNawabi Chai House isn't a place you visit once. It's a place that becomes part of your week — the morning ritual, the afternoon break, the evening wind-down.\n\nWe're in Shivajinagar. We're open 7 AM to 11 PM. And the counter always has room for one more.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar, Bangalore 560051\n📞 8008002045 | 🌐 nawabichaihouse.com\n💬 wa.me/918008002045`,
+    google_caption: `Come for the chai, stay for the hour — Nawabi Chai House, Shivajinagar's Irani chai adda. Chai, Osmania Biscuit, Bun Maska & more. 7 AM – 11 PM daily. #22, H.K.P. Road, Bangalore.` },
+];
+
+function buildPrompt(post, platform) {
+  const dims = { instagram: '1080×1080 (square)', facebook: '1200×630 (landscape, 1.91:1)', google: '1200×900 (4:3, landscape)' };
+  return `${PROMPT_BASE}
+
+PLATFORM: ${platform.charAt(0).toUpperCase() + platform.slice(1)} — ${dims[platform]}
+
+POST DETAILS:
+- Title: "${post.title}"
+- Concept: ${post.concept}
+- Headline text on image: "${post.headline}"
+- Subtext on image: "${post.subtext}"
+- Product photo to use: ${post.photo}
+
+Generate ONE polished social media post image. The product photo provided should be the hero element. Ensure all text is readable at phone-screen size.`;
+}
+
+function generateDefaultWeek(mondayDate) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const slots = ['morning', 'afternoon', 'evening'];
+  const posts = [];
+  let id = 1;
+
+  // Check if this is a week with content intelligence
+  const wk = weekKey(mondayDate);
+  const hasIntel = (wk === '2026-03-23'); // Week 1 launch
+
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(mondayDate);
+    date.setDate(date.getDate() + d);
+    const dateStr = localDateStr(date);
+    const dayName = days[d];
+
+    for (let s = 0; s < 3; s++) {
+      const idx = id - 1;
+      const intel = hasIntel && WEEK_1_POSTS[idx] ? WEEK_1_POSTS[idx] : null;
+
+      posts.push({
+        id,
+        day: dayName,
+        date: dateStr,
+        slot: slots[s],
+        title: intel ? intel.title : `Post ${id}`,
+        objective: intel ? intel.objective : ['AWARENESS', 'DESIRE', 'ACTION', 'TRUST'][(id - 1) % 4],
+        prompt_ig: intel ? buildPrompt(intel, 'instagram') : '',
+        prompt_fb: intel ? buildPrompt(intel, 'facebook') : '',
+        prompt_google: intel ? buildPrompt(intel, 'google') : '',
+        caption_ig: intel ? intel.ig_caption : '',
+        caption_fb: intel ? intel.fb_caption : '',
+        caption_google: intel ? intel.google_caption : '',
+        image_key_ig: null,
+        image_key_fb: null,
+        image_key_google: null,
+        ig: 'pending',
+        fb: 'pending',
+        google: 'pending',
+      });
+      id++;
+    }
+  }
+  return { weekStart: weekKey(mondayDate), posts };
+}
+
+// Load from D1 API first, fallback to localStorage
+async function loadWeekState() {
+  if (useAPI) {
+    try {
+      const resp = await fetch(`${API}?action=get-week&week=${weekKey(currentWeekStart)}&brand=nch`);
+      const data = await resp.json();
+      if (data.success && data.posts.length > 0) {
+        // Map D1 rows to our format
+        return {
+          weekStart: weekKey(currentWeekStart),
+          posts: data.posts.map(p => ({
+            id: p.post_number,
+            day: new Date(p.post_date).toLocaleDateString('en-US', { weekday: 'short' }),
+            date: p.post_date,
+            slot: p.time_slot,
+            title: p.title || `Post ${p.post_number}`,
+            objective: p.objective || 'AWARENESS',
+            prompt_ig: p.prompt_ig || '',
+            prompt_fb: p.prompt_fb || '',
+            prompt_google: p.prompt_google || '',
+            caption_ig: p.caption_ig || '',
+            caption_fb: p.caption_fb || '',
+            caption_google: p.caption_google || '',
+            image_key_ig: p.image_key_ig || null,
+            image_key_fb: p.image_key_fb || null,
+            image_key_google: p.image_key_google || null,
+            ig: p.status_ig || 'pending',
+            fb: p.status_fb || 'pending',
+            google: p.status_google || 'pending',
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('API unavailable, using localStorage:', e.message);
+      useAPI = false;
+    }
+  }
+
+  // Fallback to localStorage
+  try {
+    const s = localStorage.getItem(storageKey());
+    if (s) return JSON.parse(s);
+  } catch (e) {}
+  return generateDefaultWeek(currentWeekStart);
+}
+
+// Save to D1 API + localStorage (dual write for reliability)
+async function saveWeekState(st) {
+  // Always save to localStorage as backup
+  localStorage.setItem(storageKey(), JSON.stringify(st));
+
+  if (useAPI) {
+    try {
+      await fetch(`${API}?action=save-week`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: 'nch',
+          weekStart: st.weekStart,
+          posts: st.posts.map(p => ({
+            post_number: p.id,
+            post_date: p.date,
+            time_slot: p.slot,
+            title: p.title,
+            objective: p.objective,
+            prompt_ig: p.prompt_ig,
+            prompt_fb: p.prompt_fb,
+            prompt_google: p.prompt_google,
+            caption_ig: p.caption_ig,
+            caption_fb: p.caption_fb,
+            caption_google: p.caption_google,
+            status_ig: p.ig,
+            status_fb: p.fb,
+            status_google: p.google,
+          }))
+        })
+      });
+    } catch (e) {
+      console.warn('API save failed:', e.message);
+    }
+  }
+}
+
+// Upload image to R2 via API
+async function uploadImageToR2(file, postNumber, platform) {
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('brand', 'nch');
+  formData.append('weekStart', weekKey(currentWeekStart));
+  formData.append('postNumber', postNumber);
+  formData.append('platform', platform);
+
+  try {
+    const resp = await fetch(`${API}?action=upload-image`, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.success) return data;
+    throw new Error(data.error);
+  } catch (e) {
+    console.warn('R2 upload failed:', e.message);
+    return null;
+  }
+}
+
+let state = generateDefaultWeek(currentWeekStart); // placeholder until async load
+
+function getLog() {
+  try {
+    const l = localStorage.getItem(LOG_KEY);
+    if (l) return JSON.parse(l);
+  } catch (e) {}
+  return [];
+}
+
+function saveLog(log) {
+  localStorage.setItem(LOG_KEY, JSON.stringify(log));
+}
+
+// ═══════════════════════════════════════════════════
+// META GRAPH API — Publish Engine
+// ═══════════════════════════════════════════════════
+async function getIGAccountId() {
+  if (IG_ACCOUNT_ID) return IG_ACCOUNT_ID;
+  if (!META_TOKEN) throw new Error('Meta token not configured. Set META_TOKEN in the dashboard code.');
+  const resp = await fetch(`https://graph.facebook.com/v24.0/${FB_PAGE_ID}?fields=instagram_business_account&access_token=${META_TOKEN}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  if (data.instagram_business_account) {
+    IG_ACCOUNT_ID = data.instagram_business_account.id;
+    return IG_ACCOUNT_ID;
+  }
+  throw new Error('No Instagram business account linked to this page');
+}
+
+async function uploadImageToFB(file) {
+  const formData = new FormData();
+  formData.append('source', file);
+  formData.append('published', 'false');
+  formData.append('access_token', META_TOKEN);
+  const resp = await fetch(`https://graph.facebook.com/v24.0/${FB_PAGE_ID}/photos`, { method: 'POST', body: formData });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  const photoResp = await fetch(`https://graph.facebook.com/v24.0/${data.id}?fields=images&access_token=${META_TOKEN}`);
+  const photoData = await photoResp.json();
+  return { photoId: data.id, url: photoData.images?.[0]?.source };
+}
+
+async function publishIG() {
+  const file = document.getElementById('pubImage').files[0];
+  const caption = document.getElementById('pubCaption').value;
+  if (!file) { showStatus('Upload an image first', 'warn'); return; }
+  if (!META_TOKEN) { showStatus('Meta token not set', 'error'); return; }
+  try {
+    showStatus('Uploading image...', 'loading');
+    document.getElementById('btnIG').disabled = true;
+    const igId = await getIGAccountId();
+    const { url } = await uploadImageToFB(file);
+    showStatus('Creating Instagram media...', 'loading');
+    const containerResp = await fetch(`https://graph.facebook.com/v24.0/${igId}/media`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url: url, caption, access_token: META_TOKEN })
+    });
+    const container = await containerResp.json();
+    if (container.error) throw new Error(container.error.message);
+    showStatus('Publishing to Instagram...', 'loading');
+    const pubResp = await fetch(`https://graph.facebook.com/v24.0/${igId}/media_publish`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creation_id: container.id, access_token: META_TOKEN })
+    });
+    const result = await pubResp.json();
+    if (result.error) throw new Error(result.error.message);
+    showStatus('Published to Instagram!', 'success');
+    logPublish('instagram', 'success', caption);
+    markPlatformDone('ig');
+  } catch (e) {
+    showStatus('IG Error: ' + e.message, 'error');
+    logPublish('instagram', 'error', caption);
+  }
+  document.getElementById('btnIG').disabled = false;
+}
+
+async function publishFB() {
+  const file = document.getElementById('pubImage').files[0];
+  const caption = document.getElementById('pubCaption').value;
+  if (!file) { showStatus('Upload an image first', 'warn'); return; }
+  if (!META_TOKEN) { showStatus('Meta token not set', 'error'); return; }
+  try {
+    showStatus('Publishing to Facebook...', 'loading');
+    document.getElementById('btnFB').disabled = true;
+    const formData = new FormData();
+    formData.append('source', file);
+    formData.append('message', caption);
+    formData.append('published', 'true');
+    formData.append('access_token', META_TOKEN);
+    const resp = await fetch(`https://graph.facebook.com/v24.0/${FB_PAGE_ID}/photos`, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    showStatus('Published to Facebook!', 'success');
+    logPublish('facebook', 'success', caption);
+    markPlatformDone('fb');
+  } catch (e) {
+    showStatus('FB Error: ' + e.message, 'error');
+    logPublish('facebook', 'error', caption);
+  }
+  document.getElementById('btnFB').disabled = false;
+}
+
+function markGoogleDone() {
+  logPublish('google', 'manual', document.getElementById('pubCaption').value);
+  markPlatformDone('google');
+  showStatus('Google post logged as done!', 'success');
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('pubStatus');
+  if (!el) return;
+  const colors = { success: 'var(--green)', error: 'var(--red)', warn: 'var(--orange)', loading: 'var(--yellow)' };
+  el.textContent = msg;
+  el.style.color = colors[type] || 'var(--muted)';
+}
+
+// ═══════════════════════════════════════════════════
+// WORKFLOW STATE
+// ═══════════════════════════════════════════════════
+function getNextPost() {
+  return state.posts.find(p => p.ig === 'pending' || p.fb === 'pending' || p.google === 'pending');
+}
+
+function markPlatformDone(platform) {
+  const next = getNextPost();
+  if (!next) return;
+  const post = state.posts.find(p => p.id === next.id);
+  if (!post) return;
+  post[platform] = 'done';
+  saveWeekState(state);
+  renderAll();
+}
+
+function logPublish(platform, status, caption) {
+  const next = getNextPost();
+  const log = getLog();
+  log.unshift({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    postTitle: next ? `Post ${next.id}: ${next.title}` : 'Unknown',
+    platform,
+    status,
+    caption: caption?.substring(0, 80) + (caption?.length > 80 ? '...' : ''),
+  });
+  saveLog(log);
+  renderLog();
+}
+
+function switchPlatform(p) {
+  currentPlatform = p;
+  renderWorkflow();
+}
+
+function toggleStatus(id, platform) {
+  const post = state.posts.find(p => p.id === id);
+  if (!post) return;
+  const cycle = { pending: 'done', done: 'skip', skip: 'pending' };
+  post[platform] = cycle[post[platform]] || 'pending';
+  saveWeekState(state);
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════
+// WEEK NAVIGATION
+// ═══════════════════════════════════════════════════
+async function changeWeek(delta) {
+  currentWeekStart = new Date(currentWeekStart);
+  currentWeekStart.setDate(currentWeekStart.getDate() + (delta * 7));
+  state = await loadWeekState();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════
+// GOOGLE REVIEWS (placeholder — connects to /api/marketing)
+// ═══════════════════════════════════════════════════
+let reviewData = { rating: '--', total: '--', newToday: '--', thisWeek: '--' };
+
+async function refreshReviews() {
+  try {
+    const resp = await fetch('/api/marketing?action=get-reviews');
+    if (!resp.ok) throw new Error('API unavailable');
+    const data = await resp.json();
+    if (data.success) {
+      reviewData = {
+        rating: data.rating || '--',
+        total: data.totalReviews || '--',
+        newToday: data.newToday ?? '--',
+        thisWeek: data.thisWeek ?? '--',
+      };
+    }
+  } catch (e) {
+    // API not deployed yet — silent fail
+  }
+  renderReviews();
+}
+
+function renderReviews() {
+  document.getElementById('reviewsStats').innerHTML = `
+    <div class="rev-stat"><div class="rv" style="color:var(--golden)">${reviewData.rating}</div><div class="rl">Rating</div></div>
+    <div class="rev-stat"><div class="rv">${reviewData.total}</div><div class="rl">Total Reviews</div></div>
+    <div class="rev-stat"><div class="rv" style="color:var(--green)">${reviewData.newToday}</div><div class="rl">New Today</div></div>
+    <div class="rev-stat"><div class="rv">${reviewData.thisWeek}</div><div class="rl">This Week</div></div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderDate() {
+  document.getElementById('dateBadge').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function renderWeekLabel() {
+  const end = new Date(currentWeekStart);
+  end.setDate(end.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  document.getElementById('weekLabel').textContent = `Week of ${fmt(currentWeekStart)} - ${fmt(end)}`;
+}
+
+function renderStatus() {
+  const done = state.posts.filter(p => p.ig === 'done' && p.fb === 'done' && p.google === 'done').length;
+  const platformDone = state.posts.reduce((s, p) => s + (p.ig === 'done' ? 1 : 0) + (p.fb === 'done' ? 1 : 0) + (p.google === 'done' ? 1 : 0), 0);
+  document.getElementById('statusRow').innerHTML = `
+    <div class="status-card"><div class="value">${done} <span class="of">/ 21</span></div><div class="label">Posts Complete</div></div>
+    <div class="status-card"><div class="value">${platformDone} <span class="of">/ 63</span></div><div class="label">Platform Posts</div></div>
+    <div class="status-card"><div class="value">${21 - done}</div><div class="label">Remaining</div></div>
+  `;
+}
+
+function renderNextBanner() {
+  const next = getNextPost();
+  const el = document.getElementById('nextBanner');
+  if (!next) {
+    el.innerHTML = '<div><div class="next-label">ALL DONE</div><div class="next-title" style="color:var(--green)">All 21 posts published this week!</div></div>';
+    return;
+  }
+  const platforms = [];
+  if (next.ig === 'pending') platforms.push('IG');
+  if (next.fb === 'pending') platforms.push('FB');
+  if (next.google === 'pending') platforms.push('Google');
+  const slotLabel = { morning: '9:00 AM', afternoon: '1:00 PM', evening: '6:00 PM' };
+  el.innerHTML = `
+    <div>
+      <div class="next-label">NEXT UP &mdash; ${next.day} ${slotLabel[next.slot] || ''}</div>
+      <div class="next-title">Post ${next.id}: ${escapeHtml(next.title)}</div>
+      <div class="next-obj"><span class="obj-tag obj-${next.objective}">${next.objective}</span> &nbsp; Pending: ${platforms.join(', ')}</div>
+    </div>
+    <button class="start-btn" onclick="document.getElementById('workflow').scrollIntoView({behavior:'smooth'})">Start Posting &rarr;</button>
+  `;
+}
+
+function renderPostTable() {
+  const next = getNextPost();
+  let lastDay = '';
+  const statusIcon = (val, postId, platform) => {
+    if (val === 'done') return `<span class="status-icon" onclick="toggleStatus(${postId},'${platform}')" title="Click to change">&#9989;</span>`;
+    if (val === 'skip') return `<span class="status-icon" onclick="toggleStatus(${postId},'${platform}')" title="Click to change">&#9197;&#65039;</span>`;
+    return `<span class="status-icon" onclick="toggleStatus(${postId},'${platform}')" title="Click to change">&#11036;</span>`;
+  };
+
+  let html = '';
+  for (const p of state.posts) {
+    // Day divider row
+    if (p.day !== lastDay) {
+      const d = new Date(p.date);
+      const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric' });
+      html += `<tr class="day-divider"><td colspan="8">${dayLabel}</td></tr>`;
+      lastDay = p.day;
+    }
+    const allDone = p.ig === 'done' && p.fb === 'done' && p.google === 'done';
+    const isNext = next && p.id === next.id;
+    html += `<tr class="${allDone ? 'row-done' : ''} ${isNext ? 'row-next' : ''}">
+      <td style="font-weight:600;font-family:'JetBrains Mono',monospace">${p.id}</td>
+      <td style="display:none">${p.day}</td>
+      <td><span class="slot-tag slot-${p.slot}">${p.slot}</span></td>
+      <td>${escapeHtml(p.title)}</td>
+      <td><span class="obj-tag obj-${p.objective}">${p.objective}</span></td>
+      <td>${statusIcon(p.ig, p.id, 'ig')}</td>
+      <td>${statusIcon(p.fb, p.id, 'fb')}</td>
+      <td>${statusIcon(p.google, p.id, 'google')}</td>
+    </tr>`;
+  }
+  document.getElementById('postTableBody').innerHTML = html;
+}
+
+function renderWorkflow() {
+  const next = getNextPost();
+  const wf = document.getElementById('workflow');
+  if (!next) {
+    wf.innerHTML = '<div style="text-align:center;padding:30px;color:var(--green);font-size:16px;font-weight:600">All 21 posts are done for this week! Great work.</div>';
+    return;
+  }
+
+  const platforms = ['instagram', 'facebook', 'google'];
+  const platformLabels = { instagram: 'Instagram (1080x1080)', facebook: 'Facebook (1200x630)', google: 'Google Posts (1200x900)' };
+  const platformStatus = { instagram: next.ig, facebook: next.fb, google: next.google };
+
+  const promptKey = 'prompt_' + (currentPlatform === 'instagram' ? 'ig' : currentPlatform === 'facebook' ? 'fb' : 'google');
+  const captionKey = 'caption_' + (currentPlatform === 'instagram' ? 'ig' : currentPlatform === 'facebook' ? 'fb' : 'google');
+  const prompt = next[promptKey] || 'Prompt not configured for this post yet. Add content intelligence to populate.';
+  const caption = next[captionKey] || 'Caption not configured. Add content intelligence to populate.';
+
+  wf.innerHTML = `
+    <div class="workflow-header">
+      <div>
+        <div class="workflow-title">Post ${next.id}: ${escapeHtml(next.title)}</div>
+        <div class="workflow-obj"><span class="obj-tag obj-${next.objective}">${next.objective}</span> &mdash; ${next.day} ${next.slot}</div>
+      </div>
+      <div class="platform-tabs">
+        ${platforms.map(p => `<button class="platform-tab ${p === currentPlatform ? 'active' : ''} ${platformStatus[p] === 'done' ? 'tab-done' : ''}" onclick="switchPlatform('${p}')">${p === 'instagram' ? '&#128248; IG' : p === 'facebook' ? '&#128216; FB' : '&#128269; Google'}</button>`).join('')}
+      </div>
+    </div>
+
+    <!-- STEP 1: Generate Image -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-label">Generate the Image</div>
+      </div>
+      <div class="step-body">
+        <div class="step-instructions">
+          <ol>
+            <li><strong>Copy the prompt</strong> using the button below</li>
+            <li>Open <strong>AI Studio</strong> (aistudio.google.com)</li>
+            <li>Upload the <strong>NCH brand reference images</strong></li>
+            <li>Paste the prompt and click <strong>Generate</strong></li>
+            <li><strong>Download</strong> the generated image</li>
+          </ol>
+          <div style="margin-top:6px;font-size:12px;color:var(--muted)">Platform: <strong>${platformLabels[currentPlatform]}</strong></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-brand" onclick="copyText('promptArea')">Copy Prompt</button>
+          <button class="btn btn-purple" onclick="window.open('https://aistudio.google.com','_blank')">Open AI Studio &rarr;</button>
+          <button class="prompt-toggle" onclick="togglePrompt()">Show/Hide Prompt</button>
+        </div>
+        <textarea id="promptArea" class="prompt-area" rows="6" readonly style="display:none;margin-top:8px">${escapeHtml(prompt)}</textarea>
+      </div>
+    </div>
+
+    <!-- STEP 2: Upload -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-label">Upload the Generated Image</div>
+      </div>
+      <div class="step-body">
+        <div class="upload-zone" onclick="document.getElementById('pubImage').click()">
+          <input type="file" id="pubImage" accept="image/*" onchange="previewImage(this)">
+          <div class="upload-label">Click to upload the image you downloaded from AI Studio</div>
+        </div>
+        <div class="upload-preview" id="uploadPreview">
+          <img id="previewImg">
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Caption -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-label">Review Caption</div>
+      </div>
+      <div class="step-body">
+        <textarea id="pubCaption" class="caption-area">${escapeHtml(caption)}</textarea>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="copyText('pubCaption')">Copy Caption</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: Publish -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-label">Publish</div>
+      </div>
+      <div class="step-body">
+        ${currentPlatform === 'instagram' ? `
+          <button class="btn btn-ig" id="btnIG" onclick="publishIG()" style="width:100%;justify-content:center;padding:14px">Publish to Instagram</button>
+        ` : currentPlatform === 'facebook' ? `
+          <button class="btn btn-fb" id="btnFB" onclick="publishFB()" style="width:100%;justify-content:center;padding:14px">Publish to Facebook</button>
+        ` : `
+          <div class="step-instructions" style="margin-bottom:10px">
+            <ol>
+              <li>Click <strong>"Open Google Business"</strong> below</li>
+              <li>Click <strong>"Add update"</strong> on your profile</li>
+              <li>Upload the image and paste the caption</li>
+              <li>Click <strong>"Post"</strong></li>
+              <li>Come back here and click <strong>"Mark Google as Done"</strong></li>
+            </ol>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-google" onclick="window.open('https://business.google.com','_blank')" style="flex:1;justify-content:center">Open Google Business</button>
+            <button class="btn btn-outline" onclick="markGoogleDone()" style="flex:1;justify-content:center">Mark Google as Done</button>
+          </div>
+        `}
+        <div id="pubStatus" class="publish-status" style="color:var(--muted)">Ready to publish</div>
+      </div>
+    </div>
+
+    ${platformStatus[currentPlatform] === 'done' ? `
+      <div style="text-align:center;padding:12px;background:var(--green-dim);border-radius:8px;color:var(--green);font-weight:600">
+        ${currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1)} is done for this post!
+        ${next.ig === 'pending' ? '<br><button class="btn btn-outline" style="margin-top:8px" onclick="switchPlatform(\'instagram\')">Do Instagram next &rarr;</button>' :
+          next.fb === 'pending' ? '<br><button class="btn btn-outline" style="margin-top:8px" onclick="switchPlatform(\'facebook\')">Do Facebook next &rarr;</button>' :
+          next.google === 'pending' ? '<br><button class="btn btn-outline" style="margin-top:8px" onclick="switchPlatform(\'google\')">Do Google next &rarr;</button>' : ''}
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderLog() {
+  const log = getLog();
+  const body = document.getElementById('logBody');
+  const empty = document.getElementById('logEmpty');
+  document.getElementById('logCount').textContent = log.length + ' posts';
+  if (log.length === 0) {
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = log.slice(0, 30).map(l => {
+    const d = new Date(l.date);
+    const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const statusColor = l.status === 'success' ? 'var(--green)' : l.status === 'error' ? 'var(--red)' : 'var(--yellow)';
+    const platformIcon = l.platform === 'instagram' ? '&#128248;' : l.platform === 'facebook' ? '&#128216;' : '&#128269;';
+    return `<tr style="border-bottom:1px solid rgba(45,58,79,.4)">
+      <td style="padding:6px 8px;color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace">${dateStr}</td>
+      <td style="padding:6px 8px">${escapeHtml(l.postTitle)}</td>
+      <td style="padding:6px 8px">${platformIcon} ${l.platform}</td>
+      <td style="padding:6px 8px;color:${statusColor}">${l.status}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAll() {
+  renderDate();
+  renderWeekLabel();
+  renderStatus();
+  renderNextBanner();
+  renderPostTable();
+  renderWorkflow();
+  renderLog();
+  renderReviews();
+}
+
+// ═══════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════
+function copyText(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.style.display === 'none') el.style.display = 'block';
+  el.select();
+  navigator.clipboard.writeText(el.value).then(() => toast('Copied!')).catch(() => {
+    document.execCommand('copy');
+    toast('Copied!');
+  });
+}
+
+function togglePrompt() {
+  const el = document.getElementById('promptArea');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function previewImage(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('previewImg').src = e.target.result;
+      document.getElementById('uploadPreview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+
+    // Also upload to R2 for persistence
+    const next = getNextPost();
+    if (next && useAPI) {
+      const platformKey = currentPlatform === 'instagram' ? 'ig' : currentPlatform === 'facebook' ? 'fb' : 'google';
+      const result = await uploadImageToR2(file, next.id, platformKey);
+      if (result) {
+        next['image_key_' + platformKey] = result.key;
+        saveWeekState(state);
+        toast('Image saved to cloud');
+      }
+    }
+  }
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function exportLog() {
+  const log = getLog();
+  const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nch-post-log.json';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════
+// INIT — async load from D1, then render
+// ═══════════════════════════════════════════════════
+(async function init() {
+  state = await loadWeekState();
+  renderAll();
+  refreshReviews();
+})();
+</script>
+</body>
+</html>

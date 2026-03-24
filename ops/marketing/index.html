@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>NCH Marketing</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f1a;
+      --bg2: #111827;
+      --card: #1a2234;
+      --border: #2d3a4f;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --muted: #64748b;
+      --green: #10b981;
+      --orange: #f97316;
+      --chamoisee: #AC7E54;
+      --wheat: #E9D1A9;
+      --golden: #D4A44C;
+      --brand-grad: linear-gradient(135deg, #AC7E54, #D4A44C);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { max-width: 700px; width: 100%; padding: 24px; }
+
+    .header { text-align: center; margin-bottom: 40px; }
+    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .header h1 span { background: var(--brand-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header p { font-size: 13px; color: var(--muted); }
+
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .path-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 24px;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color .2s, transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .path-card:hover { border-color: var(--chamoisee); transform: translateY(-2px); }
+    .path-card.disabled { opacity: .45; pointer-events: none; }
+
+    .path-icon { font-size: 32px; }
+    .path-title { font-size: 18px; font-weight: 700; }
+    .path-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+    .path-items { list-style: none; font-size: 12px; color: var(--muted); }
+    .path-items li { padding: 3px 0; }
+    .path-items li::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+    .path-card:not(.disabled) .path-items li::before { background: var(--green); }
+    .path-card.disabled .path-items li::before { background: var(--muted); }
+
+    .path-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      width: fit-content;
+    }
+    .badge-active { background: rgba(16,185,129,.12); color: var(--green); }
+    .badge-soon { background: rgba(100,116,139,.12); color: var(--muted); }
+
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 32px;
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .back-link:hover { color: var(--text2); }
+
+    @media (max-width: 540px) {
+      .cards { grid-template-columns: 1fr; }
+      .container { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1><span>Nawabi Chai House</span> Marketing</h1>
+      <p>Organic and paid marketing operations</p>
+    </header>
+
+    <div class="cards">
+      <a class="path-card" href="organic/">
+        <div class="path-icon">&#127793;</div>
+        <div class="path-title">Organic</div>
+        <div class="path-desc">Daily posts, Google reviews, content calendar</div>
+        <ul class="path-items">
+          <li>Instagram &amp; Facebook posts</li>
+          <li>Google Business posts</li>
+          <li>Google Reviews tracking</li>
+          <li>Weekly content calendar</li>
+        </ul>
+        <span class="path-badge badge-active">Active</span>
+      </a>
+
+      <div class="path-card disabled">
+        <div class="path-icon">&#128200;</div>
+        <div class="path-title">Inorganic</div>
+        <div class="path-desc">Google Ads, Meta Ads, WABA outreach</div>
+        <ul class="path-items">
+          <li>Google Ads campaigns</li>
+          <li>Meta Ads manager</li>
+          <li>WABA broadcast</li>
+          <li>Performance analytics</li>
+        </ul>
+        <span class="path-badge badge-soon">Coming Soon</span>
+      </div>
+    </div>
+
+    <a class="back-link" href="/ops/">&larr; Back to Operations</a>
+  </div>
+</body>
+</html>
