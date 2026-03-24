@@ -1249,11 +1249,16 @@ function exportLog() {
 // INIT — async load from D1, then render
 // ═══════════════════════════════════════════════════
 (async function init() {
-  state = await loadWeekState();
-  renderAll();
-  refreshReviews();
+  try {
+    state = await loadWeekState();
+    renderAll();
+    refreshReviews();
+  } catch (e) {
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div style="background:red;color:white;padding:12px;font-family:monospace;position:fixed;top:0;left:0;right:0;z-index:9999">JS ERROR: ${e.message}<br>${e.stack}</div>`);
+    console.error('Init error:', e);
+  }
 })();
 </script>
 </body>
 </html>
-<!-- rebuild 1774369528 -->
