@@ -50,6 +50,8 @@ export async function onRequest(context) {
       // ─── POST LOG ───
       case 'log-publish':
         return await logPublish(request, env);
+      case 'debug-env':
+        return json({ success: true, hasDB: !!env.DB, hasR2: !!env.MARKETING_IMAGES, hasPlacesKey: !!env.GOOGLE_PLACES_KEY_MARKETING, envKeys: Object.keys(env).filter(k => k.includes('GOOGLE')) });
       case 'get-publish-log':
         return await getPublishLog(url, env);
 
