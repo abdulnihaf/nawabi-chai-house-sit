@@ -912,6 +912,8 @@ async function changeWeek(delta) {
 let reviewData = { rating: '--', total: '--', newToday: '--', thisWeek: '--' };
 
 async function refreshReviews() {
+  const btn = document.querySelector('#reviewsCard .btn');
+  if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
   try {
     const resp = await fetch('/api/marketing?action=get-reviews');
     if (!resp.ok) throw new Error('API unavailable');
@@ -924,8 +926,9 @@ async function refreshReviews() {
         thisWeek: data.thisWeek ?? '--',
       };
     }
+    if (btn) { btn.textContent = 'Updated!'; setTimeout(() => { btn.textContent = 'Refresh'; btn.disabled = false; }, 1500); }
   } catch (e) {
-    // API not deployed yet — silent fail
+    if (btn) { btn.textContent = 'Refresh'; btn.disabled = false; }
   }
   renderReviews();
 }
@@ -1249,15 +1252,9 @@ function exportLog() {
 // INIT — async load from D1, then render
 // ═══════════════════════════════════════════════════
 (async function init() {
-  try {
-    state = await loadWeekState();
-    renderAll();
-    refreshReviews();
-  } catch (e) {
-    document.body.insertAdjacentHTML('afterbegin',
-      `<div style="background:red;color:white;padding:12px;font-family:monospace;position:fixed;top:0;left:0;right:0;z-index:9999">JS ERROR: ${e.message}<br>${e.stack}</div>`);
-    console.error('Init error:', e);
-  }
+  state = await loadWeekState();
+  renderAll();
+  refreshReviews();
 })();
 </script>
 </body>
