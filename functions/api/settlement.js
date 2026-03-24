@@ -950,7 +950,9 @@ export async function onRequest(context) {
     // === RUNNER INTELLIGENCE — owner-only performance overview ===
     if (action === 'runner-performance') {
       const pin = url.searchParams.get('pin');
-      if (!['0305', '3754'].includes(pin)) {
+      // Allow admins, managers, accountant, cashiers
+      const INTEL_PINS = ['0305','3697','8523','6890','3754','2026','7115','8241'];
+      if (!INTEL_PINS.includes(pin)) {
         return new Response(JSON.stringify({success: false, error: 'Not authorized'}), {headers: corsHeaders});
       }
 

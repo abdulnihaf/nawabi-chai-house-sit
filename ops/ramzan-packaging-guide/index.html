@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Ramzan 2026 — Packaging Design Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* NCH Core */
+  --brown: #AC7E54;
+  --wheat: #E9D1A9;
+  --golden: #D4A44C;
+  --dark-brown: #5C4033;
+  --cream: #F5E6D3;
+  --espresso: #3D2914;
+  /* Ramzan Extension */
+  --emerald: #1B5E3B;
+  --crescent-gold: #C9A84C;
+  --ivory: #FFF8EE;
+  --deep-green: #0F3A22;
+  --rose-gold: #B8926A;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #f5f0ea;
+  color: var(--espresso);
+  line-height: 1.6;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ── Header ── */
+.guide-header {
+  text-align: center;
+  padding: 48px 24px 36px;
+  background: linear-gradient(135deg, var(--espresso) 0%, var(--dark-brown) 50%, var(--espresso) 100%);
+  border-radius: 16px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+}
+.guide-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent, transparent 20px,
+    rgba(201,168,76,0.03) 20px, rgba(201,168,76,0.03) 40px
+  );
+}
+.guide-header h1 {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 28px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  position: relative;
+}
+.guide-header .sub {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  color: var(--wheat);
+  margin-top: 8px;
+  letter-spacing: 1px;
+  position: relative;
+}
+.guide-header .tag {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 4px 16px;
+  background: rgba(201,168,76,0.15);
+  border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  position: relative;
+}
+
+/* ── Crescent Moon CSS ── */
+.crescent {
+  display: inline-block;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  box-shadow: 8px -2px 0 0 var(--crescent-gold);
+  margin: 0 6px;
+  vertical-align: middle;
+  position: relative;
+}
+.crescent-sm {
+  width: 16px; height: 16px;
+  box-shadow: 5px -1px 0 0 var(--crescent-gold);
+}
+.crescent-white {
+  box-shadow: 8px -2px 0 0 var(--ivory);
+}
+.star {
+  display: inline-block;
+  color: var(--crescent-gold);
+  font-size: 12px;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* ── Sections ── */
+.section {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.section-title {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dark-brown);
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--wheat);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  background: var(--brown);
+  color: white;
+  border-radius: 50%;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+h3 {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  color: var(--brown);
+  margin: 20px 0 10px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Color Palette ── */
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+.swatch {
+  width: 100px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.swatch-color {
+  height: 60px;
+}
+.swatch-info {
+  padding: 8px;
+  background: white;
+  font-size: 10px;
+  text-align: center;
+}
+.swatch-info strong { display: block; font-size: 11px; margin-bottom: 2px; }
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 12px 0;
+}
+th {
+  background: var(--espresso);
+  color: var(--wheat);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+}
+tr:nth-child(even) td { background: #faf8f5; }
+
+/* ── Label Mockups ── */
+.mockup-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+
+/* Circular Haleem Label */
+.label-circle {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.label-circle .bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(145deg, var(--espresso) 0%, var(--dark-brown) 100%);
+}
+.label-circle .pattern-ring {
+  position: absolute;
+  top: 6px; left: 6px; right: 6px; bottom: 6px;
+  border-radius: 50%;
+  border: 2px solid rgba(201,168,76,0.3);
+}
+.label-circle .inner-ring {
+  position: absolute;
+  top: 14px; left: 14px; right: 14px; bottom: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(201,168,76,0.15);
+}
+.label-circle .content {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  text-align: center;
+}
+.label-circle .brand {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 9px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.label-circle .product-name {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: var(--ivory);
+  font-weight: 700;
+  margin: 4px 0;
+  letter-spacing: 0.5px;
+}
+.label-circle .variant {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 16px;
+  color: var(--crescent-gold);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.label-circle .portion-band {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  right: 30px;
+  background: rgba(201,168,76,0.2);
+  border-radius: 20px;
+  padding: 5px 0;
+  text-align: center;
+}
+.label-circle .portion-text {
+  font-size: 10px;
+  color: var(--ivory);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.label-circle .price-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  color: var(--crescent-gold);
+  font-weight: 700;
+}
+.label-circle .serves {
+  font-size: 8px;
+  color: var(--wheat);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Rectangular Biryani Label */
+.label-rect {
+  width: 280px;
+  min-height: 170px;
+  border-radius: 10px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.label-rect .bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, var(--espresso) 0%, #4a3425 100%);
+}
+.label-rect .geo-pattern {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 16px, rgba(201,168,76,0.04) 16px, rgba(201,168,76,0.04) 17px),
+    repeating-linear-gradient(90deg, transparent, transparent 16px, rgba(201,168,76,0.04) 16px, rgba(201,168,76,0.04) 17px);
+}
+.label-rect .border-line {
+  position: absolute;
+  top: 5px; left: 5px; right: 5px; bottom: 5px;
+  border: 1.5px solid rgba(201,168,76,0.3);
+  border-radius: 7px;
+}
+.label-rect .content {
+  position: relative;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 170px;
+}
+.label-rect .top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.label-rect .brand {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 8px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.label-rect .product-name {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: var(--ivory);
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+.label-rect .variant {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 18px;
+  color: var(--crescent-gold);
+  font-weight: 700;
+  margin: 8px 0;
+  line-height: 1.2;
+}
+.label-rect .price-circle {
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: var(--crescent-gold);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.label-rect .price-circle .price {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--espresso);
+  line-height: 1;
+}
+.label-rect .price-circle .rs {
+  font-size: 8px;
+  color: var(--dark-brown);
+}
+.label-rect .bottom-strip {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(201,168,76,0.15);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.label-rect .info {
+  font-size: 9px;
+  color: var(--wheat);
+  letter-spacing: 0.5px;
+}
+.label-rect .serves-badge {
+  background: rgba(201,168,76,0.2);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 9px;
+  color: var(--ivory);
+  font-weight: 600;
+}
+
+/* Seal Sticker */
+.seal {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  margin: 0 auto;
+  background: linear-gradient(145deg, var(--espresso), var(--dark-brown));
+  border: 2px solid var(--crescent-gold);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+}
+.seal .icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.seal .text {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  color: var(--crescent-gold);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+/* ── Menu Board Mockup ── */
+.menu-board {
+  background: linear-gradient(180deg, var(--espresso) 0%, #2a1a0e 100%);
+  border-radius: 12px;
+  padding: 32px 28px;
+  color: var(--ivory);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.menu-board::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    repeating-linear-gradient(45deg, transparent, transparent 30px, rgba(201,168,76,0.02) 30px, rgba(201,168,76,0.02) 60px);
+}
+.menu-board * { position: relative; }
+.menu-board .header {
+  text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(201,168,76,0.25);
+  margin-bottom: 20px;
+}
+.menu-board .header h2 {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 24px;
+  color: var(--crescent-gold);
+  letter-spacing: 3px;
+}
+.menu-board .header .ramzan {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  color: var(--wheat);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+.menu-board .columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.menu-board .col-title {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  color: var(--crescent-gold);
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(201,168,76,0.15);
+}
+.menu-board .item-group {
+  margin-bottom: 16px;
+}
+.menu-board .item-variant {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--wheat);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.menu-board .portion-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.menu-board .portion-name {
+  color: var(--cream);
+}
+.menu-board .portion-detail {
+  color: rgba(255,255,255,0.4);
+  font-size: 10px;
+}
+.menu-board .portion-price {
+  color: var(--crescent-gold);
+  font-weight: 700;
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+}
+.menu-board .dots {
+  flex: 1;
+  border-bottom: 1px dotted rgba(255,255,255,0.15);
+  margin: 0 8px;
+  min-width: 20px;
+}
+.menu-board .footer {
+  text-align: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(201,168,76,0.25);
+}
+.menu-board .footer-text {
+  font-size: 11px;
+  color: var(--wheat);
+  letter-spacing: 1px;
+}
+.menu-board .footer-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 16px;
+  border: 1px solid var(--crescent-gold);
+  border-radius: 20px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ── Carry Bag Mockup ── */
+.bag-mockup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 20px 0;
+}
+.bag-face {
+  aspect-ratio: 3/4;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+.bag-face .bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #c4a882; /* kraft paper color */
+}
+.bag-face .content {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.bag-face .handle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 20px;
+  border-bottom: 3px solid #a08060;
+  border-radius: 0 0 30px 30px;
+}
+.bag-face .logo-area {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 20px;
+  color: var(--espresso);
+  letter-spacing: 2px;
+}
+.bag-face .logo-sub {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--dark-brown);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.bag-face .ramzan-line {
+  margin-top: 16px;
+  padding: 6px 20px;
+  background: var(--espresso);
+  border-radius: 20px;
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  color: var(--crescent-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.bag-face .crescent-decor {
+  margin-top: 12px;
+}
+.bag-face .back-text {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 13px;
+  color: var(--espresso);
+  letter-spacing: 1px;
+  line-height: 1.6;
+}
+.bag-face .back-items {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: var(--dark-brown);
+  margin-top: 12px;
+  letter-spacing: 0.5px;
+}
+.bag-face .back-address {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 9px;
+  color: var(--dark-brown);
+  opacity: 0.7;
+  letter-spacing: 0.5px;
+}
+.bag-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brown);
+  margin-top: 8px;
+}
+
+/* ── Print Specs ── */
+.spec-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0;
+}
+.spec-card {
+  background: #faf8f5;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 14px;
+}
+.spec-card h4 {
+  font-size: 12px;
+  color: var(--brown);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.spec-card p {
+  font-size: 11px;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+/* ── Utilities ── */
+.note {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  margin-top: 8px;
+}
+.mockup-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brown);
+  margin-top: 10px;
+}
+.divider {
+  height: 1px;
+  background: var(--wheat);
+  margin: 24px 0;
+}
+.tag-line {
+  font-family: 'Cinzel Decorative', serif;
+  text-align: center;
+  color: var(--golden);
+  font-size: 14px;
+  letter-spacing: 1px;
+  margin: 16px 0;
+}
+
+/* ── Food Visual Cards ── */
+.food-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 20px 0;
+}
+.food-card {
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  height: 340px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.food-card .photo {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-size: cover;
+  background-position: center;
+}
+.food-card .overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(61,41,20,0.15) 0%, rgba(61,41,20,0.5) 40%, rgba(61,41,20,0.92) 100%);
+}
+.food-card .geo-border {
+  position: absolute;
+  top: 8px; left: 8px; right: 8px; bottom: 8px;
+  border: 1.5px solid rgba(201,168,76,0.35);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.food-card .geo-corners::before,
+.food-card .geo-corners::after {
+  content: '';
+  position: absolute;
+  width: 24px; height: 24px;
+  border-color: var(--crescent-gold);
+  border-style: solid;
+}
+.food-card .geo-corners::before {
+  top: 16px; left: 16px;
+  border-width: 2px 0 0 2px;
+}
+.food-card .geo-corners::after {
+  top: 16px; right: 16px;
+  border-width: 2px 2px 0 0;
+}
+.food-card .brand-top {
+  position: absolute;
+  top: 24px;
+  left: 0; right: 0;
+  text-align: center;
+  z-index: 2;
+}
+.food-card .brand-name {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 10px;
+  color: var(--crescent-gold);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+}
+.food-card .branding {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 20px 24px 24px;
+  text-align: center;
+  z-index: 2;
+}
+.food-card .tagline {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 12px;
+  color: var(--crescent-gold);
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.food-card .product-title {
+  font-family: 'Cinzel', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ivory);
+  letter-spacing: 2px;
+  line-height: 1.15;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.food-card .product-sub {
+  font-size: 11px;
+  color: var(--wheat);
+  margin-top: 10px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.food-card .price-range {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 16px;
+  background: rgba(201,168,76,0.2);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 20px;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--crescent-gold);
+  letter-spacing: 1px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .page { padding: 12px; }
+  .section { padding: 18px; }
+  .menu-board .columns { grid-template-columns: 1fr; }
+  .bag-mockup { grid-template-columns: 1fr; }
+  .food-grid { grid-template-columns: 1fr; }
+  .food-card { height: 300px; }
+  .mockup-row { grid-template-columns: 1fr; }
+  .spec-grid { grid-template-columns: 1fr; }
+  .palette { justify-content: center; }
+}
+
+/* ── Print ── */
+@media print {
+  body { background: white; }
+  .section { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+  .page { padding: 0; max-width: 100%; }
+  .guide-header { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<div class="guide-header">
+  <h1>NAWABI CHAI HOUSE</h1>
+  <div class="sub">
+    <span class="crescent crescent-white" style="box-shadow: 8px -2px 0 0 var(--crescent-gold);"></span><span class="star">★</span>
+    Ramzan 2026 — Packaging Design Guide
+  </div>
+  <div class="tag">Hyderabadi Special — Haleem & Dum Biryani</div>
+</div>
+
+<!-- ═══════════════════ 1. BRAND EXTENSION ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">1</span> Ramzan Brand Extension</div>
+
+  <h3>Color Palette</h3>
+  <p style="font-size:12px;color:#666;margin-bottom:8px">NCH core palette extended with Ramzan accents — emerald green and warm gold</p>
+  <div class="palette">
+    <div class="swatch"><div class="swatch-color" style="background:var(--brown)"></div><div class="swatch-info"><strong>Chamoisee</strong>#AC7E54</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--wheat)"></div><div class="swatch-info"><strong>Wheat</strong>#E9D1A9</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--golden)"></div><div class="swatch-info"><strong>Golden Amber</strong>#D4A44C</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--espresso)"></div><div class="swatch-info"><strong>Espresso</strong>#3D2914</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--emerald)"></div><div class="swatch-info"><strong>Emerald</strong>#1B5E3B</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--crescent-gold)"></div><div class="swatch-info"><strong>Crescent Gold</strong>#C9A84C</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--ivory)"></div><div class="swatch-info"><strong>Ivory</strong>#FFF8EE</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#c4a882"></div><div class="swatch-info"><strong>Kraft Paper</strong>#C4A882</div></div>
+  </div>
+
+  <h3>Typography</h3>
+  <div style="margin:8px 0 4px"><span style="font-family:'Cinzel Decorative',serif;font-size:20px;color:var(--espresso)">Cinzel Decorative</span> — Brand name, "Hyderabadi Special"</div>
+  <div style="margin:4px 0"><span style="font-family:'Cinzel',serif;font-size:18px;color:var(--dark-brown)">Cinzel</span> — Product names, prices, section titles</div>
+  <div style="margin:4px 0"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;color:var(--dark-brown)">Plus Jakarta Sans</span> — Body text, portion details, specs</div>
+
+  <h3>Motifs</h3>
+  <div style="display:flex;align-items:center;gap:24px;margin:12px 0;flex-wrap:wrap">
+    <div style="text-align:center">
+      <div class="crescent" style="margin:0 auto"></div><span class="star">★</span>
+      <div style="font-size:10px;color:#888;margin-top:6px">Crescent & Star</div>
+    </div>
+    <div style="text-align:center">
+      <div style="width:60px;height:60px;background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(201,168,76,0.15) 5px,rgba(201,168,76,0.15) 6px);border:1px solid var(--golden);border-radius:4px"></div>
+      <div style="font-size:10px;color:#888;margin-top:6px">Geometric Pattern</div>
+    </div>
+    <div style="text-align:center">
+      <div style="width:30px;height:50px;margin:0 auto;background:var(--crescent-gold);clip-path:polygon(50% 0%,65% 20%,80% 30%,85% 50%,80% 70%,65% 85%,50% 100%,35% 85%,20% 70%,15% 50%,20% 30%,35% 20%);opacity:0.7"></div>
+      <div style="font-size:10px;color:#888;margin-top:6px">Lantern</div>
+    </div>
+  </div>
+
+  <div class="tag-line">"Hyderabadi Special"</div>
+  <p class="note">Sub-brand tagline used across all Ramzan packaging. Always in Cinzel Decorative, crescent gold color.</p>
+</div>
+
+<!-- ═══════════════════ 2. PRODUCT VISUAL BRANDING ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">2</span> Product Visual Branding</div>
+  <p style="font-size:12px;color:#666;margin-bottom:16px">Branded product showcase cards — real food photography with NCH Ramzan identity overlay. For use on social media, standees, delivery app listings, and counter displays.</p>
+
+  <div class="food-grid">
+    <!-- Hyderabadi Mutton Haleem -->
+    <div class="food-card">
+      <div class="photo" style="background-image:url('images/mutton-haleem.jpg')"></div>
+      <div class="overlay"></div>
+      <div class="geo-border"></div>
+      <div class="geo-corners" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>
+      <div class="brand-top">
+        <div style="margin-bottom:4px"><span class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--crescent-gold)"></span><span class="star" style="font-size:8px">★</span></div>
+        <div class="brand-name">Nawabi Chai House</div>
+      </div>
+      <div class="branding">
+        <div class="tagline">Hyderabadi Special</div>
+        <div class="product-title">MUTTON<br>HALEEM</div>
+        <div class="product-sub">Quarter · Half · Full · Family Pack</div>
+        <div class="price-range">₹129 — ₹749</div>
+      </div>
+    </div>
+
+    <!-- Hyderabadi Chicken Haleem -->
+    <div class="food-card">
+      <div class="photo" style="background-image:url('images/chicken-haleem.jpg')"></div>
+      <div class="overlay" style="background:linear-gradient(180deg, rgba(92,64,51,0.15) 0%, rgba(92,64,51,0.5) 40%, rgba(92,64,51,0.92) 100%)"></div>
+      <div class="geo-border"></div>
+      <div class="geo-corners" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>
+      <div class="brand-top">
+        <div style="margin-bottom:4px"><span class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--crescent-gold)"></span><span class="star" style="font-size:8px">★</span></div>
+        <div class="brand-name">Nawabi Chai House</div>
+      </div>
+      <div class="branding">
+        <div class="tagline">Hyderabadi Special</div>
+        <div class="product-title">CHICKEN<br>HALEEM</div>
+        <div class="product-sub">Quarter · Half · Full · Family Pack</div>
+        <div class="price-range">₹99 — ₹599</div>
+      </div>
+    </div>
+
+    <!-- Hyderabadi Mutton Dum Biryani -->
+    <div class="food-card">
+      <div class="photo" style="background-image:url('images/mutton-biryani.jpg')"></div>
+      <div class="overlay" style="background:linear-gradient(180deg, rgba(61,41,20,0.1) 0%, rgba(27,94,59,0.3) 40%, rgba(61,41,20,0.92) 100%)"></div>
+      <div class="geo-border"></div>
+      <div class="geo-corners" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>
+      <div class="brand-top">
+        <div style="margin-bottom:4px"><span class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--crescent-gold)"></span><span class="star" style="font-size:8px">★</span></div>
+        <div class="brand-name">Nawabi Chai House</div>
+      </div>
+      <div class="branding">
+        <div class="tagline">Hyderabadi Special</div>
+        <div class="product-title">MUTTON DUM<br>BIRYANI</div>
+        <div class="product-sub">Single · Double · Family Pack</div>
+        <div class="price-range">₹349 — ₹1,199</div>
+      </div>
+    </div>
+
+    <!-- Hyderabadi Chicken Dum Biryani -->
+    <div class="food-card">
+      <div class="photo" style="background-image:url('images/chicken-biryani.jpg')"></div>
+      <div class="overlay" style="background:linear-gradient(180deg, rgba(61,41,20,0.1) 0%, rgba(61,41,20,0.5) 40%, rgba(61,41,20,0.92) 100%)"></div>
+      <div class="geo-border"></div>
+      <div class="geo-corners" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>
+      <div class="brand-top">
+        <div style="margin-bottom:4px"><span class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--crescent-gold)"></span><span class="star" style="font-size:8px">★</span></div>
+        <div class="brand-name">Nawabi Chai House</div>
+      </div>
+      <div class="branding">
+        <div class="tagline">Hyderabadi Special</div>
+        <div class="product-title">CHICKEN DUM<br>BIRYANI</div>
+        <div class="product-sub">Single · Double · Family Pack</div>
+        <div class="price-range">₹279 — ₹899</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">AI-generated food photography (Gemini 2.5 Flash). For final production materials, supplement with original NCH food photography shot with the actual dishes.</p>
+</div>
+
+<!-- ═══════════════════ 3. CONTAINER SPECS ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">3</span> Container Specifications</div>
+
+  <h3>Haleem — Round Paper Bowls with Clear Dome Lids</h3>
+  <table>
+    <tr><th>Portion</th><th>Weight</th><th>Container</th><th>Diameter</th><th>Height</th><th>Material</th></tr>
+    <tr><td>Quarter</td><td>250g</td><td>350ml bowl</td><td>105mm</td><td>55mm</td><td>Kraft, PE-lined</td></tr>
+    <tr><td>Half</td><td>500g</td><td>500ml bowl</td><td>115mm</td><td>65mm</td><td>Kraft, PE-lined</td></tr>
+    <tr><td>Full</td><td>750g</td><td>750ml bowl</td><td>135mm</td><td>70mm</td><td>Kraft, PE-lined</td></tr>
+    <tr><td>Family Pack</td><td>1.5 kg</td><td>1500ml bowl</td><td>165mm</td><td>85mm</td><td>Kraft, PE-lined</td></tr>
+  </table>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0">
+    <div>
+      <img src="images/pkg-mutton-haleem.jpg" alt="Mutton Haleem packaging — all 4 sizes" style="width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.12)">
+      <div class="mockup-label">Mutton Haleem — Quarter to Family (with garnish pouches)</div>
+    </div>
+    <div>
+      <img src="images/pkg-chicken-haleem.jpg" alt="Chicken Haleem packaging — all 4 sizes" style="width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.12)">
+      <div class="mockup-label">Chicken Haleem — Quarter to Family (with accompaniments)</div>
+    </div>
+  </div>
+
+  <h3>Biryani — Rectangular Kraft Boxes, Foil-Lined</h3>
+  <table>
+    <tr><th>Portion</th><th>Weight</th><th>Container</th><th>L × W × H</th><th>Material</th></tr>
+    <tr><td>Single</td><td>400g</td><td>500ml box</td><td>150 × 120 × 55mm</td><td>Kraft + foil liner</td></tr>
+    <tr><td>Double</td><td>800g</td><td>1000ml box</td><td>180 × 140 × 65mm</td><td>Kraft + foil liner</td></tr>
+    <tr><td>Family Pack</td><td>1.8 kg</td><td>2000ml box</td><td>220 × 160 × 80mm</td><td>Kraft + foil liner</td></tr>
+  </table>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0">
+    <div>
+      <img src="images/pkg-mutton-biryani.jpg" alt="Mutton Biryani packaging — all 3 sizes" style="width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.12)">
+      <div class="mockup-label">Mutton Dum Biryani — Single, Double, Family (with raita & salan)</div>
+    </div>
+    <div>
+      <img src="images/pkg-chicken-biryani.jpg" alt="Chicken Biryani packaging — all 3 sizes" style="width:100%;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.12)">
+      <div class="mockup-label">Chicken Dum Biryani — Single, Double, Family (with carry bag)</div>
+    </div>
+  </div>
+
+  <h3>Accompaniments</h3>
+  <table>
+    <tr><th>Item</th><th>Container</th><th>Size</th><th>Included With</th></tr>
+    <tr><td>Raita</td><td>PP sauce cup + lid</td><td>30ml</td><td>Biryani (all sizes)</td></tr>
+    <tr><td>Mirchi ka Salan</td><td>PP sauce cup + lid</td><td>30ml</td><td>Biryani (all sizes)</td></tr>
+    <tr><td>Fried Onions + Coriander</td><td>Small kraft pouch</td><td>10g</td><td>Haleem (all sizes)</td></tr>
+    <tr><td>Lemon Wedge + Green Chilli</td><td>Small kraft pouch</td><td>—</td><td>Both (all sizes)</td></tr>
+    <tr><td>Ginger Strips</td><td>Small kraft pouch</td><td>5g</td><td>Haleem (Half+ sizes)</td></tr>
+  </table>
+
+  <h3>Carry Bags</h3>
+  <table>
+    <tr><th>Size</th><th>For</th><th>Dimensions</th><th>Material</th><th>Handle</th></tr>
+    <tr><td>Small</td><td>Quarter, Half, Single, Double</td><td>200 × 150 × 260mm</td><td>100gsm Kraft</td><td>Twisted paper</td></tr>
+    <tr><td>Large</td><td>Full, Family Packs</td><td>280 × 170 × 320mm</td><td>120gsm Kraft</td><td>Twisted paper</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════ 4. LABEL MOCKUPS ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">4</span> Label Mockups</div>
+
+  <h3>A. Haleem Lid Labels (Circular, 80mm diameter sticker)</h3>
+  <p style="font-size:12px;color:#666;margin-bottom:16px">Applied on the clear dome lid of each haleem bowl. Shown at ~2.8x scale.</p>
+
+  <div class="mockup-row">
+    <!-- Mutton Haleem Quarter -->
+    <div>
+      <div class="label-circle">
+        <div class="bg"></div>
+        <div class="pattern-ring"></div>
+        <div class="inner-ring"></div>
+        <div class="content">
+          <div class="brand">Nawabi Chai House</div>
+          <div class="product-name">Hyderabadi Special</div>
+          <div class="variant">Mutton<br>Haleem</div>
+          <div class="serves">Serves 1</div>
+          <div class="portion-band">
+            <div class="portion-text">QUARTER · 250g · <span class="price-badge">₹129</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Mutton Haleem — Quarter</div>
+    </div>
+    <!-- Mutton Haleem Family -->
+    <div>
+      <div class="label-circle" style="width:240px;height:240px">
+        <div class="bg" style="background:linear-gradient(145deg, var(--espresso) 0%, #1a3520 50%, var(--espresso) 100%)"></div>
+        <div class="pattern-ring" style="border-color:rgba(201,168,76,0.4)"></div>
+        <div class="inner-ring" style="border-color:rgba(201,168,76,0.2)"></div>
+        <div class="content">
+          <div class="brand">Nawabi Chai House</div>
+          <div class="product-name" style="color:var(--crescent-gold);font-weight:700">★ FAMILY PACK ★</div>
+          <div class="variant">Mutton<br>Haleem</div>
+          <div class="serves">Serves 4-5</div>
+          <div class="portion-band" style="background:rgba(201,168,76,0.3)">
+            <div class="portion-text">1.5 KG · <span class="price-badge" style="font-size:18px">₹749</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Mutton Haleem — Family Pack (premium label)</div>
+    </div>
+  </div>
+
+  <div class="mockup-row" style="margin-top:24px">
+    <!-- Chicken Haleem Half -->
+    <div>
+      <div class="label-circle">
+        <div class="bg" style="background:linear-gradient(145deg, var(--dark-brown) 0%, var(--brown) 100%)"></div>
+        <div class="pattern-ring"></div>
+        <div class="inner-ring"></div>
+        <div class="content">
+          <div class="brand">Nawabi Chai House</div>
+          <div class="product-name">Hyderabadi Special</div>
+          <div class="variant">Chicken<br>Haleem</div>
+          <div class="serves">Serves 1-2</div>
+          <div class="portion-band">
+            <div class="portion-text">HALF · 500g · <span class="price-badge">₹199</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Chicken Haleem — Half</div>
+    </div>
+    <!-- Chicken Haleem Family -->
+    <div>
+      <div class="label-circle" style="width:240px;height:240px">
+        <div class="bg" style="background:linear-gradient(145deg, var(--dark-brown) 0%, #2a4530 50%, var(--brown) 100%)"></div>
+        <div class="pattern-ring" style="border-color:rgba(201,168,76,0.4)"></div>
+        <div class="inner-ring" style="border-color:rgba(201,168,76,0.2)"></div>
+        <div class="content">
+          <div class="brand">Nawabi Chai House</div>
+          <div class="product-name" style="color:var(--crescent-gold);font-weight:700">★ FAMILY PACK ★</div>
+          <div class="variant">Chicken<br>Haleem</div>
+          <div class="serves">Serves 4-5</div>
+          <div class="portion-band" style="background:rgba(201,168,76,0.3)">
+            <div class="portion-text">1.5 KG · <span class="price-badge" style="font-size:18px">₹599</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Chicken Haleem — Family Pack</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>B. Biryani Box Labels (Rectangular, 120×80mm top sticker)</h3>
+  <p style="font-size:12px;color:#666;margin-bottom:16px">Applied on the top of each biryani box. Shown at ~2.3x scale.</p>
+
+  <div class="mockup-row">
+    <!-- Mutton Biryani Single -->
+    <div>
+      <div class="label-rect">
+        <div class="bg"></div>
+        <div class="geo-pattern"></div>
+        <div class="border-line"></div>
+        <div class="content">
+          <div class="top-row">
+            <div>
+              <div class="brand">Nawabi Chai House</div>
+              <div class="product-name">Hyderabadi Special</div>
+            </div>
+            <div class="price-circle">
+              <div class="rs">₹</div>
+              <div class="price">349</div>
+            </div>
+          </div>
+          <div class="variant">Mutton Dum<br>Biryani</div>
+          <div class="bottom-strip">
+            <div class="info">SINGLE · 400g · 2-3 pcs</div>
+            <div class="serves-badge">Serves 1</div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Mutton Dum Biryani — Single</div>
+    </div>
+    <!-- Chicken Biryani Family -->
+    <div>
+      <div class="label-rect" style="min-height:180px">
+        <div class="bg" style="background:linear-gradient(135deg, var(--espresso) 0%, #1a3520 50%, #2a1a0e 100%)"></div>
+        <div class="geo-pattern"></div>
+        <div class="border-line" style="border-color:rgba(201,168,76,0.4)"></div>
+        <div class="content" style="min-height:180px">
+          <div class="top-row">
+            <div>
+              <div class="brand">Nawabi Chai House</div>
+              <div class="product-name" style="color:var(--crescent-gold);font-weight:700">★ FAMILY PACK ★</div>
+            </div>
+            <div class="price-circle" style="width:60px;height:60px">
+              <div class="rs">₹</div>
+              <div class="price" style="font-size:17px">899</div>
+            </div>
+          </div>
+          <div class="variant">Chicken Dum<br>Biryani</div>
+          <div class="bottom-strip">
+            <div class="info">1.8 KG · 8-10 pcs</div>
+            <div class="serves-badge" style="background:rgba(201,168,76,0.3)">Serves 4-5</div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup-label">Chicken Dum Biryani — Family Pack</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>C. Seal Sticker (40mm circle, applied on container side)</h3>
+  <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin:16px 0">
+    <div style="text-align:center">
+      <div class="seal">
+        <div style="margin-bottom:2px"><span class="crescent crescent-sm"></span><span class="star" style="font-size:8px">★</span></div>
+        <div class="text">Nawabi<br>Chai House</div>
+        <div style="font-size:7px;color:var(--wheat);margin-top:2px;letter-spacing:0.5px">Freshly Prepared</div>
+      </div>
+      <div class="mockup-label">Seal Sticker (2.75x scale)</div>
+    </div>
+    <div style="flex:1;min-width:200px">
+      <p style="font-size:12px;color:#555;margin-bottom:8px">Applied on the side of every container as a tamper-evident seal. The sticker should bridge the lid and bowl/box so opening tears it.</p>
+      <p style="font-size:12px;color:#555"><strong>Print:</strong> 40mm diameter circle, matte finish, espresso background with gold foil crescent moon. Same design for all products.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ 5. MENU BOARD ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">5</span> Menu Board / Counter Standee</div>
+  <p style="font-size:12px;color:#666;margin-bottom:16px">Dimensions: 600 × 900mm portrait standee. Placed at the Haleem & Biryani counter (right side of outlet). Sunboard or foam board with matte lamination.</p>
+
+  <div class="menu-board">
+    <div class="header">
+      <div style="margin-bottom:8px"><span class="crescent" style="box-shadow:8px -2px 0 0 var(--crescent-gold)"></span><span class="star">★</span></div>
+      <h2>NAWABI CHAI HOUSE</h2>
+      <div class="ramzan">Ramzan Special 2026</div>
+    </div>
+
+    <div class="columns">
+      <!-- Left: Haleem -->
+      <div>
+        <div class="col-title"><span class="crescent crescent-sm"></span><span class="star" style="font-size:8px">★</span> Haleem</div>
+
+        <div class="item-group">
+          <div class="item-variant">Hyderabadi Mutton Haleem</div>
+          <div class="portion-row">
+            <span class="portion-name">Quarter <span class="portion-detail">250g</span></span><span class="dots"></span><span class="portion-price">₹129</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Half <span class="portion-detail">500g</span></span><span class="dots"></span><span class="portion-price">₹249</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Full <span class="portion-detail">750g</span></span><span class="dots"></span><span class="portion-price">₹399</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Family Pack <span class="portion-detail">1.5kg · 4-5</span></span><span class="dots"></span><span class="portion-price">₹749</span>
+          </div>
+        </div>
+
+        <div class="item-group">
+          <div class="item-variant">Hyderabadi Chicken Haleem</div>
+          <div class="portion-row">
+            <span class="portion-name">Quarter <span class="portion-detail">250g</span></span><span class="dots"></span><span class="portion-price">₹99</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Half <span class="portion-detail">500g</span></span><span class="dots"></span><span class="portion-price">₹199</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Full <span class="portion-detail">750g</span></span><span class="dots"></span><span class="portion-price">₹319</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Family Pack <span class="portion-detail">1.5kg · 4-5</span></span><span class="dots"></span><span class="portion-price">₹599</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Biryani -->
+      <div>
+        <div class="col-title"><span class="crescent crescent-sm"></span><span class="star" style="font-size:8px">★</span> Dum Biryani</div>
+
+        <div class="item-group">
+          <div class="item-variant">Hyderabadi Mutton Dum Biryani</div>
+          <div class="portion-row">
+            <span class="portion-name">Single <span class="portion-detail">400g · 2-3 pcs</span></span><span class="dots"></span><span class="portion-price">₹349</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Double <span class="portion-detail">800g · 5-6 pcs</span></span><span class="dots"></span><span class="portion-price">₹649</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Family Pack <span class="portion-detail">1.8kg · 10-12 pcs</span></span><span class="dots"></span><span class="portion-price">₹1,199</span>
+          </div>
+        </div>
+
+        <div class="item-group">
+          <div class="item-variant">Hyderabadi Chicken Dum Biryani</div>
+          <div class="portion-row">
+            <span class="portion-name">Single <span class="portion-detail">400g · 2 pcs</span></span><span class="dots"></span><span class="portion-price">₹279</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Double <span class="portion-detail">800g · 4 pcs</span></span><span class="dots"></span><span class="portion-price">₹499</span>
+          </div>
+          <div class="portion-row">
+            <span class="portion-name">Family Pack <span class="portion-detail">1.8kg · 8-10 pcs</span></span><span class="dots"></span><span class="portion-price">₹899</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-text">All accompaniments included · Raita · Salan · Fried Onions · Lemon</div>
+      <div class="footer-badge">Takeaway Only · 4 PM — 9:30 PM</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ 6. CARRY BAG ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">6</span> Carry Bag Design</div>
+  <p style="font-size:12px;color:#666;margin-bottom:16px">Single-color print on natural kraft paper. One design for both sizes.</p>
+
+  <div class="bag-mockup">
+    <div>
+      <div class="bag-face">
+        <div class="bg"></div>
+        <div class="content">
+          <div class="handle"></div>
+          <div style="margin-top:20px">
+            <div class="logo-area">NAWABI</div>
+            <div class="logo-sub">CHAI HOUSE</div>
+          </div>
+          <div class="ramzan-line">
+            <span class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--crescent-gold);width:12px;height:12px"></span>
+            Ramzan Special 2026
+          </div>
+          <div style="margin-top:12px;font-family:'Cinzel Decorative',serif;font-size:11px;color:var(--espresso);letter-spacing:1px">Hyderabadi Special</div>
+        </div>
+      </div>
+      <div class="bag-label">Front</div>
+    </div>
+    <div>
+      <div class="bag-face">
+        <div class="bg"></div>
+        <div class="content">
+          <div class="handle"></div>
+          <div style="margin-top:24px">
+            <div class="back-text">The Taste of<br>Authentic Hyderabad</div>
+            <div class="back-items">Haleem · Dum Biryani</div>
+            <div style="margin-top:12px">
+              <div class="crescent crescent-sm" style="box-shadow:5px -1px 0 0 var(--dark-brown);margin:0 auto"></div>
+            </div>
+          </div>
+          <div class="back-address">
+            HKP Road, Shivajinagar, Bangalore<br>
+            @nawabichaihouse · 8008002049
+          </div>
+        </div>
+      </div>
+      <div class="bag-label">Back</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ 7. PRINT SPECS ═══════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">7</span> Print Specifications</div>
+
+  <h3>Label Sizes & Bleed</h3>
+  <table>
+    <tr><th>Label</th><th>Trim Size</th><th>Bleed</th><th>Safe Zone</th><th>Material</th><th>Finish</th></tr>
+    <tr><td>Haleem Lid (Quarter/Half)</td><td>80mm circle</td><td>+2mm</td><td>3mm inset</td><td>Sticker paper, 80gsm</td><td>Matte</td></tr>
+    <tr><td>Haleem Lid (Full)</td><td>90mm circle</td><td>+2mm</td><td>3mm inset</td><td>Sticker paper, 80gsm</td><td>Matte</td></tr>
+    <tr><td>Haleem Lid (Family)</td><td>100mm circle</td><td>+2mm</td><td>3mm inset</td><td>Sticker paper, 80gsm</td><td>Matte + gold foil</td></tr>
+    <tr><td>Biryani Box Top</td><td>120 × 80mm rect</td><td>+2mm</td><td>3mm inset</td><td>Sticker paper, 80gsm</td><td>Matte</td></tr>
+    <tr><td>Biryani Box (Family)</td><td>140 × 100mm rect</td><td>+2mm</td><td>3mm inset</td><td>Sticker paper, 80gsm</td><td>Matte + gold foil</td></tr>
+    <tr><td>Seal Sticker</td><td>40mm circle</td><td>+1mm</td><td>2mm inset</td><td>Sticker paper, 70gsm</td><td>Matte</td></tr>
+  </table>
+
+  <h3>Color Specifications</h3>
+  <div class="spec-grid">
+    <div class="spec-card">
+      <h4>Espresso (Primary Background)</h4>
+      <p>HEX: #3D2914</p>
+      <p>RGB: 61, 41, 20</p>
+      <p>CMYK: 30, 55, 75, 75 (approx)</p>
+    </div>
+    <div class="spec-card">
+      <h4>Crescent Gold (Accents & Text)</h4>
+      <p>HEX: #C9A84C</p>
+      <p>RGB: 201, 168, 76</p>
+      <p>CMYK: 15, 25, 70, 5 (approx)</p>
+    </div>
+    <div class="spec-card">
+      <h4>Ivory (Light Text)</h4>
+      <p>HEX: #FFF8EE</p>
+      <p>RGB: 255, 248, 238</p>
+      <p>CMYK: 0, 2, 5, 0</p>
+    </div>
+    <div class="spec-card">
+      <h4>Emerald (Family Pack Accent)</h4>
+      <p>HEX: #1B5E3B</p>
+      <p>RGB: 27, 94, 59</p>
+      <p>CMYK: 75, 20, 65, 30 (approx)</p>
+    </div>
+  </div>
+
+  <h3>Fonts for Vendor</h3>
+  <div class="spec-grid">
+    <div class="spec-card">
+      <h4>Cinzel Decorative</h4>
+      <p>Google Fonts (free)</p>
+      <p>fonts.google.com/specimen/Cinzel+Decorative</p>
+      <p>Weights: 400, 700, 900</p>
+    </div>
+    <div class="spec-card">
+      <h4>Cinzel</h4>
+      <p>Google Fonts (free)</p>
+      <p>fonts.google.com/specimen/Cinzel</p>
+      <p>Weights: 400, 500, 600, 700</p>
+    </div>
+  </div>
+
+  <h3>Estimated Quantities (30-day Ramzan Season)</h3>
+  <table>
+    <tr><th>Item</th><th>Daily Est.</th><th>30-Day Total</th><th>Buffer (+20%)</th><th>Order Qty</th></tr>
+    <tr><td>Haleem Lid Labels (4 variants × 4 sizes)</td><td>~80/day</td><td>2,400</td><td>2,880</td><td>3,000</td></tr>
+    <tr><td>Biryani Box Labels (4 variants × 3 sizes)</td><td>~50/day</td><td>1,500</td><td>1,800</td><td>2,000</td></tr>
+    <tr><td>Seal Stickers (1 design)</td><td>~130/day</td><td>3,900</td><td>4,680</td><td>5,000</td></tr>
+    <tr><td>Small Carry Bags</td><td>~90/day</td><td>2,700</td><td>3,240</td><td>3,500</td></tr>
+    <tr><td>Large Carry Bags</td><td>~40/day</td><td>1,200</td><td>1,440</td><td>1,500</td></tr>
+    <tr><td>Sauce Cups (30ml) + Lids</td><td>~100/day</td><td>3,000</td><td>3,600</td><td>4,000</td></tr>
+    <tr><td>Small Kraft Pouches</td><td>~200/day</td><td>6,000</td><td>7,200</td><td>7,500</td></tr>
+  </table>
+  <p class="note">Daily estimates assume ~40 haleem parcels and ~25 biryani parcels per day, scaling up during weekends and last 10 days of Ramzan.</p>
+
+  <h3>Menu Board Print</h3>
+  <div class="spec-card" style="margin-top:8px">
+    <h4>Counter Standee</h4>
+    <p>Size: 600 × 900mm (portrait)</p>
+    <p>Material: 5mm Sunboard with matte lamination</p>
+    <p>Stand: Retractable roll-up banner OR easel stand</p>
+    <p>Quantity: 2 (one at counter, one at entrance/road-facing)</p>
+  </div>
+</div>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<div style="text-align:center;padding:24px;color:#999;font-size:11px">
+  <div style="font-family:'Cinzel Decorative',serif;color:var(--golden);font-size:13px;margin-bottom:8px">Nawabi Chai House</div>
+  HN Hotels Pvt Ltd · HKP Road, Shivajinagar, Bangalore<br>
+  Packaging Design Guide · February 2026 · Confidential
+</div>
+
+</div>
+</body>
+</html>

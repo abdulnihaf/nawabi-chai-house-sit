@@ -279,7 +279,14 @@ pins.forEach((input,i)=>{
 function checkPin(){
   const pin=pins.map(p=>p.value).join('');
   if(pin.length!==4)return;
-  if(['0305','3754'].includes(pin)){
+  // Allow: admins, managers, accountant, cashiers (all non-runner staff)
+  const ALLOWED_PINS = {
+    '0305':true,'3697':true,  // admins
+    '8523':true,'6890':true,'3754':true,  // managers
+    '2026':true,  // accountant
+    '7115':true,'8241':true   // cashiers
+  };
+  if(ALLOWED_PINS[pin]){
     currentPin=pin;
     $('pinScreen').classList.add('hidden');
     $('dashboard').classList.add('show');

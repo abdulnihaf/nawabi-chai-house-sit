@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nch-local",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "-l", "3456"],
+      "port": 3456
+    },
+    {
+      "name": "he-marketing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "/Users/nihaf/Documents/Tech/hamza-express-site", "-l", "8799"],
+      "port": 8799
+    }
+  ]
+}

@@ -157,6 +157,34 @@
 
     /* ── Full-screen loader ── */
     .dash-loading{padding:24px;max-width:480px;margin:0 auto}
+
+    /* ── Multi-Runner Overview (for cashiers/managers/admins) ── */
+    .multi-runner-view{display:none;padding:16px;max-width:720px;margin:0 auto}
+    .multi-runner-view.show{display:block}
+    .multi-runner-view h2{font-size:18px;font-weight:700;margin-bottom:16px;text-align:center;color:var(--text2)}
+    .mr-grid{display:grid;grid-template-columns:1fr;gap:14px}
+    @media(min-width:520px){.mr-grid{grid-template-columns:1fr 1fr}}
+    .mr-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 16px;transition:border-color .2s}
+    .mr-card.has-errors{border-left:4px solid var(--red)}
+    .mr-card.settled{border-left:4px solid var(--green);opacity:.7}
+    .mr-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .mr-runner-name{font-size:16px;font-weight:700}
+    .mr-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;font-family:'JetBrains Mono',monospace}
+    .mr-badge.active{background:rgba(34,197,94,.15);color:var(--green)}
+    .mr-badge.errors{background:rgba(239,68,68,.15);color:var(--red)}
+    .mr-badge.idle{background:rgba(148,163,184,.1);color:var(--text2)}
+    .mr-cash{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;text-align:center;margin:8px 0}
+    .mr-cash.positive{color:var(--green)}
+    .mr-cash.negative{color:var(--red)}
+    .mr-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
+    .mr-stat-label{font-size:11px;color:var(--text2);margin-bottom:2px}
+    .mr-stat-value{font-size:14px;font-weight:600;font-family:'JetBrains Mono',monospace}
+    .mr-stat-value.upi{color:var(--blue)}
+    .mr-errors-tag{margin-top:10px;font-size:12px;color:var(--red);font-weight:600}
+    .mr-loading{text-align:center;padding:40px;color:var(--text2)}
+    .mr-total-bar{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-top:16px;display:flex;justify-content:space-around;text-align:center}
+    .mr-total-item .mr-total-label{font-size:12px;color:var(--text2);margin-bottom:4px}
+    .mr-total-item .mr-total-value{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
   </style>
 </head>
 <body>
@@ -276,6 +304,12 @@
     </button>
     <div class="history-content" id="historyContent"></div>
   </div>
+</div>
+
+<!-- ====== MULTI-RUNNER OVERVIEW (cashiers/managers/admins) ====== -->
+<div class="multi-runner-view" id="multiRunnerView">
+  <h2 id="mrTitle">All Runners — Live</h2>
+  <div id="mrContent"><div class="mr-loading">Loading all runners...</div></div>
 </div>
 
 <!-- G. Refresh Bar -->
@@ -508,12 +542,23 @@
     pinScreen.classList.add('hidden');
     phoneScreen.classList.remove('show');
     phoneScreen.style.display = 'none';
-    document.getElementById('dashboard').classList.add('show');
     document.getElementById('refreshBar').classList.add('show');
-    document.getElementById('runnerName').textContent = state.name;
 
-    loadDashboard();
-    startAutoRefresh();
+    if (state.isViewOnly) {
+      // Non-runner: show multi-runner overview
+      document.getElementById('multiRunnerView').classList.add('show');
+      document.getElementById('dashboard').classList.remove('show');
+      document.getElementById('mrTitle').textContent = state.name.replace(' (Viewing)', '') + ' — All Runners Live';
+      loadMultiRunnerView();
+      startAutoRefresh();
+    } else {
+      // Runner: show their own single dashboard
+      document.getElementById('dashboard').classList.add('show');
+      document.getElementById('multiRunnerView').classList.remove('show');
+      document.getElementById('runnerName').textContent = state.name;
+      loadDashboard();
+      startAutoRefresh();
+    }
   }
 
   async function loadDashboard() {
@@ -878,11 +923,111 @@
     }
   });
 
+  // ── Multi-Runner Overview ──
+  const RUNNERS = [
+    { slot: 'RUN001', id: 64, name: 'Farzaib' },
+    { slot: 'RUN002', id: 65, name: 'Ritiqu' },
+    { slot: 'RUN003', id: 66, name: 'Anshu' },
+    { slot: 'RUN004', id: 67, name: 'Shabeer' },
+    { slot: 'RUN005', id: 68, name: 'Dhanush' }
+  ];
+
+  async function loadMultiRunnerView() {
+    const content = document.getElementById('mrContent');
+    const refreshBtn = document.getElementById('refreshBtn');
+    refreshBtn.classList.add('loading');
+    refreshBtn.textContent = 'Loading...';
+
+    try {
+      // Fetch all 5 runners in parallel
+      const results = await Promise.all(
+        RUNNERS.map(r =>
+          api('/api/settlement?action=runner-live&runner_id=' + r.id)
+            .catch(() => ({ success: false }))
+        )
+      );
+
+      let totalCash = 0, totalSales = 0, totalUpi = 0, totalErrors = 0;
+
+      let html = '<div class="mr-grid">';
+      results.forEach((data, i) => {
+        const runner = RUNNERS[i];
+        const ok = data && data.success;
+        const cash = ok ? (data.cashInHand || 0) : 0;
+        const sales = ok ? ((data.tokens || 0) + (data.sales || 0)) : 0;
+        const upi = ok ? (data.upi ? data.upi.total : 0) : 0;
+        const orders = ok ? ((data.tokenOrders || 0) + (data.salesOrders || 0)) : 0;
+        const errors = ok ? (data.pending_errors ? data.pending_errors.length : 0) : 0;
+        const isSettled = ok && data.lastSettlement && !orders;
+        const isActive = ok && orders > 0;
+
+        totalCash += cash;
+        totalSales += sales;
+        totalUpi += upi;
+        totalErrors += errors;
+
+        const cardClass = errors > 0 ? ' has-errors' : (isSettled ? ' settled' : '');
+        const badgeClass = errors > 0 ? 'errors' : (isActive ? 'active' : 'idle');
+        const badgeText = errors > 0 ? errors + ' ERR' : (isSettled ? 'SETTLED' : (isActive ? orders + ' orders' : 'No orders'));
+
+        html += `
+          <div class="mr-card${cardClass}">
+            <div class="mr-card-header">
+              <span class="mr-runner-name">${runner.name}</span>
+              <span class="mr-badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="mr-cash ${cash >= 0 ? 'positive' : 'negative'}">${cash < 0 ? '-' : ''}₹${fmt(Math.abs(cash))}</div>
+            <div class="mr-stats">
+              <div><div class="mr-stat-label">Sales</div><div class="mr-stat-value">₹${fmt(sales)}</div></div>
+              <div><div class="mr-stat-label">UPI</div><div class="mr-stat-value upi">₹${fmt(upi)}</div></div>
+              <div><div class="mr-stat-label">Orders</div><div class="mr-stat-value">${orders}</div></div>
+            </div>
+            ${errors > 0 ? '<div class="mr-errors-tag">⚠ ' + errors + ' error' + (errors > 1 ? 's' : '') + ' need fixing</div>' : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+
+      // Total bar
+      html += `
+        <div class="mr-total-bar">
+          <div class="mr-total-item">
+            <div class="mr-total-label">Total Cash</div>
+            <div class="mr-total-value" style="color:var(--green)">₹${fmt(totalCash)}</div>
+          </div>
+          <div class="mr-total-item">
+            <div class="mr-total-label">Total Sales</div>
+            <div class="mr-total-value">₹${fmt(totalSales)}</div>
+          </div>
+          <div class="mr-total-item">
+            <div class="mr-total-label">Total UPI</div>
+            <div class="mr-total-value" style="color:var(--blue)">₹${fmt(totalUpi)}</div>
+          </div>
+          ${totalErrors > 0 ? '<div class="mr-total-item"><div class="mr-total-label">Errors</div><div class="mr-total-value" style="color:var(--red)">' + totalErrors + '</div></div>' : ''}
+        </div>
+      `;
+
+      content.innerHTML = html;
+      state.lastRefresh = new Date();
+      updateRefreshText();
+
+    } catch (e) {
+      content.innerHTML = '<div class="mr-loading">Connection error. Tap refresh.</div>';
+    } finally {
+      refreshBtn.classList.remove('loading');
+      refreshBtn.textContent = 'Refresh';
+    }
+  }
+
   // ── G. Refresh Bar ──
   const refreshBtn = document.getElementById('refreshBtn');
   refreshBtn.addEventListener('click', function() {
     if (refreshBtn.classList.contains('loading')) return;
-    loadDashboard();
+    if (state.isViewOnly) {
+      loadMultiRunnerView();
+    } else {
+      loadDashboard();
+    }
   });
 
   function startAutoRefresh() {
@@ -890,7 +1035,8 @@
     if (state.countdownTimer) clearInterval(state.countdownTimer);
 
     state.refreshTimer = setInterval(() => {
-      loadDashboard();
+      if (state.isViewOnly) loadMultiRunnerView();
+      else loadDashboard();
     }, 30000);
 
     state.countdownTimer = setInterval(() => {
@@ -910,9 +1056,10 @@
     if (state.refreshTimer) clearInterval(state.refreshTimer);
     if (state.countdownTimer) clearInterval(state.countdownTimer);
 
-    state = { pin: '', slot: '', name: '', partnerId: null, barcode: '', lastRefresh: null, refreshTimer: null, countdownTimer: null, previousUpiIds: new Set(), historyLoaded: false };
+    state = { pin: '', slot: '', name: '', partnerId: null, barcode: '', lastRefresh: null, refreshTimer: null, countdownTimer: null, previousUpiIds: new Set(), historyLoaded: false, isViewOnly: false };
 
     document.getElementById('dashboard').classList.remove('show');
+    document.getElementById('multiRunnerView').classList.remove('show');
     document.getElementById('refreshBar').classList.remove('show');
     document.getElementById('dashLoading').style.display = 'block';
     document.getElementById('dashContent').style.display = 'none';
