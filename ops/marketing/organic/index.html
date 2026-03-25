@@ -339,7 +339,7 @@ const BRAND = {
 };
 
 // Meta Graph API — HN Hotels Private Limited portfolio (ID: 2590924097967277)
-const META_TOKEN = 'EAAdjKyLVeusBQ5W4XrV2JNvYmUJXAnXYkPNwsu3oZBoTp3u3ETjRdC41dX4frN3xtiRtSrUP9X0eGLSPAKxxuuSxWQL20ffMZBA4PMdVAdmix1JFk9TmqFdGeMZBiZAZAJq32HE4lAslCqclCIl4swEBi9Ov9DdqThN2QJezGzj4zH05a0ky14caD2KEPJCs3SrnmlvbgGZCbLfZBHKVBy4yFZB6';
+const META_TOKEN = 'EAAdjKyLVeusBRAZCIyVXaaYPwmvzrtxEIGnZCHfllJxZCFZAr1uSv4T80PMZAr1ss2qY0xrNwMxhLjuWt4IzmpZCD5FDZCkuZBP4hUvTzaFSUuD4te48Y9ZCQ6hxn8poodn11h0V5jZBzxloP3GbYLdjFoZAGjRFt3Pguc30qOSOfYIXImLgThpOiNFZBnMqrt6DebD4shL4ksripPt4QPqhOmSR'; // Permanent NCH Page Token (never expires)
 const FB_PAGE_ID = BRAND.fbPageId;
 let IG_ACCOUNT_ID = BRAND.igAccountId; // Hardcoded — no need to fetch
 
@@ -388,7 +388,8 @@ function storageKey() {
 //   Chicken Cutlet.jpeg, Osmania Biscuit.jpeg, Lemon Tea.jpeg, Coffee.jpeg
 // ═══════════════════════════════════════════════════
 
-const PROMPT_BASE = `Create a social media post by compositing the 3 uploaded images together. Do NOT generate new images — use the uploaded ones exactly.
+// Two prompt modes: PRODUCT (composite uploaded photo) vs STORY (generate scene)
+const PROMPT_PRODUCT = `Create a social media post by compositing the 3 uploaded images together. Do NOT generate new images — use the uploaded ones exactly.
 
 IMAGE PLACEMENT:
 - Image 1 is the NCH logo. Place it exactly as-is, small, in the bottom-right corner.
@@ -401,6 +402,26 @@ BORDER: Must match Image 3 exactly — golden-brown (#D4A44C) Mughal-style ornam
 
 STRICT RULES:
 - Use the EXACT uploaded product photo — same cup, same saucer, same background, unmodified
+- Use the EXACT uploaded logo — do not redesign
+- Border must have detail on ALL FOUR SIDES, not just corners
+- All text must be UPRIGHT — zero italic, zero slant, zero cursive
+- No modern design, no neon, no emojis, no extra text beyond what is specified`;
+
+const PROMPT_STORY = `Create a social media post for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. 1918).
+
+UPLOADED IMAGES:
+- Image 1 is the NCH logo. Place it exactly as-is, small, in the bottom-right corner.
+- Image 2 is the border frame reference. Recreate this EXACT ornate border around the entire canvas — all four edges must have continuous ornamental detail with heavy corner flourishes running along TOP, BOTTOM, LEFT, and RIGHT sides — not just corners.
+
+For this post, you ARE generating the main visual (no product photo uploaded). But you MUST still use the exact uploaded logo and exact border frame.
+
+BACKGROUND: Warm cream (#F5E6D3) with subtle warm golden glow/vignette, matching the background tone in Image 2 (the frame reference).
+
+BORDER: Must match Image 2 exactly — golden-brown (#D4A44C) Mughal-style ornamental frame with scroll-work flourishes running continuously along all four edges. Thick, detailed, heritage feel. Not just corner pieces.
+
+BRAND PALETTE: Chamoisee Brown #AC7E54, Wheat #E9D1A9, Golden Amber #D4A44C, Deep Brown #5C4033, Cream #F5E6D3. Warm, heritage, Mughal-era elegance. NEVER modern or salesy.
+
+STRICT RULES:
 - Use the EXACT uploaded logo — do not redesign
 - Border must have detail on ALL FOUR SIDES, not just corners
 - All text must be UPRIGHT — zero italic, zero slant, zero cursive
