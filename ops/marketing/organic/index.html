@@ -220,11 +220,11 @@
           <li>Instagram &amp; Facebook publish <strong>automatically</strong> from here</li>
           <li>Google Posts are <strong>manual</strong> (copy + paste into Google Business)</li>
         </ol>
-        <p style="margin:10px 0"><strong>Reference images for AI Studio:</strong></p>
+        <p style="margin:10px 0"><strong>Upload 3 reference images to AI Studio (every time):</strong></p>
         <ul>
-          <li><code>NCH Logo</code> &mdash; Brand logo</li>
-          <li><code>Menu/Design reference</code> &mdash; Style guide</li>
-          <li><code>Social post reference</code> &mdash; Existing post style</li>
+          <li><code>Image 1: NCH Logo</code> &mdash; Brand logo (used in corner)</li>
+          <li><code>Image 2: Product photo</code> &mdash; The food/drink photo for this post</li>
+          <li><code>Image 3: Menu card frame</code> &mdash; <strong>Ornate heritage border reference</strong> (ensures every post has the same Mughal-style frame with corner flourishes on warm cream background)</li>
         </ul>
       </div>
     </details>
@@ -394,20 +394,30 @@ const PROMPT_BASE = `You are a professional social media designer for Nawabi Cha
 BRAND IDENTITY:
 - Colors: Chamoisee Brown #AC7E54 (primary), Wheat #E9D1A9 (warm), Golden Amber #D4A44C (accent), Deep Brown #5C4033 (text), Cream #F5E6D3 (bg)
 - Typography: Cinzel Decorative for headlines, classic serif for body
-- Style: Heritage-rich, ornamental thin borders, warm cream-brown palette, Victorian-era elegance
+- Style: Heritage-rich, ornamental borders, warm cream-brown palette, Victorian-era elegance
 - Mood: Nostalgic, warm, sensory, inviting — NEVER salesy or loud
 
 REFERENCE IMAGES:
 - Image 1: NCH brand logo (use in corner, subtle)
 - Image 2: Product photo (use as hero — maintain its warm, real photography feel)
+- Image 3: Brand frame reference (MATCH this ornate border frame style exactly in every post)
 
-DESIGN RULES:
-- Hero product photo takes 60-70% of canvas
-- Thin ornamental border frame in #AC7E54 or #D4A44C
+FRAME & BORDER (CRITICAL — this defines the NCH brand look, match Reference Image 3):
+- EVERY post MUST have an ornate heritage border frame matching the reference frame image
+- Style: Mughal/Victorian ornamental border with detailed corner flourishes and scroll-work motifs
+- Frame color: Golden Amber #D4A44C outer flourishes, Chamoisee #AC7E54 inner line
+- Frame structure: fine inner border line + ornate outer border with elaborate corner decorations
+- Background fill INSIDE frame: warm cream #F5E6D3 to wheat #E9D1A9 (subtle gradient)
+- Corner elements: ornate curving flourishes like a Mughal archway or heritage restaurant menu card
+- Frame feels like: vintage Irani café menu, royal invitation card, Charminar-era decorative border
+- DO NOT use: simple thin lines, modern geometric borders, rounded corners, drop shadows, flat strokes
+
+LAYOUT RULES:
+- Hero product photo takes 60-70% of canvas, INSIDE the ornate frame
 - Headline in Cinzel Decorative, cream or wheat color
 - Subtext smaller, light serif
-- Logo small in bottom-right corner
-- Background: gradient from #5C4033 to #AC7E54 or soft cream
+- Logo small in bottom-right corner, inside the frame
+- The frame wraps the ENTIRE composition — nothing bleeds outside it
 - DO: Warm lighting, heritage feel, readable at phone size, real food photography
 - DON'T: Neon, gradients, modern/minimal flat design, stock art, emojis in design, cluttered text`;
 
@@ -581,7 +591,7 @@ POST DETAILS:
 - Subtext on image: "${post.subtext}"
 - Product photo to use: ${post.photo}
 
-Generate ONE polished social media post image. The product photo provided should be the hero element. Ensure all text is readable at phone-screen size.`;
+MANDATORY: Use the ornate heritage border frame from Reference Image 3. The golden-brown ornamental frame with corner flourishes on warm cream background MUST appear in the output. Product photo sits INSIDE this frame. Generate ONE polished social media post image. Ensure all text is readable at phone-screen size.`;
 }
 
 function generateDefaultWeek(mondayDate) {
@@ -1071,7 +1081,7 @@ function renderWorkflow() {
           <ol>
             <li><strong>Copy the prompt</strong> using the button below</li>
             <li>Open <strong>AI Studio</strong> (aistudio.google.com)</li>
-            <li>Upload the <strong>NCH brand reference images</strong></li>
+            <li>Upload <strong>3 reference images</strong>: (1) NCH logo, (2) Product photo, (3) <strong>Menu card frame</strong> (ornate border reference)</li>
             <li>Paste the prompt and click <strong>Generate</strong></li>
             <li><strong>Download</strong> the generated image</li>
           </ol>
