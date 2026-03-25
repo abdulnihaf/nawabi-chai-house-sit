@@ -587,7 +587,7 @@ const WEEK_1_POSTS = [
 function buildPrompt(post, platform) {
   const dims = { instagram: '1080×1080 (square)', facebook: '1200×630 (landscape, 1.91:1)', google: '1200×900 (4:3, landscape)' };
   const headlineFormatted = (post.headline || post.title).replace(/\n/g, ' ');
-  return `${PROMPT_BASE}
+  return `${PROMPT_PRODUCT}
 
 CANVAS: ${dims[platform]}
 
