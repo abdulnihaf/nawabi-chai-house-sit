@@ -396,29 +396,26 @@ BRAND IDENTITY:
 - Style: Heritage-rich, ornamental borders, warm cream-brown palette, Victorian-era elegance
 - Mood: Nostalgic, warm, sensory, inviting — NEVER salesy or loud
 
-REFERENCE IMAGES:
-- Image 1: NCH brand logo (use in corner, subtle)
-- Image 2: Product photo (use as hero — maintain its warm, real photography feel)
-- Image 3: Brand frame reference (MATCH this ornate border frame style exactly in every post)
+UPLOADED REFERENCE IMAGES — USE THEM EXACTLY:
+- Image 1: NCH brand logo — place this EXACT logo in the bottom-right corner. Do NOT redesign or recreate it.
+- Image 2: Product photo — this is the ACTUAL photo to use as the hero. Do NOT generate a new photo, do NOT change the cup, do NOT alter the image. Use this EXACT uploaded photo as-is.
+- Image 3: Brand frame/border — this is the EXACT ornate border frame to use. Replicate this frame precisely around the composition.
 
-FRAME & BORDER (CRITICAL — this defines the NCH brand look, match Reference Image 3):
-- EVERY post MUST have an ornate heritage border frame matching the reference frame image
-- Style: Mughal/Victorian ornamental border with detailed corner flourishes and scroll-work motifs
-- Frame color: Golden Amber #D4A44C outer flourishes, Chamoisee #AC7E54 inner line
-- Frame structure: fine inner border line + ornate outer border with elaborate corner decorations
-- Background fill INSIDE frame: warm cream #F5E6D3 to wheat #E9D1A9 (subtle gradient)
-- Corner elements: ornate curving flourishes like a Mughal archway or heritage restaurant menu card
-- Frame feels like: vintage Irani café menu, royal invitation card, Charminar-era decorative border
-- DO NOT use: simple thin lines, modern geometric borders, rounded corners, drop shadows, flat strokes
+CRITICAL RULES — READ CAREFULLY:
+1. USE THE EXACT UPLOADED PRODUCT PHOTO (Image 2) — do not generate, recreate, or reimagine it. The photo must appear exactly as uploaded, unmodified. If it shows a white ceramic cup, the output must show that same white ceramic cup.
+2. USE THE EXACT UPLOADED FRAME (Image 3) — replicate this ornate heritage border precisely. Same golden-brown color, same corner flourishes, same scroll-work.
+3. USE THE EXACT UPLOADED LOGO (Image 1) — place it as-is in the bottom-right corner, small.
+4. YOU ARE COMPOSITING, NOT GENERATING — your job is to arrange these 3 uploaded images into a layout and add text. You are NOT creating new artwork.
 
-LAYOUT RULES:
-- Hero product photo takes 60-70% of canvas, INSIDE the ornate frame
-- Headline in Cinzel Decorative, cream or wheat color
-- Subtext smaller, light serif
-- Logo small in bottom-right corner, inside the frame
-- The frame wraps the ENTIRE composition — nothing bleeds outside it
-- DO: Warm lighting, heritage feel, readable at phone size, real food photography
-- DON'T: Neon, gradients, modern/minimal flat design, stock art, emojis in design, cluttered text`;
+LAYOUT:
+- Ornate frame (from Image 3) wraps the ENTIRE composition as the border
+- Background fill inside frame: warm cream #F5E6D3 to wheat #E9D1A9
+- Product photo (from Image 2) placed as hero, taking 60-70% of canvas
+- Headline text above or below the photo in Cinzel Decorative font, cream or golden color
+- Subtext in smaller serif beneath the headline
+- Logo (from Image 1) small in bottom-right corner
+- DO: Warm tones, heritage feel, readable at phone size
+- DON'T: Generate new photos, change the cup/product, use neon colors, modern flat design`;
 
 // Post content definitions — slot 0=morning, 1=afternoon, 2=evening
 const WEEK_1_POSTS = [
@@ -590,7 +587,7 @@ POST DETAILS:
 - Subtext on image: "${post.subtext}"
 - Product photo to use: ${post.photo}
 
-MANDATORY: Use the ornate heritage border frame from Reference Image 3. The golden-brown ornamental frame with corner flourishes on warm cream background MUST appear in the output. Product photo sits INSIDE this frame. Generate ONE polished social media post image. Ensure all text is readable at phone-screen size.`;
+REMINDER: You are COMPOSITING, not generating from scratch. Use the EXACT uploaded product photo (Image 2) as-is — do not generate a new image of the product. Use the EXACT uploaded frame (Image 3) as the border. Use the EXACT uploaded logo (Image 1) in the corner. Only add the text overlay and background fill. Output ONE polished image.`;
 }
 
 function generateDefaultWeek(mondayDate) {
