@@ -274,7 +274,6 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Day</th>
             <th>Slot</th>
             <th>Content</th>
             <th>Obj</th>
@@ -1015,14 +1014,13 @@ function renderPostTable() {
     if (p.day !== lastDay) {
       const d = new Date(p.date);
       const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric' });
-      html += `<tr class="day-divider"><td colspan="8">${dayLabel}</td></tr>`;
+      html += `<tr class="day-divider"><td colspan="7">${dayLabel}</td></tr>`;
       lastDay = p.day;
     }
     const allDone = p.ig === 'done' && p.fb === 'done' && p.google === 'done';
     const isNext = next && p.id === next.id;
     html += `<tr class="${allDone ? 'row-done' : ''} ${isNext ? 'row-next' : ''}">
       <td style="font-weight:600;font-family:'JetBrains Mono',monospace">${p.id}</td>
-      <td style="display:none">${p.day}</td>
       <td><span class="slot-tag slot-${p.slot}">${p.slot}</span></td>
       <td>${escapeHtml(p.title)}</td>
       <td><span class="obj-tag obj-${p.objective}">${p.objective}</span></td>
