@@ -388,34 +388,23 @@ function storageKey() {
 //   Chicken Cutlet.jpeg, Osmania Biscuit.jpeg, Lemon Tea.jpeg, Coffee.jpeg
 // ═══════════════════════════════════════════════════
 
-const PROMPT_BASE = `You are a professional social media designer for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. family legacy since 1918).
+const PROMPT_BASE = `Create a social media post by compositing the 3 uploaded images together. Do NOT generate new images — use the uploaded ones exactly.
 
-BRAND IDENTITY:
-- Colors: Chamoisee Brown #AC7E54 (primary), Wheat #E9D1A9 (warm), Golden Amber #D4A44C (accent), Deep Brown #5C4033 (text), Cream #F5E6D3 (bg)
-- Typography: Cinzel Decorative for headlines, classic serif for body
-- Style: Heritage-rich, ornamental borders, warm cream-brown palette, Victorian-era elegance
-- Mood: Nostalgic, warm, sensory, inviting — NEVER salesy or loud
+IMAGE PLACEMENT:
+- Image 1 is the NCH logo. Place it exactly as-is, small, in the bottom-right corner.
+- Image 2 is the product photo. Place it exactly as-is as the main hero in the center-lower portion of the canvas, taking about 60% of the space. Do NOT regenerate, alter, or replace this photo.
+- Image 3 is the border frame reference. Recreate this EXACT ornate border around the entire canvas — all four edges must have continuous ornamental detail with heavy corner flourishes. The border runs along the TOP, BOTTOM, LEFT, and RIGHT sides — not just corners.
 
-UPLOADED REFERENCE IMAGES — USE THEM EXACTLY:
-- Image 1: NCH brand logo — place this EXACT logo in the bottom-right corner. Do NOT redesign or recreate it.
-- Image 2: Product photo — this is the ACTUAL photo to use as the hero. Do NOT generate a new photo, do NOT change the cup, do NOT alter the image. Use this EXACT uploaded photo as-is.
-- Image 3: Brand frame/border — this is the EXACT ornate border frame to use. Replicate this frame precisely around the composition.
+BACKGROUND: Warm cream (#F5E6D3) with subtle warm golden glow/vignette, matching the background tone in Image 3.
 
-CRITICAL RULES — READ CAREFULLY:
-1. USE THE EXACT UPLOADED PRODUCT PHOTO (Image 2) — do not generate, recreate, or reimagine it. The photo must appear exactly as uploaded, unmodified. If it shows a white ceramic cup, the output must show that same white ceramic cup.
-2. USE THE EXACT UPLOADED FRAME (Image 3) — replicate this ornate heritage border precisely. Same golden-brown color, same corner flourishes, same scroll-work.
-3. USE THE EXACT UPLOADED LOGO (Image 1) — place it as-is in the bottom-right corner, small.
-4. YOU ARE COMPOSITING, NOT GENERATING — your job is to arrange these 3 uploaded images into a layout and add text. You are NOT creating new artwork.
+BORDER: Must match Image 3 exactly — golden-brown (#D4A44C) Mughal-style ornamental frame with scroll-work flourishes running continuously along all four edges. Thick, detailed, heritage feel. Not just corner pieces.
 
-LAYOUT:
-- Ornate frame (from Image 3) wraps the ENTIRE composition as the border
-- Background fill inside frame: warm cream #F5E6D3 to wheat #E9D1A9
-- Product photo (from Image 2) placed as hero, taking 60-70% of canvas
-- Headline text above or below the photo in Cinzel Decorative font, cream or golden color
-- Subtext in smaller serif beneath the headline
-- Logo (from Image 1) small in bottom-right corner
-- DO: Warm tones, heritage feel, readable at phone size
-- DON'T: Generate new photos, change the cup/product, use neon colors, modern flat design`;
+STRICT RULES:
+- Use the EXACT uploaded product photo — same cup, same saucer, same background, unmodified
+- Use the EXACT uploaded logo — do not redesign
+- Border must have detail on ALL FOUR SIDES, not just corners
+- All text must be UPRIGHT — zero italic, zero slant, zero cursive
+- No modern design, no neon, no emojis, no extra text beyond what is specified`;
 
 // Post content definitions — slot 0=morning, 1=afternoon, 2=evening
 const WEEK_1_POSTS = [
@@ -576,18 +565,14 @@ const WEEK_1_POSTS = [
 
 function buildPrompt(post, platform) {
   const dims = { instagram: '1080×1080 (square)', facebook: '1200×630 (landscape, 1.91:1)', google: '1200×900 (4:3, landscape)' };
+  const headlineFormatted = (post.headline || post.title).replace(/\n/g, ' ');
   return `${PROMPT_BASE}
 
-PLATFORM: ${platform.charAt(0).toUpperCase() + platform.slice(1)} — ${dims[platform]}
+CANVAS: ${dims[platform]}
 
-POST DETAILS:
-- Title: "${post.title}"
-- Concept: ${post.concept}
-- Headline text on image: "${post.headline}"
-- Subtext on image: "${post.subtext}"
-- Product photo to use: ${post.photo}
-
-REMINDER: You are COMPOSITING, not generating from scratch. Use the EXACT uploaded product photo (Image 2) as-is — do not generate a new image of the product. Use the EXACT uploaded frame (Image 3) as the border. Use the EXACT uploaded logo (Image 1) in the corner. Only add the text overlay and background fill. Output ONE polished image.`;
+TEXT TO ADD:
+- Headline: "${headlineFormatted}" — UPPERCASE, large, upright (NOT italic, NOT cursive), classical Roman serif with sharp triangular serifs, color golden amber #D4A44C. Positioned above the product photo.
+- Subtext: "${post.subtext}" — Title case, medium, upright Roman serif, color brown #AC7E54. Positioned below headline, above photo.`;
 }
 
 function generateDefaultWeek(mondayDate) {
