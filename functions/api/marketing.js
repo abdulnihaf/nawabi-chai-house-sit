@@ -1,5 +1,5 @@
 // NCH Marketing API — Cloudflare Worker
-// Handles: weekly post CRUD, image upload to R2, Google reviews tracking
+// Handles: weekly post CRUD, image upload to R2, Google reviews tracking, Drive archiving
 // Bindings: DB (D1), MARKETING_IMAGES (R2), GOOGLE_PLACES_API_KEY (secret)
 
 const CORS = {
@@ -53,13 +53,21 @@ export async function onRequest(context) {
       case 'get-publish-log':
         return await getPublishLog(url, env);
 
-      // ─── GMB ANALYTICS ───
+      // ─── GOOGLE DRIVE ───
+      case 'upload-to-drive':
+        return await uploadToDrive(request, env);
+      case 'drive-status':
+        return await driveStatus(url, env);
+
+      // ─── GOOGLE AUTH (GMB + Drive) ───
       case 'gmb-performance':
         return await gmbPerformance(url, env);
+      case 'google-auth':
       case 'gmb-auth':
-        return await gmbAuthRedirect(url, env);
+        return await googleAuthRedirect(url, env);
+      case 'google-callback':
       case 'gmb-callback':
-        return gmbCallback(url, env);
+        return await googleCallback(url, env);
 
       default:
         return json({ success: false, error: 'Unknown action' }, 400);
@@ -299,11 +307,11 @@ async function getReviewLog(url, env) {
 // ═══════════════════════════════════════════════════
 
 async function logPublish(request, env) {
-  const { postId, brand = 'nch', platform, status, platformPostId, errorMessage } = await request.json();
+  const { postId, brand = 'nch', platform, status, platformPostId, errorMessage, imageUrl, driveFileId } = await request.json();
 
   await env.DB.prepare(
-    `INSERT INTO post_publish_log (post_id, brand, platform, status, platform_post_id, error_message) VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(postId || null, brand, platform, status, platformPostId || null, errorMessage || null).run();
+    `INSERT INTO post_publish_log (post_id, brand, platform, status, platform_post_id, error_message, image_url, drive_file_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(postId || null, brand, platform, status, platformPostId || null, errorMessage || null, imageUrl || null, driveFileId || null).run();
 
   return json({ success: true });
 }
@@ -332,31 +340,10 @@ async function gmbPerformance(url, env) {
     return json({ success: false, needsAuth: true, error: 'GOOGLE_CLIENT_ID/SECRET not configured' });
   }
 
-  let refreshToken;
-  try {
-    const row = await env.DB.prepare('SELECT refresh_token FROM gmb_tokens WHERE brand = ?').bind(brand).first();
-    if (!row) return json({ success: false, needsAuth: true, error: 'GMB not connected' });
-    refreshToken = row.refresh_token;
-  } catch {
-    return json({ success: false, needsAuth: true, error: 'gmb_tokens table not found — run migration' });
+  const accessToken = await getGoogleAccessToken(brand, env);
+  if (!accessToken) {
+    return json({ success: false, needsAuth: true, error: 'GMB not connected' });
   }
-
-  // Refresh access token
-  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-    }),
-  });
-  const tokenData = await tokenResp.json();
-  if (!tokenData.access_token) {
-    return json({ success: false, needsAuth: true, error: 'Token refresh failed: ' + (tokenData.error_description || tokenData.error) });
-  }
-  const accessToken = tokenData.access_token;
 
   // Get location name (cached in D1)
   let locationName;
@@ -476,24 +463,40 @@ async function discoverGMBLocation(accessToken, brand, env) {
   return null;
 }
 
-async function gmbAuthRedirect(url, env) {
+// ═══════════════════════════════════════════════════
+// GOOGLE AUTH (unified — GMB + Drive)
+// ═══════════════════════════════════════════════════
+
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/business.manage',
+  'https://www.googleapis.com/auth/drive.file',
+].join(' ');
+
+async function googleAuthRedirect(url, env) {
   const brand = url.searchParams.get('brand') || 'nch';
+  const returnTo = url.searchParams.get('return') || `/ops/marketing/organic/?brand=${brand}`;
   if (!env.GOOGLE_CLIENT_ID) {
     return json({ success: false, error: 'GOOGLE_CLIENT_ID not configured' }, 400);
   }
-  const redirectUri = `${url.origin}/api/marketing?action=gmb-callback&brand=${brand}`;
-  const scope = 'https://www.googleapis.com/auth/business.manage';
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+  const redirectUri = `${url.origin}/api/marketing?action=google-callback`;
+  const state = encodeURIComponent(JSON.stringify({ brand, returnTo }));
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(GOOGLE_SCOPES)}&access_type=offline&prompt=consent&state=${state}`;
   return Response.redirect(authUrl, 302);
 }
 
-async function gmbCallback(url, env) {
+async function googleCallback(url, env) {
   const code = url.searchParams.get('code');
-  const brand = url.searchParams.get('brand') || 'nch';
   const error = url.searchParams.get('error');
+  let brand = 'nch', returnTo = '/ops/marketing/organic/';
+
+  try {
+    const state = JSON.parse(decodeURIComponent(url.searchParams.get('state') || '{}'));
+    brand = state.brand || 'nch';
+    returnTo = state.returnTo || `/ops/marketing/organic/?brand=${brand}`;
+  } catch {}
 
   if (error) {
-    return new Response(`<html><body><h2>Authorization Failed</h2><p>${error}</p><a href="/ops/marketing/organic/analytics/?brand=${brand}">Back to Analytics</a></body></html>`, {
+    return new Response(`<html><body><h2>Authorization Failed</h2><p>${error}</p><a href="${returnTo}">Back</a></body></html>`, {
       headers: { 'Content-Type': 'text/html', ...CORS },
     });
   }
@@ -502,9 +505,8 @@ async function gmbCallback(url, env) {
     return json({ success: false, error: 'Missing authorization code' }, 400);
   }
 
-  const redirectUri = `${url.origin}/api/marketing?action=gmb-callback&brand=${brand}`;
+  const redirectUri = `${url.origin}/api/marketing?action=google-callback`;
 
-  // Exchange code for tokens
   const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -519,7 +521,7 @@ async function gmbCallback(url, env) {
   const tokens = await tokenResp.json();
 
   if (tokens.error) {
-    return new Response(`<html><body><h2>Token Exchange Failed</h2><p>${tokens.error_description || tokens.error}</p><a href="/ops/marketing/organic/analytics/?brand=${brand}">Back</a></body></html>`, {
+    return new Response(`<html><body><h2>Token Exchange Failed</h2><p>${tokens.error_description || tokens.error}</p><a href="${returnTo}">Back</a></body></html>`, {
       headers: { 'Content-Type': 'text/html', ...CORS },
     });
   }
@@ -536,8 +538,183 @@ async function gmbCallback(url, env) {
     }
   }
 
-  // Redirect back to analytics
-  return Response.redirect(`${url.origin}/ops/marketing/organic/analytics/?brand=${brand}&gmb=connected`, 302);
+  const sep = returnTo.includes('?') ? '&' : '?';
+  return Response.redirect(`${url.origin}${returnTo}${sep}google=connected`, 302);
+}
+
+// Helper: get a valid Google access token from stored refresh token
+async function getGoogleAccessToken(brand, env) {
+  const row = await env.DB.prepare('SELECT refresh_token FROM gmb_tokens WHERE brand = ?').bind(brand).first();
+  if (!row) return null;
+
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: row.refresh_token,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const data = await tokenResp.json();
+  return data.access_token || null;
+}
+
+// ═══════════════════════════════════════════════════
+// GOOGLE DRIVE — Asset archiving
+// ═══════════════════════════════════════════════════
+
+async function driveStatus(url, env) {
+  const brand = url.searchParams.get('brand') || 'nch';
+  try {
+    const row = await env.DB.prepare('SELECT refresh_token FROM gmb_tokens WHERE brand = ?').bind(brand).first();
+    return json({ success: true, connected: !!row });
+  } catch {
+    return json({ success: true, connected: false });
+  }
+}
+
+async function uploadToDrive(request, env) {
+  const { brand = 'nch', weekStart, postNumber, platform, imageKey } = await request.json();
+  if (!weekStart || !postNumber || !platform) {
+    return json({ success: false, error: 'Missing weekStart, postNumber, or platform' }, 400);
+  }
+
+  // Get access token
+  const accessToken = await getGoogleAccessToken(brand, env);
+  if (!accessToken) {
+    return json({ success: false, needsAuth: true, error: 'Google Drive not connected' });
+  }
+
+  // Get image from R2
+  const r2Key = imageKey || `${brand}/${weekStart}/post-${String(postNumber).padStart(2, '0')}-${platform}.jpg`;
+  const obj = env.MARKETING_IMAGES ? await env.MARKETING_IMAGES.get(r2Key) : null;
+  if (!obj) {
+    return json({ success: false, error: 'Image not found in R2: ' + r2Key }, 404);
+  }
+
+  const brandFolder = brand === 'nch' ? 'NCH Marketing' : 'HE Marketing';
+
+  // Find or create folder hierarchy: brandFolder / Week-YYYY-MM-DD
+  const rootFolderId = await findOrCreateFolder(accessToken, brandFolder, 'root', brand, env);
+  const weekFolderName = `Week-${weekStart}`;
+  const weekFolderId = await findOrCreateFolder(accessToken, weekFolderName, rootFolderId, brand, env);
+
+  // Upload file
+  const fileName = `post-${String(postNumber).padStart(2, '0')}-${platform}.${r2Key.split('.').pop() || 'jpg'}`;
+  const contentType = obj.httpMetadata?.contentType || 'image/jpeg';
+  const imageBytes = await obj.arrayBuffer();
+
+  // Multipart upload to Drive
+  const boundary = '---nch-drive-boundary';
+  const metadata = JSON.stringify({
+    name: fileName,
+    parents: [weekFolderId],
+  });
+
+  const bodyParts = [
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+    `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Transfer-Encoding: base64\r\n\r\n`,
+  ];
+
+  // Convert to base64 for multipart
+  const base64 = arrayBufferToBase64(imageBytes);
+
+  const multipartBody = bodyParts[0] + bodyParts[1] + base64 + `\r\n--${boundary}--`;
+
+  const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartBody,
+  });
+  const fileData = await uploadResp.json();
+
+  if (fileData.error) {
+    return json({ success: false, error: fileData.error.message || 'Drive upload failed' });
+  }
+
+  // Make file viewable with link
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+  });
+
+  const driveUrl = fileData.webViewLink || `https://drive.google.com/file/d/${fileData.id}/view`;
+  const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileData.id}&sz=w200`;
+
+  return json({
+    success: true,
+    driveFileId: fileData.id,
+    driveUrl,
+    thumbnailUrl,
+  });
+}
+
+async function findOrCreateFolder(accessToken, folderName, parentId, brand, env) {
+  const folderPath = parentId === 'root' ? folderName : `${parentId}/${folderName}`;
+
+  // Check cache
+  try {
+    const cached = await env.DB.prepare(
+      'SELECT folder_id FROM drive_folders WHERE brand = ? AND folder_path = ?'
+    ).bind(brand, folderPath).first();
+    if (cached) return cached.folder_id;
+  } catch { /* table might not exist yet */ }
+
+  // Search Drive for existing folder
+  const q = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+  const searchResp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  );
+  const searchData = await searchResp.json();
+
+  let folderId;
+  if (searchData.files?.length) {
+    folderId = searchData.files[0].id;
+  } else {
+    // Create folder
+    const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+      }),
+    });
+    const createData = await createResp.json();
+    folderId = createData.id;
+  }
+
+  // Cache
+  try {
+    await env.DB.prepare(
+      'INSERT OR REPLACE INTO drive_folders (brand, folder_path, folder_id) VALUES (?, ?, ?)'
+    ).bind(brand, folderPath, folderId).run();
+  } catch { /* table might not exist */ }
+
+  return folderId;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 // ═══════════════════════════════════════════════════

@@ -233,6 +233,7 @@
     <div class="auth-bar">
       <div class="auth-item"><span style="color:var(--green)">&#9679;</span> Meta API (IG + FB)</div>
       <div class="auth-item"><span style="color:var(--yellow)">&#9679;</span> Google Posts (manual)</div>
+      <div class="auth-item" id="driveStatus"><span style="color:var(--muted)">&#9679;</span> Drive</div>
       <div class="auth-item" style="margin-left:auto;color:var(--muted)">@nawabichaihouse</div>
     </div>
 
@@ -300,6 +301,7 @@
             <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">POST</th>
             <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">PLATFORM</th>
             <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">STATUS</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;font-size:10px">IMAGE</th>
           </tr>
         </thead>
         <tbody id="logBody"></tbody>
@@ -881,6 +883,10 @@ function markPlatformDone(platform) {
 
 function logPublish(platform, status, caption) {
   const next = getNextPost();
+  const platformKey = platform === 'instagram' ? 'ig' : platform === 'facebook' ? 'fb' : 'google';
+  const driveUrl = next ? next['drive_url_' + platformKey] || null : null;
+  const driveFileId = next ? next['drive_file_id_' + platformKey] || null : null;
+
   const log = getLog();
   log.unshift({
     id: Date.now(),
@@ -889,9 +895,27 @@ function logPublish(platform, status, caption) {
     platform,
     status,
     caption: caption?.substring(0, 80) + (caption?.length > 80 ? '...' : ''),
+    driveUrl,
+    driveFileId,
   });
   saveLog(log);
   renderLog();
+
+  // Also persist to D1
+  if (useAPI) {
+    fetch(`${API}?action=log-publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        postId: next ? next.id : null,
+        brand: 'nch',
+        platform,
+        status,
+        imageUrl: driveUrl,
+        driveFileId,
+      })
+    }).catch(e => console.warn('D1 log failed:', e.message));
+  }
 }
 
 function switchPlatform(p) {
@@ -1185,11 +1209,15 @@ function renderLog() {
     const dateStr = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const statusColor = l.status === 'success' ? 'var(--green)' : l.status === 'error' ? 'var(--red)' : 'var(--yellow)';
     const platformIcon = l.platform === 'instagram' ? '&#128248;' : l.platform === 'facebook' ? '&#128216;' : '&#128269;';
+    const imgCell = l.driveUrl
+      ? `<a href="${l.driveUrl}" target="_blank" style="display:inline-block"><img src="https://drive.google.com/thumbnail?id=${l.driveFileId}&sz=w80" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border)" onerror="this.style.display='none'"></a>`
+      : '<span style="color:var(--muted);font-size:10px">--</span>';
     return `<tr style="border-bottom:1px solid rgba(45,58,79,.4)">
       <td style="padding:6px 8px;color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace">${dateStr}</td>
       <td style="padding:6px 8px">${escapeHtml(l.postTitle)}</td>
       <td style="padding:6px 8px">${platformIcon} ${l.platform}</td>
       <td style="padding:6px 8px;color:${statusColor}">${l.status}</td>
+      <td style="padding:6px 8px">${imgCell}</td>
     </tr>`;
   }).join('');
 }
@@ -1234,7 +1262,7 @@ async function previewImage(input) {
     };
     reader.readAsDataURL(file);
 
-    // Also upload to R2 for persistence
+    // Upload to R2 for persistence
     const next = getNextPost();
     if (next && useAPI) {
       const platformKey = currentPlatform === 'instagram' ? 'ig' : currentPlatform === 'facebook' ? 'fb' : 'google';
@@ -1242,7 +1270,38 @@ async function previewImage(input) {
       if (result) {
         next['image_key_' + platformKey] = result.key;
         saveWeekState(state);
-        toast('Image saved to cloud');
+        toast('Saved to R2');
+
+        // Also archive to Google Drive
+        try {
+          toast('Saving to Drive...');
+          const driveResp = await fetch(`${API}?action=upload-to-drive`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              brand: 'nch',
+              weekStart: weekKey(currentWeekStart),
+              postNumber: next.id,
+              platform: platformKey,
+              imageKey: result.key,
+            })
+          });
+          const driveData = await driveResp.json();
+          if (driveData.success) {
+            next['drive_url_' + platformKey] = driveData.driveUrl;
+            next['drive_file_id_' + platformKey] = driveData.driveFileId;
+            saveWeekState(state);
+            toast('Saved to Drive');
+          } else if (driveData.needsAuth) {
+            toast('Connect Google Drive first');
+          } else {
+            console.warn('Drive upload failed:', driveData.error);
+            toast('R2 saved (Drive skipped)');
+          }
+        } catch (e) {
+          console.warn('Drive upload error:', e.message);
+          toast('R2 saved (Drive error)');
+        }
       }
     }
   }
@@ -1265,12 +1324,32 @@ function exportLog() {
 }
 
 // ═══════════════════════════════════════════════════
+// GOOGLE DRIVE STATUS
+// ═══════════════════════════════════════════════════
+async function checkDriveStatus() {
+  const el = document.getElementById('driveStatus');
+  if (!el) return;
+  try {
+    const resp = await fetch(`${API}?action=drive-status&brand=nch`);
+    const data = await resp.json();
+    if (data.connected) {
+      el.innerHTML = '<span style="color:var(--green)">&#9679;</span> Drive';
+    } else {
+      el.innerHTML = '<span style="color:var(--red)">&#9679;</span> <a href="/api/marketing?action=google-auth&brand=nch&return=/ops/marketing/organic/" style="color:var(--wheat);text-decoration:underline;font-size:12px">Connect Drive</a>';
+    }
+  } catch {
+    el.innerHTML = '<span style="color:var(--muted)">&#9679;</span> Drive';
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // INIT — async load from D1, then render
 // ═══════════════════════════════════════════════════
 (async function init() {
   state = await loadWeekState();
   renderAll();
   refreshReviews();
+  checkDriveStatus();
 })();
 </script>
 </body>
