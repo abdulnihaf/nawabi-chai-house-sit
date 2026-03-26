@@ -69,6 +69,10 @@ export async function onRequest(context) {
       case 'gmb-callback':
         return await googleCallback(url, env);
 
+      // ─── PLACE PHOTOS ───
+      case 'get-place-photos':
+        return await getPlacePhotos(url, env);
+
       default:
         return json({ success: false, error: 'Unknown action' }, 400);
     }
@@ -202,11 +206,44 @@ async function getImage(url, env) {
 }
 
 // ═══════════════════════════════════════════════════
+// PLACE PHOTOS (via Places API New)
+// ═══════════════════════════════════════════════════
+
+async function getPlacePhotos(url, env) {
+  if (!env.GOOGLE_PLACES_KEY_MARKETING) {
+    return json({ success: false, error: 'Google Places API key not configured' }, 500);
+  }
+  const brand = url.searchParams.get('brand') || 'nch';
+  const placeId = brand === 'nch' ? NCH_PLACE_ID : HE_PLACE_ID;
+
+  const resp = await fetch(
+    `https://places.googleapis.com/v1/places/${placeId}?fields=photos&key=${env.GOOGLE_PLACES_KEY_MARKETING}`
+  );
+  const data = await resp.json();
+  if (!data.photos || data.photos.length === 0) {
+    return json({ success: true, photos: [] });
+  }
+
+  // Return photo URIs with metadata — caller can fetch via Places Photo API
+  const photos = data.photos.map((p, i) => ({
+    index: i,
+    name: p.name,
+    widthPx: p.widthPx,
+    heightPx: p.heightPx,
+    authorAttributions: p.authorAttributions,
+    url: `https://places.googleapis.com/v1/${p.name}/media?maxWidthPx=1200&key=${env.GOOGLE_PLACES_KEY_MARKETING}`,
+  }));
+
+  return json({ success: true, brand, placeId, count: photos.length, photos });
+}
+
+// ═══════════════════════════════════════════════════
 // GOOGLE REVIEWS
 // ═══════════════════════════════════════════════════
 
 // NCH Google Place ID — resolved from coordinates/name
 const NCH_PLACE_ID = 'ChIJq-hENv8XrjsRCjNPpTGIogY'; // Verified — 5.0★, 22 reviews
+const HE_PLACE_ID = 'ChIJ-QQjtHEXrjsR-Z1RIEm2arg'; // Hamza Express
 
 // IST date helpers (UTC+5:30)
 function istNow() {
@@ -231,7 +268,7 @@ async function getReviews(url, env) {
   // Always fetch live from Google Places API
   let liveRating = null, liveCount = null, lastUpdated = null;
   try {
-    const placeId = brand === 'nch' ? NCH_PLACE_ID : NCH_PLACE_ID;
+    const placeId = brand === 'nch' ? NCH_PLACE_ID : HE_PLACE_ID;
     const resp = await fetch(
       `https://places.googleapis.com/v1/places/${placeId}?fields=rating,userRatingCount&key=${env.GOOGLE_PLACES_KEY_MARKETING}`
     );
