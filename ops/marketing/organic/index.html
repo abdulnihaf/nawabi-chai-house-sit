@@ -220,12 +220,14 @@
           <li>Instagram &amp; Facebook publish <strong>automatically</strong> from here</li>
           <li>Google Posts are <strong>manual</strong> (copy + paste into Google Business)</li>
         </ol>
-        <p style="margin:10px 0"><strong>Upload 3 reference images to AI Studio (every time):</strong></p>
+        <p style="margin:10px 0"><strong>Upload 4 reference images to AI Studio (every time):</strong></p>
         <ul>
-          <li><code>Image 1: NCH Logo</code> &mdash; Brand logo (used in corner)</li>
-          <li><code>Image 2: Product photo</code> &mdash; The food/drink photo for this post</li>
-          <li><code>Image 3: Menu card frame</code> &mdash; <strong>Ornate heritage border reference</strong> (ensures every post has the same Mughal-style frame with corner flourishes on warm cream background)</li>
+          <li><code>Image 1: NCH Logo</code> &mdash; Brand logo (placed in corner)</li>
+          <li><code>Image 2: Product photo</code> &mdash; REFERENCE for what the product looks like (AI generates it in a new scene)</li>
+          <li><code>Image 3: Ambience photo</code> &mdash; <strong>Outlet interior/exterior photo</strong> (sets atmosphere &amp; material palette). Recommended photo shown per post.</li>
+          <li><code>Image 4: Menu card frame</code> &mdash; <strong>Ornate heritage border reference</strong> (Mughal-style frame)</li>
         </ul>
+        <p style="margin:5px 0; font-size:12px; color:var(--golden-amber)">Ambience photos are in: <code>assets/marketing-references/nch-outlet/</code></p>
       </div>
     </details>
 
@@ -390,38 +392,57 @@ function storageKey() {
 //   Chicken Cutlet.jpeg, Osmania Biscuit.jpeg, Lemon Tea.jpeg, Coffee.jpeg
 // ═══════════════════════════════════════════════════
 
-// Two prompt modes: PRODUCT (composite uploaded photo) vs STORY (generate scene)
-const PROMPT_PRODUCT = `Create a social media post by compositing the 3 uploaded images together. Do NOT generate new images — use the uploaded ones exactly.
+// ═══════════════════════════════════════════════════
+// INTELLIGENT PROMPT SYSTEM v2
+// ═══════════════════════════════════════════════════
+// Upload 4 images to AI Studio:
+//   Image 1: NCH Logo (brand mark)
+//   Image 2: Product photo (REFERENCE — same cup/glass/plate identity, NOT exact composite)
+//   Image 3: Ambience photo (outlet interior/exterior — sets the atmosphere)
+//   Image 4: Border frame (ornate Mughal heritage frame reference)
+//
+// The prompt uses the product photo as a REFERENCE for what the item looks like
+// but generates it in a NEW scene informed by the ambience photo + scene directive.
+// This creates unlimited visual variations while keeping product identity consistent.
+// ═══════════════════════════════════════════════════
 
-IMAGE PLACEMENT:
-- Image 1 is the NCH logo. Place it exactly as-is, small, in the bottom-right corner.
-- Image 2 is the product photo. Place it exactly as-is as the main hero in the center-lower portion of the canvas, taking about 60% of the space. Do NOT regenerate, alter, or replace this photo.
-- Image 3 is the border frame reference. Recreate this EXACT ornate border around the entire canvas — all four edges must have continuous ornamental detail with heavy corner flourishes. The border runs along the TOP, BOTTOM, LEFT, and RIGHT sides — not just corners.
+const PROMPT_BASE = `Create a photorealistic social media post for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. 1918).
 
-BACKGROUND: Warm cream (#F5E6D3) with subtle warm golden glow/vignette, matching the background tone in Image 3.
+YOU HAVE 4 UPLOADED REFERENCE IMAGES:
+- Image 1: NCH Logo — place it exactly as-is, small, in the bottom-right corner. Do NOT redesign.
+- Image 2: Product photo — this is your REFERENCE for what the product looks like (the exact cup style, glass type, plate, food appearance). Generate the product to look IDENTICAL to this reference (same cup shape, same branding on cup, same food texture/color) but place it in a COMPLETELY NEW scene/setting as described below.
+- Image 3: Ambience photo — this shows the REAL outlet (interior or exterior). Use this as atmosphere reference for lighting quality, color temperature, material textures (steel counter, wood paneling, mosaic tiles, arched niches). Do NOT copy this photo — extract its MOOD and MATERIAL PALETTE.
+- Image 4: Border frame — recreate this EXACT ornate Mughal border around the entire canvas. All four edges must have continuous ornamental detail with heavy corner flourishes. Golden-brown (#D4A44C) scroll-work running along TOP, BOTTOM, LEFT, and RIGHT sides.
 
-BORDER: Must match Image 3 exactly — golden-brown (#D4A44C) Mughal-style ornamental frame with scroll-work flourishes running continuously along all four edges. Thick, detailed, heritage feel. Not just corner pieces.
+CRITICAL PRODUCT RULES:
+- The product must be RECOGNIZABLY the same item as Image 2 — same cup shape, same branding text on cup ("NAWABI CHAI HOUSE"), same saucer style, same food appearance
+- But the BACKGROUND, ANGLE, LIGHTING, and SETTING must be DIFFERENT from Image 2
+- Generate a photorealistic scene — it should look like a real photograph taken at a different moment, different angle, different time of day
+- The cup/plate/glass must look like a real physical object in a real environment, not a cutout or overlay
+
+BACKGROUND: Warm tones from the brand palette. NOT a flat color — generate a realistic blurred background (bokeh) suggesting the environment described in the scene directive below.
+
+BRAND PALETTE: Chamoisee Brown #AC7E54, Wheat #E9D1A9, Golden Amber #D4A44C, Deep Brown #5C4033, Cream #F5E6D3.
 
 STRICT RULES:
-- Use the EXACT uploaded product photo — same cup, same saucer, same background, unmodified
 - Use the EXACT uploaded logo — do not redesign
 - Border must have detail on ALL FOUR SIDES, not just corners
 - All text must be UPRIGHT — zero italic, zero slant, zero cursive
-- No modern design, no neon, no emojis, no extra text beyond what is specified`;
+- No modern design, no neon, no emojis, no extra text beyond what is specified
+- The final image must look like a professional food/beverage photograph, not a graphic design composite
+- NEVER reuse the exact same background/angle as the product reference photo`;
 
-const PROMPT_STORY = `Create a social media post for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. 1918).
+// For posts with no product photo (pure ambience/story posts)
+const PROMPT_STORY = `Create a photorealistic social media post for Nawabi Chai House — a premium Irani chai adda in Shivajinagar, Bangalore (est. 1918).
 
-UPLOADED IMAGES:
-- Image 1 is the NCH logo. Place it exactly as-is, small, in the bottom-right corner.
-- Image 2 is the border frame reference. Recreate this EXACT ornate border around the entire canvas — all four edges must have continuous ornamental detail with heavy corner flourishes running along TOP, BOTTOM, LEFT, and RIGHT sides — not just corners.
+YOU HAVE 3 UPLOADED REFERENCE IMAGES:
+- Image 1: NCH Logo — place it exactly as-is, small, in the bottom-right corner. Do NOT redesign.
+- Image 2: Ambience photo — this shows the REAL outlet. Use this as atmosphere reference for lighting, materials, and mood. Generate a new scene INSPIRED by this, not a copy.
+- Image 3: Border frame — recreate this EXACT ornate Mughal border around the entire canvas. All four edges with continuous golden-brown (#D4A44C) ornamental detail.
 
-For this post, you ARE generating the main visual (no product photo uploaded). But you MUST still use the exact uploaded logo and exact border frame.
+For this post, you ARE generating the main visual. Create a photorealistic scene as described in the scene directive below.
 
-BACKGROUND: Warm cream (#F5E6D3) with subtle warm golden glow/vignette, matching the background tone in Image 2 (the frame reference).
-
-BORDER: Must match Image 2 exactly — golden-brown (#D4A44C) Mughal-style ornamental frame with scroll-work flourishes running continuously along all four edges. Thick, detailed, heritage feel. Not just corner pieces.
-
-BRAND PALETTE: Chamoisee Brown #AC7E54, Wheat #E9D1A9, Golden Amber #D4A44C, Deep Brown #5C4033, Cream #F5E6D3. Warm, heritage, Mughal-era elegance. NEVER modern or salesy.
+BRAND PALETTE: Chamoisee Brown #AC7E54, Wheat #E9D1A9, Golden Amber #D4A44C, Deep Brown #5C4033, Cream #F5E6D3.
 
 STRICT RULES:
 - Use the EXACT uploaded logo — do not redesign
@@ -434,6 +455,8 @@ const WEEK_1_POSTS = [
   // ─── DAY 1 (Mon) ───
   { title: 'Your Chai Adda Has Arrived', objective: 'AWARENESS',
     photo: 'Irani Chai.jpeg', headline: 'Your Chai Adda\nHas Arrived', subtext: 'Nawabi Chai House — Shivajinagar',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on a clean steel counter. Behind it, warm bokeh reveals arched wall niches lit by golden wall sconces. A blurred glass display case with snacks is visible to the right. Morning light — soft, warm, inviting. Camera angle: eye-level, slightly below the cup rim, 45° from front-right. Shallow depth of field. The cup is the hero — everything behind it is a warm, welcoming blur of the cafe interior.',
     concept: 'Brand identity launch. Hero: steaming Irani chai cup with NCH branding visible. Warm, inviting, establishes who we are.',
     ig_caption: `Before Bangalore had coffee chains, it had chai addas.\n\nA place where the morning starts slow. Where the guy behind the counter knows your order. Where conversations don't need an agenda.\n\nNawabi Chai House. Shivajinagar. Now open.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM\n📞 8008002045\n\n#NawabiChaiHouse #IraniChai #BangaloreChai #Shivajinagar #ChaiAdda`,
     fb_caption: `Before Bangalore had coffee chains, it had chai addas.\n\nA counter where mornings start slow. Where the person behind it knows everyone's order. Where a ₹40 cup of Irani chai comes with something no café can sell — a pause.\n\nNawabi Chai House is now open in Shivajinagar. From the family behind Hamza Hotel (since 1918), this is our invitation to sit, sip, and stay a while.\n\nCome for the chai. Stay for the conversation.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar, Bangalore 560051\n⏰ Open 7 AM – 11 PM, all days\n📞 8008002045 | wa.me/918008002045`,
@@ -441,14 +464,18 @@ const WEEK_1_POSTS = [
 
   { title: 'The Pour — Irani Chai', objective: 'DESIRE',
     photo: 'Irani Chai.jpeg', headline: 'Irani Chai', subtext: 'Strong decoction. Full cream milk. Brewed the Hyderabadi way.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: Extreme close-up of the chai cup from directly above at a 30° tilt. Steam visibly rising in soft curls. The tea surface shows a rich amber-gold color with tiny bubbles at the edges. Behind the cup, a DARK moody background — warm tungsten lighting from above creates a dramatic spotlight on the cup. Think evening mood, dramatic, intimate. Camera angle: overhead-tilted, tight crop. The background is dark with warm amber highlights — NOT the daytime cafe interior.',
     concept: 'Signature product close-up. Steam rising from branded cup. Sensory — you can almost smell it. Warm amber lighting.',
     ig_caption: `Strong decoction. Full cream milk. Brewed the Hyderabadi way.\n\nThis isn't tea. This is Irani chai — the kind that makes you close your eyes on the first sip.\n\n₹40. Every single morning.\n\n📍 Nawabi Chai House, Shivajinagar\n⏰ 7 AM – 11 PM\n\n#IraniChai #NawabiChaiHouse #BangaloreChai #ChaiLovers #Shivajinagar`,
     fb_caption: `There's chai. And then there's Irani chai.\n\nThe kind brewed slow — strong decoction meeting full cream milk in a way that makes you forget whatever you were rushing to do. It's ₹40. It's served in a cup that knows your name. And it's waiting for you at Nawabi Chai House.\n\nShivajinagar. 7 AM – 11 PM. Every day.\n\n📍 #22, 3rd Floor, H.K.P. Road\n📞 wa.me/918008002045`,
     google_caption: `Authentic Irani chai at Nawabi Chai House — strong decoction, full cream milk, brewed the Hyderabadi way. ₹40 per cup. Shivajinagar, Bangalore. Open 7 AM – 11 PM daily.` },
 
   { title: 'The Counter', objective: 'AWARENESS',
-    photo: 'Irani Chai.jpeg', headline: 'The Counter', subtext: 'Where mornings begin.',
-    concept: 'Interior/ambiance shot. Show the warm arched interiors, the steel counter, the warm lighting. AI Studio should generate a warm heritage café interior with NCH branding elements. No product — just the place.',
+    photo: null, headline: 'The Counter', subtext: 'Where mornings begin.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: Generate the interior of a warm heritage Irani café. Use Image 2 (ambience) as strong reference — wooden paneling on the counter, Mughal-style arched niches in the cream wall, warm wall sconces casting golden light, a mosaic tile border between wall sections. The steel counter gleams. A glass display case shows pastries. No people. Morning golden hour light streams in from the left. Camera: wide angle, slightly elevated, capturing the full warmth of the space. This should feel like you just walked in and the place is waiting for you.',
+    concept: 'Interior/ambiance shot. Show the warm arched interiors, the steel counter, the warm lighting. No product — just the place.',
     ig_caption: `Some places serve food. Some places serve a feeling.\n\nThe arches. The warm light. The steel counter where mornings begin and evenings slow down. This is Nawabi Chai House.\n\nCome see it for yourself.\n\n📍 Shivajinagar, Bangalore\n⏰ 7 AM – 11 PM\n\n#NawabiChaiHouse #ChaiAdda #Shivajinagar #BangaloreCafe #HeritageCafe`,
     fb_caption: `Some places you visit. Some places you belong to.\n\nNawabi Chai House isn't just a chai spot — it's the counter where your morning starts, the corner where conversations stretch past an hour, the warm light that doesn't ask you to leave.\n\nShivajinagar. Come find your spot.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 8008002045`,
     google_caption: `Visit Nawabi Chai House in Shivajinagar — a warm, heritage-style chai adda with arched interiors and a welcoming counter. Open 7 AM – 11 PM. #22, H.K.P. Road, Bangalore.` },
@@ -456,6 +483,8 @@ const WEEK_1_POSTS = [
   // ─── DAY 2 (Tue) ───
   { title: '1918 — Same Family, New Chapter', objective: 'TRUST',
     photo: 'Irani Chai.jpeg', headline: '1918', subtext: 'Same family. Same fire. New chapter.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The chai cup sits on aged, weathered wood (like an old café table). A sepia/vintage warm tone washes the entire image. The background is very soft — suggesting an old-world kitchen or heritage café space with warm light. Think 1920s nostalgia. Camera angle: low, looking slightly up at the cup, giving it gravitas and history. Warm brown tones dominate. The cup should look timeless, like it could be from any decade.',
     concept: 'Heritage story. Vintage-feel design with "1918" as large typography. Show the lineage: Hamza Hotel → Nawabi Chai House. Sepia/warm tones, aged paper texture.',
     ig_caption: `1918. Shivajinagar. One family. One kitchen.\n\nFour generations later, the fire hasn't gone out. Hamza Hotel became a name this neighborhood trusted. Now, from that same family comes Nawabi Chai House — a chai adda built on the same values.\n\nReal ingredients. Honest portions. A counter that knows you.\n\n📍 Nawabi Chai House, H.K.P. Road, Shivajinagar\n\n#Since1918 #NawabiChaiHouse #HamzaHotel #Shivajinagar #BangaloreHeritage`,
     fb_caption: `1918. H.K.P. Road. Shivajinagar.\n\nOne family opened a small kitchen. They called it Hamza Hotel. Russell Market was being built down the road. The neighborhood was still finding its name.\n\nFour generations later, the kitchen is still here. The same family. The same fire. But now, alongside the legacy of Hamza Hotel, comes something new — Nawabi Chai House.\n\nA chai adda. Not a franchise. Not a chain. Just a counter, a cup, and a conversation.\n\nFrom our family to your morning.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n📞 8008002045`,
@@ -463,6 +492,8 @@ const WEEK_1_POSTS = [
 
   { title: 'Osmania Biscuit — The Dunk', objective: 'DESIRE',
     photo: 'Osmania Biscuit.jpeg', headline: 'Osmania Biscuit', subtext: 'Sweet-salty. Made for dunking.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: Close-up of the Osmania biscuit resting on a small white plate on the steel counter. A cup of chai sits just behind it, slightly out of focus. One biscuit is broken, showing the crumbly interior. A few crumbs scattered on the plate. Camera: 45° angle from front, tight crop, shallow depth of field. Background: warm bokeh of the café with golden light. The texture of the biscuit is the star — grainy, crumbly, inviting.',
     concept: 'Product spotlight. Osmania biscuit being dunked into chai — or resting beside a cup. Close-up. The crumble, the texture, the moment before it meets the chai.',
     ig_caption: `Sweet. Salty. Crumbly. Perfect.\n\nThe Osmania biscuit wasn't made to be eaten alone. It was made to be dunked — slowly, deliberately — into a cup of Irani chai. And then everything makes sense.\n\n₹30 for 2 pieces. ₹70 with a chai. ₹0 regrets.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#OsmaniaBiscuit #IraniChai #NawabiChaiHouse #DunkIt #BangaloreFood`,
     fb_caption: `The Osmania biscuit has one job. And it does it perfectly.\n\nSweet-salty, crumbly, and designed for exactly one thing — being dunked into a hot cup of Irani chai. The biscuit softens. The chai gets richer. And for a moment, nothing else matters.\n\n2 pieces. ₹30. The perfect chai companion.\n\n📍 Nawabi Chai House, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
@@ -470,6 +501,8 @@ const WEEK_1_POSTS = [
 
   { title: 'Bun Maska — Warm & Buttered', objective: 'DESIRE',
     photo: 'Bun Maska.jpeg', headline: 'Bun Maska', subtext: 'Soft bun. Generous butter. Served warm.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The Bun Maska sits on a white plate on the steel counter. The bun is split open, butter glistening and slightly melting into the warm bread. A cup of chai sits beside it. Camera: slightly overhead 40° angle, capturing the open bun and melting butter. Morning light from the left creates a warm glow on the butter surface. Background: soft bokeh of the counter area. The butter shine is the hero detail.',
     concept: 'Product spotlight. Close-up of Bun Maska on branded plate — butter glistening, bun split open. The warmth is visible.',
     ig_caption: `Soft bun. Split open. Generous Amul butter. Served warm.\n\nThe Bun Maska doesn't try to be fancy. It doesn't need to. It's comfort in its simplest form — and it's been that way since the first Irani cafés.\n\n₹40. Warm. Waiting.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#BunMaska #NawabiChaiHouse #IraniCafe #BangaloreBreakfast #ComfortFood`,
     fb_caption: `There's a reason the Bun Maska has survived every food trend for a hundred years.\n\nSoft bun. Split open. A generous spread of Amul butter that melts the moment it touches warm bread. No pretense. No reinvention. Just comfort.\n\nPair it with an Irani chai and you have a ₹80 breakfast that feels like a ₹800 morning.\n\nNawabi Chai House. Shivajinagar. 7 AM – 11 PM.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
@@ -478,6 +511,8 @@ const WEEK_1_POSTS = [
   // ─── DAY 3 (Wed) ───
   { title: "Shivajinagar's New Morning", objective: 'TRUST',
     photo: 'Irani Chai.jpeg', headline: "Shivajinagar's\nNew Morning", subtext: 'Your neighborhood chai adda.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: The chai cup sits on a small round table OUTSIDE the shop. Early morning blue-golden hour light. Behind the cup (blurred), the storefront signage "NAWABI CHAI HOUSE" glows warmly. A few blurred silhouettes of early morning customers. The street is waking up — a hint of a passing auto, morning energy. Camera: eye-level from across the table, looking toward the shop. The cup is in sharp focus, the neighborhood comes alive behind it.',
     concept: 'Community connection. Design that evokes the neighborhood — Russell Market vibes, morning energy. Chai cup in foreground, warm background suggesting a bustling morning.',
     ig_caption: `Russell Market vendors grabbing their first cup. Office workers on their way to MG Road. Students from the college down the street. Shopkeepers who've been here longer than the buildings.\n\nShivajinagar has always had its own rhythm. Now it has a chai adda that matches.\n\n📍 Nawabi Chai House, H.K.P. Road\n\n#Shivajinagar #RussellMarket #NawabiChaiHouse #BangaloreLocal #MorningChai`,
     fb_caption: `Every morning, Shivajinagar wakes up the same way.\n\nThe Russell Market gates open. The fruit sellers arrange their stalls. The auto drivers line up on H.K.P. Road. And somewhere in all of it, someone needs a chai.\n\nThat's where we come in. Not as something new — but as something this neighborhood was waiting for. A chai adda that understands the pace of this place.\n\nNawabi Chai House. Your neighborhood. Your morning.\n\n📍 #22, 3rd Floor, H.K.P. Road\n📞 8008002045`,
@@ -485,14 +520,18 @@ const WEEK_1_POSTS = [
 
   { title: 'How We Brew', objective: 'DESIRE',
     photo: 'Irani Chai.jpeg', headline: 'How We Brew', subtext: 'Decoction meets milk. Your morning meets meaning.',
-    concept: 'Behind the scenes. Show the chai-making process — decoction brewing, milk steaming, the pour. Warm, close-up, sensory. AI Studio can create a stylized BTS look with steam and warm tones.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: Behind-the-scenes brewing moment. A hand is pouring dark tea decoction from a steel pot into the branded cup. Hot milk is being added — the two streams (dark brown decoction + white milk) are mixing mid-pour, creating the signature amber color. Steam rises dramatically. Camera: close-up from the side, capturing the pour action. The background is the kitchen/counter area — blurred, warm, busy. This is an ACTION shot — movement, steam, the craft of making chai.',
+    concept: 'Behind the scenes. Show the chai-making process — decoction brewing, milk steaming, the pour. Warm, close-up, sensory.',
     ig_caption: `Step 1: Strong tea decoction — brewed slow, never rushed.\nStep 2: Full cream milk — heated until it remembers its purpose.\nStep 3: The pour — decoction meets milk, and your morning begins.\n\nThat's it. No shortcuts. No syrups. No machines.\n\nJust chai, the way it was meant to be.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChaiMaking #IraniChai #NawabiChaiHouse #BehindTheScenes #BrewedRight`,
     fb_caption: `There's no machine. No timer. No app.\n\nJust a stove, a pot, and someone who's been doing this long enough to know when the decoction is ready by the colour alone.\n\nStrong tea leaves. Full cream milk. A slow pour that turns two simple things into something you'll come back for tomorrow.\n\nThat's how we brew at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
     google_caption: `See how Nawabi Chai House brews authentic Irani chai — strong decoction, full cream milk, no shortcuts. Handcrafted daily in Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
 
   { title: 'The ₹60 Breakfast', objective: 'ACTION',
     photo: 'Osmania Biscuit.jpeg', headline: '₹60 Breakfast', subtext: 'Cutting Chai + Osmania Biscuit. Every morning.',
-    concept: 'Value proposition. Show cutting chai + Osmania biscuit together as a combo. Emphasize affordability. Clean, appetizing, with price prominent.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: A cutting chai glass (small, short glass) and Osmania biscuit on a plate, arranged together on the steel counter as a combo. The biscuit leans against the glass casually. Camera: straight-on, slightly above, clean composition. Background: warm but minimal — the steel counter reflects soft light. This is a VALUE shot — clean, simple, appetizing. Both items equally prominent, suggesting a complete, affordable breakfast.',
+    concept: 'Value proposition. Show cutting chai + Osmania biscuit together as a combo. Emphasize affordability. Clean, appetizing.',
     ig_caption: `Cutting Chai — ₹30.\nOsmania Biscuit — ₹30.\nA complete morning — ₹60.\n\nNo app needed. No waiting. No guilt. Just walk in, sit down, and start your day the way Shivajinagar does.\n\n📍 Nawabi Chai House, H.K.P. Road\n⏰ Open from 7 AM\n\n#BangaloreBreakfast #CuttingChai #NawabiChaiHouse #Affordable #MorningRitual`,
     fb_caption: `₹60.\n\nThat's a Cutting Chai (₹30) and an Osmania Biscuit (₹30). That's your morning sorted. That's the dunk, the sip, and the five minutes of peace before the day starts.\n\nNo fancy menu. No hidden charges. Just an honest breakfast at an honest price.\n\nNawabi Chai House. Shivajinagar. From 7 AM.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
     google_caption: `₹60 breakfast at Nawabi Chai House — Cutting Chai + Osmania Biscuit combo. Start your morning in Shivajinagar, Bangalore. Open from 7 AM daily. H.K.P. Road.` },
@@ -500,21 +539,27 @@ const WEEK_1_POSTS = [
   // ─── DAY 4 (Thu) ───
   { title: 'The 8:30 AM Regular', objective: 'TRUST',
     photo: 'Irani Chai.jpeg', headline: 'The 8:30 AM\nRegular', subtext: "The one who doesn't need to order.",
-    concept: 'Community/people post. Warm, candid feel — a regular customer at the counter. AI Studio should create a warm scene of someone at a heritage chai counter, comfortable, familiar.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on the steel counter, but this time with a newspaper folded beside it and a pair of reading glasses resting on top. Props suggest a regular customer who has settled in. The cup is half-drunk — tea level visible below the rim. Camera: overhead 60° angle, capturing the "regular\'s setup" — cup, newspaper, glasses. Background: warm counter, blurred arches. This tells a story of routine and belonging.',
+    concept: 'Community/people post. Warm, candid feel — a regular customer at the counter, comfortable, familiar.',
     ig_caption: `He walks in at 8:30. Every morning. Same seat. Same order.\n\nExcept he doesn't order anymore. The cup is already being poured.\n\nThat's not service. That's what happens when a chai adda becomes part of your routine.\n\nBecome a regular.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChaiAdda #NawabiChaiHouse #MorningRoutine #Shivajinagar #Regulars`,
     fb_caption: `There's a moment when a café becomes your spot.\n\nYou stop ordering. They stop asking. The chai arrives before you sit down. The biscuit follows without a word.\n\nAt Nawabi Chai House, we're not trying to serve a thousand people. We're trying to know the fifty who come back every day.\n\nBecome one of them.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
     google_caption: `Nawabi Chai House — where regulars don't need to order. Your daily Irani chai adda in Shivajinagar, Bangalore. Open 7 AM – 11 PM. H.K.P. Road.` },
 
   { title: 'Not Just Chai', objective: 'AWARENESS',
     photo: 'Chicken Cutlet.jpeg', headline: 'Not Just Chai', subtext: 'Cutlets. Samosas. Bun Omelette. Keema Pav.',
-    concept: 'Menu breadth. Hero: Chicken Cutlet cross-section with ketchup. Show that NCH has bites beyond chai. Crispy, appetizing, inviting.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The chicken cutlet sits on a white plate, cut open to reveal the spiced filling inside. A small steel bowl of ketchup beside it. The cutlet is golden-brown, crispy exterior visible. Camera: 45° from front-left, tight crop on the cutlet. Background: the glass display case with other snacks blurred behind. Warm interior light. The cross-section of the cutlet showing the filling is the money shot.',
+    concept: 'Menu breadth. Hero: Chicken Cutlet cross-section with ketchup. Crispy, appetizing, inviting.',
     ig_caption: `Yes, the chai is why you come. But the Chicken Cutlet is why you stay.\n\nCrispy outside. Spiced filling inside. Served with ketchup and zero pretense.\n\nAlso on the menu: Irani Samosa (₹25), Bun Omelette (₹60), Keema Pav (₹120), Egg Puff (₹40).\n\nNot just a chai house.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#ChickenCutlet #NawabiChaiHouse #BangaloreSnacks #Shivajinagar #NotJustChai`,
     fb_caption: `You know us for the chai. But have you met the cutlet?\n\nCrispy, golden, filled with spiced chicken — cracked open to reveal everything good about a proper cutlet. Served with ketchup. Served with chai. Served with the understanding that sometimes, breakfast needs a sidekick.\n\nOur full bites menu:\n🔸 Chicken Cutlet\n🔸 Irani Samosa — ₹25\n🔸 Bun Omelette — ₹60\n🔸 Keema Pav — ₹120\n🔸 Egg Puff — ₹40\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
     google_caption: `Beyond chai — Nawabi Chai House serves Chicken Cutlet, Irani Samosa, Bun Omelette, Keema Pav, and Egg Puff. Full breakfast menu in Shivajinagar, Bangalore.` },
 
   { title: 'Kadak Chai — For Purists', objective: 'DESIRE',
     photo: 'Irani Chai.jpeg', headline: 'Kadak Chai', subtext: 'Extra strong. Extra brew. For purists.',
-    concept: 'Product spotlight. Dark, rich chai — stronger colour than regular Irani chai. Moody, intense. The cup should look deeper, darker. ₹45.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: The cup on a dark wooden surface. The chai inside is DARKER than usual — a deep reddish-brown, almost mahogany, showing extra-strong brew. Dramatic side-lighting from the left creates a chiaroscuro effect. The cup casts a sharp shadow. Background: completely dark with just a hint of warm light in the far distance. This is MOODY, INTENSE, DARK. Camera: straight-on, low angle, looking slightly up at the cup. The darkness of the chai contrasts with the white cup. This is NOT a morning shot — this is late evening, serious, for purists.',
+    concept: 'Product spotlight. Dark, rich chai — stronger colour than regular Irani chai. Moody, intense.',
     ig_caption: `Some mornings need more.\n\nMore brew. More strength. More of that moment when the first sip hits and your eyes close involuntarily.\n\nKadak Chai. ₹45. For the ones who take their mornings seriously.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#KadakChai #StrongChai #NawabiChaiHouse #ChaiPurist #MorningFuel`,
     fb_caption: `Regular chai is for regular mornings.\n\nBut Mondays? Deadlines? That meeting you're not ready for? Those mornings need Kadak Chai.\n\nExtra strong. Extra brew. The kind that doesn't just wake you up — it reminds you who you are.\n\n₹45 at Nawabi Chai House.\n\n📍 Shivajinagar | ⏰ From 7 AM | 📞 8008002045`,
     google_caption: `Kadak Chai at Nawabi Chai House — extra strong, extra brew, for chai purists. ₹45. Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
@@ -522,21 +567,27 @@ const WEEK_1_POSTS = [
   // ─── DAY 5 (Fri) ───
   { title: 'Weekend. No Rush.', objective: 'AWARENESS',
     photo: 'Irani Chai.jpeg', headline: 'Weekend.\nNo Rush.', subtext: 'Saturday mornings were made for this.',
-    concept: 'Weekend vibe. Relaxed, warm. A chai cup on a table, light streaming in, no urgency. Peaceful, inviting. The feeling of having nowhere to be.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on a marble-topped table (not the steel counter). Soft morning sunlight streams in from a window on the left, casting long warm shadows. The cup is full, untouched — suggesting leisure, no hurry. A small potted plant or a book rests beside the cup. Camera: low angle from table level, looking across at the cup with sunlight backlighting the steam. Background: warm, airy, peaceful interior. This is CALM, SLOW, WEEKEND ENERGY — the opposite of a Monday rush.',
+    concept: 'Weekend vibe. Relaxed, warm. A chai cup on a table, light streaming in, no urgency.',
     ig_caption: `No alarm. No rush. No reason to leave.\n\nSaturday mornings were made for long chai, slow conversations, and the kind of silence that feels like company.\n\nYour table is waiting.\n\n📍 Nawabi Chai House, Shivajinagar\n⏰ Open from 7 AM\n\n#WeekendVibes #SaturdayMorning #NawabiChaiHouse #SlowMorning #ChaiTime`,
     fb_caption: `Saturday.\n\nThe alarm didn't go off. The chai is hot. The biscuit is crumbly. And for the next hour, the only appointment you have is with this table.\n\nNawabi Chai House on weekends is a different place. Slower. Warmer. Fuller. The kind of morning where one cup turns into two and nobody minds.\n\nCome. Sit. Stay.\n\n📍 H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 wa.me/918008002045`,
     google_caption: `Weekend mornings at Nawabi Chai House — slow chai, warm ambiance, no rush. Perfect Saturday spot in Shivajinagar, Bangalore. Open 7 AM – 11 PM.` },
 
   { title: 'The Full Spread', objective: 'DESIRE',
     photo: 'Bun Maska.jpeg', headline: 'The Full Spread', subtext: 'Chai. Biscuit. Bun. The works.',
-    concept: 'Multi-product composite. Show a table with chai, Osmania biscuit, Bun Maska — the complete NCH experience. Abundance, warmth, invitation to try everything.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: A bird\'s-eye / flat-lay shot looking straight down at the steel counter. Multiple items arranged in an appetizing spread: Bun Maska (split open with butter), a cup of chai, Osmania biscuits on a small plate, and a cutting chai glass. All items on the steel counter surface which reflects them slightly. Camera: directly overhead, flat-lay style. Warm light from above. This is an ABUNDANCE shot — the full NCH experience in one frame.',
+    concept: 'Multi-product composite. Show a table with chai, Osmania biscuit, Bun Maska — the complete NCH experience.',
     ig_caption: `Irani Chai. Osmania Biscuit. Bun Maska. Kadak Chai. Sulaimani.\n\nYou don't have to choose. Bring a friend. Order everything. Spend ₹200 between two people and walk away wondering why you waited this long.\n\nThe full Nawabi spread.\n\n📍 Shivajinagar, Bangalore\n\n#NawabiChaiHouse #ChaiSpread #BangaloreBreakfast #FoodTable #TryEverything`,
     fb_caption: `Here's the thing about Nawabi Chai House — everything on the menu goes with everything else.\n\nIrani Chai + Osmania Biscuit = ₹70\nKadak Chai + Bun Maska = ₹85\nSulaimani + Chicken Cutlet = the afternoon sorted\n\nBring a friend. Order the table. Split ₹200 and walk out with full stomachs and a new favorite spot.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ 7 AM – 11 PM | 📞 8008002045`,
     google_caption: `The full Nawabi Chai House spread — Irani Chai, Osmania Biscuit, Bun Maska, and more. Complete breakfast under ₹200 for two. Shivajinagar, Bangalore.` },
 
   { title: 'From Hyderabad to Bangalore', objective: 'TRUST',
     photo: 'Irani Chai.jpeg', headline: 'From Hyderabad\nto Bangalore', subtext: 'The Irani café tradition, now in Shivajinagar.',
-    concept: 'Cultural story. Evoke Hyderabad Irani café culture — Charminar reference, old café vibes. Show the lineage of tradition being carried to Bangalore. Heritage design with travel/journey feel.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on a dark wooden table. Behind it, a blurred silhouette of the Charminar monument in warm sepia tones — a ghostly, dreamlike presence suggesting heritage and Hyderabad roots. The foreground is sharp (the cup), the background transitions from the café interior to an impressionistic Hyderabadi streetscape. Camera: eye-level, the cup anchors the left third, the Charminar suggestion fills the right. Warm sepia-gold color grading throughout. This is HERITAGE, JOURNEY, CULTURAL ROOTS.',
+    concept: 'Cultural story. Evoke Hyderabad Irani café culture — Charminar reference, old café vibes.',
     ig_caption: `Hyderabad has Charminar. The narrow lanes. The Irani cafés where chai costs nothing and conversations cost even less.\n\nWe didn't copy that. We grew up in it.\n\nNawabi Chai House brings that chai adda culture to Shivajinagar — not as imitation, but as inheritance.\n\n📍 H.K.P. Road, Shivajinagar\n\n#IraniCafe #Hyderabad #NawabiChaiHouse #ChaiCulture #Shivajinagar`,
     fb_caption: `If you've ever been to an Irani café near Charminar in Hyderabad, you know the feeling.\n\nThe heavy wooden tables. The chai that arrives without asking. The biscuit that exists only to be dunked. The conversations that start with strangers and end with friends.\n\nNawabi Chai House didn't study that culture. Our family lived it — since 1918. And now, in Shivajinagar, we're bringing it to Bangalore.\n\nSame chai. Same spirit. Different city.\n\n📍 #22, H.K.P. Road | 📞 wa.me/918008002045`,
     google_caption: `Nawabi Chai House brings authentic Hyderabadi Irani café culture to Shivajinagar, Bangalore. Heritage chai adda from a family with roots since 1918. H.K.P. Road.` },
@@ -544,21 +595,27 @@ const WEEK_1_POSTS = [
   // ─── DAY 6 (Sat) ───
   { title: 'Sulaimani — No Milk, All Soul', objective: 'DESIRE',
     photo: 'Lemon Tea.jpeg', headline: 'Sulaimani', subtext: 'Black tea. Lemon. No milk. All soul.',
-    concept: 'Product spotlight. The transparent glass with golden Sulaimani, lemon slice floating. Light, bright, different from the brown chai posts. Fresh energy.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The Sulaimani glass (transparent, showing golden liquid) on the steel counter. A thin lemon slice floats in the glass. Sunlight hits the glass from behind, making the golden tea GLOW and creating light refractions on the counter surface. Camera: side angle, backlit, capturing the transparency and golden color. Background: bright, airy, afternoon light. This is DIFFERENT from all the brown chai posts — BRIGHT, LIGHT, FRESH, GOLDEN. The mood shifts from warm-brown to warm-gold.',
+    concept: 'Product spotlight. The transparent glass with golden Sulaimani, lemon slice floating. Light, bright, fresh energy.',
     ig_caption: `Not every chai needs milk.\n\nSulaimani — black tea with lemon, light and golden, the kind that clears your head and warms your chest at the same time.\n\nFor the afternoons when you need clarity, not caffeine.\n\n₹35.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#Sulaimani #LemonTea #NawabiChaiHouse #BlackTea #AfternoonChai`,
     fb_caption: `If Irani Chai is the morning, Sulaimani is the afternoon.\n\nBlack tea. A slice of lemon. No milk. No heaviness. Just a golden, warm cup that clears the fog of a long day and gives you back the second half.\n\nThe Hyderabadi tradition of Sulaimani has always been about lightness — in the cup and in the moment.\n\n₹35 at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
     google_caption: `Sulaimani at Nawabi Chai House — traditional black tea with lemon, a Hyderabadi specialty. Light, refreshing, no milk. ₹35. Shivajinagar, Bangalore.` },
 
   { title: 'The Family Behind the Counter', objective: 'TRUST',
     photo: 'Irani Chai.jpeg', headline: 'Four Generations', subtext: 'Same family. Same values. Since 1918.',
-    concept: 'Personal/family story. Warm, personal feel. Could show a chai cup with "Since 1918" text. Heritage, generational trust. AI Studio: warm portrait-style composition.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: Two chai cups side by side on the counter — one old-style ceramic (plain, chipped, well-used) and one new NCH branded cup. Both filled with chai. This visual symbolizes the generational bridge. Camera: straight-on, both cups equally prominent. Warm, nostalgic lighting. Background: warm bokeh. The contrast between old and new cups tells the four-generation story without words.',
+    concept: 'Personal/family story. Warm, personal feel. Heritage, generational trust.',
     ig_caption: `First generation: Opened Hamza Hotel in 1918.\nSecond generation: Fed Shivajinagar through decades of change.\nThird generation: Kept the fire burning.\nFourth generation: Opened Nawabi Chai House.\n\nSame family. Same values. New chapter.\n\n📍 Nawabi Chai House, Shivajinagar\n\n#FamilyBusiness #Since1918 #NawabiChaiHouse #HamzaHotel #FourGenerations`,
     fb_caption: `In 1918, our family opened a small kitchen on H.K.P. Road. They called it Hamza Hotel.\n\nThrough British rule, independence, the renaming of Blackpally to Shivajinagar, the building of Russell Market — the kitchen stayed. The family stayed.\n\nNow, four generations later, we've added a chai house to the legacy. Not because the world needed another café. But because this neighborhood deserved a proper chai adda.\n\nNawabi Chai House. From our family to your morning.\n\n📍 #22, H.K.P. Road | 📞 8008002045`,
     google_caption: `Four generations of hospitality — Nawabi Chai House by the family behind Hamza Hotel (since 1918). Authentic Irani chai in Shivajinagar, Bangalore.` },
 
   { title: 'Khari & Chai at Sundown', objective: 'DESIRE',
     photo: 'Irani Chai.jpeg', headline: 'Khari & Chai', subtext: 'Flaky. Crispy. The evening ritual.',
-    concept: 'Evening pairing. Khari biscuit (flaky puff) with a cup of chai. Warm evening light, golden hour feel. AI Studio: create a warm sunset-lit scene with crispy khari and chai.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: The cup sits on a small table with flaky Khari biscuits scattered beside it. GOLDEN HOUR LIGHTING — warm orange sunlight from the right creates long shadows and makes the flaky layers of the khari glow. Camera: low angle from table level, shooting into the sunset light. Background: the warm glow of evening through a window. The flaky pastry layers catching the golden light is the hero moment. EVENING ENERGY — warm, wind-down, golden.',
+    concept: 'Evening pairing. Khari biscuit with chai. Warm evening light, golden hour feel.',
     ig_caption: `The evening has its own chai ritual.\n\nKhari Biscuit — flaky, crispy, lighter than air. Paired with a cup of Irani chai as the sun drops behind Shivajinagar.\n\n₹25 for the Khari. ₹40 for the chai. Priceless for the pause.\n\n📍 Nawabi Chai House\n⏰ Open till 11 PM\n\n#KhariBiscuit #EveningChai #NawabiChaiHouse #Shivajinagar #ChaiRitual`,
     fb_caption: `Morning chai is a necessity. Evening chai is a choice.\n\nAnd when you choose it with a Khari Biscuit — flaky, crispy, and impossibly light — the evening becomes something worth staying for.\n\nThe sun drops. The chai steams. The khari crumbles. And Shivajinagar slows down for a moment.\n\nNawabi Chai House. Come for the evening cup.\n\n📍 H.K.P. Road | ⏰ Till 11 PM | 📞 wa.me/918008002045`,
     google_caption: `Khari Biscuit & Irani Chai — the perfect evening snack at Nawabi Chai House. Flaky, crispy, ₹25. Shivajinagar, Bangalore. Open till 11 PM.` },
@@ -566,21 +623,27 @@ const WEEK_1_POSTS = [
   // ─── DAY 7 (Sun) ───
   { title: 'Monday Morning Ritual', objective: 'AWARENESS',
     photo: 'Irani Chai.jpeg', headline: 'Monday Morning\nRitual', subtext: 'Start the week right.',
-    concept: 'Monday motivation through chai. Warm, energizing, the first cup of the week. Clean design, focused, purposeful.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on the steel counter, freshly poured, steam rising aggressively — this is a JUST-MADE cup, urgent energy. A to-go bag or a briefcase/bag strap is visible at the edge of frame, suggesting someone on their way to work. Camera: dynamic angle, slightly tilted 10°, adding energy. Bright morning light — crisp, alert, purposeful. Background: the counter area in soft focus. This is MONDAY ENERGY — purposeful, strong, no-nonsense.',
+    concept: 'Monday motivation through chai. Warm, energizing, the first cup of the week. Clean, focused.',
     ig_caption: `Monday doesn't have to be difficult.\n\nIt just needs to start right — with a cup that's strong enough for the week ahead and a spot that doesn't rush you out the door.\n\nNawabi Chai House. Your Monday morning ritual.\n\n📍 Shivajinagar, from 7 AM\n\n#MondayMorning #MorningRitual #NawabiChaiHouse #StartTheWeek #IraniChai`,
     fb_caption: `Every Monday, the city resets.\n\nAlarms go off. Routines resume. The week stretches out ahead like a long road.\n\nBut before all of that — before the emails, the meetings, the traffic — there's a cup of Irani chai at Nawabi Chai House. Strong. Warm. Familiar. The same cup that was here last Monday and will be here next.\n\nStart the week with something good.\n\n📍 #22, H.K.P. Road, Shivajinagar\n⏰ From 7 AM | 📞 8008002045`,
     google_caption: `Start your Monday at Nawabi Chai House — Irani chai from 7 AM in Shivajinagar, Bangalore. The best way to begin your week. H.K.P. Road.` },
 
   { title: 'Masala Chai — Spiced Right', objective: 'DESIRE',
     photo: 'Irani Chai.jpeg', headline: 'Masala Chai', subtext: 'Ginger. Cardamom. Warmth.',
-    concept: 'Product spotlight. Masala chai with visible spice warmth. Ginger, cardamom icons or real spices around the cup. Warm, aromatic, inviting.',
+    ambience: 'counter-interior-warm-lights-arches-display.jpg',
+    scene: 'SCENE: The cup sits on a dark wooden surface. Around it, scattered raw spices — a piece of fresh ginger (sliced to show the interior), whole green cardamom pods, a cinnamon stick, and a few cloves. The spices form a loose, natural arrangement around the cup. Camera: overhead 50° angle, capturing both the cup and the spice arrangement. Warm, earthy lighting. Background: dark wood surface. This is AROMATIC, EARTHY, SPICE-FORWARD — the visual equivalent of smelling masala chai.',
+    concept: 'Product spotlight. Masala chai with visible spice warmth. Warm, aromatic, inviting.',
     ig_caption: `Ginger for the kick. Cardamom for the soul. Milk for the warmth.\n\nMasala Chai at Nawabi Chai House — spiced the way your grandmother would approve of. No shortcuts. No powder. Just real spices in a real cup.\n\n₹45.\n\n📍 Shivajinagar, Bangalore\n\n#MasalaChai #SpicedChai #NawabiChaiHouse #GingerTea #ChaiLovers`,
     fb_caption: `There's masala chai. And then there's masala chai with actual masala.\n\nFresh ginger. Whole cardamom. A blend that's been in our kitchen longer than most recipes have been written down. No premixed powder. No artificial anything.\n\nThe kind of masala chai that makes you wonder what you've been drinking all this time.\n\n₹45 at Nawabi Chai House.\n\n📍 H.K.P. Road, Shivajinagar | ⏰ 7 AM – 11 PM`,
     google_caption: `Masala Chai at Nawabi Chai House — fresh ginger, cardamom, real spices. No premix, no shortcuts. ₹45. Shivajinagar, Bangalore.` },
 
   { title: 'Come for the Chai. Stay for the Hour.', objective: 'ACTION',
     photo: 'Irani Chai.jpeg', headline: 'Come for the Chai.\nStay for the Hour.', subtext: 'Nawabi Chai House — Shivajinagar, Bangalore',
-    concept: 'Week wrap / open invitation. Warm, welcoming, the definitive NCH image. Chai, ambiance, brand — everything together. The post that makes someone decide to visit.',
+    ambience: 'storefront-night-crowd-signage-lit.jpg',
+    scene: 'SCENE: The cup sits on a table near the entrance. Through the glass/open front, you can see the warm interior — arches, warm lights, people at the counter (blurred). The cup is in the foreground, the entire inviting café scene unfolds behind it. Camera: shot from just inside the entrance looking in, the cup is at the edge of a table. Evening warm lighting — the place glows. This is the DEFINITIVE NCH image — product + place + warmth + invitation, all in one frame. The viewer should want to walk in.',
+    concept: 'Week wrap / open invitation. The definitive NCH image. The post that makes someone decide to visit.',
     ig_caption: `You came for the chai. You stayed for the conversation. You'll come back for both.\n\nNawabi Chai House. Shivajinagar. Open every day, 7 AM to 11 PM.\n\nThe counter is waiting.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar\n📞 8008002045\n🌐 nawabichaihouse.com\n\n#NawabiChaiHouse #IraniChai #Shivajinagar #BangaloreChai #ChaiAdda`,
     fb_caption: `Come for the Irani Chai.\nStay for the Osmania Biscuit.\nReturn for the Bun Maska.\nKeep coming back for the feeling.\n\nNawabi Chai House isn't a place you visit once. It's a place that becomes part of your week — the morning ritual, the afternoon break, the evening wind-down.\n\nWe're in Shivajinagar. We're open 7 AM to 11 PM. And the counter always has room for one more.\n\n📍 #22, 3rd Floor, H.K.P. Road, Shivajinagar, Bangalore 560051\n📞 8008002045 | 🌐 nawabichaihouse.com\n💬 wa.me/918008002045`,
     google_caption: `Come for the chai, stay for the hour — Nawabi Chai House, Shivajinagar's Irani chai adda. Chai, Osmania Biscuit, Bun Maska & more. 7 AM – 11 PM daily. #22, H.K.P. Road, Bangalore.` },
@@ -589,7 +652,14 @@ const WEEK_1_POSTS = [
 function buildPrompt(post, platform) {
   const dims = { instagram: '1080×1080 (square)', facebook: '1200×630 (landscape, 1.91:1)', google: '1200×900 (4:3, landscape)' };
   const headlineFormatted = (post.headline || post.title).replace(/\n/g, ' ');
-  return `${PROMPT_PRODUCT}
+
+  // Choose base prompt: PRODUCT (4 uploads) or STORY (3 uploads, no product photo)
+  const base = post.photo ? PROMPT_BASE : PROMPT_STORY;
+
+  // Build the scene-aware prompt
+  return `${base}
+
+${post.scene || ''}
 
 CANVAS: ${dims[platform]}
 
@@ -1106,11 +1176,12 @@ function renderWorkflow() {
           <ol>
             <li><strong>Copy the prompt</strong> using the button below</li>
             <li>Open <strong>AI Studio</strong> (aistudio.google.com)</li>
-            <li>Upload <strong>3 reference images</strong>: (1) NCH logo, (2) Product photo, (3) <strong>Menu card frame</strong> (ornate border reference)</li>
+            <li>Upload <strong>4 reference images</strong>: (1) NCH logo, (2) Product photo, (3) <strong>Ambience photo</strong> (see recommended below), (4) <strong>Menu card frame</strong> (ornate border reference)</li>
             <li>Paste the prompt and click <strong>Generate</strong></li>
             <li><strong>Download</strong> the generated image</li>
           </ol>
           <div style="margin-top:6px;font-size:12px;color:var(--muted)">Platform: <strong>${platformLabels[currentPlatform]}</strong></div>
+          ${post.ambience ? `<div style="margin-top:4px;font-size:12px;color:var(--golden-amber)">Recommended ambience: <code>${post.ambience}</code></div>` : ''}
         </div>
         <div class="btn-row">
           <button class="btn btn-brand" onclick="copyText('promptArea')">Copy Prompt</button>
