@@ -847,6 +847,30 @@ function saveLog(log) {
 // ═══════════════════════════════════════════════════
 // META GRAPH API — Publish Engine
 // ═══════════════════════════════════════════════════
+
+// Fetch with timeout + retry
+async function fetchWithRetry(url, options = {}, { timeout = 45000, retries = 2, label = '' } = {}) {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return resp;
+    } catch (e) {
+      clearTimeout(timer);
+      const isTimeout = e.name === 'AbortError';
+      if (attempt <= retries) {
+        const wait = attempt * 3;
+        showStatus(`${label || 'Request'} timed out — retrying in ${wait}s (attempt ${attempt + 1}/${retries + 1})...`, 'loading');
+        await new Promise(r => setTimeout(r, wait * 1000));
+      } else {
+        throw new Error(isTimeout ? `${label || 'Request'} timed out after ${retries + 1} attempts. Check your internet or try again.` : e.message);
+      }
+    }
+  }
+}
+
 async function getIGAccountId() {
   if (IG_ACCOUNT_ID) return IG_ACCOUNT_ID;
   if (!META_TOKEN) throw new Error('Meta token not configured. Set META_TOKEN in the dashboard code.');
@@ -884,17 +908,17 @@ async function publishIG() {
     const igId = await getIGAccountId();
     const { url } = await uploadImageToFB(file);
     showStatus('Creating Instagram media...', 'loading');
-    const containerResp = await fetch(`https://graph.facebook.com/v24.0/${igId}/media`, {
+    const containerResp = await fetchWithRetry(`https://graph.facebook.com/v24.0/${igId}/media`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_url: url, caption, access_token: META_TOKEN })
-    });
+    }, { timeout: 60000, retries: 2, label: 'IG container creation' });
     const container = await containerResp.json();
     if (container.error) throw new Error(container.error.message);
     showStatus('Publishing to Instagram...', 'loading');
-    const pubResp = await fetch(`https://graph.facebook.com/v24.0/${igId}/media_publish`, {
+    const pubResp = await fetchWithRetry(`https://graph.facebook.com/v24.0/${igId}/media_publish`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ creation_id: container.id, access_token: META_TOKEN })
-    });
+    }, { timeout: 45000, retries: 1, label: 'IG publish' });
     const result = await pubResp.json();
     if (result.error) throw new Error(result.error.message);
     showStatus('Published to Instagram!', 'success');
@@ -920,7 +944,7 @@ async function publishFB() {
     formData.append('message', caption);
     formData.append('published', 'true');
     formData.append('access_token', META_TOKEN);
-    const resp = await fetch(`https://graph.facebook.com/v24.0/${FB_PAGE_ID}/photos`, { method: 'POST', body: formData });
+    const resp = await fetchWithRetry(`https://graph.facebook.com/v24.0/${FB_PAGE_ID}/photos`, { method: 'POST', body: formData }, { timeout: 60000, retries: 2, label: 'FB publish' });
     const data = await resp.json();
     if (data.error) throw new Error(data.error.message);
     showStatus('Published to Facebook!', 'success');
