@@ -701,6 +701,7 @@ function generateDefaultWeek(mondayDate) {
         caption_ig: intel ? intel.ig_caption : '',
         caption_fb: intel ? intel.fb_caption : '',
         caption_google: intel ? intel.google_caption : '',
+        ambience: intel ? intel.ambience || null : null,
         image_key_ig: null,
         image_key_fb: null,
         image_key_google: null,
@@ -724,26 +725,31 @@ async function loadWeekState() {
         // Map D1 rows to our format
         return {
           weekStart: weekKey(currentWeekStart),
-          posts: data.posts.map(p => ({
-            id: p.post_number,
-            day: new Date(p.post_date).toLocaleDateString('en-US', { weekday: 'short' }),
-            date: p.post_date,
-            slot: p.time_slot,
-            title: p.title || `Post ${p.post_number}`,
-            objective: p.objective || 'AWARENESS',
-            prompt_ig: p.prompt_ig || '',
-            prompt_fb: p.prompt_fb || '',
-            prompt_google: p.prompt_google || '',
-            caption_ig: p.caption_ig || '',
-            caption_fb: p.caption_fb || '',
-            caption_google: p.caption_google || '',
-            image_key_ig: p.image_key_ig || null,
-            image_key_fb: p.image_key_fb || null,
-            image_key_google: p.image_key_google || null,
-            ig: p.status_ig || 'pending',
-            fb: p.status_fb || 'pending',
-            google: p.status_google || 'pending',
-          }))
+          posts: data.posts.map(p => {
+            // Always use latest prompt/caption intelligence from WEEK_1_POSTS
+            const intel = WEEK_1_POSTS[p.post_number - 1] || null;
+            return {
+              id: p.post_number,
+              day: new Date(p.post_date).toLocaleDateString('en-US', { weekday: 'short' }),
+              date: p.post_date,
+              slot: p.time_slot,
+              title: intel ? intel.title : (p.title || `Post ${p.post_number}`),
+              objective: intel ? intel.objective : (p.objective || 'AWARENESS'),
+              prompt_ig: intel ? buildPrompt(intel, 'instagram') : (p.prompt_ig || ''),
+              prompt_fb: intel ? buildPrompt(intel, 'facebook') : (p.prompt_fb || ''),
+              prompt_google: intel ? buildPrompt(intel, 'google') : (p.prompt_google || ''),
+              caption_ig: intel ? intel.ig_caption : (p.caption_ig || ''),
+              caption_fb: intel ? intel.fb_caption : (p.caption_fb || ''),
+              caption_google: intel ? intel.google_caption : (p.caption_google || ''),
+              ambience: intel ? intel.ambience || null : null,
+              image_key_ig: p.image_key_ig || null,
+              image_key_fb: p.image_key_fb || null,
+              image_key_google: p.image_key_google || null,
+              ig: p.status_ig || 'pending',
+              fb: p.status_fb || 'pending',
+              google: p.status_google || 'pending',
+            };
+          })
         };
       }
     } catch (e) {
@@ -1181,7 +1187,7 @@ function renderWorkflow() {
             <li><strong>Download</strong> the generated image</li>
           </ol>
           <div style="margin-top:6px;font-size:12px;color:var(--muted)">Platform: <strong>${platformLabels[currentPlatform]}</strong></div>
-          ${post.ambience ? `<div style="margin-top:4px;font-size:12px;color:var(--golden-amber)">Recommended ambience: <code>${post.ambience}</code></div>` : ''}
+          ${next.ambience ? `<div style="margin-top:4px;font-size:12px;color:var(--golden-amber)">Recommended ambience: <code>${next.ambience}</code></div>` : ''}
         </div>
         <div class="btn-row">
           <button class="btn btn-brand" onclick="copyText('promptArea')">Copy Prompt</button>
