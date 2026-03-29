@@ -23,7 +23,7 @@ export async function onRequest(context) {
   const ALERT_RECIPIENTS = ['917010426808', '918073476051']; // Nihaf, Naveen
   const PM = {CASH: 37, UPI: 38, CARD: 39, RUNNER_LEDGER: 40, TOKEN_ISSUE: 48, COMPLIMENTARY: 49};
   const POS = {CASH_COUNTER: 27, RUNNER_COUNTER: 28};
-  const RUNNERS = {64: {name: 'FAROOQ', barcode: 'RUN001', qr: 'qr_SBdtZG1AMDwSmJ'}, 65: {name: 'AMIN', barcode: 'RUN002', qr: 'qr_SBdte3aRvGpRMY'}, 66: {name: 'NCH Runner 03', barcode: 'RUN003', qr: 'qr_SBgTo2a39kYmET'}, 67: {name: 'NCH Runner 04', barcode: 'RUN004', qr: 'qr_SBgTtFrfddY4AW'}, 68: {name: 'NCH Runner 05', barcode: 'RUN005', qr: 'qr_SBgTyFKUsdwLe1'}};
+  const RUNNERS = {64: {name: 'FAROOQ', barcode: 'RUN001', qr: 'qr_SPTqwgC6ssVDDb'}, 65: {name: 'AMIN', barcode: 'RUN002', qr: 'qr_SPTrTvvh9AKsW0'}, 66: {name: 'NCH Runner 03', barcode: 'RUN003', qr: 'qr_SBgTo2a39kYmET'}, 67: {name: 'NCH Runner 04', barcode: 'RUN004', qr: 'qr_SBgTtFrfddY4AW'}, 68: {name: 'NCH Runner 05', barcode: 'RUN005', qr: 'qr_SBgTyFKUsdwLe1'}};
   const COUNTER_QR = 'qr_SBdtUCLSHVfRtT';
   const RUNNER_COUNTER_QR = 'qr_SBuDBQDKrC8Bch';
 
@@ -388,7 +388,7 @@ async function fetchQrPayments(auth, qrId, label, since, until) {
 
 async function fetchAllRazorpay(key, secret, since, until) {
   const auth = btoa(key + ':' + secret);
-  const RUNNER_QRS = [{qr: 'qr_SBdtZG1AMDwSmJ', label: 'RUN001'}, {qr: 'qr_SBdte3aRvGpRMY', label: 'RUN002'}, {qr: 'qr_SBgTo2a39kYmET', label: 'RUN003'}, {qr: 'qr_SBgTtFrfddY4AW', label: 'RUN004'}, {qr: 'qr_SBgTyFKUsdwLe1', label: 'RUN005'}];
+  const RUNNER_QRS = [{qr: 'qr_SPTqwgC6ssVDDb', label: 'RUN001'}, {qr: 'qr_SPTrTvvh9AKsW0', label: 'RUN002'}, {qr: 'qr_SBgTo2a39kYmET', label: 'RUN003'}, {qr: 'qr_SBgTtFrfddY4AW', label: 'RUN004'}, {qr: 'qr_SBgTyFKUsdwLe1', label: 'RUN005'}];
 
   const [counter, runnerCounter, ...runnerResults] = await Promise.all([
     fetchQrPayments(auth, 'qr_SBdtUCLSHVfRtT', 'COUNTER', since, until),

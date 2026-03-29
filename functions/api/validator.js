@@ -15,8 +15,8 @@ const VALID_RUNNER_IDS = new Set([64, 65, 66, 67, 68]);
 
 // Razorpay QR codes — maps entity to QR ID
 const RUNNER_QRS = [
-  {qr_id: 'qr_SBdtZG1AMDwSmJ', label: 'RUN001', partner_id: 64, name: 'FAROOQ'},
-  {qr_id: 'qr_SBdte3aRvGpRMY', label: 'RUN002', partner_id: 65, name: 'AMIN'},
+  {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', partner_id: 64, name: 'FAROOQ'},
+  {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', partner_id: 65, name: 'AMIN'},
   {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', partner_id: 66, name: 'NCH Runner 03'},
   {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', partner_id: 67, name: 'NCH Runner 04'},
   {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', partner_id: 68, name: 'NCH Runner 05'}

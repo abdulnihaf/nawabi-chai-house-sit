@@ -109,8 +109,8 @@ async function fetchAllRazorpayPayments(key, secret, since, until) {
 
   // All QR codes in the system
   const RUNNER_QRS = [
-    {qr_id: 'qr_SBdtZG1AMDwSmJ', label: 'RUN001', name: 'FAROOQ'},
-    {qr_id: 'qr_SBdte3aRvGpRMY', label: 'RUN002', name: 'AMIN'},
+    {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', name: 'FAROOQ'},
+    {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', name: 'AMIN'},
     {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', name: 'NCH Runner 03'},
     {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', name: 'NCH Runner 04'},
     {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', name: 'NCH Runner 05'}
@@ -564,7 +564,7 @@ function processDashboardData(orders, payments, razorpayData) {
 async function syncRazorpayToD1(DB, razorpayData) {
   const COUNTER_QR = 'qr_SBdtUCLSHVfRtT';
   const RUNNER_COUNTER_QR = 'qr_SBuDBQDKrC8Bch';
-  const RUNNER_QR_MAP = {'RUN001': 'qr_SBdtZG1AMDwSmJ', 'RUN002': 'qr_SBdte3aRvGpRMY', 'RUN003': 'qr_SBgTo2a39kYmET', 'RUN004': 'qr_SBgTtFrfddY4AW', 'RUN005': 'qr_SBgTyFKUsdwLe1'};
+  const RUNNER_QR_MAP = {'RUN001': 'qr_SPTqwgC6ssVDDb', 'RUN002': 'qr_SPTrTvvh9AKsW0', 'RUN003': 'qr_SBgTo2a39kYmET', 'RUN004': 'qr_SBgTtFrfddY4AW', 'RUN005': 'qr_SBgTyFKUsdwLe1'};
 
   const allPayments = [
     ...razorpayData.counterPayments.map(p => ({...p, qr_id: COUNTER_QR, qr_label: 'COUNTER'})),
