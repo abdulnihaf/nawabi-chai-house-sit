@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Menu Photo Generator — Team Execution Guide</title>
+<style>
+  :root {
+    --brown: #AC7E54;
+    --wheat: #E9D1A9;
+    --amber: #D4A44C;
+    --dark: #2c1810;
+    --bg: #0f0f0f;
+    --card: #1a1a1a;
+    --card2: #222;
+    --text: #e8e8e8;
+    --muted: #888;
+    --green: #4caf50;
+    --red: #ef5350;
+    --blue: #42a5f5;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1a0e08, #2c1810);
+    padding: 24px 32px;
+    border-bottom: 2px solid var(--amber);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header h1 { color: var(--wheat); font-size: 20px; letter-spacing: 3px; text-transform: uppercase; }
+  .header .sub { color: var(--brown); font-size: 13px; margin-top: 4px; }
+  .progress-bar { margin-top: 14px; background: #333; border-radius: 8px; height: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--amber), var(--green)); border-radius: 8px; transition: width 0.5s; }
+  .stats-row { display: flex; gap: 20px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .stats-row strong { color: var(--wheat); }
+
+  /* WIZARD */
+  .wizard { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+
+  /* SETUP PANEL */
+  .setup {
+    background: var(--card); border-radius: 12px; padding: 24px;
+    margin-bottom: 24px; border: 1px solid #333;
+  }
+  .setup h2 { color: var(--amber); font-size: 16px; margin-bottom: 16px; }
+  .setup-step {
+    display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start;
+  }
+  .setup-num {
+    min-width: 28px; height: 28px; border-radius: 50%;
+    background: var(--brown); color: #fff; display: flex;
+    align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+  .setup-text { font-size: 14px; line-height: 1.6; }
+  .setup-text a { color: var(--amber); text-decoration: underline; }
+  .setup-text code {
+    background: #333; padding: 2px 8px; border-radius: 4px;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 12px; color: var(--wheat);
+  }
+  .warning-box {
+    background: rgba(239,83,80,0.1); border: 1px solid rgba(239,83,80,0.3);
+    border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 13px;
+    color: #ef9a9a;
+  }
+  .tip-box {
+    background: rgba(66,165,245,0.1); border: 1px solid rgba(66,165,245,0.3);
+    border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 13px;
+    color: #90caf9;
+  }
+
+  /* ITEM NAVIGATOR */
+  .nav-controls {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .nav-btn {
+    background: var(--card2); border: 1px solid #444; color: var(--text);
+    padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-btn:hover { border-color: var(--amber); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-btn.primary { background: var(--brown); border-color: var(--brown); color: #fff; font-weight: 600; }
+  .nav-counter { color: var(--muted); font-size: 14px; }
+
+  /* CATEGORY PILLS */
+  .cat-pills { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .cat-pill {
+    background: var(--card2); border: 1px solid #333; color: var(--muted);
+    padding: 5px 14px; border-radius: 16px; cursor: pointer; font-size: 12px;
+  }
+  .cat-pill:hover { border-color: var(--brown); color: var(--text); }
+  .cat-pill.active { background: var(--brown); color: #fff; border-color: var(--brown); }
+
+  /* CURRENT ITEM CARD */
+  .item-card {
+    background: var(--card); border-radius: 16px; border: 1px solid #333;
+    overflow: hidden;
+  }
+  .item-card.is-done { border-color: var(--green); }
+  .item-header {
+    padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #333;
+  }
+  .item-name { font-size: 22px; font-weight: 700; color: var(--wheat); }
+  .item-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .item-status {
+    padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  }
+  .item-status.done { background: rgba(76,175,80,0.15); color: var(--green); }
+  .item-status.pending { background: rgba(212,164,76,0.15); color: var(--amber); }
+
+  /* STEPS */
+  .steps { padding: 20px 24px; }
+  .step-block {
+    background: var(--card2); border-radius: 12px; padding: 20px;
+    margin-bottom: 16px; border-left: 4px solid var(--brown);
+  }
+  .step-block.upload { border-left-color: var(--blue); }
+  .step-block.prompt { border-left-color: var(--amber); }
+  .step-block.save { border-left-color: var(--green); }
+  .step-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+  }
+  .step-badge {
+    min-width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .step-badge.b1 { background: var(--blue); }
+  .step-badge.b2 { background: var(--amber); }
+  .step-badge.b3 { background: var(--green); }
+  .step-title { font-size: 15px; font-weight: 600; }
+
+  /* FILE REFERENCE */
+  .file-box {
+    background: #111; border: 1px solid #333; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .file-path { font-family: 'SF Mono', Menlo, monospace; font-size: 12px; color: var(--wheat); }
+  .file-purpose { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .file-warning { font-size: 11px; color: var(--red); margin-top: 4px; font-weight: 600; }
+
+  /* PROMPT */
+  .prompt-container { position: relative; }
+  .prompt-text {
+    background: #0a0a0a; border: 1px solid #333; border-radius: 10px;
+    padding: 20px; padding-top: 40px; font-family: 'SF Mono', Menlo, monospace;
+    font-size: 13px; line-height: 1.8; color: #ccc; white-space: pre-wrap;
+    max-height: 500px; overflow-y: auto;
+  }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--amber); color: #000; border: none;
+    padding: 8px 20px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+  }
+  .copy-btn:hover { background: var(--wheat); }
+  .copy-btn.copied { background: var(--green); color: #fff; }
+
+  /* SAVE INSTRUCTION */
+  .save-box {
+    background: rgba(76,175,80,0.08); border: 1px solid rgba(76,175,80,0.3);
+    border-radius: 8px; padding: 14px 18px;
+  }
+  .save-filename {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 15px;
+    color: var(--green); font-weight: 700;
+  }
+  .save-path { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ACTION BUTTONS */
+  .actions { padding: 0 24px 24px; display: flex; gap: 12px; }
+  .action-btn {
+    flex: 1; padding: 14px; border-radius: 10px; border: none;
+    font-size: 15px; font-weight: 700; cursor: pointer; text-align: center;
+  }
+  .btn-done { background: var(--green); color: #fff; }
+  .btn-done:hover { opacity: 0.9; }
+  .btn-done.is-done { background: #333; color: #666; cursor: default; }
+  .btn-skip { background: var(--card2); color: var(--muted); border: 1px solid #444; }
+  .btn-skip:hover { color: var(--text); }
+
+  /* LIST VIEW */
+  .list-view { margin-top: 24px; }
+  .list-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; border-bottom: 1px solid #222; cursor: pointer;
+    font-size: 14px;
+  }
+  .list-item:hover { background: var(--card2); }
+  .list-item.done { opacity: 0.4; }
+  .list-name { flex: 1; }
+  .list-cat { color: var(--muted); font-size: 11px; width: 140px; }
+  .list-status { font-size: 11px; font-weight: 700; width: 60px; text-align: right; }
+  .list-status.done { color: var(--green); }
+  .list-status.pending { color: var(--amber); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>NAWABI CHAI HOUSE</h1>
+  <div class="sub">Swiggy/Zomato Menu Photo Generation — Team Execution Guide</div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  <div class="stats-row">
+    <span><strong id="stat-done">0</strong> generated</span>
+    <span><strong id="stat-remain">0</strong> remaining</span>
+    <span>Model: <strong>Nano Banana Pro</strong></span>
+    <span>Thinking: <strong>HIGH</strong></span>
+    <span>Output: <strong>4K, 1:1 square</strong></span>
+  </div>
+</div>
+
+<div class="wizard">
+
+  <!-- SETUP -->
+  <div class="setup" id="setup-panel">
+    <h2>BEFORE YOU START</h2>
+    <div class="setup-step">
+      <div class="setup-num">1</div>
+      <div class="setup-text">
+        Open AI Studio: <a href="https://aistudio.google.com/prompts/1c2pN9UM7F0M14Hn3LFRScoeF-DjkIlmJ" target="_blank">Click here to open the chat</a><br>
+        This chat already has branding context from previous generations. <strong>Continue in THIS chat only.</strong>
+      </div>
+    </div>
+    <div class="setup-step">
+      <div class="setup-num">2</div>
+      <div class="setup-text">
+        Verify these settings in AI Studio:<br>
+        Model = <code>Nano Banana Pro</code> (Gemini 3 Pro Image)<br>
+        Thinking Level = <code>HIGH</code> (not Minimal)<br>
+        This ensures text on the flask/cup is rendered accurately.
+      </div>
+    </div>
+    <div class="setup-step">
+      <div class="setup-num">3</div>
+      <div class="setup-text">
+        Open these two folders in Finder — you'll drag files from here into AI Studio:<br>
+        <code>~/Desktop/nch-menu-photos/</code> — Finalized NCH images (branding anchor)<br>
+        <code>~/Desktop/NCH Reference Images Main/</code> — Food/drink reference photos
+      </div>
+    </div>
+    <div class="setup-step">
+      <div class="setup-num">4</div>
+      <div class="setup-text">
+        <strong>For each item below:</strong><br>
+        Upload the listed files → Copy the prompt → Paste in AI Studio → Generate → Save to <code>nch-menu-photos</code> with the exact filename shown → Mark done
+      </div>
+    </div>
+    <div class="warning-box">
+      <strong>DO NOT</strong> start a new AI Studio chat. The existing chat has learned the NCH branding style. Starting fresh will produce inconsistent results.
+    </div>
+    <div class="tip-box">
+      <strong>TIP:</strong> If a generated image looks AI-fake (too smooth, too perfect, waxy textures), paste this follow-up: "This looks slightly AI-generated. Add more realistic material textures — visible cardboard fiber grain on flask, micro wood grain irregularities, natural lighting falloff. Keep everything else the same."
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <div class="nav-controls">
+    <button class="nav-btn" id="btn-prev" onclick="navigate(-1)">Previous</button>
+    <span class="nav-counter" id="nav-counter"></span>
+    <button class="nav-btn primary" id="btn-next" onclick="navigate(1)">Next Item</button>
+  </div>
+
+  <!-- CURRENT ITEM -->
+  <div id="current-item"></div>
+
+  <!-- FULL LIST -->
+  <details style="margin-top:30px;">
+    <summary style="color:var(--muted);cursor:pointer;font-size:13px;padding:10px 0;">View full item list (click to expand)</summary>
+    <div class="list-view" id="list-view"></div>
+  </details>
+</div>
+
+<script>
+const ITEMS = [
+// ===== ALREADY DONE =====
+{name:"Irani Chai",cat:"Beverages - Chai",done:true,save:"Irani Chai 250ml - 1.jpg",uploads:[],prompt:"ALREADY GENERATED",intelligence:""},
+{name:"Irani Ginger Chai",cat:"Beverages - Chai",done:true,save:"Irani Ginger Chai - 1.jpg",uploads:[],prompt:"ALREADY GENERATED",intelligence:""},
+{name:"Irani Black Chai",cat:"Beverages - Chai",done:true,save:"Irani Black Chai - 1.jpg",uploads:[],prompt:"ALREADY GENERATED",intelligence:""},
+{name:"Lemon Tea",cat:"Beverages - Chai",done:true,save:"Lemon Tea - 1.jpg",uploads:[],prompt:"ALREADY GENERATED",intelligence:""},
+
+// ===== REMAINING CHAI =====
+{
+name:"Lemon Tea with Honey",cat:"Beverages - Chai",done:false,
+save:"Lemon Tea with Honey.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Lemon Tea - 1.jpg",purpose:"Branding + composition anchor — use this EXACT flask, glass cup, lemon setup, wood surface, bokeh background",warn:""}
+],
+intelligence:"No separate food reference needed — this is identical to Lemon Tea with honey added. The reference image IS the finalized Lemon Tea.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask, same clear glass cup with amber lemon tea, same lemon slice floating in cup, same dark walnut wood surface, same dark bokeh background, same camera angle, same lighting.
+
+The ONLY additions to differentiate this as LEMON TEA WITH HONEY:
+1. Add a small wooden honey dipper resting on the saucer, with golden honey visibly dripping from it
+2. Add a small glass jar of golden honey on the wood surface between the flask and cup
+3. Keep the lemon wedge, mint leaf, lemon rounds, and scattered tea leaves
+
+The honey should be rich golden-amber, slightly viscous and glossy — it is the visual differentiator from regular Lemon Tea.
+
+Everything else identical — same flask with "NAWABI CHAI HOUSE" branding and Charminar illustration, same glass cup, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: This must look like a real photograph from a professional food studio — natural material textures, realistic lighting falloff, visible wood grain imperfections. NOT AI-generated looking.`
+},
+{
+name:"Irani Chocolate Tea",cat:"Beverages - Chai",done:false,
+save:"Irani Chocolate Tea.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor — use this EXACT flask, cup, surface, bokeh",warn:""}
+],
+intelligence:"No reference image available. The liquid is darker than Irani Chai — chocolate-infused. Describe the chocolate-brown color and cocoa elements purely in the prompt.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for IRANI CHOCOLATE TEA:
+1. The chai in the cup should be a rich CHOCOLATE BROWN color — darker than regular Irani chai, with a slight cocoa sheen on the surface. Think hot chocolate meets chai — not orange/golden, but warm chocolate-brown
+2. A light dusting of cocoa powder visible on the surface of the liquid
+3. Replace cardamom pods with: 2-3 small pieces of dark chocolate broken/shattered on the wood surface near the cup
+4. Keep scattered black CTC tea leaves on the wood
+
+Everything else identical — same flask branding, same cup text, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: This must look like a real photograph. Natural cardboard texture on flask, realistic ceramic glaze, visible wood grain. NOT AI-generated looking.`
+},
+{
+name:"Zafran Chai",cat:"Beverages - Chai",done:false,
+save:"Zafran Chai.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor — EXACT flask, cup, surface, bokeh",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Zafran Chai.jpeg",purpose:"ONLY for saffron strand concept — ignore everything else (this is an illustration, not a photo)",warn:"This is a digital illustration, NOT a real photo. Use ONLY for the concept of saffron strands floating on chai. Ignore the cup, background, colors, and art style completely."}
+],
+intelligence:"Reference is an ILLUSTRATION (quality 2/5). Only extract the CONCEPT: visible saffron strands floating on tea surface + slightly more amber/golden liquid tone. Do NOT trust the colors from this illustration — describe realistic saffron color in prompt instead.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for ZAFRAN (SAFFRON) CHAI — the premium, highest-priced chai:
+1. The chai should have a slightly deeper GOLDEN-AMBER hue compared to regular Irani chai — saffron gives it a richer, more golden color (NOT orange, just deeper gold)
+2. 3-4 visible saffron strands floating on the surface of the chai — thin, deep red-orange threads (Reference Image 2 shows the saffron strand concept — use ONLY that concept, ignore the illustration style)
+3. A small pinch of saffron strands placed on the saucer edge as garnish
+4. 2-3 green cardamom pods + 1-2 cloves scattered on the wood surface
+5. Keep scattered black CTC tea leaves
+
+The saffron strands are the HERO visual element — they signal premium.
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The saffron strands must look like real dried saffron — thin, delicate, deep red-orange. NOT painted or illustrated.`
+},
+{
+name:"Karak Chai",cat:"Beverages - Chai",done:false,
+save:"Karak Chai.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor — EXACT flask, cup, surface, bokeh",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Karak Chai.jpeg",purpose:"ONLY for karak chai liquid color — deep amber-orange, richer than regular chai",warn:"Ignore the glass mugs, pouring action, wooden tray, marble surface, and two-cup setup. Extract ONLY the deep amber-orange chai color and frothy texture."}
+],
+intelligence:"Reference (quality 3/5) shows karak chai in glass mugs being poured. The ONLY useful element is the liquid color: deep amber-orange, significantly darker and more orange than regular Irani Chai, with rich frothy bubbles. Ignore everything else — wrong vessels, action shot, marble background.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for KARAK CHAI (strong spiced tea):
+1. The chai should be a DEEP AMBER-ORANGE color — significantly darker and more intense than regular Irani chai (Reference Image 2 shows the target color — use ONLY the liquid color from this image, ignore everything else)
+2. Visible frothy bubble texture on the surface — karak chai is brewed very strong
+3. Replace cardamom pods with a WHOLE SPICE CLUSTER on the wood surface: 1 cinnamon stick (broken in half), 2 star anise, 3-4 whole cloves, 2-3 green cardamom pods — arranged naturally, not too neat
+4. Keep scattered black CTC tea leaves
+5. The spice cluster is the HERO visual — it communicates "bold, strong, heavily spiced"
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Spices must have natural dry texture — cinnamon should show bark layers, star anise should have visible seed pods.`
+},
+
+// ===== MILK =====
+{
+name:"Irani Milk",cat:"Beverages - Milk",done:false,
+save:"Irani Milk.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor — EXACT flask, cup, surface, bokeh",warn:""}
+],
+intelligence:"No reference image needed — pure white/cream warm milk is self-descriptive. Key: NO tea leaves on surface (this is not tea). Only cardamom pods as props.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for IRANI MILK:
+1. The liquid in the cup is PURE CREAMY WHITE WARM MILK — not chai. White/cream colored with a slight frothy surface, no tea color at all
+2. 3-4 green cardamom pods scattered on the wood surface
+3. NO tea leaves anywhere — this is a milk drink, not tea. The wood surface should be clean except for cardamom pods
+4. Thin wispy steam rising from the hot milk
+
+Everything else identical — same flask branding, clean white saucer, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The milk should look naturally white with slight cream tones, not bluish or gray.`
+},
+{
+name:"Irani Chocolate Milk",cat:"Beverages - Milk",done:false,
+save:"Irani Chocolate Milk.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Irani Chocolate Milk.jpeg",purpose:"ONLY for the chocolate milk color — deep rich chocolate-brown, opaque, thick",warn:"Ignore the glass mugs, wooden coasters, competitor watermark, beige background, and paired serving. Extract ONLY: deep chocolate-brown color + cream dollop on top + chocolate shaving garnish."}
+],
+intelligence:"Reference (quality 4/5) is a good color reference. Extract: deep chocolate-brown opaque color + white cream dollop floating on top + chocolate shavings. Ignore: glass mugs (we use ceramic), watermark, twin serving, coasters, beige background.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for IRANI CHOCOLATE MILK:
+1. The liquid is RICH DEEP CHOCOLATE-BROWN MILK — dark, opaque, thick and creamy (see Reference Image 2 for the exact chocolate-brown color ONLY — ignore the glass mugs and everything else in that image)
+2. A small dollop of white cream floating on the surface with a few chocolate shavings on top
+3. 2-3 small dark chocolate pieces broken on the wood surface near the cup
+4. NO tea leaves — this is a milk drink. Clean wood surface except for chocolate pieces
+5. Thin wispy steam
+
+Everything else identical — same flask branding, clean white saucer, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Chocolate milk should look rich and appetizing, not gray or muddy.`
+},
+{
+name:"Irani Badam Milk",cat:"Beverages - Milk",done:false,
+save:"Irani Badam Milk.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Irani Badam Milk.jpeg",purpose:"ONLY for badam milk color + garnish style — pale creamy-yellow with almonds and saffron on surface",warn:"Ignore the clear glass tumbler and white studio background. Extract ONLY: the pale creamy-yellow liquid color + almond/saffron garnish floating on top."}
+],
+intelligence:"Reference (quality 4/5) is excellent for color and garnish. Extract: pale creamy-yellow color + whole almond/sliced almond/saffron strand garnish floating on surface. Ignore: clear glass tumbler (we use ceramic cup), Vecteezy watermark, white background, steep overhead angle.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for IRANI BADAM (ALMOND) MILK:
+1. The liquid is PALE CREAMY-YELLOW WARM MILK — slightly yellowish-cream from almonds (see Reference Image 2 for the exact color ONLY — ignore the glass and background)
+2. 2-3 sliced almond pieces + 1-2 saffron strands floating on the milk surface
+3. 5-6 whole almonds scattered on the wood surface near the cup + 2 green cardamom pods
+4. NO tea leaves — clean wood except for almonds and cardamom
+5. Thin wispy steam
+
+Everything else identical — same flask branding, clean white saucer, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Almonds must have natural brown skin texture with visible grain.`
+},
+{
+name:"Irani Horlicks",cat:"Beverages - Milk",done:false,
+save:"Irani Horlicks.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Irani Horlicks.jpeg",purpose:"ONLY for the warm tan/beige malty liquid color",warn:"DANGER: This image has COMPETITOR BRANDING ('Teabon') and a Horlicks product jar. Do NOT let AI Studio see these as elements to include. Tell the model to extract ONLY the liquid color — warm tan/beige malt tone with light froth."}
+],
+intelligence:"Reference (quality 2/5) is RISKY — has 'Teabon' competitor branding and a Horlicks jar visible. The ONLY useful element is the liquid color: warm tan/beige malty tone with light surface froth. The prompt MUST explicitly tell the model to ignore all branding and product packaging in this reference.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+IMPORTANT: Reference Image 2 is ONLY for the liquid color. Ignore ALL branding, logos, product jars, cups, and styling in that image — use NOTHING from it except the warm tan/beige malty liquid color.
+
+The ONLY changes for IRANI HORLICKS MILK:
+1. The liquid is WARM TAN/BEIGE MALTY MILK — think Horlicks dissolved in hot milk. Light tan, slightly darker than plain milk, creamy with light surface froth (see Reference Image 2 for color ONLY)
+2. 2-3 green cardamom pods on the wood surface
+3. NO tea leaves, NO product jars, NO competitor branding — clean wood surface with just cardamom
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Do NOT include any Horlicks branding or product packaging in the image.`
+},
+{
+name:"Irani Boost Milk",cat:"Beverages - Milk",done:false,
+save:"Irani Boost Milk.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""}
+],
+intelligence:"Reference (quality 2/5) has Boost product packet and YouTube text overlay — TOO RISKY to upload. Describe the color purely in prompt: light chocolate-tan malt, lighter than chocolate milk but darker than Horlicks.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for IRANI BOOST MILK:
+1. The liquid is LIGHT CHOCOLATE-TAN MALTY MILK — a warm brown-beige color, LIGHTER than chocolate milk but DARKER than plain Horlicks milk. Think chocolate malt dissolved in hot milk — warm, rich, slightly brown with a malty hue
+2. Light frothy surface
+3. 2-3 green cardamom pods on the wood surface
+4. NO tea leaves — clean wood except for cardamom
+5. Thin wispy steam
+
+Everything else identical — same flask branding, clean white saucer, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Do NOT include any product packaging or brand names in the image.`
+},
+
+// ===== COFFEE =====
+{
+name:"Milk Coffee",cat:"Beverages - Coffee",done:false,
+save:"Milk Coffee.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Milk Coffee.jpeg",purpose:"ONLY for milk coffee color — medium warm-brown with thin caramel crema layer",warn:"Ignore the RecipeLand watermark, red flowers, scattered coffee beans, cup style, and wood surface. Extract ONLY: the medium warm-brown color + thin crema/froth layer with caramel hue."}
+],
+intelligence:"Reference (quality 2/5) heavily watermarked. Only useful for: medium warm-brown liquid color with reddish tones + thin caramel crema on surface. Ignore everything else.",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+IMPORTANT: Reference Image 2 is ONLY for the coffee color. Ignore ALL watermarks, flowers, scattered beans, and styling in that image.
+
+The ONLY changes for MILK COFFEE:
+1. The liquid is MILK COFFEE — medium warm-brown with reddish tones and a thin caramel crema/froth layer on top (see Reference Image 2 for color ONLY). Darker than chai, lighter than black coffee
+2. 5-6 roasted coffee beans scattered on the wood surface + 2 green cardamom pods
+3. NO tea leaves — coffee beans replace tea leaves as the surface props
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Coffee beans must have natural dark roasted texture with visible center crease.`
+},
+{
+name:"Black Coffee",cat:"Beverages - Coffee",done:false,
+save:"Black Coffee.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""}
+],
+intelligence:"Reference (quality 2/5) is a generic Nestle stock photo — too risky to upload. Black coffee color is self-descriptive: deep opaque black-brown. Use clear glass cup to show the dark liquid, like the Lemon Tea approach.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask on the left, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for BLACK COFFEE:
+1. Replace the white ceramic cup with a CLEAR GLASS cup on a white saucer — showing deep opaque BLACK coffee liquid inside. No milk at all — pure dark black-brown
+2. Slight surface sheen on the coffee
+3. 6-8 roasted coffee beans scattered on the wood surface
+4. NO tea leaves, NO cardamom — just coffee beans
+5. Thin wispy steam
+
+The clear glass shows the dark liquid beautifully — same approach as the Lemon Tea glass cup.
+
+Flask branding stays exactly the same — "NAWABI CHAI HOUSE" with Charminar illustration. Clean white saucer. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The glass should have realistic transparency and reflections.`
+},
+{
+name:"Masala Coffee",cat:"Beverages - Coffee",done:false,
+save:"Masala Coffee.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Masala Coffee.jpeg",purpose:"ONLY for the frothy foam top with cinnamon/spice dusting",warn:"This looks like a Western-style spiced latte. Ignore the cup style, red rim, white surface, blurred background. Extract ONLY: the thick frothy cream/foam top with cinnamon powder dusted on it."}
+],
+intelligence:"Reference (quality 3/5) is a Western latte style — useful only for: frothy cream foam top with cinnamon/spice dusting. NCH's version is Indian-style masala coffee, so the prompt should emphasize Indian spice elements (not Western latte art).",
+prompt:`Generate the same composition as Reference Image 1 — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+IMPORTANT: Reference Image 2 shows a Western-style latte. Use ONLY the concept of frothy foam with spice dusting — ignore the cup, background, and latte-art styling.
+
+The ONLY changes for MASALA COFFEE (Indian spiced coffee):
+1. The liquid is SPICED MILK COFFEE — medium brown with a layer of frothy foam/crema on top, dusted with a light sprinkle of cinnamon/masala powder (see Reference Image 2 for foam concept ONLY)
+2. Props on wood surface: 4-5 roasted coffee beans + 1 small cinnamon stick + 2 star anise + 2 green cardamom pods — the spice + bean combination is the visual differentiator
+3. NO tea leaves
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. This should feel like an Indian cafe product, not a Starbucks latte.`
+},
+{
+name:"Zafrani Coffee",cat:"Beverages - Coffee",done:false,
+save:"Zafrani Coffee.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Branding + composition anchor",warn:""}
+],
+intelligence:"No reference available. Describe from scratch: saffron-infused milk coffee = medium brown + golden sheen + saffron strands. Combine coffee bean and saffron strand props — the premium positioning.",
+prompt:`Generate the same composition as the uploaded Reference Image — exact same NCH branded flask on the left, same white ceramic "NAWABI CHAI HOUSE" branded cup on the right, same dark walnut wood surface, same dark bokeh background, same camera angle, same warm lighting.
+
+The ONLY changes for ZAFRANI (SAFFRON) COFFEE — the premium coffee:
+1. The liquid is SAFFRON-INFUSED MILK COFFEE — medium brown with a slight GOLDEN SHEEN from saffron infusion
+2. 2-3 thin saffron strands (deep red-orange threads) floating on the coffee surface
+3. Props on wood surface: 4-5 roasted coffee beans + a pinch of saffron strands + 2 green cardamom pods
+4. NO tea leaves — coffee beans + saffron as the hero visual
+5. The saffron + coffee combination signals PREMIUM
+
+Everything else identical — same flask branding, clean white saucer, thin wispy steam, 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Saffron strands must look like real dried threads — thin, delicate, deep red-orange.`
+},
+
+// ===== BUNS & BAKERY =====
+{
+name:"Cream Bun",cat:"Buns & Bakery",done:false,
+save:"Cream Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"ONLY for surface + lighting + background anchor — same walnut wood, same dark bokeh, same warm lighting",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Cream Bun.jpeg",purpose:"ONLY for the bun appearance — golden exterior + thick white cream filling visible in horizontal slice",warn:"Ignore the bulk display, rustic wood surface, and butter knife. Extract ONLY: the golden-brown round bun sliced horizontally showing generous thick white whipped cream filling inside."}
+],
+intelligence:"Reference (quality 3/5) shows multiple buns in bulk bakery display. Extract ONLY: golden-brown round bun exterior + thick white cream filling visible through horizontal slice. The cream is white (not yellow), dense and whipped. Ignore: bulk pile, rustic wood, knife, unplated presentation.",
+prompt:`Professional food photography for "Nawabi Chai House" — CREAM BUN for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting from upper-left, same 30-35 degree camera angle.
+
+The food item (Reference Image 2 shows what the item looks like — use ONLY the bun appearance, ignore the bulk display and rustic styling):
+- 1 golden-brown round soft bun, sliced horizontally to show a generous thick layer of WHITE WHIPPED CREAM filling inside
+- The cream should be white (not yellow), dense, and generously thick — it's the selling point
+- Placed on a white ceramic plate with a brown paper napkin underneath showing "Nawabi Chai House" branding
+- The cross-section showing cream filling should face the camera
+
+NO flask or chai cup in this image — food only. NCH branding comes from the napkin.
+
+Food should fill approximately 70% of the frame. Shallow depth of field.
+4K, 1:1 square.
+
+CRITICAL: This must look like a real photograph. The bun should have realistic bread texture — not too smooth or perfect. Natural flour dusting, slight surface irregularities.`
+},
+{
+name:"Maska Bun",cat:"Buns & Bakery",done:false,
+save:"Maska Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Maska Bun.jpeg",purpose:"ONLY for the bun + butter appearance — glossy golden bun + thick pale-yellow butter slab + white bread interior",warn:"Ignore the pink/beige studio background, white oval plate, and butter bowl props. Extract ONLY: glossy golden-orange bun exterior + thick pale-yellow butter slab filling + soft white bread interior at cross-section."}
+],
+intelligence:"Reference (quality 4/5) is excellent. Extract: glossy golden-orange pav-style bun + thick butter slab sandwiched inside + soft white bread visible at cross-section. Ignore: studio pink background, oval plate, separate butter bowls.",
+prompt:`Professional food photography for "Nawabi Chai House" — MASKA BUN for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows what maska bun looks like — use ONLY the bun/butter appearance):
+- 1 glossy golden-orange Irani pav-style bun, sliced horizontally showing a thick slab of PALE YELLOW BUTTER (maska) inside
+- The soft white bread interior should be visible at the cross-section
+- The glossy bun top should catch the light — it has an egg-wash sheen
+- A small butter curl or pat on the side of the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Butter should have realistic pale-yellow color with slight translucency, not waxy.`
+},
+{
+name:"Malai Bun",cat:"Buns & Bakery",done:false,
+save:"Malai Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Malai Bun.jpeg",purpose:"ONLY for the concept: golden bun with cross-scored top + separate bowl of thick white malai cream",warn:"DANGER: Has 'ChaiHood Cafe' competitor text. Ignore ALL text, the black plate, the handheld presentation, and the outdoor background. Extract ONLY: the concept of a golden bun with cross-scored top served with thick chunky off-white malai in a small bowl."}
+],
+intelligence:"Reference (quality 2/5) is RISKY — has competitor 'ChaiHood Cafe' branding, handheld outdoors, Instagram-story format. Extract ONLY the concept: golden round bun with cross-scored top + separate small bowl of thick chunky off-white malai (clotted cream texture). Prompt must describe this fully without relying on the reference image for quality.",
+prompt:`Professional food photography for "Nawabi Chai House" — MALAI BUN for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+IMPORTANT: Reference Image 2 has competitor branding — use ONLY the food concept from it, ignore all text and styling.
+
+The food item:
+- 1 golden-brown round bun with a cross-scored top (showing the score marks on the dome)
+- A small white ceramic bowl of thick, chunky, OFF-WHITE MALAI (Indian clotted cream) — it should look thick, rich, and textured like condensed milk cream
+- The malai bowl placed next to the bun on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The malai should have natural thick, lumpy cream texture — NOT smooth or poured.`
+},
+{
+name:"Nutella Bun",cat:"Buns & Bakery",done:false,
+save:"Nutella Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Nutella Bun.jpeg",purpose:"ONLY for the dark chocolate-brown Nutella spread visible inside sliced bun",warn:"Ignore the beige bowl, stacked presentation, wooden surface, and window background. The buns look slightly stale — ensure generated bun looks FRESH. Extract ONLY: thick dark chocolate-hazelnut spread layer inside a soft bun."}
+],
+intelligence:"Reference (quality 3/5) shows Nutella filling well but buns look slightly dried out. Extract: thick glossy dark chocolate-brown Nutella layer inside horizontally sliced soft bun. Prompt must specify FRESH, soft bun — not stale.",
+prompt:`Professional food photography for "Nawabi Chai House" — NUTELLA BUN for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows the Nutella filling — use ONLY the filling appearance, ignore the bowl and stale-looking bun):
+- 1 FRESH soft golden-brown Irani bun, sliced open to show a thick swirl of DARK CHOCOLATE-HAZELNUT (Nutella) spread inside
+- The Nutella should look thick, glossy, and rich — dark brown with a slight sheen
+- The bun should look FRESHLY baked — soft, springy, not dry or stale
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The Nutella spread should look thick and glossy, not flat or dry.`
+},
+{
+name:"Omlet Bun",cat:"Buns & Bakery",done:false,
+save:"Omlet Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Omlet Bun.jpeg",purpose:"ONLY for the bun + omelette construction — round bun with masala omelette stuffed inside",warn:"DANGER: Has 'CHAI POINT' competitor branding prominently on the napkin. Ignore ALL branding, the teal background, and side items (chips, chai glass). Extract ONLY: round golden bun with thick folded masala omelette (yellow with green herbs, red sauce) stuffed inside."}
+],
+intelligence:"Reference (quality 3/5) has great food construction but prominent 'CHAI POINT' competitor branding. Extract ONLY: round golden bun + thick folded masala omelette (yellow with green chilies/herbs, red sauce drizzle) stuffed inside, omelette slightly overhanging. Ignore: all branding, teal background, chips, chai glass.",
+prompt:`Professional food photography for "Nawabi Chai House" — OMLET BUN (2 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+IMPORTANT: Reference Image 2 has competitor branding — use ONLY the food construction, ignore ALL text and styling.
+
+The food item:
+- 2 golden-brown round Irani buns, each stuffed with a thick folded MASALA OMELETTE
+- The omelette is bright yellow with visible green chilies/herbs and a drizzle of red sauce/ketchup
+- The omelette should slightly overhang the bun — showing it's generously stuffed
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The omelette should have natural egg texture — slightly uneven, not perfectly smooth.`
+},
+{
+name:"Bun Maska Jam",cat:"Buns & Bakery",done:false,
+save:"Bun Maska Jam.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Bun Maska Jam.jpeg",purpose:"ONLY for the butter + jam layering inside the sliced bun — yellow butter layer + ruby-red jam layer",warn:"Ignore the pink pastel background, jam jar prop, butter bowl, green leaf garnish. Extract ONLY: the cross-scored bun with dual filling visible — pale yellow butter layer + thick ruby-red jam layer."}
+],
+intelligence:"Reference (quality 4/5) is excellent for the filling composition. Extract: cross-scored round bun + dual filling — pale yellow butter + thick ruby-red jam layered inside. A wedge cut away to show cross-section. Ignore: pink background, jar/bowl props, decorative leaf.",
+prompt:`Professional food photography for "Nawabi Chai House" — BUN MASKA JAM for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows the filling — use ONLY the butter+jam filling appearance):
+- 1 golden-brown round bun with cross-scored top, sliced open to reveal TWO LAYERS of filling:
+  - PALE YELLOW BUTTER (maska) layer
+  - THICK RUBY-RED JAM layer on top of the butter
+- A wedge cut away to clearly show the dual-filling cross-section — this red+yellow contrast is the hero visual
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The jam should look like real fruit preserve — thick, slightly chunky, deep ruby-red.`
+},
+{
+name:"Plum Cake Slice",cat:"Buns & Bakery",done:false,
+save:"Plum Cake Slice.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""}
+],
+intelligence:"No reference available. Plum cake is a well-known item — describe fully: dense dark-brown cake slice with visible dried fruit (raisins, candied peel) embedded throughout. Traditional Irani bakery classic.",
+prompt:`Professional food photography for "Nawabi Chai House" — PLUM CAKE SLICE for Swiggy/Zomato.
+
+Use the uploaded Reference Image for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item:
+- 1 thick slice of traditional PLUM CAKE — dense, dark brown, with visible DRIED FRUIT PIECES (dark raisins, golden raisins, candied orange peel) embedded throughout the cake
+- The cross-section should face the camera showing the dense, moist, fruit-studded interior
+- A traditional Irani bakery classic — should look rich, homemade, and moist (not dry)
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The cake should look moist and dense — visible fruit pieces are the hero visual.`
+},
+
+// ===== SAVORY & SNACKS =====
+{
+name:"Cheese Omlet",cat:"Savory & Snacks",done:false,
+save:"Cheese Omlet.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Cheese Omlet.jpeg",purpose:"ONLY for the folded omelette with melted cheese — golden-yellow with sear marks, cheese oozing",warn:"Ignore the bellyfull.net watermark. This is a Western-style omelette — NCH's version is more Indian (add onions, green chilies in prompt). Extract ONLY: the folded shape, golden color, brown sear marks, melted cheese stretching inside."}
+],
+intelligence:"Reference (quality 3/5) is Western-style. Extract: folded omelette shape + golden-yellow color + brown sear marks + visible melted cheese interior. But NCH's version is INDIAN masala style — prompt must add: onions, green chilies, Indian spicing. Ignore: scallion garnish (too Western), bellyfull.net watermark.",
+prompt:`Professional food photography for "Nawabi Chai House" — CHEESE OMLET (2 eggs) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows omelette style — use the folded shape and cheese-melt concept, but make it INDIAN masala style):
+- A fluffy golden-yellow 2-EGG MASALA OMELETTE, folded, with MELTED CHEESE visibly oozing/stretching from inside
+- Brown sear marks on the surface from the pan
+- Indian garnish: chopped fresh cilantro, sliced green chilies, diced onion bits visible
+- A sprinkle of black pepper and red chili flakes on top
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. This should look like an Indian cafe masala omelette, not a French omelette.`
+},
+{
+name:"Kheema Samosa",cat:"Savory & Snacks",done:false,
+save:"Kheema Samosa.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Kheema Samosa.jpeg",purpose:"ONLY for the samosa shape, crispy texture, and keema filling — triangular, golden-brown, blistered pastry + dark spiced mince inside",warn:"Ignore the cloth-lined basket, pile display, dark wood background. Extract ONLY: triangular shape, crispy golden-brown blistered pastry exterior, dark brown spiced keema filling with green herbs visible inside the broken samosa."}
+],
+intelligence:"Reference (quality 4/5) is excellent for food detail. Extract: triangular shape + crispy golden-brown blistered pastry exterior + dark brown spiced keema (minced meat) filling with green herbs (spinach/coriander) visible inside. Ignore: cloth basket, pile/bulk display, dark wood surface, coriander garnish arrangement.",
+prompt:`Professional food photography for "Nawabi Chai House" — KHEEMA SAMOSA (2 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows samosa detail — use ONLY the food appearance):
+- 2 crispy golden-brown TRIANGULAR SAMOSAS with visible blistered/bubbly pastry texture
+- ONE samosa broken open to reveal DARK BROWN SPICED KEEMA (minced meat) filling with visible green herbs (cilantro/coriander leaves) mixed in
+- A small bowl of green mint chutney on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The pastry should have natural blistered/bubbly deep-fried texture — not smooth.`
+},
+{
+name:"Irani Poori",cat:"Savory & Snacks",done:false,
+save:"Irani Poori.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Irani Poori.jpeg",purpose:"ONLY for the puffed poori shape and golden color — round puffed-up fried bread discs",warn:"Ignore the basic home-cooking presentation, white countertop, and potato curry (NCH serves pooris alone, not with curry). Extract ONLY: the golden-brown fully-puffed round poori shape — they should look like inflated balloons."}
+],
+intelligence:"Reference (quality 3/5) shows home-style pooris with aloo curry. Extract ONLY: the golden-brown fully-puffed round poori shape. NCH serves pooris WITHOUT curry — just 3 puffed pooris. Ignore: the aloo curry bowl, basic white surface, home-cooking presentation.",
+prompt:`Professional food photography for "Nawabi Chai House" — IRANI POORI (3 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows poori shape — use ONLY the puffed poori appearance, ignore the curry bowl and home-style presentation):
+- 3 golden-brown FULLY PUFFED round pooris — they should look like inflated balloons, crispy and airy
+- Freshly fried — slight oil sheen on the surface, steam/warmth haze rising
+- Arranged on a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+- NO accompanying curry — just the 3 puffed pooris
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The pooris MUST look fully puffed and balloon-like — this is the hero visual.`
+},
+{
+name:"Lukhmi",cat:"Savory & Snacks",done:false,
+save:"Lukhmi.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Lukhmi.jpeg",purpose:"ONLY for the flat rectangular fried pastry shape and bubbly texture",warn:"Ignore the onion rings, green chili, tomato, white plate, and white background. Extract ONLY: the flat rectangular/square deep-fried pastry shape with golden-brown bubbly/blistered surface texture."}
+],
+intelligence:"Reference (quality 3/5). Extract: flat rectangular/square deep-fried pastry shape + golden-brown bubbly/blistered fried surface. These are THIN and FLAT (not triangular like samosas, not puffed like pooris). Ignore: onion ring/chili/tomato garnish, generic white plate, white background.",
+prompt:`Professional food photography for "Nawabi Chai House" — LUKHMI (1 piece) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows lukhmi shape — use ONLY the pastry appearance):
+- 1 FLAT RECTANGULAR/SQUARE deep-fried Hyderabadi pastry with golden-brown BUBBLY/BLISTERED crispy surface
+- One piece cut/broken to reveal SPICED MEAT FILLING inside — the filling should be visible in the cross-section
+- These are THIN and FLAT — distinctly different from triangular samosas
+- A small bowl of green mint chutney on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The bubbly/blistered fried surface texture is the hero visual for lukhmi.`
+},
+{
+name:"Kajoor",cat:"Savory & Snacks",done:false,
+save:"Kajoor.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Kajoor.jpeg",purpose:"ONLY for the elongated oval shape and deep golden-brown color",warn:"Very low resolution YouTube thumbnail. Details barely visible. Extract ONLY: the elongated oval/finger shape + deep golden-brown color + dense crumbly texture concept. Rely more on the text description in the prompt than this image."}
+],
+intelligence:"Reference (quality 2/5) is a very low-res YouTube thumbnail — barely usable. Extract minimally: elongated oval/finger shape + deep golden-brown color. The prompt text description must carry most of the weight here since the reference is unreliable.",
+prompt:`Professional food photography for "Nawabi Chai House" — KAJOOR (2 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+NOTE: Reference Image 2 is very low quality — use it ONLY for the basic shape. Rely on this text description:
+
+The food item:
+- 2 KAJOOR — elongated oval/finger-shaped golden-brown DEEP-FRIED SPICED MEAT PASTRIES
+- Crispy flaky exterior with a rough, crackled surface texture
+- One piece broken to show the SPICED MEAT FILLING inside
+- A small bowl of green mint chutney on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+These are similar to samosas in concept but OVAL/ELONGATED in shape, not triangular.
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The pastry should have natural deep-fried texture — rough, crackled, slightly uneven.`
+},
+{
+name:"Naan Katai",cat:"Savory & Snacks",done:false,
+save:"Naan Katai.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Naan Katai.jpeg",purpose:"ONLY for the round thick cookie shape, golden-amber color, and fine surface cracks",warn:"Ignore the white square plate and white background — generic product shot. Extract ONLY: round thick cookie shape + warm golden-amber color (darker than Osmania) + fine crack pattern + dense crumbly cookie texture."}
+],
+intelligence:"Reference (quality 3/5) is a basic product shot. Extract: round thick shortbread cookie shape + warm golden-amber color (distinctly darker and more orange than Osmania biscuits) + fine surface cracks + dense crumbly texture. Ignore: white plate, white background, pile arrangement.",
+prompt:`Professional food photography for "Nawabi Chai House" — NAAN KATAI (2 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows naan katai — use ONLY the cookie appearance):
+- 2 round thick NAAN KATAI — Indian shortbread cookies with warm GOLDEN-AMBER color (darker/more orange than pale Osmania biscuits)
+- Fine crack pattern on the surface — characteristic of baked shortbread
+- Dense, crumbly, buttery texture visible where one piece is broken
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. These should look like traditional handmade Indian cookies, not factory-produced.`
+},
+{
+name:"Shirmal",cat:"Savory & Snacks",done:false,
+save:"Shirmal.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Shirmal.jpeg",purpose:"ONLY for the flat golden saffron-glazed bread with almond and nigella seed topping",warn:"Ignore the thedeliciouscrescent.com watermark, green cloth napkin, blurred butter/nut props, and stacked presentation. Extract ONLY: flat oval golden-amber bread + glossy saffron glaze + sliced almond and nigella seed toppings."}
+],
+intelligence:"Reference (quality 3/5). Extract: flat oval golden-amber bread + glossy saffron glaze surface + sliced almond and nigella seed toppings. Saffron gives it a rich golden-orange color. Ignore: watermark, green cloth, food-blog styling, stacked pieces.",
+prompt:`Professional food photography for "Nawabi Chai House" — SHIRMAL for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows shirmal — use ONLY the bread appearance, ignore watermark and styling):
+- 1 flat oval SHIRMAL — a Mughlai saffron sweet bread with a GLOSSY GOLDEN-AMBER surface from saffron/milk glaze
+- Topped with SLICED ALMONDS and NIGELLA SEEDS scattered on the glazed surface
+- The saffron glaze gives it a rich golden-orange color that catches the light
+- Slightly torn at one edge to show the soft, pillowy interior
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The saffron glaze should have a natural wet/glossy sheen, not a painted-on look.`
+},
+{
+name:"Dil Pasand",cat:"Savory & Snacks",done:false,
+save:"Dil Pasand.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Dil Pasand.jpeg",purpose:"ONLY for the cross-section showing tutti-frutti filling — round golden pastry with colorful candied fruit inside",warn:"This is a YouTube video screenshot — low quality, dark, roughly cut. Extract ONLY the concept: round golden-brown domed pastry cut open to reveal soft yellow interior studded with colorful tutti-frutti (red, green, yellow candied pieces)."}
+],
+intelligence:"Reference (quality 2/5) is a YouTube screenshot — dark, rough. Extract ONLY the concept: round golden-brown domed pastry + interior showing soft yellow cake/bread with colorful tutti-frutti pieces (red, green, yellow). The prompt must carry the full description since the reference is unreliable for quality.",
+prompt:`Professional food photography for "Nawabi Chai House" — DIL PASAND for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+NOTE: Reference Image 2 is low quality — use ONLY for the general concept. Rely on this text description:
+
+The food item:
+- 1 round golden-brown DOMED PASTRY (Dil Pasand), cut cleanly in half to reveal the interior
+- The interior shows soft YELLOW cake/bread studded with COLORFUL TUTTI-FRUTTI pieces — bright red, green, and pale yellow candied fruit pieces embedded throughout
+- The top has a slightly caramelized dark golden glaze
+- The colorful cross-section is the HERO visual — the contrast of golden exterior and colorful interior
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The candied fruit pieces should look like real tutti-frutti — small, colorful, embedded in the dough.`
+},
+{
+name:"Hash Brown",cat:"Savory & Snacks",done:false,
+save:"Hash Brown.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Hash Brown.jpeg",purpose:"ONLY for the crispy golden texture and shredded potato appearance",warn:"These look homemade/artisanal — NCH may serve standard commercial hash browns. Ignore the black plate, black background, and herb garnish. Extract ONLY: crispy golden-brown shredded potato texture with craggy irregular edges."}
+],
+intelligence:"Reference (quality 3/5) shows artisanal-style hash browns. Extract: crispy golden-brown shredded potato texture + craggy irregular edges. NCH likely serves standard commercial oval/triangular hash browns — prompt should specify standard commercial style. Ignore: black dramatic staging, rosemary garnish.",
+prompt:`Professional food photography for "Nawabi Chai House" — HASH BROWN (2 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows hash brown texture — use ONLY the crispy golden texture concept):
+- 2 golden-brown crispy HASH BROWN PATTIES — standard oval-shaped commercial hash browns (not artisanal/homemade)
+- Crispy golden exterior with visible shredded potato texture and craggy edges
+- A small bowl of tomato ketchup on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The hash browns should have natural deep-fried golden color with visible potato shreds.`
+},
+{
+name:"Fried Chicken Wings",cat:"Savory & Snacks",done:false,
+save:"Fried Chicken Wings.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Fried Chicken Wings.jpeg",purpose:"ONLY for the golden-orange crispy battered coating and wing shapes",warn:"This image may be AI-generated itself — the lighting is too uniform and surface details slightly uncanny. Extract ONLY the concept: deep golden-orange crispy battered wing pieces. The prompt must add more realistic texture descriptions."}
+],
+intelligence:"Reference (quality 3/5) may itself be AI-generated (uniform lighting, uncanny surface). Extract cautiously: deep golden-orange crispy battered coating concept + drumette/flat wing shapes. Prompt must explicitly add realistic imperfections to counter-balance the potentially AI reference.",
+prompt:`Professional food photography for "Nawabi Chai House" — FRIED CHICKEN WINGS (3 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows fried wings — use ONLY for the general wing shape and golden-orange color concept):
+- 3 SPICED FRIED CHICKEN WINGS with deep golden-orange crispy battered coating
+- A mix of drumettes and flat wing pieces
+- Visible heritage spice coating — red chili flakes, cracked black pepper specks on the crispy surface
+- The batter coating should have IRREGULAR, CRAGGY texture — not smooth or uniform
+- A small bowl of red chili dipping sauce on the plate
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The chicken MUST have natural fried texture — irregular batter coating, visible oil sheen, slight color variation from golden to dark brown at edges. NOT smooth or uniform like a 3D render.`
+},
+
+// ===== BISCUITS =====
+{
+name:"Osmania Biscuits",cat:"Biscuits & Bakery",done:false,
+save:"Osmania Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""},
+  {folder:"NCH Reference Images Main",file:"REF - Osmania Biscuits.jpeg",purpose:"ONLY for the round pale golden shape with signature cracked surface pattern",warn:"Ignore the yourcookingpal.com watermark, polka-dot plate, and pile arrangement. Extract ONLY: round flat shape + pale golden-yellow color + distinctive surface crack pattern + sandy shortbread-like texture."}
+],
+intelligence:"Reference (quality 3/5). Extract: round flat shape + pale golden-yellow color + distinctive surface crack pattern + sandy shortbread-like texture. These are THE Hyderabadi biscuit — the cracked surface is the signature identifier. Ignore: watermark, polka-dot plate, pile display.",
+prompt:`Professional food photography for "Nawabi Chai House" — OSMANIA BISCUITS (3 pieces) for Swiggy/Zomato.
+
+Use Reference Image 1 for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item (Reference Image 2 shows Osmania biscuits — use ONLY the biscuit appearance, ignore watermark and plate):
+- 3 round flat OSMANIA BISCUITS — traditional Hyderabadi heritage biscuits
+- PALE GOLDEN-YELLOW color with DISTINCTIVE SURFACE CRACK PATTERN — this is the signature look
+- Sandy, shortbread-like texture — crumbly and delicate
+- One biscuit broken in half to show the crumbly interior
+- A blurred NCH branded white chai cup visible in the soft background — suggesting the classic chai+biscuit pairing
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The crack pattern on the surface is the HERO visual — it's what makes Osmania biscuits recognizable.`
+},
+{
+name:"Khara Biscuits",cat:"Biscuits & Bakery",done:false,
+save:"Khara Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""}
+],
+intelligence:"No direct reference. Use Osmania as a shape base but differentiate: Khara biscuits are SAVORY — darker golden-brown, with visible spice specks (cumin, pepper, ajwain) on surface. Describe fully in prompt.",
+prompt:`Professional food photography for "Nawabi Chai House" — KHARA BISCUITS (3 pieces) for Swiggy/Zomato.
+
+Use the uploaded Reference Image for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item:
+- 3 round flat KHARA (SAVORY) BISCUITS — similar round shape to Osmania biscuits but DISTINCTLY DIFFERENT:
+  - Slightly DARKER golden-brown color (not pale yellow like Osmania)
+  - Visible SAVORY SPICE SPECKS on the surface — cumin seeds, cracked black pepper, ajwain (carom seeds)
+  - Crisper, harder texture than the sandy Osmania — more like a savory cracker
+- One biscuit broken to show the interior crumb with visible spice flecks
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The visible spice specks are the HERO visual differentiator from Osmania.`
+},
+{
+name:"Fruit Biscuits",cat:"Biscuits & Bakery",done:false,
+save:"Fruit Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""}
+],
+intelligence:"No direct reference. Similar round shape to Osmania but with visible dried fruit pieces. Describe fully: light golden with colorful fruit pieces (raisins, tutti-frutti, candied peel) embedded in the surface.",
+prompt:`Professional food photography for "Nawabi Chai House" — FRUIT BISCUITS (3 pieces) for Swiggy/Zomato.
+
+Use the uploaded Reference Image for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item:
+- 3 round FRUIT BISCUITS — similar round flat shape to Osmania but LIGHTER GOLDEN color
+- Studded with visible COLORFUL DRIED FRUIT PIECES on the surface and embedded inside — dark raisins, red/green tutti-frutti bits, candied orange peel
+- The colorful fruit pieces are the visual differentiator — they dot the pale biscuit surface
+- One biscuit broken to show fruit pieces visible in the cross-section interior
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The colorful dried fruit pieces embedded in the biscuit are the HERO visual.`
+},
+{
+name:"Dry Fruit Biscuits",cat:"Biscuits & Bakery",done:false,
+save:"Dry Fruit Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Surface + lighting + background anchor",warn:""}
+],
+intelligence:"No direct reference. Premium biscuit — loaded with NUTS (not fruit). Golden-brown, richer than regular biscuits. Almond slivers, pistachio, cashew visible. Most expensive biscuit at Rs 99.",
+prompt:`Professional food photography for "Nawabi Chai House" — DRY FRUIT BISCUITS (3 pieces) for Swiggy/Zomato.
+
+Use the uploaded Reference Image for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting, same 30-35 degree angle.
+
+The food item:
+- 3 round golden-brown PREMIUM DRY FRUIT BISCUITS — the most expensive biscuit (Rs 99)
+- Loaded with visible NUT PIECES on the surface and inside — sliced almonds, pistachio pieces, cashew bits
+- Richer, deeper golden-brown color than regular biscuits — the nuts give them a premium look
+- One biscuit broken to show NUT-STUDDED interior
+- 3-4 whole almonds and pistachios scattered on the plate as garnish to reinforce the premium positioning
+- On a white ceramic plate with "Nawabi Chai House" branded brown paper napkin
+
+NO flask. Food fills 70% of frame. Shallow DOF. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. The visible nuts are the HERO visual — they communicate PREMIUM.`
+},
+
+// ===== COMBOS =====
+{
+name:"Irani Chai + Maska Bun",cat:"Combos",done:false,
+save:"Combo - Irani Chai + Maska Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Chai flask + cup as left side of combo",warn:""}
+],
+intelligence:"Composite shot. Left: flask + chai cup (from anchor). Right: maska bun on small plate. Slightly wider framing to fit both.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: IRANI CHAI + MASKA BUN for Swiggy/Zomato.
+
+Use the uploaded Reference Image for: same dark walnut wood surface, same dark warm bokeh background, same warm lighting.
+
+COMBO composition:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with golden Irani chai (exactly as in Reference Image)
+- RIGHT: A glossy golden-brown Maska Bun sliced open showing thick butter filling, on a small white plate with NCH branded napkin
+- Scattered cardamom pods and tea leaves on the wood between both items
+- WIDER framing than individual shots to fit both items — but still 1:1 square
+
+Camera angle: 30-35 degrees. 4K, 1:1 square.
+
+CRITICAL: Real photograph look. Both items should look like they belong in the same photo — consistent lighting and depth of field across the entire frame.`
+},
+{
+name:"Irani Chai + Keema Samosa",cat:"Combos",done:false,
+save:"Combo - Irani Chai + Keema Samosa.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Chai flask + cup as left side",warn:""}
+],
+intelligence:"Composite. Left: flask + chai. Right: 2 samosas (one broken) on small plate with chutney.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: IRANI CHAI + KEEMA SAMOSA for Swiggy/Zomato.
+
+Same setup as Reference Image — dark walnut wood, dark bokeh, warm lighting.
+
+COMBO:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with golden Irani chai
+- RIGHT: 2 golden crispy triangular kheema samosas (one broken showing spiced meat filling) on a small white plate with green chutney bowl and NCH branded napkin
+- Wider 1:1 square framing. 4K.
+
+CRITICAL: Real photograph look. Consistent lighting across both items.`
+},
+{
+name:"Irani Chai + Fruit Biscuits",cat:"Combos",done:false,
+save:"Combo - Irani Chai + Fruit Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Chai flask + cup as left side",warn:""}
+],
+intelligence:"Composite. Left: flask + chai. Right: 3 fruit biscuits on small plate.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: IRANI CHAI + FRUIT BISCUITS for Swiggy/Zomato.
+
+Same setup as Reference Image — dark walnut wood, dark bokeh, warm lighting.
+
+COMBO:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with golden Irani chai
+- RIGHT: 3 light golden round fruit biscuits with visible colorful dried fruit pieces on a small white plate with NCH branded napkin
+- Wider 1:1 square framing. 4K.
+
+CRITICAL: Real photograph look.`
+},
+{
+name:"Irani Chai + Omlet Bun",cat:"Combos",done:false,
+save:"Combo - Irani Chai + Omlet Bun.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Chai flask + cup as left side",warn:""}
+],
+intelligence:"Composite. Left: flask + chai. Right: omlet bun on small plate.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: IRANI CHAI + OMLET BUN for Swiggy/Zomato.
+
+Same setup as Reference Image — dark walnut wood, dark bokeh, warm lighting.
+
+COMBO:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with golden Irani chai
+- RIGHT: A golden bun stuffed with fluffy yellow masala omelette (green herbs, red sauce visible) on a small white plate with NCH branded napkin
+- Complete breakfast feel. Wider 1:1 square framing. 4K.
+
+CRITICAL: Real photograph look.`
+},
+{
+name:"Zafrani Chai + Osmania Biscuits",cat:"Combos",done:false,
+save:"Combo - Zafrani Chai + Osmania Biscuits.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Composition + branding anchor (modify chai to saffron version)",warn:""}
+],
+intelligence:"Premium combo. Left: flask + SAFFRON chai (deeper golden + saffron strands). Right: 3 Osmania biscuits. Royal/heritage feel.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: ZAFRANI CHAI + OSMANIA BISCUITS for Swiggy/Zomato.
+
+Same setup as Reference Image — dark walnut wood, dark bokeh, warm lighting.
+
+PREMIUM COMBO:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with GOLDEN SAFFRON-TINTED CHAI (slightly deeper golden than regular chai) with visible saffron strands floating on surface
+- RIGHT: 3 round pale golden Osmania biscuits with signature cracked surface on a small white plate with NCH branded napkin
+- Saffron strands and cardamom pods scattered on the wood between items
+- This is the ROYAL/HERITAGE combo — premium feel
+- Wider 1:1 square framing. 4K.
+
+CRITICAL: Real photograph look. The saffron strands on the chai are the premium signal.`
+},
+{
+name:"Irani Chai + Dil Pasand",cat:"Combos",done:false,
+save:"Combo - Irani Chai + Dil Pasand.jpg",
+uploads:[
+  {folder:"nch-menu-photos",file:"Irani Chai 250ml - 1.jpg",purpose:"Chai flask + cup as left side",warn:""}
+],
+intelligence:"Composite. Left: flask + chai. Right: dil pasand cut open showing tutti-frutti filling on small plate.",
+prompt:`Professional food photography for "Nawabi Chai House" — COMBO: IRANI CHAI + DIL PASAND for Swiggy/Zomato.
+
+Same setup as Reference Image — dark walnut wood, dark bokeh, warm lighting.
+
+COMBO:
+- LEFT: NCH branded chai flask + white "NAWABI CHAI HOUSE" cup with golden Irani chai
+- RIGHT: 1 Dil Pasand pastry cut open showing colorful tutti-frutti/semolina-coconut filling (red, green, yellow candied pieces) on a small white plate with NCH branded napkin
+- Comfort and tradition feel. Wider 1:1 square framing. 4K.
+
+CRITICAL: Real photograph look.`
+}
+];
+
+let currentIdx = 4; // Start at first pending item
+const doneState = JSON.parse(localStorage.getItem('nch-done-v2') || '{}');
+
+function isDone(name) { return ITEMS.find(i=>i.name===name)?.done || doneState[name]; }
+
+function updateStats() {
+  let done = ITEMS.filter(i => isDone(i.name)).length;
+  let total = ITEMS.length;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-remain').textContent = total - done;
+  document.getElementById('progress-fill').style.width = ((done/total)*100)+'%';
+}
+
+function renderCurrent() {
+  const item = ITEMS[currentIdx];
+  const done = isDone(item.name);
+  document.getElementById('nav-counter').textContent = `${currentIdx+1} of ${ITEMS.length}`;
+  document.getElementById('btn-prev').disabled = currentIdx === 0;
+  document.getElementById('btn-next').disabled = currentIdx === ITEMS.length - 1;
+
+  if (done && item.prompt === 'ALREADY GENERATED') {
+    document.getElementById('current-item').innerHTML = `
+      <div class="item-card is-done">
+        <div class="item-header">
+          <div><div class="item-name">${item.name}</div><div class="item-meta">${item.cat}</div></div>
+          <span class="item-status done">DONE</span>
+        </div>
+        <div class="steps" style="padding:20px 24px;color:var(--green);">Already generated in previous session. Saved as <code>${item.save}</code></div>
+      </div>`;
+    return;
+  }
+
+  let uploadsHTML = item.uploads.map(u => `
+    <div class="file-box">
+      <div>
+        <div class="file-path">~/Desktop/${u.folder}/${u.file}</div>
+        <div class="file-purpose">${u.purpose}</div>
+        ${u.warn ? `<div class="file-warning">${u.warn}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('current-item').innerHTML = `
+    <div class="item-card ${done?'is-done':''}">
+      <div class="item-header">
+        <div>
+          <div class="item-name">${item.name}</div>
+          <div class="item-meta">${item.cat} | Save as: ${item.save}</div>
+        </div>
+        <span class="item-status ${done?'done':'pending'}">${done?'DONE':'PENDING'}</span>
+      </div>
+      <div class="steps">
+        ${item.intelligence ? `<div style="background:rgba(66,165,245,0.08);border:1px solid rgba(66,165,245,0.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#90caf9;">
+          <strong>REFERENCE IMAGE INTELLIGENCE:</strong> ${item.intelligence}
+        </div>` : ''}
+
+        <div class="step-block upload">
+          <div class="step-head">
+            <div class="step-badge b1">1</div>
+            <div class="step-title">Upload these files to AI Studio</div>
+          </div>
+          ${uploadsHTML || '<div style="color:var(--muted);font-size:13px;">No uploads needed</div>'}
+        </div>
+
+        <div class="step-block prompt">
+          <div class="step-head">
+            <div class="step-badge b2">2</div>
+            <div class="step-title">Copy & paste this prompt into AI Studio</div>
+          </div>
+          <div class="prompt-container">
+            <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">COPY PROMPT</button>
+            <div class="prompt-text">${item.prompt}</div>
+          </div>
+        </div>
+
+        <div class="step-block save">
+          <div class="step-head">
+            <div class="step-badge b3">3</div>
+            <div class="step-title">Save the generated image</div>
+          </div>
+          <div class="save-box">
+            <div class="save-filename">${item.save}</div>
+            <div class="save-path">Save to: ~/Desktop/nch-menu-photos/</div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="action-btn btn-done ${done?'is-done':''}" onclick="markDone()" ${done?'disabled':''}>
+          ${done ? 'Completed' : 'Mark as Done'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderList() {
+  document.getElementById('list-view').innerHTML = ITEMS.map((item, i) => {
+    const done = isDone(item.name);
+    return `<div class="list-item ${done?'done':''}" onclick="goTo(${i})">
+      <div class="list-cat">${item.cat}</div>
+      <div class="list-name">${item.name}</div>
+      <div class="list-status ${done?'done':'pending'}">${done?'DONE':'TODO'}</div>
+    </div>`;
+  }).join('');
+}
+
+function navigate(dir) {
+  currentIdx = Math.max(0, Math.min(ITEMS.length-1, currentIdx + dir));
+  renderCurrent();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function goTo(i) {
+  currentIdx = i;
+  renderCurrent();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function copyPrompt() {
+  navigator.clipboard.writeText(ITEMS[currentIdx].prompt);
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = 'COPIED!';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'COPY PROMPT'; btn.classList.remove('copied'); }, 2000);
+}
+
+function markDone() {
+  doneState[ITEMS[currentIdx].name] = true;
+  localStorage.setItem('nch-done-v2', JSON.stringify(doneState));
+  updateStats();
+  renderCurrent();
+  renderList();
+  // Auto-advance to next pending
+  setTimeout(() => navigate(1), 500);
+}
+
+updateStats();
+renderCurrent();
+renderList();
+</script>
+</body>
+</html>
