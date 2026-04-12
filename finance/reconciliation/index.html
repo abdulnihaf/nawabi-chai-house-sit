@@ -117,6 +117,7 @@ table.mt tr.tot td{border-top:2px solid var(--ac);font-weight:700}
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -135,6 +136,11 @@ table.mt tr.tot td{border-top:2px solid var(--ac);font-weight:700}
   <div class="header">
     <h1>HN Hotels &mdash; Financial Reconciliation</h1>
     <div class="sub">Feb 3 &ndash; Mar 31, 2026 &middot; 57 Days</div>
+    <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+      <button onclick="dlReconCSV()" style="padding:5px 12px;border-radius:6px;border:1px solid var(--bd);background:var(--s2);color:var(--dm);font-size:.7rem;cursor:pointer;font-weight:600">Download CSV</button>
+      <button onclick="dlReconXLSX()" style="padding:5px 12px;border-radius:6px;border:1px solid var(--bd);background:var(--s2);color:var(--dm);font-size:.7rem;cursor:pointer;font-weight:600">Download XLSX</button>
+      <button onclick="dlReconMasterXLSX()" style="padding:5px 12px;border-radius:6px;border:1px solid var(--ac);background:var(--s2);color:var(--ac);font-size:.7rem;cursor:pointer;font-weight:600">MASTER XLSX (3 sheets)</button>
+    </div>
   </div>
   <div id="content"></div>
 </div>
@@ -437,6 +443,55 @@ function drawChart(){
 
 function tD(el){el.parentElement.classList.toggle("open")}
 function tT(el){el.parentElement.classList.toggle("open")}
+
+/* ========== DOWNLOAD FUNCTIONS ========== */
+function dlReconCSV(){
+  var h=['Date','Day','NCH Revenue','HE Revenue','Total Revenue','DB Sales','Gap','Raw Material','Salary','Utilities','CapEx','Other Exp','Total Exp','P&L','Cash to Naveen','Razorpay Gross','Razorpay Txns','Paytm Gross','Complimentary','Capital'];
+  var rows=DATA.map(function(d){
+    var opex=0;d.expenses.forEach(function(e){var c=e.cat;if(c&&c.indexOf('RM')===0||c==='Salary Expense'||c.indexOf('Utility')===0||c==='Consumables'||c==='Transport'||c==='Tech'||c==='Marketing'||c==='Police'||c==='Maintenance'||c==='Staff Welfare'||c==='Owner Draws'||c==='Stationery')opex+=e.d});
+    var capex=0;d.expenses.forEach(function(e){if(e.cat==='CapEx')capex+=e.d});
+    var rm=0;d.expenses.forEach(function(e){if(e.cat&&e.cat.indexOf('RM')===0)rm+=e.d});
+    var sal=0;d.expenses.forEach(function(e){if(e.cat==='Salary Expense')sal+=e.d});
+    var util=0;d.expenses.forEach(function(e){if(e.cat&&e.cat.indexOf('Utility')===0)util+=e.d});
+    var oth=opex-rm-sal-util;
+    return[d.date,d.day,d.nch.revenue,d.he.revenue,d.total_revenue,d.db_sales,d.total_revenue-d.db_sales,rm,sal,util,capex,oth,opex+capex,d.total_revenue-opex,d.cash_naveen,d.razorpay.gross,d.razorpay.txns,d.paytm.gross,d.complimentary,d.capital];
+  });
+  var csv=h.join(',')+'\n'+rows.map(function(r){return r.join(',')}).join('\n');
+  var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HN_Reconciliation_Daily.csv';a.click();
+}
+
+function dlReconXLSX(){
+  var h=['Date','Day','NCH Revenue','HE Revenue','Total Revenue','DB Sales','Gap','OpEx','CapEx','P&L','Cash to Naveen','Razorpay Gross','Paytm Gross'];
+  var rows=DATA.map(function(d){
+    var opex=0,capex=0;d.expenses.forEach(function(e){if(e.cat==='CapEx')capex+=e.d;else opex+=e.d});
+    return[d.date,d.day,d.nch.revenue,d.he.revenue,d.total_revenue,d.db_sales,d.total_revenue-d.db_sales,opex,capex,d.total_revenue-opex,d.cash_naveen,d.razorpay.gross,d.paytm.gross];
+  });
+  var ws=XLSX.utils.aoa_to_sheet([h].concat(rows));
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Daily Reconciliation');XLSX.writeFile(wb,'HN_Reconciliation_Daily.xlsx');
+}
+
+function dlReconMasterXLSX(){
+  var wb=XLSX.utils.book_new();
+  // Sheet 1: Daily summary
+  var h1=['Date','Day','NCH Rev','NCH Orders','HE Rev','HE Orders','Total Rev','DB Sales','Gap','OpEx','CapEx','P&L','Cash Naveen','Razorpay','Paytm','Complimentary','Capital'];
+  var r1=DATA.map(function(d){var opex=0,capex=0;d.expenses.forEach(function(e){if(e.cat==='CapEx')capex+=e.d;else opex+=e.d});return[d.date,d.day,d.nch.revenue,d.nch.orders,d.he.revenue,d.he.orders,d.total_revenue,d.db_sales,d.total_revenue-d.db_sales,opex,capex,d.total_revenue-opex,d.cash_naveen,d.razorpay.gross,d.paytm.gross,d.complimentary,d.capital]});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h1].concat(r1)),'Daily Summary');
+  // Sheet 2: Revenue by product (all days, all products)
+  var h2=['Date','Brand','Product','Qty','Unit Price','Amount','Category'];
+  var r2=[];
+  DATA.forEach(function(d){
+    d.nch.products.forEach(function(p){r2.push([d.date,'NCH',p.name,p.qty,p.unit,p.amount,p.cat])});
+    d.he.products.forEach(function(p){r2.push([d.date,'HE',p.name,p.qty,p.unit,p.amount,p.cat])});
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h2].concat(r2)),'Revenue Products');
+  // Sheet 3: All expenses
+  var h3=['Date','Category','Item','Amount'];
+  var r3=[];
+  DATA.forEach(function(d){d.expenses.forEach(function(e){r3.push([d.date,e.cat,e.p,e.d])})});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h3].concat(r3)),'All Expenses');
+  XLSX.writeFile(wb,'HN_Reconciliation_Master.xlsx');
+}
 </script>
 </body>
 </html>/* cache bust 1775987974 */
