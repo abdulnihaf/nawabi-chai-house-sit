@@ -10,87 +10,129 @@ export async function onRequest(context) {
   const ODOO_DB = 'main';
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
+  const CONFIG_IDS = [27, 28];
 
-  // TIMEZONE HANDLING (same as nch-data.js):
+  // TIMEZONE HANDLING:
   // - Input params are IST (local time strings)
   // - Cloudflare Workers run in UTC
   // - Odoo stores dates in UTC
-  
+
   let fromUTC, toUTC;
-  
+
   if (fromParam) {
-    // Input is IST time string, convert to UTC
     const fromParsed = new Date(fromParam);
     fromUTC = new Date(fromParsed.getTime() - (5.5 * 60 * 60 * 1000));
   } else {
-    // Default: 24 hours ago
     fromUTC = new Date(Date.now() - 24 * 60 * 60 * 1000);
   }
-  
+
   if (toParam) {
-    // Input is IST time string, convert to UTC
     const toParsed = new Date(toParam);
     toUTC = new Date(toParsed.getTime() - (5.5 * 60 * 60 * 1000));
   } else {
-    // Default: NOW - already UTC, no conversion!
     toUTC = new Date();
   }
 
   const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
   const toOdoo = toUTC.toISOString().slice(0, 19).replace('T', ' ');
-  
-  // For display purposes
   const fromIST = new Date(fromUTC.getTime() + (5.5 * 60 * 60 * 1000));
   const toIST = new Date(toUTC.getTime() + (5.5 * 60 * 60 * 1000));
 
   try {
-    const [orders, orderLines] = await Promise.all([
-      fetchOrders(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo),
-      fetchOrderLines(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, fromOdoo, toOdoo)
+    // Phase 1: Orders + payment method master list
+    const [orders, paymentMethods] = await Promise.all([
+      rpc(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+        [[['config_id', 'in', CONFIG_IDS], ['date_order', '>=', fromOdoo], ['date_order', '<=', toOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]],
+        {fields: ['id', 'name', 'date_order', 'amount_total', 'partner_id', 'config_id']}),
+      rpc(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment.method', 'search_read',
+        [[['config_ids', 'in', CONFIG_IDS]]], {fields: ['id', 'name', 'type']})
     ]);
-    const insights = processInsights(orders, orderLines);
-    return new Response(JSON.stringify({success: true, timestamp: new Date().toISOString(), query: {from: fromIST.toISOString(), to: toIST.toISOString(), fromUTC: fromUTC.toISOString(), toUTC: toUTC.toISOString()}, data: insights}), { headers: corsHeaders });
+
+    const orderIds = orders.map(o => o.id);
+    if (orderIds.length === 0) {
+      return new Response(JSON.stringify({
+        success: true, timestamp: new Date().toISOString(),
+        query: {from: fromIST.toISOString(), to: toIST.toISOString(), fromUTC: fromUTC.toISOString(), toUTC: toUTC.toISOString()},
+        data: emptyData()
+      }), { headers: corsHeaders });
+    }
+
+    // Phase 2: Order lines + payments (need order IDs)
+    const [orderLines, payments] = await Promise.all([
+      fetchOrderLines(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, orderIds),
+      rpc(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+        [[['pos_order_id', 'in', orderIds]]],
+        {fields: ['id', 'pos_order_id', 'payment_method_id', 'amount']})
+    ]);
+
+    const insights = processInsights(orders, orderLines, payments, paymentMethods);
+    return new Response(JSON.stringify({
+      success: true, timestamp: new Date().toISOString(),
+      query: {from: fromIST.toISOString(), to: toIST.toISOString(), fromUTC: fromUTC.toISOString(), toUTC: toUTC.toISOString()},
+      data: insights
+    }), { headers: corsHeaders });
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), { status: 500, headers: corsHeaders });
   }
 }
 
-async function fetchOrders(url, db, uid, apiKey, since, until) {
-  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order', 'search_read', [[['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['date_order', '<=', until], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]], {fields: ['id', 'name', 'date_order', 'amount_total', 'partner_id', 'config_id']}]}, id: 1};
+function emptyData() {
+  return {
+    summary: {totalRevenue: 0, totalOrders: 0, totalQty: 0, avgOrderValue: 0},
+    topProducts: [], categories: [], products: [],
+    channels: {cashCounter: {amount: 0, orders: 0, percentage: 0}, runners: {amount: 0, orders: 0, percentage: 0}},
+    runners: [], payments: [], hourly: [], productHourly: {}
+  };
+}
+
+async function rpc(url, db, uid, apiKey, model, method, args, kwargs = {}) {
+  const payload = {
+    jsonrpc: '2.0', method: 'call', id: 1,
+    params: { service: 'object', method: 'execute_kw', args: [db, uid, apiKey, model, method, args, kwargs] }
+  };
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return data.result || [];
+}
+
+async function fetchOrderLines(url, db, uid, apiKey, orderIds) {
+  const payload = {jsonrpc: '2.0', method: 'call', id: 3,
+    params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order.line', 'search_read', [[['order_id', 'in', orderIds]]], {fields: ['id', 'order_id', 'product_id', 'qty', 'price_subtotal_incl']}]}};
   const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
   const data = await response.json();
   return data.result || [];
 }
 
-async function fetchOrderLines(url, db, uid, apiKey, since, until) {
-  const orderPayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order', 'search', [[['config_id', 'in', [27, 28]], ['date_order', '>=', since], ['date_order', '<=', until], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]]]}, id: 2};
-  const orderResponse = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(orderPayload)});
-  const orderData = await orderResponse.json();
-  const orderIds = orderData.result || [];
-  if (orderIds.length === 0) return [];
-  const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw', args: [db, uid, apiKey, 'pos.order.line', 'search_read', [[['order_id', 'in', orderIds]]], {fields: ['id', 'order_id', 'product_id', 'qty', 'price_subtotal_incl']}]}, id: 3};
-  const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-  const data = await response.json();
-  return data.result || [];
+function classifyPaymentMethod(pm) {
+  if (pm.type === 'cash') return 'Cash';
+  if (pm.type === 'pay_later') return 'Complimentary';
+  const lower = pm.name.toLowerCase();
+  if (lower.includes('upi') || lower.includes('paytm') || lower.includes('phonepe') || lower.includes('gpay')) return 'UPI';
+  if (lower.includes('card')) return 'Card';
+  return 'Other';
 }
 
 function categorizeProduct(name) {
-  // Categorize products based on name keywords — matches POS categories (Chai=48, Snacks=47)
   const lower = name.toLowerCase();
   if (lower.includes('chai') || lower.includes('coffee') || lower.includes('tea')) return 'Chai';
   return 'Snacks';
 }
 
-function processInsights(orders, orderLines) {
+function processInsights(orders, orderLines, payments, paymentMethods) {
   const RUNNERS = {64: 'FAROOQ', 65: 'AMIN', 66: 'NCH Runner 03', 67: 'NCH Runner 04', 68: 'NCH Runner 05'};
+
+  // Payment method ID → group name
+  const pmGroupMap = {};
+  paymentMethods.forEach(pm => { pmGroupMap[pm.id] = classifyPaymentMethod(pm); });
+
   const products = {};
   const hourlyData = {};
   const channelSales = {cashCounter: {amount: 0, orders: 0}, runners: {amount: 0, orders: 0}};
   const runnerSales = {};
-  const categoryTotals = {}; // Dynamic category aggregation
+  const categoryTotals = {};
   let totalRevenue = 0, totalQty = 0;
 
-  // Build order lookup map for O(1) access (fixes O(n²) runner product breakdown)
   const orderMap = {};
   orders.forEach(o => { orderMap[o.id] = o; });
 
@@ -103,7 +145,6 @@ function processInsights(orders, orderLines) {
     products[pid].amount += line.price_subtotal_incl;
     totalQty += line.qty;
 
-    // Category-level aggregation
     if (!categoryTotals[category]) categoryTotals[category] = {name: category, amount: 0, qty: 0, products: 0};
     categoryTotals[category].amount += line.price_subtotal_incl;
     categoryTotals[category].qty += line.qty;
@@ -112,8 +153,6 @@ function processInsights(orders, orderLines) {
   orders.forEach(order => {
     totalRevenue += order.amount_total;
     const partnerId = order.partner_id ? order.partner_id[0] : null;
-    const configId = order.config_id ? order.config_id[0] : null;
-    // Convert UTC date_order to IST hour using proper Date math (+5:30)
     const orderDate = order.date_order ? new Date(order.date_order.replace(' ', 'T') + 'Z') : null;
     const istTime = orderDate ? new Date(orderDate.getTime() + 5.5 * 60 * 60 * 1000) : null;
     const istHour = istTime ? istTime.getUTCHours() : 0;
@@ -126,7 +165,6 @@ function processInsights(orders, orderLines) {
     if (partnerId && RUNNERS[partnerId]) {
       channelSales.runners.amount += order.amount_total;
       channelSales.runners.orders++;
-      // Initialize runner sales entry BEFORE processing order lines
       if (!runnerSales[partnerId]) runnerSales[partnerId] = {id: partnerId, name: RUNNERS[partnerId], amount: 0, orders: 0, products: {}};
       runnerSales[partnerId].amount += order.amount_total;
       runnerSales[partnerId].orders++;
@@ -136,7 +174,7 @@ function processInsights(orders, orderLines) {
     }
   });
 
-  // Second pass for runner product breakdown + per-product hourly data
+  // Runner product breakdown + per-product hourly
   const productHourly = {};
   orderLines.forEach(line => {
     const orderId = line.order_id ? line.order_id[0] : null;
@@ -148,8 +186,6 @@ function processInsights(orders, orderLines) {
         if (!runnerSales[partnerId].products[pname]) runnerSales[partnerId].products[pname] = 0;
         runnerSales[partnerId].products[pname] += line.qty;
       }
-
-      // Per-product hourly breakdown
       const pid = line.product_id ? line.product_id[0] : 0;
       const orderDate = order.date_order ? new Date(order.date_order.replace(' ', 'T') + 'Z') : null;
       const istTime = orderDate ? new Date(orderDate.getTime() + 5.5 * 60 * 60 * 1000) : null;
@@ -160,30 +196,55 @@ function processInsights(orders, orderLines) {
     }
   });
 
-  // Count unique products per category
+  // Payment aggregation
+  const paymentTotals = {};
+  let complimentaryAmount = 0, complimentaryCount = 0;
+  payments.forEach(p => {
+    const methodId = p.payment_method_id ? p.payment_method_id[0] : 0;
+    const group = pmGroupMap[methodId] || 'Other';
+    if (!paymentTotals[group]) paymentTotals[group] = {name: group, amount: 0, count: 0};
+    paymentTotals[group].amount += p.amount;
+    paymentTotals[group].count++;
+    if (group === 'Complimentary') {
+      complimentaryAmount += p.amount;
+      complimentaryCount++;
+    }
+  });
+
   Object.values(products).forEach(p => {
     if (categoryTotals[p.category]) categoryTotals[p.category].products++;
   });
 
   const productList = Object.values(products).sort((a, b) => b.amount - a.amount);
-
-  // Dynamic top products: top 5 by revenue (auto-adapts as menu grows)
-  const topProducts = productList.slice(0, 5).map(p => ({
-    id: p.id, name: p.name, qty: p.qty, amount: p.amount, category: p.category
-  }));
-
+  const topProducts = productList.slice(0, 5).map(p => ({id: p.id, name: p.name, qty: p.qty, amount: p.amount, category: p.category}));
   const runnerList = Object.values(runnerSales).sort((a, b) => b.amount - a.amount);
-  // Full 24-hour window (NCH is a 24-hour cafe): 12 AM → 11 PM IST
+
   const hourlyArray = [];
-  for (let h = 0; h <= 23; h++) { const key = h.toString().padStart(2, '0'); hourlyArray.push({hour: h, label: h === 0 ? '12 AM' : h === 12 ? '12 PM' : h > 12 ? (h-12)+' PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0}); }
+  for (let h = 0; h <= 23; h++) {
+    const key = h.toString().padStart(2, '0');
+    hourlyArray.push({hour: h, label: h === 0 ? '12 AM' : h === 12 ? '12 PM' : h > 12 ? (h-12)+' PM' : h+' AM', orders: hourlyData[key]?.orders || 0, amount: hourlyData[key]?.amount || 0});
+  }
 
   const totalOrders = channelSales.cashCounter.orders + channelSales.runners.orders;
+
+  // Payment list sorted by amount
+  const paymentList = Object.values(paymentTotals).sort((a, b) => b.amount - a.amount);
+  paymentList.forEach(p => { p.percentage = totalRevenue > 0 ? Math.round((p.amount / totalRevenue) * 100) : 0; });
+
   return {
-    summary: {totalRevenue, totalOrders, totalQty, avgOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0},
+    summary: {
+      totalRevenue, totalOrders, totalQty,
+      avgOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,
+      ...(complimentaryCount > 0 ? {complimentary: {amount: complimentaryAmount, count: complimentaryCount}} : {})
+    },
     topProducts,
     categories: Object.values(categoryTotals).sort((a, b) => b.amount - a.amount),
     products: productList,
-    channels: {cashCounter: {...channelSales.cashCounter, percentage: totalRevenue > 0 ? Math.round((channelSales.cashCounter.amount / totalRevenue) * 100) : 0}, runners: {...channelSales.runners, percentage: totalRevenue > 0 ? Math.round((channelSales.runners.amount / totalRevenue) * 100) : 0}},
+    channels: {
+      cashCounter: {...channelSales.cashCounter, percentage: totalRevenue > 0 ? Math.round((channelSales.cashCounter.amount / totalRevenue) * 100) : 0},
+      runners: {...channelSales.runners, percentage: totalRevenue > 0 ? Math.round((channelSales.runners.amount / totalRevenue) * 100) : 0}
+    },
+    payments: paymentList,
     runners: runnerList,
     hourly: hourlyArray,
     productHourly
