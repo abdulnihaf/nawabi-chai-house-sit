@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH — Daily Sales Sheet</title>
+<style>
+:root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a26;--bd:#2a2a3a;--tx:#e0e0e8;--dm:#8888a0;--ac:#d4a44c;--gn:#22c55e;--rd:#ef4444;--or:#f97316;--yl:#eab308;--cash:#f59e0b;--upi:#8b5cf6;--rl:#f97316;--card:#06b6d4}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--tx);line-height:1.6;min-height:100vh}
+.pin-gate{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.pin-gate h2{font-size:22px;color:var(--ac)}
+.pin-gate input{background:var(--s1);border:2px solid var(--bd);border-radius:12px;padding:14px 24px;font-size:24px;color:var(--tx);text-align:center;letter-spacing:12px;width:200px;outline:none}
+.pin-gate input:focus{border-color:var(--ac)}
+.hide{display:none!important}
+
+/* Header */
+.hdr{padding:20px;text-align:center;border-bottom:1px solid var(--bd)}
+.hdr h1{font-size:22px;font-weight:800;background:linear-gradient(135deg,#d4a44c,#ac7e54);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr p{color:var(--dm);font-size:12px;margin-top:4px}
+
+/* Date Nav */
+.date-nav{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;border-bottom:1px solid var(--bd);flex-wrap:wrap;position:sticky;top:0;z-index:100;background:rgba(10,10,15,.95);backdrop-filter:blur(20px)}
+.date-nav button{padding:8px 16px;border-radius:8px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);font-size:13px;font-weight:600;cursor:pointer;transition:.2s}
+.date-nav button:hover{border-color:var(--ac)}
+.date-nav button.active{background:var(--ac);color:#000;border-color:var(--ac)}
+.date-nav input[type=date]{padding:8px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);font-size:13px;outline:none}
+.date-label{font-size:16px;font-weight:700;color:var(--ac);min-width:180px;text-align:center}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;padding:8px 16px;border-bottom:1px solid var(--bd);overflow-x:auto}
+.tabs button{padding:8px 14px;border-radius:8px;border:none;background:transparent;color:var(--dm);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tabs button.active{background:var(--s2);color:var(--ac)}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:16px}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px;text-align:center}
+.card .label{font-size:11px;color:var(--dm);text-transform:uppercase;letter-spacing:1px}
+.card .val{font-size:22px;font-weight:800;margin-top:4px}
+.card .sub{font-size:11px;color:var(--dm);margin-top:2px}
+.card.cash{border-top:3px solid var(--cash)}.card.cash .val{color:var(--cash)}
+.card.upi{border-top:3px solid var(--upi)}.card.upi .val{color:var(--upi)}
+.card.rl{border-top:3px solid var(--rl)}.card.rl .val{color:var(--rl)}
+.card.rev{border-top:3px solid var(--ac)}.card.rev .val{color:var(--ac)}
+
+/* Sections */
+.sec{padding:16px;border-top:1px solid var(--bd)}
+.sec-t{font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec-t span{font-size:12px;color:var(--dm);font-weight:400}
+
+/* Bar chart */
+.bar-row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.bar-label{width:140px;text-align:right;color:var(--dm);font-size:12px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-wrap{flex:1;height:28px;background:var(--s2);border-radius:6px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;color:#000;min-width:fit-content;transition:width .4s ease}
+.bar-val{width:90px;text-align:right;font-weight:600;font-size:12px;flex-shrink:0}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--s2);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dm);border-bottom:2px solid var(--bd);position:sticky;top:0}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--bd)}
+.tbl tr:hover{background:var(--s2)}
+.tbl .r{text-align:right}
+.tbl .mono{font-family:'SF Mono',monospace;font-size:11px}
+
+/* Runner cards */
+.runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.runner-card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px;border-left:3px solid var(--or)}
+.runner-card h4{font-size:14px;font-weight:700}
+.runner-card .stats{display:flex;gap:16px;margin:8px 0;font-size:12px;color:var(--dm)}
+.runner-card .stats b{color:var(--tx)}
+.runner-card .prods{font-size:11px;color:var(--dm);margin-top:6px}
+.runner-card .prods span{display:inline-block;background:var(--s2);padding:2px 8px;border-radius:4px;margin:2px;font-size:10px}
+
+/* Payment breakdown */
+.pm-group{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px;margin:8px 0}
+.pm-group h4{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.pm-group .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.pm-group .items{font-size:12px}
+.pm-group .items .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--s2)}
+
+/* Timeline table */
+.timeline-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.timeline-wrap .tbl td,.timeline-wrap .tbl th{white-space:nowrap;padding:6px 8px}
+
+/* Loading */
+.loading{text-align:center;padding:60px;color:var(--dm)}
+.loading .spin{display:inline-block;width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Stacked bar for payment split */
+.stack-bar{height:32px;display:flex;border-radius:8px;overflow:hidden;margin:8px 0}
+.stack-bar .seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#000;transition:width .4s}
+
+@media(max-width:600px){
+  .cards{grid-template-columns:repeat(2,1fr);gap:8px;padding:12px}
+  .card .val{font-size:18px}
+  .bar-label{width:80px;font-size:11px}
+  .runner-grid{grid-template-columns:1fr}
+  .sec{padding:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="pin-gate" id="pinGate">
+  <h2>Daily Sales Sheet</h2>
+  <input type="password" id="pinInput" maxlength="4" inputmode="numeric" placeholder="PIN" autofocus>
+  <p style="color:var(--dm);font-size:12px">Nawabi Chai House Finance</p>
+</div>
+
+<div id="app" class="hide">
+  <div class="hdr">
+    <h1>NCH Daily Sales Sheet</h1>
+    <p>Live from Odoo POS &bull; Payment streams &bull; Runner breakdown</p>
+  </div>
+
+  <div class="date-nav">
+    <button onclick="nav(-1)">&larr;</button>
+    <button onclick="loadDate('yesterday')">Yesterday</button>
+    <button onclick="loadDate('today')" class="active" id="btnToday">Today</button>
+    <button onclick="nav(1)">&rarr;</button>
+    <input type="date" id="datePicker" onchange="loadDate(this.value)">
+    <div class="date-label" id="dateLabel">Today</div>
+  </div>
+
+  <div class="tabs">
+    <button class="active" onclick="showTab('overview',this)">Overview</button>
+    <button onclick="showTab('payments',this)">Payments</button>
+    <button onclick="showTab('runners',this)">Runners</button>
+    <button onclick="showTab('products',this)">Products</button>
+    <button onclick="showTab('timeline',this)">Timeline</button>
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="cards" id="summaryCards"></div>
+    <div class="sec">
+      <div class="sec-t">Payment Streams</div>
+      <div class="stack-bar" id="paymentBar"></div>
+      <div id="paymentBars"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Channels</div>
+      <div id="channelBars"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Categories</div>
+      <div id="categoryBars"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Hourly Distribution</div>
+      <div id="hourlyChart" style="height:120px;display:flex;align-items:flex-end;gap:2px;padding-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- PAYMENTS TAB -->
+  <div class="tab-content" id="tab-payments">
+    <div class="sec" id="paymentProducts"></div>
+  </div>
+
+  <!-- RUNNERS TAB -->
+  <div class="tab-content" id="tab-runners">
+    <div class="sec" id="runnerSection"></div>
+  </div>
+
+  <!-- PRODUCTS TAB -->
+  <div class="tab-content" id="tab-products">
+    <div class="sec" id="productSection"></div>
+  </div>
+
+  <!-- TIMELINE TAB -->
+  <div class="tab-content" id="tab-timeline">
+    <div class="sec">
+      <div class="sec-t">Last 30 Days <span>(scroll right for all columns)</span></div>
+      <div class="timeline-wrap" id="timelineSection"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://nawabichaihouse.com/api/sales-insights';
+const PINS = ['2049','1234','0000','8008'];
+let currentDate = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+let data = null;
+
+// PIN Gate
+document.getElementById('pinInput').addEventListener('input', function(){
+  if(this.value.length===4){
+    if(PINS.includes(this.value)){
+      document.getElementById('pinGate').classList.add('hide');
+      document.getElementById('app').classList.remove('hide');
+      loadDate('today');
+    } else { this.value=''; this.style.borderColor='var(--rd)'; setTimeout(()=>this.style.borderColor='',500); }
+  }
+});
+
+function ist(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}))}
+function fmtDate(d){return d.toISOString().split('T')[0]}
+function fmtCur(n){return '₹'+Math.round(n).toLocaleString('en-IN')}
+function fmtPct(n,t){return t>0?Math.round(n/t*100)+'%':'0%'}
+
+function loadDate(d){
+  if(d==='today') currentDate=ist();
+  else if(d==='yesterday'){currentDate=ist();currentDate.setDate(currentDate.getDate()-1);}
+  else {const p=d.split('-');currentDate=new Date(p[0],p[1]-1,p[2]);}
+  fetchDay();
+}
+function nav(dir){currentDate.setDate(currentDate.getDate()+dir);fetchDay();}
+
+async function fetchDay(){
+  const ds=fmtDate(currentDate);
+  const next=new Date(currentDate);next.setDate(next.getDate()+1);
+  const ns=fmtDate(next);
+  document.getElementById('dateLabel').textContent=currentDate.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  document.getElementById('datePicker').value=ds;
+
+  // Show loading
+  document.getElementById('summaryCards').innerHTML='<div class="loading"><div class="spin"></div><p>Loading...</p></div>';
+
+  try{
+    const r=await fetch(`${API}?from=${ds}%2000:00:00&to=${ns}%2000:00:00`);
+    data=(await r.json()).data;
+    renderOverview();
+    renderPayments();
+    renderRunners();
+    renderProducts();
+  }catch(e){
+    document.getElementById('summaryCards').innerHTML=`<div class="loading" style="color:var(--rd)">Error: ${e.message}</div>`;
+  }
+}
+
+function showTab(id,btn){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='timeline'&&!document.getElementById('timelineSection').innerHTML) loadTimeline();
+}
+
+function renderOverview(){
+  const s=data.summary;
+  const p=data.payments||[];
+  const cash=p.find(x=>x.name==='Cash')||{amount:0,count:0};
+  const upi=p.find(x=>x.name==='UPI')||{amount:0,count:0};
+  const rl=p.find(x=>x.name==='Complimentary')||{amount:0,count:0};
+  const card=p.find(x=>x.name==='Card')||{amount:0,count:0};
+  const ch=data.channels||{};
+  const counter=ch.cashCounter||{amount:0,orders:0};
+  const runners=ch.runners||{amount:0,orders:0};
+
+  document.getElementById('summaryCards').innerHTML=`
+    <div class="card rev"><div class="label">Revenue</div><div class="val">${fmtCur(s.totalRevenue)}</div><div class="sub">${s.totalOrders} orders &bull; AOV ${fmtCur(s.avgOrderValue)}</div></div>
+    <div class="card cash"><div class="label">Cash</div><div class="val">${fmtCur(cash.amount)}</div><div class="sub">${cash.count} txns &bull; ${fmtPct(cash.amount,s.totalRevenue)}</div></div>
+    <div class="card upi"><div class="label">UPI</div><div class="val">${fmtCur(upi.amount)}</div><div class="sub">${upi.count} txns &bull; ${fmtPct(upi.amount,s.totalRevenue)}</div></div>
+    <div class="card rl"><div class="label">Runner Ledger</div><div class="val">${fmtCur(rl.amount)}</div><div class="sub">${rl.count} txns &bull; ${fmtPct(rl.amount,s.totalRevenue)}</div></div>
+  `;
+
+  // Stacked payment bar
+  const rev=s.totalRevenue||1;
+  document.getElementById('paymentBar').innerHTML=`
+    <div class="seg" style="width:${cash.amount/rev*100}%;background:var(--cash)">${cash.amount>0?fmtPct(cash.amount,rev):''}</div>
+    <div class="seg" style="width:${upi.amount/rev*100}%;background:var(--upi)">${upi.amount>0?fmtPct(upi.amount,rev):''}</div>
+    <div class="seg" style="width:${rl.amount/rev*100}%;background:var(--rl)">${rl.amount>0?fmtPct(rl.amount,rev):''}</div>
+    ${card.amount>0?`<div class="seg" style="width:${card.amount/rev*100}%;background:var(--card)">${fmtPct(card.amount,rev)}</div>`:''}
+  `;
+
+  // Payment bars
+  const payments=[
+    {label:'Cash',amount:cash.amount,color:'var(--cash)',sub:`${cash.count} txns`},
+    {label:'UPI',amount:upi.amount,color:'var(--upi)',sub:`${upi.count} txns`},
+    {label:'Runner Ledger',amount:rl.amount,color:'var(--rl)',sub:`${rl.count} txns`},
+  ];
+  if(card.amount>0) payments.push({label:'Card',amount:card.amount,color:'var(--card)',sub:`${card.count} txns`});
+  document.getElementById('paymentBars').innerHTML=payments.map(p=>barRow(p.label,p.amount,rev,p.color,p.sub)).join('');
+
+  // Channel bars
+  document.getElementById('channelBars').innerHTML=[
+    {label:'Counter',amount:counter.amount,color:'var(--ac)',sub:`${counter.orders} orders`},
+    {label:'Runners',amount:runners.amount,color:'var(--or)',sub:`${runners.orders} orders`},
+  ].map(p=>barRow(p.label,p.amount,rev,p.color,p.sub)).join('');
+
+  // Category bars
+  const cats=data.categories||[];
+  document.getElementById('categoryBars').innerHTML=cats.map(c=>
+    barRow(c.name,c.amount,rev,c.name==='Chai'?'var(--ac)':'var(--gn)',`${c.qty} items`)
+  ).join('');
+
+  // Hourly chart
+  const hourly=data.hourly||[];
+  const maxH=Math.max(...hourly.map(h=>h.amount),1);
+  document.getElementById('hourlyChart').innerHTML=hourly.map(h=>{
+    const pct=h.amount/maxH*100;
+    const isActive=h.orders>0;
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:9px;color:var(--dm);margin-bottom:2px">${h.orders>0?h.orders:''}</div>
+      <div style="width:100%;height:${pct}%;background:${isActive?'var(--ac)':'var(--s2)'};border-radius:3px 3px 0 0;min-height:2px"></div>
+      <div style="font-size:8px;color:var(--dm);margin-top:4px;transform:rotate(-45deg)">${h.label}</div>
+    </div>`;
+  }).join('');
+}
+
+function barRow(label,amount,total,color,sub){
+  const pct=total>0?amount/total*100:0;
+  return `<div class="bar-row">
+    <div class="bar-label">${label}</div>
+    <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${color}">${pct>15?fmtCur(amount):''}</div></div>
+    <div class="bar-val">${fmtCur(amount)}<br><span style="font-size:10px;color:var(--dm)">${sub}</span></div>
+  </div>`;
+}
+
+function renderPayments(){
+  const bp=data.productsByPayment||{};
+  const colors={Cash:'var(--cash)',UPI:'var(--upi)',Complimentary:'var(--rl)',Card:'var(--card)'};
+  const labels={Cash:'Cash',UPI:'UPI',Complimentary:'Runner Ledger',Card:'Card'};
+  let html='<div class="sec-t">Products by Payment Method</div>';
+  for(const[method,items]of Object.entries(bp)){
+    const sorted=Object.entries(items).sort((a,b)=>b[1].amount-a[1].amount);
+    const total=sorted.reduce((s,x)=>s+x[1].amount,0);
+    html+=`<div class="pm-group">
+      <h4><span class="dot" style="background:${colors[method]||'var(--dm)'}"></span>${labels[method]||method} &mdash; ${fmtCur(total)}</h4>
+      <div class="items">${sorted.map(([name,v])=>
+        `<div class="row"><span>${name}</span><span class="mono">${v.qty} &times; ${fmtCur(v.amount/v.qty)} = <b>${fmtCur(v.amount)}</b></span></div>`
+      ).join('')}</div>
+    </div>`;
+  }
+  document.getElementById('paymentProducts').innerHTML=html;
+}
+
+function renderRunners(){
+  const runners=data.runners||[];
+  const rev=data.summary.totalRevenue||1;
+  let html='<div class="sec-t">Runner Performance</div><div class="runner-grid">';
+  runners.forEach(r=>{
+    const prods=Object.entries(r.products||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    html+=`<div class="runner-card">
+      <h4>${r.name}</h4>
+      <div class="stats">
+        <span>Revenue: <b>${fmtCur(r.amount)}</b></span>
+        <span>Orders: <b>${r.orders}</b></span>
+        <span>Share: <b>${fmtPct(r.amount,rev)}</b></span>
+      </div>
+      <div class="prods">${prods.map(([n,q])=>`<span>${n}: ${q}</span>`).join('')}</div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('runnerSection').innerHTML=html;
+}
+
+function renderProducts(){
+  const prods=data.products||[];
+  let html=`<div class="sec-t">All Products <span>${prods.length} items</span></div>
+  <table class="tbl"><thead><tr><th>Product</th><th class="r">Qty</th><th class="r">Revenue</th><th class="r">Unit Price</th><th class="r">% of Rev</th></tr></thead><tbody>`;
+  const rev=data.summary.totalRevenue||1;
+  prods.forEach(p=>{
+    if(p.amount<=0)return;
+    html+=`<tr><td>${p.name}</td><td class="r mono">${p.qty}</td><td class="r mono">${fmtCur(p.amount)}</td><td class="r mono">${fmtCur(p.amount/p.qty)}</td><td class="r mono">${fmtPct(p.amount,rev)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('productSection').innerHTML=html;
+}
+
+async function loadTimeline(){
+  document.getElementById('timelineSection').innerHTML='<div class="loading"><div class="spin"></div><p>Loading 30 days...</p></div>';
+  const days=[];
+  const today=ist();
+  for(let i=29;i>=0;i--){
+    const d=new Date(today);d.setDate(d.getDate()-i);
+    const ds=fmtDate(d);
+    const nd=new Date(d);nd.setDate(nd.getDate()+1);
+    const ns=fmtDate(nd);
+    try{
+      const r=await fetch(`${API}?from=${ds}%2000:00:00&to=${ns}%2000:00:00`);
+      const j=await r.json();
+      const s=j.data.summary;
+      const p=j.data.payments||[];
+      const ch=j.data.channels||{};
+      days.push({
+        date:ds,day:d.toLocaleDateString('en-IN',{weekday:'short'}),
+        rev:s.totalRevenue,orders:s.totalOrders,aov:s.avgOrderValue,
+        cash:(p.find(x=>x.name==='Cash')||{}).amount||0,
+        upi:(p.find(x=>x.name==='UPI')||{}).amount||0,
+        rl:(p.find(x=>x.name==='Complimentary')||{}).amount||0,
+        counter:(ch.cashCounter||{}).amount||0,
+        runners:(ch.runners||{}).amount||0,
+      });
+    }catch(e){days.push({date:ds,error:true});}
+  }
+  let html=`<table class="tbl"><thead><tr><th>Date</th><th>Day</th><th class="r">Revenue</th><th class="r">Orders</th><th class="r">AOV</th><th class="r">Cash</th><th class="r">UPI</th><th class="r">Rnr Ldgr</th><th class="r">Counter</th><th class="r">Runners</th></tr></thead><tbody>`;
+  let totals={rev:0,orders:0,cash:0,upi:0,rl:0,counter:0,runners:0};
+  days.forEach(d=>{
+    if(d.error){html+=`<tr><td>${d.date}</td><td colspan="9" style="color:var(--rd)">Error</td></tr>`;return;}
+    for(const k of['rev','orders','cash','upi','rl','counter','runners'])totals[k]+=d[k]||0;
+    const isLow=d.rev<5000;
+    html+=`<tr style="${isLow?'opacity:.5':''}"><td class="mono">${d.date}</td><td>${d.day}</td><td class="r mono">${fmtCur(d.rev)}</td><td class="r mono">${d.orders}</td><td class="r mono">${fmtCur(d.aov)}</td><td class="r mono">${fmtCur(d.cash)}</td><td class="r mono">${fmtCur(d.upi)}</td><td class="r mono">${fmtCur(d.rl)}</td><td class="r mono">${fmtCur(d.counter)}</td><td class="r mono">${fmtCur(d.runners)}</td></tr>`;
+  });
+  const aov=totals.orders>0?Math.round(totals.rev/totals.orders):0;
+  html+=`<tr style="font-weight:700;background:var(--s2)"><td>TOTAL</td><td>30d</td><td class="r">${fmtCur(totals.rev)}</td><td class="r">${totals.orders}</td><td class="r">${fmtCur(aov)}</td><td class="r">${fmtCur(totals.cash)}</td><td class="r">${fmtCur(totals.upi)}</td><td class="r">${fmtCur(totals.rl)}</td><td class="r">${fmtCur(totals.counter)}</td><td class="r">${fmtCur(totals.runners)}</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('timelineSection').innerHTML=html;
+}
+</script>
+</body>
+</html>
