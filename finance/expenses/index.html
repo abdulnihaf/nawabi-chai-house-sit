@@ -119,7 +119,15 @@ a{color:var(--ac);text-decoration:none}
 .table-wrap::-webkit-scrollbar{width:6px}
 .table-wrap::-webkit-scrollbar-track{background:var(--s1)}
 .table-wrap::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+
+/* Download buttons */
+.dl-bar{display:flex;gap:6px;flex-wrap:wrap;margin:.5rem 0}
+.dl-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--bd);background:var(--s2);color:var(--dm);font-size:.7rem;cursor:pointer;font-weight:600;transition:.15s}
+.dl-btn:hover{border-color:var(--ac);color:var(--ac)}
+.dl-btn:active{background:var(--ac);color:var(--bg)}
+.dl-bar .dl-label{font-size:.7rem;color:var(--dm);align-self:center;margin-right:4px}
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -154,6 +162,14 @@ a{color:var(--ac);text-decoration:none}
   <!-- BUCKET CARDS -->
   <div class="buckets" id="bucket-cards"></div>
   <div class="grand-total" id="grand-total"></div>
+
+  <!-- MASTER DOWNLOAD -->
+  <div class="dl-bar" style="justify-content:center;margin:1rem 0">
+    <span class="dl-label" style="font-size:.8rem;color:var(--ac)">Download All Data:</span>
+    <button class="dl-btn" onclick="dlAllCategoriesCSV()">All Expenses CSV</button>
+    <button class="dl-btn" onclick="dlAllCategoriesXLSX()">All Expenses XLSX (by category)</button>
+    <button class="dl-btn" onclick="dlMasterXLSX()" style="border-color:var(--ac);color:var(--ac)">MASTER XLSX (5 sheets)</button>
+  </div>
 
   <!-- CATEGORY LIST -->
   <div class="section">
@@ -363,7 +379,9 @@ function renderAll() {
 }
 
 function renderCatDetail(name, cat) {
-  var html = '<table class="detail-table"><thead><tr><th>Date</th><th>Item</th><th class="amt">Amount</th></tr></thead><tbody>';
+  var safeName = name.replace(/[^a-zA-Z0-9]/g,'_');
+  var html = '<div class="dl-bar"><span class="dl-label">Export:</span><button class="dl-btn" onclick="dlCategoryCSV(\''+name.replace(/'/g,"\\'")+'\')">CSV</button><button class="dl-btn" onclick="dlCategoryXLSX(\''+name.replace(/'/g,"\\'")+'\')">XLSX</button></div>';
+  html += '<table class="detail-table"><thead><tr><th>Date</th><th>Item</th><th class="amt">Amount</th></tr></thead><tbody>';
   var items = cat.items.slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
   for (var i=0;i<items.length;i++) {
     var it = items[i];
@@ -428,7 +446,7 @@ function renderCatDetail(name, cat) {
 
 function renderStaff() {
   var staff = DATA.staff;
-  var html = '';
+  var html = '<div class="dl-bar"><span class="dl-label">Export:</span><button class="dl-btn" onclick="dlStaffCSV()">CSV</button><button class="dl-btn" onclick="dlStaffXLSX()">XLSX</button></div>';
 
   // A. Azeem Contract
   var azeem = staff.contracts[0];
@@ -503,7 +521,8 @@ function renderStaff() {
 }
 
 function renderShariff() {
-  var html = '<input class="search-box" type="text" placeholder="Search items..." oninput="filterShariff(this.value)" id="shariff-search">';
+  var html = '<div class="dl-bar"><span class="dl-label">Export:</span><button class="dl-btn" onclick="dlShariffCSV()">CSV</button><button class="dl-btn" onclick="dlShariffXLSX()">XLSX</button></div>';
+  html += '<input class="search-box" type="text" placeholder="Search items..." oninput="filterShariff(this.value)" id="shariff-search">';
 
   // Group by date
   var byDate = {};
@@ -553,7 +572,8 @@ function filterShariff(q) {
 
 function renderMN() {
   var mn = DATA.mn_broilers;
-  var html = '<table class="detail-table"><thead><tr><th>Date</th><th class="amt">Weight (kg)</th><th class="amt">Rate (per kg)</th><th class="amt">Amount</th></tr></thead><tbody>';
+  var html = '<div class="dl-bar"><span class="dl-label">Export:</span><button class="dl-btn" onclick="dlBroilersCSV()">CSV</button><button class="dl-btn" onclick="dlBroilersXLSX()">XLSX</button></div>';
+  html += '<table class="detail-table"><thead><tr><th>Date</th><th class="amt">Weight (kg)</th><th class="amt">Rate (per kg)</th><th class="amt">Amount</th></tr></thead><tbody>';
   var totalKg = 0, totalAmt = 0;
   for (var i=0;i<mn.length;i++) {
     totalKg += mn[i].kg;
@@ -576,7 +596,8 @@ function renderMN() {
 
 function renderOdoo() {
   var items = DATA.odoo_items;
-  var html = '<table class="detail-table"><thead><tr><th>Ref</th><th>Item</th><th>Brand</th><th class="amt">Unit Cost</th><th>UoM</th><th class="amt">Total Qty</th><th class="amt">Total Value</th></tr></thead><tbody>';
+  var html = '<div class="dl-bar"><span class="dl-label">Export:</span><button class="dl-btn" onclick="dlOdooCSV()">CSV</button><button class="dl-btn" onclick="dlOdooXLSX()">XLSX</button></div>';
+  html += '<table class="detail-table"><thead><tr><th>Ref</th><th>Item</th><th>Brand</th><th class="amt">Unit Cost</th><th>UoM</th><th class="amt">Total Qty</th><th class="amt">Total Value</th></tr></thead><tbody>';
   var grandVal = 0;
   for (var i=0;i<items.length;i++) {
     var it = items[i];
@@ -587,6 +608,181 @@ function renderOdoo() {
   html += '<div class="summary-row"><span class="label">' + items.length + ' items</span><span>' + fmt(grandVal) + '</span></div>';
 
   document.getElementById('odoo-section').innerHTML = html;
+}
+
+/* ========== DOWNLOAD FUNCTIONS ========== */
+function toCSV(headers, rows) {
+  var lines = [headers.join(',')];
+  for (var i=0;i<rows.length;i++) {
+    lines.push(rows[i].map(function(v) {
+      v = String(v==null?'':v);
+      if (v.indexOf(',')>=0||v.indexOf('"')>=0||v.indexOf('\n')>=0) return '"'+v.replace(/"/g,'""')+'"';
+      return v;
+    }).join(','));
+  }
+  return lines.join('\n');
+}
+
+function downloadCSV(name, headers, rows) {
+  var csv = toCSV(headers, rows);
+  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name+'.csv';
+  a.click();
+}
+
+function downloadXLSX(name, headers, rows, sheetName) {
+  var ws_data = [headers].concat(rows);
+  var ws = XLSX.utils.aoa_to_sheet(ws_data);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName||'Sheet1');
+  XLSX.writeFile(wb, name+'.xlsx');
+}
+
+function downloadMultiXLSX(name, sheets) {
+  var wb = XLSX.utils.book_new();
+  for (var i=0;i<sheets.length;i++) {
+    var ws = XLSX.utils.aoa_to_sheet([sheets[i].headers].concat(sheets[i].rows));
+    XLSX.utils.book_append_sheet(wb, ws, sheets[i].name);
+  }
+  XLSX.writeFile(wb, name+'.xlsx');
+}
+
+function dlBar(csvFn, xlsxFn, allFn) {
+  var h = '<div class="dl-bar"><span class="dl-label">Download:</span>';
+  h += '<button class="dl-btn" onclick="'+csvFn+'">CSV</button>';
+  h += '<button class="dl-btn" onclick="'+xlsxFn+'">XLSX</button>';
+  if (allFn) h += '<button class="dl-btn" onclick="'+allFn+'">All Formats</button>';
+  h += '</div>';
+  return h;
+}
+
+// ── Category downloads ──
+function dlCategoryCSV(catName) {
+  var cat = DATA.categories[catName];
+  if (!cat) return;
+  var h = ['Date','Item','Amount','Narration','Bucket'];
+  var r = cat.items.map(function(it) { return [it.date, it.name, it.amount, it.narration, cat.bucket]; });
+  downloadCSV('HN_'+catName.replace(/[^a-zA-Z0-9]/g,'_'), h, r);
+}
+function dlCategoryXLSX(catName) {
+  var cat = DATA.categories[catName];
+  if (!cat) return;
+  var h = ['Date','Item','Amount','Narration','Bucket'];
+  var r = cat.items.map(function(it) { return [it.date, it.name, it.amount, it.narration, cat.bucket]; });
+  downloadXLSX('HN_'+catName.replace(/[^a-zA-Z0-9]/g,'_'), h, r, catName.substring(0,31));
+}
+
+// ── All categories combined ──
+function dlAllCategoriesCSV() {
+  var h = ['Category','Date','Item','Amount','Narration','Bucket'];
+  var r = [];
+  for (var cat in DATA.categories) {
+    var c = DATA.categories[cat];
+    for (var i=0;i<c.items.length;i++) {
+      r.push([cat, c.items[i].date, c.items[i].name, c.items[i].amount, c.items[i].narration, c.bucket]);
+    }
+  }
+  downloadCSV('HN_All_Expenses', h, r);
+}
+function dlAllCategoriesXLSX() {
+  var sheets = [];
+  for (var cat in DATA.categories) {
+    var c = DATA.categories[cat];
+    var h = ['Date','Item','Amount','Narration'];
+    var r = c.items.map(function(it) { return [it.date, it.name, it.amount, it.narration]; });
+    if (r.length > 0) sheets.push({name: cat.substring(0,31), headers: h, rows: r});
+  }
+  downloadMultiXLSX('HN_All_Expenses_By_Category', sheets);
+}
+
+// ── Staff download ──
+function dlStaffCSV() {
+  var h = ['Group','Name','Role','Type','Daily Rate','Monthly Rate'];
+  var r = [];
+  DATA.staff.contracts.forEach(function(c) {
+    c.breakdown.forEach(function(p) { r.push([c.name, p.name, p.role, 'Contract', p.rate, p.rate*30]); });
+  });
+  DATA.staff.he_monthly.forEach(function(p) { r.push(['HE Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.nch_monthly.forEach(function(p) { r.push(['NCH Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.office.forEach(function(p) { r.push(['Office', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  downloadCSV('HN_Staff_Register', h, r);
+}
+function dlStaffXLSX() {
+  var h = ['Group','Name','Role','Type','Daily Rate','Monthly Rate'];
+  var r = [];
+  DATA.staff.contracts.forEach(function(c) {
+    c.breakdown.forEach(function(p) { r.push([c.name, p.name, p.role, 'Contract', p.rate, p.rate*30]); });
+  });
+  DATA.staff.he_monthly.forEach(function(p) { r.push(['HE Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.nch_monthly.forEach(function(p) { r.push(['NCH Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.office.forEach(function(p) { r.push(['Office', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  downloadXLSX('HN_Staff_Register', h, r, 'Staff');
+}
+
+// ── Shariff download ──
+function dlShariffCSV() {
+  var h = ['Date','Item','Qty','Unit','Price','Category','Confidence'];
+  var r = DATA.shariff_items.map(function(s) { return [s.date, s.item, s.qty, s.unit, s.price, s.category, s.confidence]; });
+  downloadCSV('HN_Shariff_Store_Purchases', h, r);
+}
+function dlShariffXLSX() {
+  var h = ['Date','Item','Qty','Unit','Price','Category','Confidence'];
+  var r = DATA.shariff_items.map(function(s) { return [s.date, s.item, s.qty, s.unit, s.price, s.category, s.confidence]; });
+  downloadXLSX('HN_Shariff_Store_Purchases', h, r, 'Shariff Purchases');
+}
+
+// ── M.N. Broilers download ──
+function dlBroilersCSV() {
+  var h = ['Date','Weight (kg)','Rate (per kg)','Amount'];
+  var r = DATA.mn_broilers.map(function(m) { return [m.date, m.kg, m.rate, m.amount]; });
+  downloadCSV('HN_MN_Broilers_Chicken', h, r);
+}
+function dlBroilersXLSX() {
+  var h = ['Date','Weight (kg)','Rate (per kg)','Amount'];
+  var r = DATA.mn_broilers.map(function(m) { return [m.date, m.kg, m.rate, m.amount]; });
+  downloadXLSX('HN_MN_Broilers_Chicken', h, r, 'Chicken Daily');
+}
+
+// ── Odoo download ──
+function dlOdooCSV() {
+  var h = ['Ref','Item','Brand','Unit Cost','UoM','Total Qty','Total Value'];
+  var r = DATA.odoo_items.map(function(o) { return [o.ref, o.name, o.brand, o.cost, o.uom, o.total_qty, o.total_val]; });
+  downloadCSV('HN_Odoo_PO_Items', h, r);
+}
+function dlOdooXLSX() {
+  var h = ['Ref','Item','Brand','Unit Cost','UoM','Total Qty','Total Value'];
+  var r = DATA.odoo_items.map(function(o) { return [o.ref, o.name, o.brand, o.cost, o.uom, o.total_qty, o.total_val]; });
+  downloadXLSX('HN_Odoo_PO_Items', h, r, 'Odoo POs');
+}
+
+// ── MASTER DOWNLOAD — everything in one XLSX ──
+function dlMasterXLSX() {
+  var sheets = [];
+  // Sheet 1: All expenses
+  var h1 = ['Category','Bucket','Date','Item','Amount','Narration'];
+  var r1 = [];
+  for (var cat in DATA.categories) {
+    var c = DATA.categories[cat];
+    for (var i=0;i<c.items.length;i++) r1.push([cat, c.bucket, c.items[i].date, c.items[i].name, c.items[i].amount, c.items[i].narration]);
+  }
+  sheets.push({name:'All Expenses', headers:h1, rows:r1});
+  // Sheet 2: Staff
+  var h2 = ['Group','Name','Role','Type','Daily','Monthly'];
+  var r2 = [];
+  DATA.staff.contracts.forEach(function(c) { c.breakdown.forEach(function(p) { r2.push([c.name, p.name, p.role, 'Contract', p.rate, p.rate*30]); }); });
+  DATA.staff.he_monthly.forEach(function(p) { r2.push(['HE Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.nch_monthly.forEach(function(p) { r2.push(['NCH Monthly', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  DATA.staff.office.forEach(function(p) { r2.push(['Office', p.name, p.role, 'Monthly', Math.round(p.monthly/30), p.monthly]); });
+  sheets.push({name:'Staff Register', headers:h2, rows:r2});
+  // Sheet 3: Shariff
+  sheets.push({name:'Shariff Store', headers:['Date','Item','Qty','Unit','Price','Category','Confidence'], rows:DATA.shariff_items.map(function(s){return[s.date,s.item,s.qty,s.unit,s.price,s.category,s.confidence]})});
+  // Sheet 4: Chicken
+  sheets.push({name:'MN Broilers', headers:['Date','Weight (kg)','Rate','Amount'], rows:DATA.mn_broilers.map(function(m){return[m.date,m.kg,m.rate,m.amount]})});
+  // Sheet 5: Odoo
+  sheets.push({name:'Odoo POs', headers:['Ref','Item','Brand','Cost','UoM','Qty','Value'], rows:DATA.odoo_items.map(function(o){return[o.ref,o.name,o.brand,o.cost,o.uom,o.total_qty,o.total_val]})});
+  downloadMultiXLSX('HN_Hotels_Complete_Expense_Data', sheets);
 }
 
 function renderGaps() {
