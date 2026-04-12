@@ -1,0 +1,27 @@
+name = "nawabi-chai-house-sit"
+pages_build_output_dir = "."
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ODOO_URL = "https://ops.hamzahotel.com/jsonrpc"
+ODOO_DB = "main"
+ODOO_UID = "2"
+
+# Secrets (set via: wrangler pages secret put <NAME>)
+# WA_ACCESS_TOKEN       — Meta WhatsApp Cloud API bearer token
+# WA_PHONE_ID           — NCH phone number ID (975771888963832)
+# WA_VERIFY_TOKEN       — Webhook verification token
+# ODOO_API_KEY          — Odoo JSON-RPC API key
+# RAZORPAY_KEY_ID       — Razorpay live key
+# RAZORPAY_KEY_SECRET   — Razorpay live secret
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nch-whatsapp"
+database_id = "36ddacff-c4b7-4f98-869f-6eced19b23e8"
+
+[[d1_databases]]
+binding = "SETTLEMENT_DB"
+database_name = "nch-settlements"
+database_id = "3388724b-41b2-4925-a7df-12f068c19e6e"
