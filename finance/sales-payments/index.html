@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nawabi Chai House — Sales & Payment Flow</title>
+<style>
+:root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a26;--bd:#2a2a3a;--tx:#e0e0e8;--dm:#8888a0;--ac:#d4a44c;--gn:#22c55e;--rd:#ef4444;--or:#f97316;--yl:#eab308;--pr:#a855f7;--tl:#14b8a6;--bl:#3b82f6;--pk:#ec4899;
+--cash:#f59e0b;--upi:#8b5cf6;--card:#06b6d4;--agg:#ef4444;--comp:#6b7280;--waba:#22c55e;--runner:#f97316;--token:#eab308}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--tx);line-height:1.6}
+.pin-gate{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.pin-gate h2{font-size:24px;color:var(--ac)}
+.pin-gate input{background:var(--s1);border:2px solid var(--bd);border-radius:12px;padding:14px 24px;font-size:24px;color:var(--tx);text-align:center;letter-spacing:12px;width:200px;outline:none}
+.pin-gate input:focus{border-color:var(--ac)}
+.pin-gate .err{color:var(--rd);font-size:14px;min-height:20px}
+.hdr{padding:40px;text-align:center;border-bottom:1px solid var(--bd)}
+.hdr h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,#d4a44c,#ac7e54);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr p{color:var(--dm);font-size:14px;margin-top:6px}
+.nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--bd);display:flex;gap:4px;padding:8px 16px;overflow-x:auto}
+.nav a{padding:8px 14px;border-radius:8px;color:var(--dm);text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;transition:.2s}
+.nav a:hover{background:var(--s2);color:var(--tx)}
+.sec{padding:50px 40px;border-top:1px solid var(--bd)}
+.sec-t{font-size:24px;font-weight:800;margin-bottom:24px}
+.flow-container{position:relative;padding:20px 0}
+.flow-level{display:flex;justify-content:center;gap:16px;margin:12px 0;flex-wrap:wrap}
+.flow-node{background:var(--s1);border:2px solid var(--bd);border-radius:12px;padding:14px 20px;text-align:center;min-width:140px;position:relative;transition:.2s}
+.flow-node:hover{border-color:var(--ac);transform:translateY(-2px)}
+.flow-node h4{font-size:14px;font-weight:700}
+.flow-node p{font-size:11px;color:var(--dm);margin-top:2px}
+.flow-node.root{background:linear-gradient(135deg,#2a1a0e,#3a2a1e);border-color:var(--ac);min-width:200px}
+.flow-node.mode{min-width:180px}
+.flow-node.bank{background:rgba(34,197,94,.08);border-color:var(--gn)}
+.connector{text-align:center;color:var(--bd);font-size:20px;margin:4px 0}
+.connector.down::after{content:'|';display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:20px 0;padding:16px;background:var(--s1);border-radius:12px;border:1px solid var(--bd)}
+.leg-item{display:flex;align-items:center;gap:8px;font-size:13px}
+.leg-dot{width:14px;height:14px;border-radius:4px;border:2px solid}
+.ft{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
+.ft th{background:var(--s2);padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dm);border-bottom:2px solid var(--bd)}
+.ft td{padding:10px 12px;border-bottom:1px solid var(--bd)}
+.ft tr:hover{background:var(--s2)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin:1px}
+.tag-cash{background:rgba(245,158,11,.15);color:var(--cash)}
+.tag-upi{background:rgba(139,92,246,.15);color:var(--upi)}
+.tag-card{background:rgba(6,182,212,.15);color:var(--card)}
+.tag-agg{background:rgba(239,68,68,.15);color:var(--rd)}
+.tag-comp{background:rgba(107,114,128,.15);color:var(--comp)}
+.tag-waba{background:rgba(34,197,94,.15);color:var(--waba)}
+.tag-runner{background:rgba(249,115,22,.15);color:var(--runner)}
+.tag-token{background:rgba(234,179,8,.15);color:var(--token)}
+.tag-bank{background:rgba(59,130,246,.15);color:var(--bl)}
+.insight{padding:18px;border-radius:12px;margin:16px 0;border-left:4px solid}
+.insight.green{background:rgba(34,197,94,.06);border-color:var(--gn)}
+.insight.red{background:rgba(239,68,68,.06);border-color:var(--rd)}
+.insight.blue{background:rgba(99,102,241,.06);border-color:var(--ac)}
+.insight.orange{background:rgba(249,115,22,.06);border-color:var(--or)}
+.insight h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.insight p{font-size:13px;color:var(--dm)}
+.settle-flow{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;flex-wrap:wrap}
+.settle-box{padding:8px 14px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;text-align:center}
+.settle-arrow{color:var(--dm);font-size:18px}
+.settle-box.final{background:rgba(34,197,94,.08);border-color:var(--gn);font-weight:700}
+.cost-card{flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:16px;min-width:280px}
+.cost-card h4{font-size:13px;font-weight:700;margin-bottom:8px}
+.cost-card p{font-size:12px;color:var(--dm)}
+.grn{color:var(--gn)}.red{color:var(--rd)}.orn{color:var(--or)}.ylw{color:var(--yl)}
+.runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:16px 0}
+.runner-card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:16px;border-top:3px solid var(--or)}
+.runner-card h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.runner-card p{font-size:12px;color:var(--dm)}
+.runner-card .id{font-size:11px;color:var(--or);font-weight:700}
+@media(max-width:900px){.sec{padding:30px 16px}.flow-level{flex-direction:column;align-items:center}.runner-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- PIN GATE -->
+<div class="pin-gate" id="pinGate">
+<h2>Nawabi Chai House — Finance</h2>
+<p style="color:var(--dm)">Enter PIN to access</p>
+<input type="password" id="pinInput" maxlength="4" placeholder="****" autofocus>
+<div class="err" id="pinErr"></div>
+</div>
+
+<div id="mainContent" style="display:none">
+
+<div class="hdr">
+<h1>Nawabi Chai House — Complete Sales & Payment Flow</h1>
+<p>Every rupee traced: from customer to bank. Based on Odoo POS (Company ID 2) + verified contracts.</p>
+</div>
+
+<div class="nav">
+<a href="#overview">Overview</a>
+<a href="#counter">Counter Sales</a>
+<a href="#runners">Runner Model</a>
+<a href="#delivery">Delivery</a>
+<a href="#waba">WABA Orders</a>
+<a href="#tokens">Token System</a>
+<a href="#payment-routing">Payment Routing</a>
+<a href="#settlement">Settlement Map</a>
+<a href="#cost-layers">Cost of Each Sale</a>
+<a href="#unit-economics">Unit Economics</a>
+</div>
+
+<!-- ========== OVERVIEW ========== -->
+<div id="overview" class="sec">
+<div class="sec-t">NCH — Sales Mode Overview</div>
+
+<div class="legend">
+<div class="leg-item"><div class="leg-dot" style="background:var(--cash);border-color:var(--cash)"></div>Cash</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--upi);border-color:var(--upi)"></div>UPI (Razorpay)</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--card);border-color:var(--card)"></div>Card</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--runner);border-color:var(--runner)"></div>Runner</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--agg);border-color:var(--agg)"></div>Aggregator</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--waba);border-color:var(--waba)"></div>WABA</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--token);border-color:var(--token)"></div>Token</div>
+<div class="leg-item"><div class="leg-dot" style="background:var(--comp);border-color:var(--comp)"></div>Complimentary</div>
+</div>
+
+<div class="flow-container">
+<div class="flow-level">
+<div class="flow-node root"><h4>NAWABI CHAI HOUSE</h4><p>HN Hotels Pvt Ltd | Company ID: 2 | Shivajinagar</p></div>
+</div>
+<div class="connector down"></div>
+<div class="flow-level">
+<div class="flow-node mode" style="border-color:var(--gn)"><h4>COUNTER</h4><p>POS: Cash Counter (27)</p><p style="font-size:10px">Direct walk-in / Zomato Dining</p></div>
+<div class="flow-node mode" style="border-color:var(--or)"><h4>RUNNERS (x5)</h4><p>POS: Runner Counter (28)</p><p style="font-size:10px">External stations / locations</p></div>
+<div class="flow-node mode" style="border-color:var(--rd)"><h4>DELIVERY</h4><p>POS: NCH-Delivery (29)</p><p style="font-size:10px">Zomato / Swiggy</p></div>
+<div class="flow-node mode" style="border-color:var(--waba)"><h4>WABA</h4><p>WhatsApp Orders</p><p style="font-size:10px">COD + UPI options</p></div>
+</div>
+</div>
+
+<div class="insight blue">
+<h4>NCH is fundamentally different from HE</h4>
+<p><strong>Runner model</strong> — 5 runners sell chai at external stations, each with their own Razorpay QR. Cash + UPI collected by runners must settle back to counter.<br>
+<strong>Token system</strong> — Pre-paid tokens issued at counter, redeemed later. Revenue recognized at issue, not redemption.<br>
+<strong>Low AOV</strong> — Rs 20-80 typical order. Aggregator delivery at this AOV has razor-thin margins.<br>
+<strong>All UPI through Razorpay</strong> — 2.36% fee on EVERY digital payment (vs HE which has 0% Captain UPI).</p>
+</div>
+
+<div class="insight red">
+<h4>Critical: NCH pays 2.36% on ALL UPI — HE pays 0% on Captain UPI</h4>
+<p>NCH has no direct bank QR code. Every UPI payment — counter, runner, WABA — goes through Razorpay at 2.36%. On estimated Rs 3L/month UPI volume, that's <strong>Rs 7,080/month (Rs 85K/year)</strong> in payment processing fees that could be Rs 0 with a direct bank QR. <strong>Recommendation: Set up direct HDFC bank QR for counter to eliminate this cost.</strong></p>
+</div>
+</div>
+
+<!-- ========== COUNTER SALES ========== -->
+<div id="counter" class="sec">
+<div class="sec-t" style="color:var(--gn)">COUNTER SALES — Direct & Dining</div>
+
+<table class="ft">
+<tr><th>Customer Source</th><th>POS Terminal</th><th>Payment Methods</th><th>Odoo Journal</th><th>Commission</th></tr>
+<tr>
+<td><strong>Direct Walk-in</strong><br><span style="color:var(--dm);font-size:11px">Off street, Google Maps, signage</span></td>
+<td>NCH - Cash Counter (ID: 27)</td>
+<td><span class="tag tag-cash">NCH Cash (37)</span> <span class="tag tag-upi">NCH UPI (38)</span> <span class="tag tag-card">NCH Card (39)</span> <span class="tag tag-comp">Comp (49)</span></td>
+<td>NCSC / NCUC / NCCD / COMP</td>
+<td style="color:var(--gn);font-weight:700">0% (cash)<br><span style="color:var(--or)">2.36% (UPI/Card)</span></td>
+</tr>
+<tr>
+<td><strong>Zomato Dining (District)</strong><br><span style="color:var(--dm);font-size:11px">Customer pays via Zomato app at counter</span></td>
+<td>Not through POS<br><span style="color:var(--dm);font-size:11px">Zomato settles directly</span></td>
+<td><span class="tag tag-agg">Zomato Pay via App</span></td>
+<td>NZMT (Zomato)</td>
+<td style="color:var(--or);font-weight:700">6.84% + GST = 8.07%</td>
+</tr>
+<tr>
+<td><strong>Token Redemption</strong><br><span style="color:var(--dm);font-size:11px">Customer presents pre-paid token</span></td>
+<td>NCH - Cash Counter (ID: 27)</td>
+<td><span class="tag tag-token">NCH Token Issue (48)</span></td>
+<td>NCHTI</td>
+<td style="color:var(--gn);font-weight:700">0% (pre-paid)</td>
+</tr>
+</table>
+
+<h4 style="margin:24px 0 12px">Counter Payment Flow — Where Each Rupee Lands</h4>
+
+<div style="margin:20px 0">
+<h4 style="margin-bottom:12px"><span class="tag tag-cash" style="font-size:13px">CASH FLOW</span> — Direct to counter</h4>
+<div class="settle-flow">
+<div class="settle-box"><strong>Customer pays cash at counter</strong><br><span style="color:var(--dm);font-size:11px">Journal: NCH Cash (NCSC)<br>Payment ID: 37</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box final"><strong>Cash Counter Register</strong><br><span style="color:var(--dm);font-size:11px">Physical cash in drawer<br><strong style="color:var(--gn)">Fee: 0%</strong></span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong><br><span style="color:var(--dm);font-size:11px">50200118314680<br>Daily bank deposit</span></div>
+</div>
+
+<h4 style="margin:16px 0 12px"><span class="tag tag-upi" style="font-size:13px">UPI FLOW</span> — ALL through Razorpay (2.36%)</h4>
+<div class="settle-flow">
+<div class="settle-box"><strong>Counter UPI (NCUC)</strong><br><span style="color:var(--dm);font-size:11px">Razorpay QR at counter<br>Payment ID: 38<br><strong style="color:var(--or)">2% + GST = 2.36% fee</strong></span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Razorpay</strong><br><span style="color:var(--dm);font-size:11px">T+2 settlement</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong><br><span style="color:var(--dm);font-size:11px">50200118314680</span></div>
+</div>
+
+<h4 style="margin:16px 0 12px"><span class="tag tag-card" style="font-size:13px">CARD FLOW</span></h4>
+<div class="settle-flow">
+<div class="settle-box"><strong>Card at Counter (NCCD)</strong><br><span style="color:var(--dm);font-size:11px">Razorpay terminal<br>Payment ID: 39<br><strong style="color:var(--or)">2% + GST = 2.36% fee</strong></span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Razorpay</strong><br><span style="color:var(--dm);font-size:11px">T+2 settlement</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong></div>
+</div>
+</div>
+</div>
+
+<!-- ========== RUNNER MODEL ========== -->
+<div id="runners" class="sec">
+<div class="sec-t" style="color:var(--or)">RUNNER MODEL — NCH's Unique Sales Channel</div>
+
+<div class="insight orange">
+<h4>How the Runner Model Works</h4>
+<p>NCH has 5 runners who sell chai and snacks at external stations/locations (offices, colleges, markets). Each runner carries stock from the main kitchen, has their own Razorpay QR code for UPI payments, and collects cash. At end of shift, runners settle back to the counter — handing over cash and reconciling UPI collections via the Razorpay dashboard.</p>
+</div>
+
+<div class="runner-grid">
+<div class="runner-card">
+<div class="id">RUN001 — Farzaib</div>
+<h4>Runner 01</h4>
+<p>Journal: NR01 | Payment ID: 41</p>
+<p>Razorpay QR: Individual slot-based</p>
+<p style="color:var(--or);font-weight:700;margin-top:4px">UPI Fee: 2.36%</p>
+</div>
+<div class="runner-card">
+<div class="id">RUN002 — Ritiqu</div>
+<h4>Runner 02</h4>
+<p>Journal: NR02 | Payment ID: 42</p>
+<p>Razorpay QR: Individual slot-based</p>
+<p style="color:var(--or);font-weight:700;margin-top:4px">UPI Fee: 2.36%</p>
+</div>
+<div class="runner-card">
+<div class="id">RUN003 — Anshu</div>
+<h4>Runner 03</h4>
+<p>Journal: NR03 | Payment ID: 43</p>
+<p>Razorpay QR: Individual slot-based</p>
+<p style="color:var(--or);font-weight:700;margin-top:4px">UPI Fee: 2.36%</p>
+</div>
+<div class="runner-card">
+<div class="id">RUN004 — Shabeer</div>
+<h4>Runner 04</h4>
+<p>Journal: NR04 | Payment ID: 44</p>
+<p>Razorpay QR: Individual slot-based</p>
+<p style="color:var(--or);font-weight:700;margin-top:4px">UPI Fee: 2.36%</p>
+</div>
+<div class="runner-card">
+<div class="id">RUN005 — Dhanush</div>
+<h4>Runner 05</h4>
+<p>Journal: NR05 | Payment ID: 45</p>
+<p>Razorpay QR: Individual slot-based</p>
+<p style="color:var(--or);font-weight:700;margin-top:4px">UPI Fee: 2.36%</p>
+</div>
+</div>
+
+<table class="ft">
+<tr><th>Step</th><th>What Happens</th><th>Payment Method</th><th>Odoo Journal</th><th>Fee</th></tr>
+<tr>
+<td><strong>1. Runner sells</strong></td>
+<td>Customer buys chai/snacks at external location</td>
+<td><span class="tag tag-cash">Cash</span> or <span class="tag tag-runner">Runner UPI (41-45)</span></td>
+<td>NCRL (Runner Ledger, ID: 40) for cash<br>NR01-NR05 for UPI</td>
+<td style="color:var(--gn);font-weight:700">0% (cash)<br><span style="color:var(--or)">2.36% (UPI)</span></td>
+</tr>
+<tr>
+<td><strong>2. Runner UPI settles</strong></td>
+<td>Razorpay auto-settles each runner's UPI collections</td>
+<td><span class="tag tag-runner">Razorpay T+2</span></td>
+<td>NR01-NR05</td>
+<td style="color:var(--or);font-weight:700">Already deducted (2.36%)</td>
+</tr>
+<tr>
+<td><strong>3. Runner cash settles</strong></td>
+<td>Runner hands over cash to counter at end of shift</td>
+<td><span class="tag tag-cash">Physical cash handover</span></td>
+<td>NCRL → NCSC</td>
+<td style="color:var(--gn);font-weight:700">0%</td>
+</tr>
+</table>
+
+<h4 style="margin:24px 0 12px">Runner Settlement Formula</h4>
+<div class="insight blue">
+<h4>cashToCollect = (tokensSold + salesTotal) - upiAmount</h4>
+<p>Each runner must hand over: total value of goods sold (including any tokens) minus UPI already collected digitally. The remainder is physical cash that must be in the runner's pocket. Any variance = leakage or error.</p>
+</div>
+
+<h4 style="margin:24px 0 12px">Runner Payment Flow — Dual Path</h4>
+
+<div style="margin:12px 0">
+<h4 style="margin-bottom:8px"><span class="tag tag-cash" style="font-size:13px">RUNNER CASH PATH</span></h4>
+<div class="settle-flow">
+<div class="settle-box" style="border-color:var(--or)"><strong>Runner collects cash</strong><br><span style="color:var(--dm);font-size:11px">In the field / at station</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Runner settles to counter</strong><br><span style="color:var(--dm);font-size:11px">End of shift<br>Physical cash handover<br>Journal: NCRL → NCSC</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box final"><strong>Counter Cash Register</strong><br><span style="color:var(--dm);font-size:11px">Fee: 0%</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong></div>
+</div>
+</div>
+
+<div style="margin:12px 0">
+<h4 style="margin-bottom:8px"><span class="tag tag-runner" style="font-size:13px">RUNNER UPI PATH</span> — 5 individual Razorpay QRs</h4>
+<div class="settle-flow">
+<div class="settle-box" style="border-color:var(--or)"><strong>Customer scans Runner QR</strong><br><span style="color:var(--dm);font-size:11px">RUN001-RUN005 QR code<br>Journals: NR01-NR05<br><strong style="color:var(--or)">2.36% fee</strong></span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Razorpay</strong><br><span style="color:var(--dm);font-size:11px">T+2 settlement<br>Individual QR settlements</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong><br><span style="color:var(--dm);font-size:11px">50200118314680</span></div>
+</div>
+</div>
+
+<div class="insight red">
+<h4>Runner cash is the #1 leakage risk at NCH</h4>
+<p>Runners operate unsupervised at external locations. The settlement reconciliation system (/ops/settlement) exists to catch variance between POS total, UPI collected, and cash handed over. Any shortfall = either runner error or pilferage. Daily reconciliation is mandatory.</p>
+</div>
+</div>
+
+<!-- ========== DELIVERY ========== -->
+<div id="delivery" class="sec">
+<div class="sec-t" style="color:var(--rd)">DELIVERY — Aggregator Orders</div>
+
+<table class="ft">
+<tr><th>Platform</th><th>POS Terminal</th><th>Payment Method</th><th>Odoo Journal</th><th>Commission (post-honeymoon)</th></tr>
+<tr>
+<td><strong>Zomato App</strong><br><span style="color:var(--dm);font-size:11px">Customer orders → Kitchen → Zomato rider<br>Res ID: 22632430</span></td>
+<td>NCH-Delivery (ID: 29)</td>
+<td><span class="tag tag-agg">NCH Zomato (47)</span></td>
+<td>NZMT (NCH Zomato)</td>
+<td style="color:var(--rd);font-weight:700">18% + 1.84% + GST<br>= 23.41% (&lt;4km)<br>= 27.70% (4-6km)<br>= 33.41% (6km+)</td>
+</tr>
+<tr>
+<td><strong>Swiggy App</strong><br><span style="color:var(--dm);font-size:11px">Customer orders → Kitchen → Swiggy rider</span></td>
+<td>NCH-Delivery (ID: 29)</td>
+<td><span class="tag tag-agg">NCH Swiggy (46)</span></td>
+<td>NSWG (NCH Swiggy)</td>
+<td style="color:var(--rd);font-weight:700">18% + 2% + 1%TCS + GST<br>= 24.60% (non-One)<br>= 25.61% (Swiggy One)</td>
+</tr>
+</table>
+
+<div class="insight red" style="margin-top:20px">
+<h4>Aggregator delivery at NCH's AOV is dangerous</h4>
+<p>At Rs 80 AOV (typical chai + snack combo on delivery):<br>
+<strong>Zomato takes Rs 18.73</strong> (23.41%) — you receive Rs 61.27<br>
+<strong>Swiggy takes Rs 19.68</strong> (24.60%) — you receive Rs 60.32<br>
+After COGS (25% = Rs 20) + packaging (Rs 8) + allocated labor (Rs 10), <strong>profit is just Rs 23-24 per order</strong>.<br>
+Below Rs 60 AOV, aggregator delivery becomes a loss-making channel.</p>
+</div>
+
+<h4 style="margin:24px 0 12px">Delivery Settlement Flow</h4>
+
+<div class="settle-flow">
+<div class="settle-box" style="border-color:var(--rd)"><strong>Zomato (NZMT)</strong><br><span style="color:var(--dm);font-size:11px">Weekly (Mon-Sun → Thu)</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Zomato deducts</strong><br><span style="color:var(--rd);font-size:11px">18% + 1.84% + GST<br>+ penalties + refund share</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank 50200118314680</strong><br><span style="color:var(--dm);font-size:11px">Net: ~76.6% of order value</span></div>
+</div>
+
+<div class="settle-flow" style="margin-top:8px">
+<div class="settle-box" style="border-color:var(--or)"><strong>Swiggy (NSWG)</strong><br><span style="color:var(--dm);font-size:11px">Weekly settlement</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Swiggy deducts</strong><br><span style="color:var(--or);font-size:11px">18% + 2% + 1%TCS + GST<br>+ Swiggy One fee</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank 50200118314680</strong><br><span style="color:var(--dm);font-size:11px">Net: ~75.4% of order value</span></div>
+</div>
+</div>
+
+<!-- ========== WABA ========== -->
+<div id="waba" class="sec">
+<div class="sec-t" style="color:var(--waba)">WABA — WhatsApp Orders (UPI + COD)</div>
+
+<div class="insight green">
+<h4>NCH has TWO WABA payment options — HE only has UPI</h4>
+<p>NCH offers <strong>Cash on Delivery (COD)</strong> in addition to UPI for WhatsApp orders. This is because NCH has runners who can physically deliver and collect cash, whereas HE relies on aggregator riders or pickup only.</p>
+</div>
+
+<table class="ft">
+<tr><th>Order Type</th><th>Payment Method</th><th>Odoo Journal</th><th>Payment ID</th><th>Fee</th><th>Settlement</th></tr>
+<tr>
+<td><strong>WABA UPI</strong><br><span style="color:var(--dm);font-size:11px">WhatsApp order → Razorpay payment link</span></td>
+<td><span class="tag tag-waba">NCH WABA UPI (51)</span></td>
+<td>NWUPI</td>
+<td>51</td>
+<td style="color:var(--or);font-weight:700">2.36% (Razorpay)</td>
+<td>T+2 → HDFC Bank</td>
+</tr>
+<tr>
+<td><strong>WABA COD</strong><br><span style="color:var(--dm);font-size:11px">WhatsApp order → Runner delivers → Cash collected</span></td>
+<td><span class="tag tag-cash">NCH WABA COD (50)</span></td>
+<td>NWCOD</td>
+<td>50</td>
+<td style="color:var(--gn);font-weight:700">0%</td>
+<td>Runner settles cash to counter</td>
+</tr>
+</table>
+
+<h4 style="margin:24px 0 12px">WABA Payment Flows</h4>
+
+<div class="settle-flow">
+<div class="settle-box" style="border-color:var(--waba)"><strong>WABA UPI (NWUPI)</strong><br><span style="color:var(--dm);font-size:11px">Razorpay payment link<br>Payment ID: 51</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Razorpay</strong><br><span style="color:var(--dm);font-size:11px">2.36% fee | T+2</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong></div>
+</div>
+
+<div class="settle-flow" style="margin-top:8px">
+<div class="settle-box" style="border-color:var(--cash)"><strong>WABA COD (NWCOD)</strong><br><span style="color:var(--dm);font-size:11px">Runner collects cash<br>Payment ID: 50</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box"><strong>Runner settles to counter</strong><br><span style="color:var(--dm);font-size:11px">End of shift / delivery complete</span></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box final"><strong>Counter Cash</strong></div>
+<div class="settle-arrow">&#8594;</div>
+<div class="settle-box bank"><strong>HDFC Bank</strong></div>
+</div>
+</div>
+
+<!-- ========== TOKEN SYSTEM ========== -->
+<div id="tokens" class="sec">
+<div class="sec-t" style="color:var(--yl)">TOKEN SYSTEM — Pre-Paid Chai Tokens</div>
+
+<div class="insight orange">
+<h4>How Tokens Work</h4>
+<p>Customer pays upfront at counter for N tokens. Each token is redeemable for a specific item (usually cutting chai). Revenue is recognized at time of issue (NCHTI journal). Tokens are a liability until redeemed — but in practice, unredeemed tokens ("breakage") are free revenue.</p>
+</div>
+
+<table class="ft">
+<tr><th>Step</th><th>What Happens</th><th>Payment</th><th>Odoo Journal</th><th>Fee</th></tr>
+<tr>
+<td><strong>1. Token Issued</strong></td>
+<td>Customer buys tokens at counter (e.g., 10 chai tokens for Rs 200)</td>
+<td><span class="tag tag-cash">Cash</span> or <span class="tag tag-upi">UPI</span></td>
+<td>NCHTI (NCH Token Issue, ID: 48)</td>
+<td>0% (cash) / 2.36% (UPI)</td>
+</tr>
+<tr>
+<td><strong>2. Token Redeemed</strong></td>
+<td>Customer presents token → receives chai</td>
+<td><span class="tag tag-token">Token (pre-paid)</span></td>
+<td>NCHTI offset</td>
+<td style="color:var(--gn);font-weight:700">0% (already paid)</td>
+</tr>
+</table>
+
+<div class="insight green">
+<h4>Token breakage = free revenue</h4>
+<p>Industry average: 5-15% of tokens are never redeemed. For NCH, if monthly token issue is Rs 30,000, unredeemed tokens could be Rs 1,500-4,500/month in pure profit with zero COGS.</p>
+</div>
+</div>
+
+<!-- ========== PAYMENT ROUTING MAP ========== -->
+<div id="payment-routing" class="sec">
+<div class="sec-t">Complete Payment Routing Map — NCH Odoo Journals</div>
+
+<table class="ft">
+<tr><th>Payment Type</th><th>POS Method (ID)</th><th>Odoo Journal</th><th>Fee</th><th>Settlement</th></tr>
+<tr>
+<td><span class="tag tag-cash">Cash</span> Counter</td>
+<td>NCH Cash (37)</td><td>NCSC</td>
+<td class="grn" style="font-weight:700">0%</td><td>Immediate (physical)</td>
+</tr>
+<tr>
+<td><span class="tag tag-upi">UPI</span> Counter</td>
+<td>NCH UPI (38)</td><td>NCUC</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay</td>
+</tr>
+<tr>
+<td><span class="tag tag-card">Card</span> Counter</td>
+<td>NCH Card (39)</td><td>NCCD</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner</span> Ledger (Cash)</td>
+<td>NCH Runner Ledger (40)</td><td>NCRL</td>
+<td class="grn" style="font-weight:700">0%</td><td>Shift settlement → Counter</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner 01</span> UPI (Farzaib)</td>
+<td>NCH Runner 01 UPI (41)</td><td>NR01</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay (individual)</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner 02</span> UPI (Ritiqu)</td>
+<td>NCH Runner 02 UPI (42)</td><td>NR02</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay (individual)</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner 03</span> UPI (Anshu)</td>
+<td>NCH Runner 03 UPI (43)</td><td>NR03</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay (individual)</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner 04</span> UPI (Shabeer)</td>
+<td>NCH Runner 04 UPI (44)</td><td>NR04</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay (individual)</td>
+</tr>
+<tr>
+<td><span class="tag tag-runner">Runner 05</span> UPI (Dhanush)</td>
+<td>NCH Runner 05 UPI (45)</td><td>NR05</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay (individual)</td>
+</tr>
+<tr>
+<td><span class="tag tag-agg">Swiggy</span> Delivery</td>
+<td>NCH Swiggy (46)</td><td>NSWG</td>
+<td style="font-weight:700;color:var(--rd)">24.60%</td><td>Weekly</td>
+</tr>
+<tr>
+<td><span class="tag tag-agg">Zomato</span> Delivery</td>
+<td>NCH Zomato (47)</td><td>NZMT</td>
+<td style="font-weight:700;color:var(--rd)">23.41%</td><td>Weekly (Thu)</td>
+</tr>
+<tr>
+<td><span class="tag tag-agg">Zomato</span> Dining</td>
+<td>N/A (external)</td><td>NZMT</td>
+<td style="font-weight:700;color:var(--or)">8.07%</td><td>Bi-weekly (Wed)</td>
+</tr>
+<tr>
+<td><span class="tag tag-token">Token</span> Issue</td>
+<td>NCH Token Issue (48)</td><td>NCHTI</td>
+<td style="font-weight:700">Depends on payment (0-2.36%)</td><td>Pre-paid at issue</td>
+</tr>
+<tr>
+<td><span class="tag tag-comp">Complimentary</span></td>
+<td>Complimentary (49)</td><td>COMP</td>
+<td style="font-weight:700;color:var(--dm)">100% (no revenue)</td><td>N/A — write off</td>
+</tr>
+<tr>
+<td><span class="tag tag-waba">WABA</span> COD</td>
+<td>NCH WABA COD (50)</td><td>NWCOD</td>
+<td class="grn" style="font-weight:700">0%</td><td>Runner settles cash</td>
+</tr>
+<tr>
+<td><span class="tag tag-waba">WABA</span> UPI</td>
+<td>NCH WABA UPI (51)</td><td>NWUPI</td>
+<td style="font-weight:700;color:var(--or)">2.36%</td><td>T+2 via Razorpay</td>
+</tr>
+</table>
+
+<div class="insight blue">
+<h4>All roads lead to HDFC Bank — Account 50200118314680</h4>
+<p><strong>Cash:</strong> physically deposited (daily). <strong>Razorpay (Counter UPI/Card/Runner UPI/WABA UPI):</strong> T+2 business days. <strong>Zomato Delivery:</strong> weekly Thursday. <strong>Zomato Dining:</strong> bi-weekly Wednesday. <strong>Swiggy:</strong> weekly. <strong>Secondary bank (Federal Bank):</strong> dormant, Rs 1L balance, zero activity.</p>
+</div>
+</div>
+
+<!-- ========== SETTLEMENT MAP ========== -->
+<div id="settlement" class="sec">
+<div class="sec-t">Where Every Rupee Ultimately Sits</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:20px 0">
+<div class="cost-card" style="border-top:4px solid var(--cash)">
+<h4><span class="tag tag-cash">CASH</span> Track Points (3 sources)</h4>
+<p><strong>1. Counter direct cash (NCSC)</strong> → bank deposit</p>
+<p><strong>2. Runner cash (NCRL)</strong> → settled to counter → bank</p>
+<p><strong>3. WABA COD cash (NWCOD)</strong> → runner settles → counter → bank</p>
+<p style="margin-top:8px"><strong>Reconciliation checkpoints:</strong></p>
+<p>a. Each runner: POS total - UPI collected = expected cash</p>
+<p>b. Counter: total cash from all sources vs drawer count</p>
+<p>c. Bank deposit vs counter closing balance</p>
+<p style="color:var(--rd);margin-top:8px"><strong>Fee: 0% — but highest leakage risk (runners + counter)</strong></p>
+</div>
+
+<div class="cost-card" style="border-top:4px solid var(--upi)">
+<h4><span class="tag tag-upi">UPI</span> — 7 Razorpay QR codes</h4>
+<p><strong>Counter UPI (NCUC)</strong> — 1 QR</p>
+<p><strong>Runner UPI (NR01-NR05)</strong> — 5 QRs</p>
+<p><strong>WABA UPI (NWUPI)</strong> — payment links</p>
+<p style="margin-top:8px"><strong>ALL go through Razorpay at 2.36%</strong></p>
+<p>T+2 settlement to HDFC Bank for each</p>
+<p style="color:var(--rd);margin-top:8px"><strong>7 separate Razorpay reconciliation points — match each QR's dashboard to Odoo journal</strong></p>
+</div>
+
+<div class="cost-card" style="border-top:4px solid var(--card)">
+<h4><span class="tag tag-card">CARD</span> Single Path</h4>
+<p><strong>Counter Card (NCCD)</strong> via Razorpay terminal</p>
+<p style="margin-top:8px"><strong>Fee: 2.36%</strong> | T+2 to HDFC</p>
+<p>Reconcile: Razorpay dashboard vs Odoo NCCD</p>
+<p style="color:var(--dm);margin-top:8px">Low volume — most NCH customers pay cash or UPI</p>
+</div>
+
+<div class="cost-card" style="border-top:4px solid var(--rd)">
+<h4><span class="tag tag-agg">ZOMATO</span> Two streams</h4>
+<p><strong>Delivery (NZMT)</strong> — 23.41% fee | Weekly Thu</p>
+<p><strong>Dining (NZMT)</strong> — 8.07% fee | Bi-weekly Wed</p>
+<p style="margin-top:8px">Both settle to HDFC Bank</p>
+<p style="color:var(--rd);margin-top:8px"><strong>NCH Dining gets 6.84% rate (vs HE 7%)</strong></p>
+</div>
+
+<div class="cost-card" style="border-top:4px solid var(--or)">
+<h4><span class="tag tag-agg">SWIGGY</span> Delivery</h4>
+<p><strong>NSWG journal</strong> — 24.60% fee (incl 1% TCS reclaimable)</p>
+<p>Weekly settlement to HDFC</p>
+<p style="color:var(--or);margin-top:8px">TCS = tax credit on ITR, not a true cost</p>
+</div>
+
+<div class="cost-card" style="border-top:4px solid var(--token)">
+<h4><span class="tag tag-token">TOKENS</span> Pre-paid</h4>
+<p><strong>NCHTI journal</strong> — revenue at issue time</p>
+<p>Payment: cash (0%) or UPI (2.36%)</p>
+<p>No fee at redemption — already collected</p>
+<p style="color:var(--gn);margin-top:8px"><strong>Token breakage = free profit (5-15% unredeemed)</strong></p>
+</div>
+</div>
+</div>
+
+<!-- ========== COST LAYERS ========== -->
+<div id="cost-layers" class="sec">
+<div class="sec-t">Cost of Each Sale — What's Deducted vs External Budget</div>
+
+<div class="insight blue" style="margin-bottom:24px">
+<h4>Direct Cost of Sale vs External Budget</h4>
+<p><strong>Direct Cost of Sale</strong> = commission, payment fees, GST on fees — deducted from order revenue.<br>
+<strong>External Budget</strong> = Meta ad spend, marketing costs — separate expenses in P&L Section 5.</p>
+</div>
+
+<table class="ft">
+<tr><th>Channel</th><th>Direct Cost of Sale<br>(deducted from revenue)</th><th>External Budget<br>(marketing, separate)</th><th>COGS<br>(food + packaging)</th></tr>
+<tr>
+<td><strong>Counter Cash</strong></td>
+<td style="color:var(--gn);font-weight:700">Rs 0 (0%)</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 1 cup</td>
+</tr>
+<tr>
+<td><strong>Counter UPI/Card</strong></td>
+<td style="font-weight:700;color:var(--or)">2.36% (Razorpay)</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 1 cup</td>
+</tr>
+<tr>
+<td><strong>Zomato Dining</strong></td>
+<td style="font-weight:700">6.84% + GST = 8.07%</td>
+<td style="color:var(--dm)">None (Zomato drives traffic)</td>
+<td>~25% food + Rs 1 cup</td>
+</tr>
+<tr>
+<td><strong>Runner Cash</strong></td>
+<td style="color:var(--gn);font-weight:700">Rs 0 (0%)</td>
+<td style="color:var(--dm)">None (foot traffic at station)</td>
+<td>~25% food + Rs 1 cup</td>
+</tr>
+<tr>
+<td><strong>Runner UPI</strong></td>
+<td style="font-weight:700;color:var(--or)">2.36% (Razorpay)</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 1 cup</td>
+</tr>
+<tr>
+<td><strong>WABA UPI</strong></td>
+<td style="font-weight:700;color:var(--or)">2.36% (Razorpay)</td>
+<td style="color:var(--or);font-weight:700">Meta ad spend (if ad-driven)</td>
+<td>~25% food + Rs 4 packaging</td>
+</tr>
+<tr>
+<td><strong>WABA COD</strong></td>
+<td style="color:var(--gn);font-weight:700">Rs 0 (0%)</td>
+<td style="color:var(--or);font-weight:700">Meta ad spend (if ad-driven)</td>
+<td>~25% food + Rs 4 packaging</td>
+</tr>
+<tr>
+<td><strong>Zomato Delivery (&lt;4km)</strong></td>
+<td style="color:var(--rd);font-weight:700">23.41%</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 8 packaging</td>
+</tr>
+<tr>
+<td><strong>Swiggy Delivery</strong></td>
+<td style="color:var(--rd);font-weight:700">24.60%</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 8 packaging</td>
+</tr>
+<tr>
+<td><strong>Token (at issue)</strong></td>
+<td style="font-weight:700">0% (cash) / 2.36% (UPI)</td>
+<td style="color:var(--dm)">None</td>
+<td>~25% food + Rs 1 cup (at redemption)</td>
+</tr>
+</table>
+</div>
+
+<!-- ========== UNIT ECONOMICS ========== -->
+<div id="unit-economics" class="sec">
+<div class="sec-t">NCH Unit Economics — Per Order P&L at Real AOV Levels</div>
+
+<div class="insight blue" style="margin-bottom:24px">
+<h4>NCH COGS = 25% average (vs HE 30%)</h4>
+<p>Chai margins are inherently higher. Cost per cutting chai: ~Rs 4-5 (milk Rs 2, tea Rs 1, sugar Rs 0.50, gas Rs 0.50). Selling at Rs 20 = 75% gross margin. Snacks like Bun Maska (cost Rs 8-10, sell Rs 35-40) are 72-75% margin.</p>
+</div>
+
+<!-- Rs 20 - Single Cutting Chai -->
+<h4 style="margin:32px 0 12px;font-size:18px">Rs 20 — Single Cutting Chai</h4>
+<table class="ft">
+<tr><th>Channel</th><th>Gross</th><th>Commission + Fees</th><th>Net Revenue</th><th>COGS (25%)</th><th>Cup</th><th>Labor</th><th>Overhead</th><th>Profit</th><th>Margin</th></tr>
+<tr>
+<td><strong>Counter Cash</strong></td><td>20</td><td class="grn">0</td><td>20</td><td>5</td><td>1</td><td>3</td><td>2</td><td class="grn" style="font-weight:700">9</td><td class="grn" style="font-weight:700">45%</td>
+</tr>
+<tr>
+<td><strong>Counter UPI</strong></td><td>20</td><td class="orn">0.47</td><td>19.53</td><td>5</td><td>1</td><td>3</td><td>2</td><td style="font-weight:700">8.53</td><td style="font-weight:700">43%</td>
+</tr>
+<tr>
+<td><strong>Runner Cash</strong></td><td>20</td><td class="grn">0</td><td>20</td><td>5</td><td>1</td><td>4</td><td>2</td><td class="grn" style="font-weight:700">8</td><td class="grn" style="font-weight:700">40%</td>
+</tr>
+<tr>
+<td><strong>Runner UPI</strong></td><td>20</td><td class="orn">0.47</td><td>19.53</td><td>5</td><td>1</td><td>4</td><td>2</td><td style="font-weight:700">7.53</td><td style="font-weight:700">38%</td>
+</tr>
+<tr>
+<td><strong>Zomato Delivery</strong></td><td>20</td><td class="red">4.68</td><td>15.32</td><td>5</td><td>3</td><td>3</td><td>2</td><td class="red" style="font-weight:700">2.32</td><td class="red" style="font-weight:700">12%</td>
+</tr>
+</table>
+
+<!-- Rs 30 - Regular Chai -->
+<h4 style="margin:32px 0 12px;font-size:18px">Rs 30 — Regular Chai</h4>
+<table class="ft">
+<tr><th>Channel</th><th>Gross</th><th>Fees</th><th>Net Rev</th><th>COGS</th><th>Cup</th><th>Labor</th><th>Overhead</th><th>Profit</th><th>Margin</th></tr>
+<tr><td><strong>Counter Cash</strong></td><td>30</td><td class="grn">0</td><td>30</td><td>7.50</td><td>1</td><td>4</td><td>3</td><td class="grn" style="font-weight:700">14.50</td><td class="grn" style="font-weight:700">48%</td></tr>
+<tr><td><strong>Counter UPI</strong></td><td>30</td><td class="orn">0.71</td><td>29.29</td><td>7.50</td><td>1</td><td>4</td><td>3</td><td style="font-weight:700">13.79</td><td style="font-weight:700">46%</td></tr>
+<tr><td><strong>Runner Cash</strong></td><td>30</td><td class="grn">0</td><td>30</td><td>7.50</td><td>1</td><td>5</td><td>3</td><td class="grn" style="font-weight:700">13.50</td><td class="grn" style="font-weight:700">45%</td></tr>
+<tr><td><strong>Zomato Dining</strong></td><td>30</td><td class="orn">2.42</td><td>27.58</td><td>7.50</td><td>1</td><td>4</td><td>3</td><td style="font-weight:700">12.08</td><td style="font-weight:700">40%</td></tr>
+<tr><td><strong>Zomato Delivery</strong></td><td>30</td><td class="red">7.02</td><td>22.98</td><td>7.50</td><td>3</td><td>3</td><td>3</td><td class="red" style="font-weight:700">6.48</td><td class="red" style="font-weight:700">22%</td></tr>
+<tr><td><strong>Swiggy Delivery</strong></td><td>30</td><td class="red">7.38</td><td>22.62</td><td>7.50</td><td>3</td><td>3</td><td>3</td><td class="red" style="font-weight:700">6.12</td><td class="red" style="font-weight:700">20%</td></tr>
+</table>
+
+<!-- Rs 60 - 2 Chai -->
+<h4 style="margin:32px 0 12px;font-size:18px">Rs 60 — 2 Chai</h4>
+<table class="ft">
+<tr><th>Channel</th><th>Gross</th><th>Fees</th><th>Net Rev</th><th>COGS</th><th>Pkg</th><th>Labor</th><th>Overhead</th><th>Profit</th><th>Margin</th></tr>
+<tr><td><strong>Counter Cash</strong></td><td>60</td><td class="grn">0</td><td>60</td><td>15</td><td>2</td><td>6</td><td>4</td><td class="grn" style="font-weight:700">33</td><td class="grn" style="font-weight:700">55%</td></tr>
+<tr><td><strong>Counter UPI</strong></td><td>60</td><td class="orn">1.42</td><td>58.58</td><td>15</td><td>2</td><td>6</td><td>4</td><td style="font-weight:700">31.58</td><td style="font-weight:700">53%</td></tr>
+<tr><td><strong>Runner Cash</strong></td><td>60</td><td class="grn">0</td><td>60</td><td>15</td><td>2</td><td>8</td><td>4</td><td class="grn" style="font-weight:700">31</td><td class="grn" style="font-weight:700">52%</td></tr>
+<tr><td><strong>Zomato Delivery</strong></td><td>60</td><td class="red">14.05</td><td>45.95</td><td>15</td><td>6</td><td>5</td><td>4</td><td class="red" style="font-weight:700">15.95</td><td class="red" style="font-weight:700">27%</td></tr>
+<tr><td><strong>Swiggy Delivery</strong></td><td>60</td><td class="red">14.76</td><td>45.24</td><td>15</td><td>6</td><td>5</td><td>4</td><td class="red" style="font-weight:700">15.24</td><td class="red" style="font-weight:700">25%</td></tr>
+</table>
+
+<!-- Rs 80 - Chai + Snack Combo -->
+<h4 style="margin:32px 0 12px;font-size:18px">Rs 80 — Chai + Snack Combo (Typical NCH Order)</h4>
+<table class="ft">
+<tr><th>Channel</th><th>Gross</th><th>Fees</th><th>Net Rev</th><th>COGS</th><th>Pkg</th><th>Labor</th><th>Overhead</th><th>Profit</th><th>Margin</th></tr>
+<tr><td><strong>Counter Cash</strong></td><td>80</td><td class="grn">0</td><td>80</td><td>20</td><td>2</td><td>8</td><td>5</td><td class="grn" style="font-weight:700">45</td><td class="grn" style="font-weight:700">56%</td></tr>
+<tr><td><strong>Counter UPI</strong></td><td>80</td><td class="orn">1.89</td><td>78.11</td><td>20</td><td>2</td><td>8</td><td>5</td><td style="font-weight:700">43.11</td><td style="font-weight:700">54%</td></tr>
+<tr><td><strong>Runner Cash</strong></td><td>80</td><td class="grn">0</td><td>80</td><td>20</td><td>2</td><td>10</td><td>5</td><td class="grn" style="font-weight:700">43</td><td class="grn" style="font-weight:700">54%</td></tr>
+<tr><td><strong>Zomato Dining</strong></td><td>80</td><td class="orn">6.46</td><td>73.54</td><td>20</td><td>2</td><td>8</td><td>5</td><td style="font-weight:700">38.54</td><td style="font-weight:700">48%</td></tr>
+<tr><td><strong>WABA UPI</strong></td><td>80</td><td class="orn">1.89</td><td>78.11</td><td>20</td><td>4</td><td>8</td><td>5</td><td style="font-weight:700">41.11</td><td style="font-weight:700">51%</td></tr>
+<tr><td><strong>WABA COD</strong></td><td>80</td><td class="grn">0</td><td>80</td><td>20</td><td>4</td><td>10</td><td>5</td><td class="grn" style="font-weight:700">41</td><td class="grn" style="font-weight:700">51%</td></tr>
+<tr><td><strong>Zomato Delivery</strong></td><td>80</td><td class="red">18.73</td><td>61.27</td><td>20</td><td>8</td><td>6</td><td>5</td><td class="orn" style="font-weight:700">22.27</td><td class="orn" style="font-weight:700">28%</td></tr>
+<tr><td><strong>Swiggy Delivery</strong></td><td>80</td><td class="red">19.68</td><td>60.32</td><td>20</td><td>8</td><td>6</td><td>5</td><td class="orn" style="font-weight:700">21.32</td><td class="orn" style="font-weight:700">27%</td></tr>
+</table>
+
+<!-- Rs 150 - Group Order -->
+<h4 style="margin:32px 0 12px;font-size:18px">Rs 150 — Group Order / Combo</h4>
+<table class="ft">
+<tr><th>Channel</th><th>Gross</th><th>Fees</th><th>Net Rev</th><th>COGS</th><th>Pkg</th><th>Labor</th><th>Overhead</th><th>Profit</th><th>Margin</th></tr>
+<tr><td><strong>Counter Cash</strong></td><td>150</td><td class="grn">0</td><td>150</td><td>37.50</td><td>3</td><td>12</td><td>8</td><td class="grn" style="font-weight:700">89.50</td><td class="grn" style="font-weight:700">60%</td></tr>
+<tr><td><strong>Counter UPI</strong></td><td>150</td><td class="orn">3.54</td><td>146.46</td><td>37.50</td><td>3</td><td>12</td><td>8</td><td style="font-weight:700">85.96</td><td style="font-weight:700">57%</td></tr>
+<tr><td><strong>Runner Cash</strong></td><td>150</td><td class="grn">0</td><td>150</td><td>37.50</td><td>3</td><td>15</td><td>8</td><td class="grn" style="font-weight:700">86.50</td><td class="grn" style="font-weight:700">58%</td></tr>
+<tr><td><strong>Zomato Dining</strong></td><td>150</td><td class="orn">12.11</td><td>137.89</td><td>37.50</td><td>3</td><td>12</td><td>8</td><td style="font-weight:700">77.39</td><td style="font-weight:700">52%</td></tr>
+<tr><td><strong>Zomato Delivery</strong></td><td>150</td><td class="red">35.12</td><td>114.88</td><td>37.50</td><td>10</td><td>10</td><td>8</td><td class="orn" style="font-weight:700">49.38</td><td class="orn" style="font-weight:700">33%</td></tr>
+<tr><td><strong>Swiggy Delivery</strong></td><td>150</td><td class="red">36.90</td><td>113.10</td><td>37.50</td><td>10</td><td>10</td><td>8</td><td class="orn" style="font-weight:700">47.60</td><td class="orn" style="font-weight:700">32%</td></tr>
+</table>
+
+<div class="insight red" style="margin-top:24px">
+<h4>The NCH Profitability Gap at a Glance (Rs 80 Chai + Snack)</h4>
+<p style="font-size:15px;color:var(--tx)">
+Same Rs 80 order, same food, same kitchen effort:<br><br>
+Counter Cash = <strong class="grn">Rs 45 profit (56%)</strong><br>
+Runner Cash = <strong class="grn">Rs 43 profit (54%)</strong><br>
+WABA COD = <strong style="color:var(--tl)">Rs 41 profit (51%)</strong><br>
+Zomato Dining = <strong style="color:var(--ac)">Rs 39 profit (48%)</strong><br>
+Zomato Delivery = <strong class="orn">Rs 22 profit (28%)</strong><br>
+Swiggy Delivery = <strong class="red">Rs 21 profit (27%)</strong><br><br>
+<strong>Counter sales give you 2x the profit of aggregator delivery.</strong><br>
+<strong>Below Rs 40 AOV, aggregator delivery barely breaks even.</strong>
+</p>
+</div>
+
+<div class="insight orange" style="margin-top:16px">
+<h4>NCH vs HE: The Razorpay Tax</h4>
+<p>HE's Captain UPI (HC01) goes to a direct bank QR — <strong>0% fee</strong>. NCH has no direct bank QR — ALL UPI goes through Razorpay at <strong>2.36%</strong>. On an Rs 80 order, that's Rs 1.89 lost. Over 100 UPI orders/day, that's <strong>Rs 5,670/month or Rs 68K/year</strong> that NCH pays and HE doesn't. <strong>Priority action: set up direct HDFC bank QR for NCH counter.</strong></p>
+</div>
+</div>
+
+<div style="text-align:center;padding:40px;color:var(--dm);font-size:12px">
+Nawabi Chai House — Sales & Payment Flow | Odoo POS Company ID 2 + Verified Contracts | For internal use only
+</div>
+
+</div>
+
+<script>
+const PIN='1305';
+const pi=document.getElementById('pinInput');
+const pg=document.getElementById('pinGate');
+const mc=document.getElementById('mainContent');
+pi.addEventListener('input',()=>{if(pi.value.length===4){if(pi.value===PIN){pg.style.display='none';mc.style.display='block'}else{document.getElementById('pinErr').textContent='Incorrect PIN';pi.value='';pi.focus()}}});
+</script>
+</body>
+</html>
