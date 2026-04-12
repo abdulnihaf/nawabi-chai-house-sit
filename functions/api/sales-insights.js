@@ -196,8 +196,9 @@ function processInsights(orders, orderLines, payments, paymentMethods) {
     }
   });
 
-  // Payment aggregation
+  // Payment aggregation + order→paymentMethod mapping
   const paymentTotals = {};
+  const orderPaymentMap = {}; // orderId → payment group (for product-level breakdown)
   let complimentaryAmount = 0, complimentaryCount = 0;
   payments.forEach(p => {
     const methodId = p.payment_method_id ? p.payment_method_id[0] : 0;
@@ -209,6 +210,26 @@ function processInsights(orders, orderLines, payments, paymentMethods) {
       complimentaryAmount += p.amount;
       complimentaryCount++;
     }
+    // Map order to its primary payment method (largest amount wins for split payments)
+    const oid = p.pos_order_id ? p.pos_order_id[0] : null;
+    if (oid) {
+      if (!orderPaymentMap[oid] || p.amount > (orderPaymentMap[oid].amount || 0)) {
+        orderPaymentMap[oid] = { group, amount: p.amount };
+      }
+    }
+  });
+
+  // Products broken down by payment method
+  const productsByPayment = {};
+  orderLines.forEach(line => {
+    const oid = line.order_id ? line.order_id[0] : null;
+    const pmInfo = oid ? orderPaymentMap[oid] : null;
+    const pmGroup = pmInfo ? pmInfo.group : 'Unknown';
+    const pname = line.product_id ? line.product_id[1] : 'Unknown';
+    if (!productsByPayment[pmGroup]) productsByPayment[pmGroup] = {};
+    if (!productsByPayment[pmGroup][pname]) productsByPayment[pmGroup][pname] = { qty: 0, amount: 0 };
+    productsByPayment[pmGroup][pname].qty += line.qty;
+    productsByPayment[pmGroup][pname].amount += line.price_subtotal_incl;
   });
 
   Object.values(products).forEach(p => {
@@ -245,6 +266,7 @@ function processInsights(orders, orderLines, payments, paymentMethods) {
       runners: {...channelSales.runners, percentage: totalRevenue > 0 ? Math.round((channelSales.runners.amount / totalRevenue) * 100) : 0}
     },
     payments: paymentList,
+    productsByPayment,
     runners: runnerList,
     hourly: hourlyArray,
     productHourly
