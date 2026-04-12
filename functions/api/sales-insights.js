@@ -10,9 +10,7 @@ export async function onRequest(context) {
   const ODOO_DB = 'main';
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
-  // Temp: allow config_ids override for HE data discovery on ops
-  const configParam = url.searchParams.get('config_ids');
-  const CONFIG_IDS = configParam ? configParam.split(',').map(Number) : [27, 28];
+  const CONFIG_IDS = [27, 28];
 
   // TIMEZONE HANDLING:
   // - Input params are IST (local time strings)
