@@ -350,6 +350,18 @@ async function processWebhook(context, body) {
     session = { wa_id: waId, state: 'idle', cart: '[]', cart_total: 0, updated_at: now };
   }
 
+  // Load or create user (BEFORE session expiry check — user needed for language)
+  let user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(waId).first();
+  if (!user) {
+    const now = new Date().toISOString();
+    const name = value.contacts?.[0]?.profile?.name || '';
+    const phone = waId;
+    await db.prepare('INSERT INTO wa_users (wa_id, name, phone, created_at, last_active_at) VALUES (?, ?, ?, ?, ?)').bind(waId, name, phone, now, now).run();
+    user = { wa_id: waId, name, phone, first_order_redeemed: 0, total_orders: 0, last_order_id: null, location_lat: null, location_lng: null, business_type: null, preferred_language: null };
+  } else {
+    await db.prepare('UPDATE wa_users SET last_active_at = ? WHERE wa_id = ?').bind(new Date().toISOString(), waId).run();
+  }
+
   // Check session expiry — notify user if they had an active cart
   const lastUpdate = new Date(session.updated_at).getTime();
   if (Date.now() - lastUpdate > SESSION_TIMEOUT_MS && session.state !== 'idle') {
@@ -361,18 +373,6 @@ async function processWebhook(context, body) {
     if (hadCart && wasOrdering) {
       await sendWhatsApp(phoneId, token, buildText(waId, t('session_expired', userLang(user))));
     }
-  }
-
-  // Load or create user
-  let user = await db.prepare('SELECT * FROM wa_users WHERE wa_id = ?').bind(waId).first();
-  if (!user) {
-    const now = new Date().toISOString();
-    const name = value.contacts?.[0]?.profile?.name || '';
-    const phone = waId;
-    await db.prepare('INSERT INTO wa_users (wa_id, name, phone, created_at, last_active_at) VALUES (?, ?, ?, ?, ?)').bind(waId, name, phone, now, now).run();
-    user = { wa_id: waId, name, phone, first_order_redeemed: 0, total_orders: 0, last_order_id: null, location_lat: null, location_lng: null, business_type: null, preferred_language: null };
-  } else {
-    await db.prepare('UPDATE wa_users SET last_active_at = ? WHERE wa_id = ?').bind(new Date().toISOString(), waId).run();
   }
 
   const msgType = getMessageType(message);
