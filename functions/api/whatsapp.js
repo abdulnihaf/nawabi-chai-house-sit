@@ -769,7 +769,7 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     const greeting = t('browse_menu_returning_free', lang);
     const greetingText = typeof greeting === 'function' ? greeting(firstName) : greeting;
     const locationNote = `\n\n📍 ${t('deliver_to', lang)}: ${user.location_address || 'Saved pin'}\n_Type "change location" or "change language" anytime_`;
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, greetingText + locationNote));
+    await sendMenu(phoneId, token, waId, greetingText + locationNote);
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
@@ -897,7 +897,7 @@ async function handleName(context, session, user, msg, waId, phoneId, token, db)
         } else {
           menuIntro = `${firstName}! ${t('browse_menu', lang)}`;
         }
-        await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, menuIntro));
+        await sendMenu(phoneId, token, waId, menuIntro);
         await updateSession(db, waId, 'awaiting_menu', '[]', 0);
         return;
       }
@@ -1194,7 +1194,7 @@ async function proceedAfterLocationConfirm(context, session, user, waId, phoneId
   if (isNew) {
     menuIntro = `📍 You're ${distance}m from NCH.\n\n🎁 *${firstName ? firstName + ', your' : 'Your'} first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
   }
-  await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, menuIntro));
+  await sendMenu(phoneId, token, waId, menuIntro);
   await updateSession(db, waId, 'awaiting_menu', '[]', 0);
 }
 
@@ -1256,14 +1256,14 @@ async function handleCategoryState(context, session, user, msg, waId, phoneId, t
 
   // ── New Order button → show categories ──
   if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'new_order') {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', session.cart, session.cart_total);
     return;
   }
 
   // ── "Add More" button from cart flow ──
   if (msg.type === 'button_reply' && msg.id === 'add_more') {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     // Keep current cart
     return;
   }
@@ -1273,7 +1273,7 @@ async function handleCategoryState(context, session, user, msg, waId, phoneId, t
     const cart = JSON.parse(session.cart || '[]');
     if (cart.length === 0) {
       await sendWhatsApp(phoneId, token, buildText(waId, t('cart_empty', lang)));
-      await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+      await sendMenu(phoneId, token, waId, t('select_category', lang));
       return;
     }
     // Go to payment
@@ -1330,7 +1330,7 @@ async function handleCategoryState(context, session, user, msg, waId, phoneId, t
 
   // ── "Location is correct" button ──
   if (msg.type === 'button_reply' && msg.id === 'continue_ordering') {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     return;
   }
 
@@ -1378,12 +1378,12 @@ async function handleCategoryState(context, session, user, msg, waId, phoneId, t
   // ── Text: number for quick qty (if user types a number during category view) ──
   if (msg.type === 'text' && /^\d+$/.test(msg.body || '')) {
     // Ignore numbers at category level — resend categories
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     return;
   }
 
   // ── Any other message → resend category menu ──
-  await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+  await sendMenu(phoneId, token, waId, t('select_category', lang));
 }
 
 // ─── STATE: AWAITING ITEM → User picks an item from category list ──
@@ -1398,7 +1398,7 @@ async function handleItemState(context, session, user, msg, waId, phoneId, token
 
   // ── "Add More" from cart ──
   if (msg.type === 'button_reply' && msg.id === 'add_more') {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
     return;
   }
@@ -1440,7 +1440,7 @@ async function handleItemState(context, session, user, msg, waId, phoneId, token
 
   // ── Back to categories ──
   if (msg.type === 'text' && /^(back|menu|categories|cat)$/i.test(msg.body || '')) {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
     return;
   }
@@ -1449,7 +1449,7 @@ async function handleItemState(context, session, user, msg, waId, phoneId, token
   if (categoryKey && categoryTitle) {
     await sendWhatsApp(phoneId, token, buildCategoryItemsList(waId, categoryKey, categoryTitle, lang));
   } else {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
   }
 }
@@ -1479,7 +1479,7 @@ async function handleSizeState(context, session, user, msg, waId, phoneId, token
   if (meta.selectedBaseSku && meta.selectedItemName) {
     await sendWhatsApp(phoneId, token, buildSizeButtons(waId, meta.selectedBaseSku, meta.selectedItemName, lang));
   } else {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
   }
 }
@@ -1537,7 +1537,7 @@ async function handleQtyState(context, session, user, msg, waId, phoneId, token,
   if (meta.selectedSku && meta.selectedItemName && meta.selectedItemPrice) {
     await sendWhatsApp(phoneId, token, buildQtyButtons(waId, meta.selectedSku, meta.selectedItemName, meta.selectedItemPrice, lang));
   } else {
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await sendMenu(phoneId, token, waId, t('select_category', lang));
     await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
   }
 }
@@ -1547,7 +1547,7 @@ async function handleOrderMessage(context, session, user, msg, waId, phoneId, to
   const orderItems = msg.items;
   if (!orderItems || orderItems.length === 0) {
     await sendWhatsApp(phoneId, token, buildText(waId, "We couldn't read your order. Please try again from the menu."));
-    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, 'Browse our menu 👇'));
+    await sendMenu(phoneId, token, waId, 'Browse our menu 👇');
     return;
   }
 
@@ -2143,51 +2143,90 @@ function buildReplyButtons(to, body, buttons) {
   };
 }
 
-// ── Category Menu: Show 7 categories as interactive list ──
+// ── Full Menu: 2 MPMs (beverages + food) — WhatsApp 30-item limit per MPM ──
+// Returns array of 2 messages. Caller must send both.
 function buildCategoryMenu(to, bodyText) {
-  const rows = MENU_CATEGORIES.map(c => ({
-    id: c.id,
-    title: `${c.emoji} ${c.title}`.slice(0, 24),
-    description: `${c.itemCount} items`.slice(0, 72),
-  }));
-  return buildListMessage(to, '☕ Nawabi Chai House', bodyText, 'View Menu', [{ title: 'Menu Categories', rows }]);
+  // MPM 1: Beverages (17 items — 250ml only, customer can also browse 500ml in catalog)
+  const bevMPM = {
+    messaging_product: 'whatsapp', to, type: 'interactive',
+    interactive: {
+      type: 'product_list',
+      header: { type: 'text', text: '☕ Beverages' },
+      body: { text: bodyText },
+      footer: { text: '250ml shown • 500ml also available in catalog' },
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [
+          { title: '☕ Chai', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='chai' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
+          { title: '🥛 Milk Beverages', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='milk' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
+          { title: '☕ Coffee', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='coffee' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
+        ]
+      }
+    }
+  };
+  // MPM 2: Food (27 items)
+  const foodMPM = {
+    messaging_product: 'whatsapp', to, type: 'interactive',
+    interactive: {
+      type: 'product_list',
+      header: { type: 'text', text: '🍽️ Food & Combos' },
+      body: { text: 'Buns, snacks, biscuits & combos 👇' },
+      footer: { text: 'HKP Road delivery • ~5 min' },
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [
+          { title: '🍞 Buns & Bakery', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='buns').map(([s])=>({product_retailer_id:s})) },
+          { title: '🥟 Savory & Snacks', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='snacks').map(([s])=>({product_retailer_id:s})) },
+          { title: '🍪 Biscuits', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='biscuits').map(([s])=>({product_retailer_id:s})) },
+          { title: '🎁 Combos', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='combos').map(([s])=>({product_retailer_id:s})) },
+        ]
+      }
+    }
+  };
+  return [bevMPM, foodMPM];
 }
 
-// ── Category Items: Show items in a category as interactive list ──
+// ── Send full menu (both MPMs) ──
+async function sendMenu(phoneId, token, to, bodyText) {
+  const mpms = buildCategoryMenu(to, bodyText);
+  for (const mpm of mpms) {
+    await sendWhatsApp(phoneId, token, mpm);
+  }
+}
+
+// ── Category Items: Show items as MPM (catalog with images) ──
 function buildCategoryItemsList(to, categoryKey, categoryTitle, lang) {
   const hasSizes = ['chai', 'milk', 'coffee'].includes(categoryKey);
+  const emoji = MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '☕';
 
+  let productItems;
   if (hasSizes) {
-    // For beverage categories: show base items (user picks size after)
-    const baseItems = Object.entries(BEVERAGE_BASES)
+    // Beverages: show both 250ml and 500ml SKUs
+    productItems = Object.entries(PRODUCTS)
       .filter(([, v]) => v.category === categoryKey)
-      .map(([baseSku, v]) => {
-        const sku250 = baseSku + '-250';
-        const sku500 = baseSku + '-500';
-        const p250 = PRODUCTS[sku250];
-        const p500 = PRODUCTS[sku500];
-        return {
-          id: `item_${baseSku}`,
-          title: v.name.slice(0, 24),
-          description: p250 && p500 ? `250ml ₹${p250.price} • 500ml ₹${p500.price}` : '',
-        };
-      });
-    const selectItemText = t('select_item', lang);
-    const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
-    return buildListMessage(to, `☕ ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: baseItems }]);
+      .map(([sku]) => ({ product_retailer_id: sku }));
+  } else {
+    // Non-beverage: show all SKUs
+    productItems = Object.entries(PRODUCTS)
+      .filter(([, v]) => v.category === categoryKey)
+      .map(([sku]) => ({ product_retailer_id: sku }));
   }
 
-  // Non-beverage categories: show items directly
-  const items = Object.entries(PRODUCTS)
-    .filter(([, v]) => v.category === categoryKey)
-    .map(([sku, v]) => ({
-      id: `item_${sku}`,
-      title: v.name.slice(0, 24),
-      description: `₹${v.price}`,
-    }));
-  const selectItemText = t('select_item', lang);
-  const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
-  return buildListMessage(to, `${MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '🍽️'} ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: items }]);
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'product_list',
+      header: { type: 'text', text: `${emoji} ${categoryTitle}` },
+      body: { text: `Browse ${categoryTitle} — tap to add to cart` },
+      footer: { text: 'HKP Road delivery • ~5 min' },
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [{ title: categoryTitle, product_items: productItems }]
+      }
+    }
+  };
 }
 
 // ── Size Selection: 250ml or 500ml for beverages ──
