@@ -268,6 +268,12 @@ export async function onRequest(context) {
     return handleRazorpayWebhook(context, corsHeaders);
   }
 
+  // ── Debug endpoint (temporary) ──
+  if (action === 'debug-error') {
+    const err = await context.env.DB.prepare("SELECT value FROM _debug WHERE key = 'last_error'").first();
+    return new Response(JSON.stringify(err || {value: 'no errors'}), { headers: corsHeaders });
+  }
+
   // ── Dashboard API (GET with action param) ──
   if (action) {
     return handleDashboardAPI(context, action, url, corsHeaders);
@@ -286,6 +292,8 @@ export async function onRequest(context) {
       return new Response('OK', { status: 200 });
     } catch (error) {
       console.error('Webhook error:', error.message, error.stack);
+      // Temp: store last error for debugging
+      try { await context.env.DB.prepare("INSERT OR REPLACE INTO _debug (key, value) VALUES ('last_error', ?)").bind(JSON.stringify({msg: error.message, stack: error.stack?.substring(0, 500), time: new Date().toISOString()})).run(); } catch(e) {}
       return new Response('OK', { status: 200 });
     }
   }
