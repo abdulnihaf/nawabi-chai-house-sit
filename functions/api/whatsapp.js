@@ -2143,90 +2143,45 @@ function buildReplyButtons(to, body, buttons) {
   };
 }
 
-// ── Full Menu: 2 MPMs (beverages + food) — WhatsApp 30-item limit per MPM ──
-// Returns array of 2 messages. Caller must send both.
+// ── Full Menu: Category list (interactive list message) ──
 function buildCategoryMenu(to, bodyText) {
-  // MPM 1: Beverages (17 items — 250ml only, customer can also browse 500ml in catalog)
-  const bevMPM = {
-    messaging_product: 'whatsapp', to, type: 'interactive',
-    interactive: {
-      type: 'product_list',
-      header: { type: 'text', text: '☕ Beverages' },
-      body: { text: bodyText },
-      footer: { text: '250ml shown • 500ml also available in catalog' },
-      action: {
-        catalog_id: CATALOG_ID,
-        sections: [
-          { title: '☕ Chai', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='chai' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
-          { title: '🥛 Milk Beverages', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='milk' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
-          { title: '☕ Coffee', product_items: Object.entries(PRODUCTS).filter(([s,v]) => v.category==='coffee' && s.endsWith('-250')).map(([s])=>({product_retailer_id:s})) },
-        ]
-      }
-    }
-  };
-  // MPM 2: Food (27 items)
-  const foodMPM = {
-    messaging_product: 'whatsapp', to, type: 'interactive',
-    interactive: {
-      type: 'product_list',
-      header: { type: 'text', text: '🍽️ Food & Combos' },
-      body: { text: 'Buns, snacks, biscuits & combos 👇' },
-      footer: { text: 'HKP Road delivery • ~5 min' },
-      action: {
-        catalog_id: CATALOG_ID,
-        sections: [
-          { title: '🍞 Buns & Bakery', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='buns').map(([s])=>({product_retailer_id:s})) },
-          { title: '🥟 Savory & Snacks', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='snacks').map(([s])=>({product_retailer_id:s})) },
-          { title: '🍪 Biscuits', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='biscuits').map(([s])=>({product_retailer_id:s})) },
-          { title: '🎁 Combos', product_items: Object.entries(PRODUCTS).filter(([,v]) => v.category==='combos').map(([s])=>({product_retailer_id:s})) },
-        ]
-      }
-    }
-  };
-  return [bevMPM, foodMPM];
+  const rows = MENU_CATEGORIES.map(c => ({
+    id: c.id,
+    title: (c.emoji + ' ' + c.title).slice(0, 24),
+    description: (c.itemCount + ' items').slice(0, 72),
+  }));
+  return buildListMessage(to, '☕ Nawabi Chai House', bodyText, 'View Menu', [{ title: 'Menu Categories', rows }]);
 }
 
-// ── Send full menu (both MPMs) ──
+// ── Send menu ──
 async function sendMenu(phoneId, token, to, bodyText) {
-  const mpms = buildCategoryMenu(to, bodyText);
-  for (const mpm of mpms) {
-    await sendWhatsApp(phoneId, token, mpm);
-  }
+  await sendWhatsApp(phoneId, token, buildCategoryMenu(to, bodyText));
 }
 
 // ── Category Items: Show items as MPM (catalog with images) ──
 function buildCategoryItemsList(to, categoryKey, categoryTitle, lang) {
   const hasSizes = ['chai', 'milk', 'coffee'].includes(categoryKey);
-  const emoji = MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '☕';
 
-  let productItems;
   if (hasSizes) {
-    // Beverages: show both 250ml and 500ml SKUs
-    productItems = Object.entries(PRODUCTS)
+    const baseItems = Object.entries(BEVERAGE_BASES)
       .filter(([, v]) => v.category === categoryKey)
-      .map(([sku]) => ({ product_retailer_id: sku }));
-  } else {
-    // Non-beverage: show all SKUs
-    productItems = Object.entries(PRODUCTS)
-      .filter(([, v]) => v.category === categoryKey)
-      .map(([sku]) => ({ product_retailer_id: sku }));
+      .map(([baseSku, v]) => {
+        const p250 = PRODUCTS[baseSku + '-250'];
+        const p500 = PRODUCTS[baseSku + '-500'];
+        return { id: `item_${baseSku}`, title: v.name.slice(0, 24), description: p250 && p500 ? `250ml ₹${p250.price} • 500ml ₹${p500.price}` : '' };
+      });
+    const selectItemText = t('select_item', lang);
+    const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
+    return buildListMessage(to, `☕ ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: baseItems }]);
   }
 
-  return {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'interactive',
-    interactive: {
-      type: 'product_list',
-      header: { type: 'text', text: `${emoji} ${categoryTitle}` },
-      body: { text: `Browse ${categoryTitle} — tap to add to cart` },
-      footer: { text: 'HKP Road delivery • ~5 min' },
-      action: {
-        catalog_id: CATALOG_ID,
-        sections: [{ title: categoryTitle, product_items: productItems }]
-      }
-    }
-  };
+  const items = Object.entries(PRODUCTS)
+    .filter(([, v]) => v.category === categoryKey)
+    .map(([sku, v]) => ({ id: `item_${sku}`, title: v.name.slice(0, 24), description: `₹${v.price}` }));
+  const selectItemText = t('select_item', lang);
+  const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
+  const emoji = MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '🍽️';
+  return buildListMessage(to, `${emoji} ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: items }]);
 }
 
 // ── Size Selection: 250ml or 500ml for beverages ──
