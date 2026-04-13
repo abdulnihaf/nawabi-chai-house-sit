@@ -8,13 +8,104 @@
 const CATALOG_ID = '1986268632293641';
 
 const PRODUCTS = {
-  'NCH-IC':  { name: 'Irani Chai',            price: 15,  odooId: 1028 },
-  'NCH-NSC': { name: 'Nawabi Special Coffee',  price: 30,  odooId: 1102 },
-  'NCH-LT':  { name: 'Lemon Tea',             price: 20,  odooId: 1103 },
-  'NCH-BM':  { name: 'Bun Maska',             price: 40,  odooId: 1029 },
-  'NCH-OB3': { name: 'Osmania Biscuit x3',    price: 20,  odooId: 1033 },
-  'NCH-CC':  { name: 'Chicken Cutlet',        price: 25,  odooId: 1031 },
+  // ── Beverages - Chai ──
+  'NCH-IC-250':   { name: 'Irani Chai 250ml',            price: 99,   odooId: 1028, category: 'chai', size: '250ml' },
+  'NCH-IC-500':   { name: 'Irani Chai 500ml',            price: 189,  odooId: 1028, category: 'chai', size: '500ml' },
+  'NCH-IGC-250':  { name: 'Irani Ginger Chai 250ml',     price: 119,  odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-IGC-500':  { name: 'Irani Ginger Chai 500ml',     price: 228,  odooId: 0,    category: 'chai', size: '500ml' },
+  'NCH-IBC-250':  { name: 'Irani Black Chai 250ml',      price: 99,   odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-IBC-500':  { name: 'Irani Black Chai 500ml',      price: 189,  odooId: 0,    category: 'chai', size: '500ml' },
+  'NCH-LT-250':   { name: 'Lemon Tea 250ml',             price: 99,   odooId: 1103, category: 'chai', size: '250ml' },
+  'NCH-LT-500':   { name: 'Lemon Tea 500ml',             price: 189,  odooId: 1103, category: 'chai', size: '500ml' },
+  'NCH-LTH-250':  { name: 'Lemon Tea with Honey 250ml',  price: 119,  odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-LTH-500':  { name: 'Lemon Tea with Honey 500ml',  price: 228,  odooId: 0,    category: 'chai', size: '500ml' },
+  'NCH-ICT-250':  { name: 'Irani Chocolate Tea 250ml',   price: 119,  odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-ICT-500':  { name: 'Irani Chocolate Tea 500ml',   price: 228,  odooId: 0,    category: 'chai', size: '500ml' },
+  'NCH-ZC-250':   { name: 'Zafran Chai 250ml',           price: 139,  odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-ZC-500':   { name: 'Zafran Chai 500ml',           price: 268,  odooId: 0,    category: 'chai', size: '500ml' },
+  'NCH-KC-250':   { name: 'Karak Chai 250ml',            price: 119,  odooId: 0,    category: 'chai', size: '250ml' },
+  'NCH-KC-500':   { name: 'Karak Chai 500ml',            price: 228,  odooId: 0,    category: 'chai', size: '500ml' },
+  // ── Beverages - Milk ──
+  'NCH-IM-250':   { name: 'Irani Milk 250ml',            price: 119,  odooId: 0,    category: 'milk', size: '250ml' },
+  'NCH-IM-500':   { name: 'Irani Milk 500ml',            price: 228,  odooId: 0,    category: 'milk', size: '500ml' },
+  'NCH-ICM-250':  { name: 'Irani Chocolate Milk 250ml',  price: 139,  odooId: 0,    category: 'milk', size: '250ml' },
+  'NCH-ICM-500':  { name: 'Irani Chocolate Milk 500ml',  price: 268,  odooId: 0,    category: 'milk', size: '500ml' },
+  'NCH-IBM-250':  { name: 'Irani Badam Milk 250ml',      price: 139,  odooId: 0,    category: 'milk', size: '250ml' },
+  'NCH-IBM-500':  { name: 'Irani Badam Milk 500ml',      price: 268,  odooId: 0,    category: 'milk', size: '500ml' },
+  'NCH-IH-250':   { name: 'Irani Horlicks 250ml',        price: 139,  odooId: 0,    category: 'milk', size: '250ml' },
+  'NCH-IH-500':   { name: 'Irani Horlicks 500ml',        price: 268,  odooId: 0,    category: 'milk', size: '500ml' },
+  'NCH-IBT-250':  { name: 'Irani Boost Milk 250ml',      price: 139,  odooId: 0,    category: 'milk', size: '250ml' },
+  'NCH-IBT-500':  { name: 'Irani Boost Milk 500ml',      price: 268,  odooId: 0,    category: 'milk', size: '500ml' },
+  // ── Beverages - Coffee ──
+  'NCH-MC-250':   { name: 'Milk Coffee 250ml',           price: 139,  odooId: 1102, category: 'coffee', size: '250ml' },
+  'NCH-MC-500':   { name: 'Milk Coffee 500ml',           price: 268,  odooId: 1102, category: 'coffee', size: '500ml' },
+  'NCH-BKC-250':  { name: 'Black Coffee 250ml',          price: 139,  odooId: 0,    category: 'coffee', size: '250ml' },
+  'NCH-BKC-500':  { name: 'Black Coffee 500ml',          price: 268,  odooId: 0,    category: 'coffee', size: '500ml' },
+  'NCH-MSC-250':  { name: 'Masala Coffee 250ml',         price: 139,  odooId: 0,    category: 'coffee', size: '250ml' },
+  'NCH-MSC-500':  { name: 'Masala Coffee 500ml',         price: 268,  odooId: 0,    category: 'coffee', size: '500ml' },
+  'NCH-ZFC-250':  { name: 'Zafrani Coffee 250ml',        price: 149,  odooId: 0,    category: 'coffee', size: '250ml' },
+  'NCH-ZFC-500':  { name: 'Zafrani Coffee 500ml',        price: 288,  odooId: 0,    category: 'coffee', size: '500ml' },
+  // ── Buns & Bakery ──
+  'NCH-CB':    { name: 'Cream Bun',        price: 99,   odooId: 0,    category: 'buns' },
+  'NCH-MB':    { name: 'Maska Bun',        price: 119,  odooId: 1029, category: 'buns' },
+  'NCH-MLB':   { name: 'Malai Bun',        price: 119,  odooId: 1118, category: 'buns' },
+  'NCH-NB':    { name: 'Nutella Bun',      price: 139,  odooId: 0,    category: 'buns' },
+  'NCH-OB':    { name: 'Omlet Bun',        price: 139,  odooId: 0,    category: 'buns' },
+  'NCH-BMJ':   { name: 'Bun Maska Jam',    price: 139,  odooId: 0,    category: 'buns' },
+  'NCH-PCS':   { name: 'Plum Cake Slice',  price: 99,   odooId: 0,    category: 'buns' },
+  'NCH-CO':    { name: 'Cheese Omlet',     price: 149,  odooId: 0,    category: 'buns' },
+  // ── Savory & Snacks ──
+  'NCH-KS':    { name: 'Kheema Samosa (2pc)',       price: 59,   odooId: 1115, category: 'snacks' },
+  'NCH-IP':    { name: 'Irani Poori (3pc)',         price: 139,  odooId: 0,    category: 'snacks' },
+  'NCH-LK':    { name: 'Lukhmi',                   price: 69,   odooId: 0,    category: 'snacks' },
+  'NCH-KJ':    { name: 'Kajoor (2pc)',              price: 69,   odooId: 0,    category: 'snacks' },
+  'NCH-NK':    { name: 'Naan Katai (2pc)',          price: 69,   odooId: 0,    category: 'snacks' },
+  'NCH-SH':    { name: 'Shirmal',                  price: 69,   odooId: 0,    category: 'snacks' },
+  'NCH-DP':    { name: 'Dil Pasand',               price: 99,   odooId: 0,    category: 'snacks' },
+  'NCH-HB':    { name: 'Hash Brown (2pc)',          price: 155,  odooId: 0,    category: 'snacks' },
+  'NCH-FCW':   { name: 'Fried Chicken Wings (3pc)', price: 119,  odooId: 0,    category: 'snacks' },
+  // ── Biscuits & Bakery ──
+  'NCH-OB3':   { name: 'Osmania Biscuits (3pc)',    price: 59,   odooId: 1033, category: 'biscuits' },
+  'NCH-KB3':   { name: 'Khara Biscuits (3pc)',      price: 59,   odooId: 0,    category: 'biscuits' },
+  'NCH-FB3':   { name: 'Fruit Biscuits (3pc)',      price: 69,   odooId: 0,    category: 'biscuits' },
+  'NCH-DFB3':  { name: 'Dry Fruit Biscuits (3pc)',  price: 99,   odooId: 0,    category: 'biscuits' },
+  // ── Combos ──
+  'NCH-CMB1':  { name: 'Irani Chai + Maska Bun',       price: 199, odooId: 0, category: 'combos' },
+  'NCH-CMB2':  { name: 'Irani Chai + Keema Samosa',     price: 149, odooId: 0, category: 'combos' },
+  'NCH-CMB3':  { name: 'Irani Chai + Fruit Biscuits',   price: 149, odooId: 0, category: 'combos' },
+  'NCH-CMB4':  { name: 'Irani Chai + Omlet Bun',        price: 219, odooId: 0, category: 'combos' },
+  'NCH-CMB5':  { name: 'Zafrani Chai + Osmania',        price: 199, odooId: 0, category: 'combos' },
+  'NCH-CMB6':  { name: 'Irani Chai + Dil Pasand',       price: 199, odooId: 0, category: 'combos' },
 };
+
+// Menu categories for interactive list flow
+const MENU_CATEGORIES = [
+  { id: 'cat_chai',     title: 'Chai',                emoji: '☕', itemCount: 8  },
+  { id: 'cat_milk',     title: 'Milk Beverages',      emoji: '🥛', itemCount: 5  },
+  { id: 'cat_coffee',   title: 'Coffee',              emoji: '☕', itemCount: 4  },
+  { id: 'cat_buns',     title: 'Buns & Bakery',       emoji: '🍞', itemCount: 8  },
+  { id: 'cat_snacks',   title: 'Savory & Snacks',     emoji: '🥟', itemCount: 9  },
+  { id: 'cat_biscuits', title: 'Biscuits',            emoji: '🍪', itemCount: 4  },
+  { id: 'cat_combos',   title: 'Combos',              emoji: '🎁', itemCount: 6  },
+];
+
+// Map category id → category key in PRODUCTS
+const CAT_ID_TO_KEY = {
+  cat_chai: 'chai', cat_milk: 'milk', cat_coffee: 'coffee',
+  cat_buns: 'buns', cat_snacks: 'snacks', cat_biscuits: 'biscuits', cat_combos: 'combos',
+};
+
+// Beverage base items (for size selection) — group by base SKU prefix
+const BEVERAGE_BASES = {};
+for (const [sku, prod] of Object.entries(PRODUCTS)) {
+  if (prod.size) {
+    // Extract base SKU: NCH-IC-250 → NCH-IC
+    const baseSku = sku.replace(/-(?:250|500)$/, '');
+    if (!BEVERAGE_BASES[baseSku]) {
+      BEVERAGE_BASES[baseSku] = { name: prod.name.replace(/ (?:250|500)ml$/, ''), category: prod.category };
+    }
+  }
+}
 
 const NCH_LAT = 12.9868674;
 const NCH_LNG = 77.6044311;
@@ -220,6 +311,56 @@ const T = {
     en: '⚙️ *Settings*', ur: '⚙️ *سیٹنگز*', hi: '⚙️ *सेटिंग्स*',
     kn: '⚙️ *ಸೆಟ್ಟಿಂಗ್ಸ್*', ta: '⚙️ *அமைப்புகள்*',
   },
+  // ── Category Menu Flow ──
+  select_category: {
+    en: 'What would you like to order? Pick a category 👇',
+    ur: 'آپ کیا آرڈر کرنا چاہیں گے؟ کیٹیگری منتخب کریں 👇',
+    hi: 'आप क्या ऑर्डर करना चाहेंगे? कैटेगरी चुनें 👇',
+    kn: 'ನೀವು ಏನನ್ನು ಆರ್ಡರ್ ಮಾಡಲು ಬಯಸುತ್ತೀರಿ? ವರ್ಗ ಆಯ್ಕೆ ಮಾಡಿ 👇',
+    ta: 'நீங்கள் என்ன ஆர்டர் செய்ய விரும்புகிறீர்கள்? வகை தேர்வு செய்யுங்கள் 👇',
+  },
+  select_item: {
+    en: (cat) => `Select an item from *${cat}*:`,
+    ur: (cat) => `*${cat}* سے آئٹم منتخب کریں:`,
+    hi: (cat) => `*${cat}* से आइटम चुनें:`,
+    kn: (cat) => `*${cat}* ನಿಂದ ಐಟಂ ಆಯ್ಕೆ ಮಾಡಿ:`,
+    ta: (cat) => `*${cat}* இல் இருந்து பொருளைத் தேர்வு செய்யுங்கள்:`,
+  },
+  select_size: {
+    en: (item) => `What size for *${item}*?`,
+    ur: (item) => `*${item}* کا سائز؟`,
+    hi: (item) => `*${item}* का साइज़?`,
+    kn: (item) => `*${item}* ಗಾತ್ರ?`,
+    ta: (item) => `*${item}* அளவு?`,
+  },
+  select_qty: {
+    en: (item, price) => `How many *${item}* (₹${price} each)?`,
+    ur: (item, price) => `*${item}* کتنے (₹${price} فی)؟`,
+    hi: (item, price) => `*${item}* कितने (₹${price} प्रति)?`,
+    kn: (item, price) => `*${item}* ಎಷ್ಟು (₹${price} ಪ್ರತಿ)?`,
+    ta: (item, price) => `*${item}* எத்தனை (₹${price} ஒன்று)?`,
+  },
+  item_added: {
+    en: (qty, item, cartCount, cartTotal) => `Added ${qty}x ${item}!\n\n🛒 Cart: ${cartCount} items — ₹${cartTotal}`,
+    ur: (qty, item, cartCount, cartTotal) => `${qty}x ${item} شامل!\n\n🛒 کارٹ: ${cartCount} آئٹمز — ₹${cartTotal}`,
+    hi: (qty, item, cartCount, cartTotal) => `${qty}x ${item} जोड़ा!\n\n🛒 कार्ट: ${cartCount} आइटम — ₹${cartTotal}`,
+    kn: (qty, item, cartCount, cartTotal) => `${qty}x ${item} ಸೇರಿಸಲಾಗಿದೆ!\n\n🛒 ಕಾರ್ಟ್: ${cartCount} ಐಟಂಗಳು — ₹${cartTotal}`,
+    ta: (qty, item, cartCount, cartTotal) => `${qty}x ${item} சேர்க்கப்பட்டது!\n\n🛒 கூடை: ${cartCount} பொருட்கள் — ₹${cartTotal}`,
+  },
+  add_more_or_checkout: {
+    en: 'Add more items or checkout?',
+    ur: 'مزید آئٹمز شامل کریں یا چیک آؤٹ؟',
+    hi: 'और आइटम जोड़ें या चेकआउट?',
+    kn: 'ಇನ್ನಷ್ಟು ಐಟಂಗಳನ್ನು ಸೇರಿಸಿ ಅಥವಾ ಚೆಕ್ಔಟ್?',
+    ta: 'இன்னும் சேர்க்கவா அல்லது செலுத்தவா?',
+  },
+  cart_empty: {
+    en: 'Your cart is empty. Pick a category to start ordering!',
+    ur: 'آپ کی کارٹ خالی ہے۔ آرڈر کے لیے کیٹیگری منتخب کریں!',
+    hi: 'आपकी कार्ट खाली है। ऑर्डर के लिए कैटेगरी चुनें!',
+    kn: 'ನಿಮ್ಮ ಕಾರ್ಟ್ ಖಾಲಿಯಾಗಿದೆ. ಆರ್ಡರ್ ಮಾಡಲು ವರ್ಗ ಆಯ್ಕೆ ಮಾಡಿ!',
+    ta: 'உங்கள் கூடை காலியாக உள்ளது. ஆர்டர் செய்ய வகையைத் தேர்வு செய்யுங்கள்!',
+  },
 };
 
 // Helper: get translated text, fallback to English
@@ -366,7 +507,7 @@ async function processWebhook(context, body) {
   const lastUpdate = new Date(session.updated_at).getTime();
   if (Date.now() - lastUpdate > SESSION_TIMEOUT_MS && session.state !== 'idle') {
     const hadCart = session.cart && session.cart !== '[]';
-    const wasOrdering = ['awaiting_menu', 'awaiting_payment', 'awaiting_location', 'awaiting_location_confirm'].includes(session.state);
+    const wasOrdering = ['awaiting_menu', 'awaiting_category', 'awaiting_item', 'awaiting_size', 'awaiting_qty', 'awaiting_payment', 'awaiting_location', 'awaiting_location_confirm'].includes(session.state);
     session.state = 'idle';
     session.cart = '[]';
     session.cart_total = 0;
@@ -527,11 +668,11 @@ function getMessageType(message) {
 }
 
 // ─── STATE MACHINE ROUTER ─────────────────────────────────────────
-// States: idle → awaiting_language → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_location_confirm → awaiting_menu → awaiting_payment → awaiting_upi_payment → order_placed
+// States: idle → awaiting_language → awaiting_biz_type → awaiting_name → awaiting_location → awaiting_location_confirm → awaiting_category → awaiting_item → awaiting_size → awaiting_qty → awaiting_payment → awaiting_upi_payment → order_placed
 async function routeState(context, session, user, message, msg, waId, phoneId, token, db) {
   const state = session.state;
 
-  // Order message can come at any time from the MPM cart — handle it directly
+  // Order message can come at any time from the MPM cart — handle it directly (legacy compat)
   if (msg.type === 'order') {
     return handleOrderMessage(context, session, user, msg, waId, phoneId, token, db);
   }
@@ -554,8 +695,18 @@ async function routeState(context, session, user, message, msg, waId, phoneId, t
   if (state === 'awaiting_location_confirm') {
     return handleLocationConfirm(context, session, user, msg, waId, phoneId, token, db);
   }
-  if (state === 'awaiting_menu') {
-    return handleMenuState(context, session, user, msg, waId, phoneId, token, db);
+  // New menu flow states
+  if (state === 'awaiting_category' || state === 'awaiting_menu') {
+    return handleCategoryState(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_item') {
+    return handleItemState(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_size') {
+    return handleSizeState(context, session, user, msg, waId, phoneId, token, db);
+  }
+  if (state === 'awaiting_qty') {
+    return handleQtyState(context, session, user, msg, waId, phoneId, token, db);
   }
   if (state === 'awaiting_payment') {
     return handlePayment(context, session, user, msg, waId, phoneId, token, db);
@@ -618,7 +769,7 @@ async function handleIdle(context, session, user, msg, waId, phoneId, token, db)
     const greeting = t('browse_menu_returning_free', lang);
     const greetingText = typeof greeting === 'function' ? greeting(firstName) : greeting;
     const locationNote = `\n\n📍 ${t('deliver_to', lang)}: ${user.location_address || 'Saved pin'}\n_Type "change location" or "change language" anytime_`;
-    await sendWhatsApp(phoneId, token, buildMPM(waId, greetingText + locationNote));
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, greetingText + locationNote));
     await updateSession(db, waId, 'awaiting_menu', '[]', 0);
     return;
   }
@@ -746,7 +897,7 @@ async function handleName(context, session, user, msg, waId, phoneId, token, db)
         } else {
           menuIntro = `${firstName}! ${t('browse_menu', lang)}`;
         }
-        await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
+        await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, menuIntro));
         await updateSession(db, waId, 'awaiting_menu', '[]', 0);
         return;
       }
@@ -1043,28 +1194,22 @@ async function proceedAfterLocationConfirm(context, session, user, waId, phoneId
   if (isNew) {
     menuIntro = `📍 You're ${distance}m from NCH.\n\n🎁 *${firstName ? firstName + ', your' : 'Your'} first 2 Irani Chai are FREE!*\n\nBrowse our menu 👇`;
   }
-  await sendWhatsApp(phoneId, token, buildMPM(waId, menuIntro));
+  await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, menuIntro));
   await updateSession(db, waId, 'awaiting_menu', '[]', 0);
 }
 
-// ─── STATE: AWAITING MENU → Waiting for cart or reorder ───────────
-async function handleMenuState(context, session, user, msg, waId, phoneId, token, db) {
+// ─── STATE: AWAITING CATEGORY → Show category list, handle selection ───────────
+async function handleCategoryState(context, session, user, msg, waId, phoneId, token, db) {
   const lang = userLang(user);
 
   // ── Change Language button/list_reply ──
   if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'change_language') {
-    // Show full language selection list
     const langRows = SUPPORTED_LANGUAGES.map(l => ({
       id: `lang_${l.code}`,
       title: l.code === 'en' ? l.native : `${l.native} (${l.name})`,
       description: l.name
     }));
-    const langList = buildListMessage(waId,
-      '🌐',
-      t('choose_language', lang),
-      lang === 'en' ? 'Select language' : '🌐',
-      [{ title: 'Languages', rows: langRows }]
-    );
+    const langList = buildListMessage(waId, '🌐', t('choose_language', lang), lang === 'en' ? 'Select language' : '🌐', [{ title: 'Languages', rows: langRows }]);
     await sendWhatsApp(phoneId, token, langList);
     await updateSession(db, waId, 'awaiting_language', session.cart, session.cart_total);
     return;
@@ -1075,18 +1220,15 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
     const lastOrder = await db.prepare('SELECT * FROM wa_orders WHERE id = ?').bind(user.last_order_id).first();
     if (lastOrder) {
       const items = JSON.parse(lastOrder.items);
-      // Recalculate prices from current PRODUCTS
       const updatedItems = items.map(item => {
-        const prod = Object.values(PRODUCTS).find(p => p.odooId === item.odooId);
+        const prod = Object.values(PRODUCTS).find(p => p.odooId === item.odooId && p.odooId !== 0);
         return prod ? { ...item, price: prod.price } : item;
       });
       const cartTotal = updatedItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
       if (user.location_lat && user.location_lng) {
-        // Re-verify distance (location may be stale)
         const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
         if (dist > MAX_DELIVERY_RADIUS_M) {
-          // Location is now out of range — clear it and ask again
           await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
           user.location_lat = null;
           const distStr = dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)}m`;
@@ -1112,43 +1254,98 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
     }
   }
 
-  // ── New Order button ──
+  // ── New Order button → show categories ──
   if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'new_order') {
-    await sendWhatsApp(phoneId, token, buildMPM(waId, t('browse_menu', lang)));
-    await updateSession(db, waId, 'awaiting_menu', '[]', 0);
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', session.cart, session.cart_total);
+    return;
+  }
+
+  // ── "Add More" button from cart flow ──
+  if (msg.type === 'button_reply' && msg.id === 'add_more') {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    // Keep current cart
+    return;
+  }
+
+  // ── "Checkout" button ──
+  if (msg.type === 'button_reply' && msg.id === 'checkout') {
+    const cart = JSON.parse(session.cart || '[]');
+    if (cart.length === 0) {
+      await sendWhatsApp(phoneId, token, buildText(waId, t('cart_empty', lang)));
+      await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+      return;
+    }
+    // Go to payment
+    if (!user.location_lat || !user.location_lng) {
+      await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
+      await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Great choices! Share your delivery location so we can get your order to you.'));
+      return;
+    }
+    const dist = haversineDistance(user.location_lat, user.location_lng, NCH_LAT, NCH_LNG);
+    if (dist > MAX_DELIVERY_RADIUS_M) {
+      await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
+      user.location_lat = null;
+      const distStr = dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)}m`;
+      await sendWhatsApp(phoneId, token, buildText(waId, `📍 Your saved location is *${distStr}* away — outside our delivery area.\n\nPlease share your current location.`));
+      await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
+      await sendWhatsApp(phoneId, token, buildLocationRequest(waId, '📍 Share your delivery location:'));
+      return;
+    }
+    const cartSummary = cart.map(c => `${c.qty}x ${c.name} — ₹${c.price * c.qty}`).join('\n');
+    let cartTotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+    let discountPreview = '';
+    if (!user.first_order_redeemed) {
+      const chaiInCart = cart.filter(c => c.code && c.code.startsWith('NCH-IC-')).reduce((sum, c) => sum + c.qty, 0);
+      if (chaiInCart > 0) {
+        const freeCount = Math.min(chaiInCart, 2);
+        const p250 = PRODUCTS['NCH-IC-250'];
+        const discountAmt = freeCount * (p250 ? p250.price : 99);
+        discountPreview = `\n🎁 ${freeCount}x FREE Irani Chai — -₹${discountAmt}`;
+        cartTotal = Math.max(0, cartTotal - discountAmt);
+      }
+    }
+    const locationLabel = user.location_address || 'Saved pin';
+    const body = `*Your order:*\n${cartSummary}${discountPreview}\n\n💰 *Total: ₹${cartTotal}*\n📍 *Deliver to:* ${locationLabel}\n\nHow would you like to pay?`;
+    const buttons = [
+      { type: 'reply', reply: { id: 'pay_cod', title: 'Cash on Delivery' } },
+      { type: 'reply', reply: { id: 'pay_upi', title: 'UPI' } },
+      { type: 'reply', reply: { id: 'pay_change_loc', title: '📍 Change Location' } }
+    ];
+    await sendWhatsApp(phoneId, token, buildReplyButtons(waId, body, buttons));
+    await updateSession(db, waId, 'awaiting_payment', session.cart, session.cart_total);
     return;
   }
 
   // ── Change Location button ──
   if ((msg.type === 'button_reply' || msg.type === 'list_reply') && msg.id === 'change_location') {
-    // Clear saved location so it gets re-verified
     await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
     user.location_lat = null;
     user.location_lng = null;
     user.location_address = null;
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_new_location', lang)));
-    await updateSession(db, waId, 'awaiting_location', '[]', 0);
+    await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
     return;
   }
 
-  // ── "Location is correct" button — just acknowledge and stay in menu ──
+  // ── "Location is correct" button ──
   if (msg.type === 'button_reply' && msg.id === 'continue_ordering') {
-    await sendWhatsApp(phoneId, token, buildText(waId, `👍 Great! Browse the menu above and send your order when ready.`));
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
     return;
   }
 
-  // ── Text command: "change location" / "location" — same as button ──
+  // ── Text command: "change location" ──
   if (msg.type === 'text' && /^(change\s*location|location|change\s*loc)$/i.test(msg.body || msg.bodyLower)) {
     await db.prepare('UPDATE wa_users SET location_lat = NULL, location_lng = NULL, location_address = NULL WHERE wa_id = ?').bind(waId).run();
     user.location_lat = null;
     user.location_lng = null;
     user.location_address = null;
     await sendWhatsApp(phoneId, token, buildLocationRequest(waId, t('share_new_location', lang)));
-    await updateSession(db, waId, 'awaiting_location', '[]', 0);
+    await updateSession(db, waId, 'awaiting_location', session.cart, session.cart_total);
     return;
   }
 
-  // ── Text command: "change language" / "language" / "lang" ──
+  // ── Text command: "change language" ──
   if (msg.type === 'text' && /^(change\s*lang(uage)?|lang(uage)?|bhasha|زبان|भाषा|ಭಾಷೆ|மொழி)$/i.test(msg.body || msg.bodyLower)) {
     const langRows = SUPPORTED_LANGUAGES.map(l => ({
       id: `lang_${l.code}`,
@@ -1161,8 +1358,188 @@ async function handleMenuState(context, session, user, msg, waId, phoneId, token
     return;
   }
 
-  // ── Any text → resend catalog ──
-  await sendWhatsApp(phoneId, token, buildMPM(waId, t('browse_menu', lang)));
+  // ── Category selection from list ──
+  if (msg.type === 'list_reply' && msg.id.startsWith('cat_')) {
+    const categoryKey = CAT_ID_TO_KEY[msg.id];
+    const categoryInfo = MENU_CATEGORIES.find(c => c.id === msg.id);
+    if (categoryKey && categoryInfo) {
+      // Store selected category in session metadata
+      const meta = { selectedCategory: categoryKey, selectedCategoryTitle: categoryInfo.title };
+      // Preserve existing cart items
+      const existingCart = JSON.parse(session.cart || '[]');
+      meta.cart = existingCart;
+      meta.cartTotal = session.cart_total || 0;
+      await sendWhatsApp(phoneId, token, buildCategoryItemsList(waId, categoryKey, categoryInfo.title, lang));
+      await updateSession(db, waId, 'awaiting_item', JSON.stringify(meta), session.cart_total || 0);
+      return;
+    }
+  }
+
+  // ── Text: number for quick qty (if user types a number during category view) ──
+  if (msg.type === 'text' && /^\d+$/.test(msg.body || '')) {
+    // Ignore numbers at category level — resend categories
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    return;
+  }
+
+  // ── Any other message → resend category menu ──
+  await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+}
+
+// ─── STATE: AWAITING ITEM → User picks an item from category list ──
+async function handleItemState(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
+  let meta;
+  try { meta = JSON.parse(session.cart || '{}'); } catch { meta = {}; }
+  const cart = meta.cart || [];
+  const cartTotal = meta.cartTotal || 0;
+  const categoryKey = meta.selectedCategory;
+  const categoryTitle = meta.selectedCategoryTitle;
+
+  // ── "Add More" from cart ──
+  if (msg.type === 'button_reply' && msg.id === 'add_more') {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+    return;
+  }
+
+  // ── "Checkout" from cart ──
+  if (msg.type === 'button_reply' && msg.id === 'checkout') {
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+    session.cart = JSON.stringify(cart);
+    session.cart_total = cartTotal;
+    return handleCategoryState(context, session, user, msg, waId, phoneId, token, db);
+  }
+
+  // ── Item selection from list ──
+  if (msg.type === 'list_reply' && msg.id.startsWith('item_')) {
+    const itemRef = msg.id.replace('item_', '');
+
+    // Check if it's a beverage base SKU (has sizes)
+    const hasSizes = ['chai', 'milk', 'coffee'].includes(categoryKey);
+    if (hasSizes && BEVERAGE_BASES[itemRef]) {
+      // Show size selection
+      meta.selectedBaseSku = itemRef;
+      meta.selectedItemName = BEVERAGE_BASES[itemRef].name;
+      await sendWhatsApp(phoneId, token, buildSizeButtons(waId, itemRef, BEVERAGE_BASES[itemRef].name, lang));
+      await updateSession(db, waId, 'awaiting_size', JSON.stringify(meta), cartTotal);
+      return;
+    }
+
+    // Non-beverage item — go to qty directly
+    const product = PRODUCTS[itemRef];
+    if (product) {
+      meta.selectedSku = itemRef;
+      meta.selectedItemName = product.name;
+      meta.selectedItemPrice = product.price;
+      await sendWhatsApp(phoneId, token, buildQtyButtons(waId, itemRef, product.name, product.price, lang));
+      await updateSession(db, waId, 'awaiting_qty', JSON.stringify(meta), cartTotal);
+      return;
+    }
+  }
+
+  // ── Back to categories ──
+  if (msg.type === 'text' && /^(back|menu|categories|cat)$/i.test(msg.body || '')) {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+    return;
+  }
+
+  // ── Resend current category items ──
+  if (categoryKey && categoryTitle) {
+    await sendWhatsApp(phoneId, token, buildCategoryItemsList(waId, categoryKey, categoryTitle, lang));
+  } else {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+  }
+}
+
+// ─── STATE: AWAITING SIZE → 250ml or 500ml for beverages ──
+async function handleSizeState(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
+  let meta;
+  try { meta = JSON.parse(session.cart || '{}'); } catch { meta = {}; }
+  const cart = meta.cart || [];
+  const cartTotal = meta.cartTotal || 0;
+
+  if (msg.type === 'button_reply' && msg.id.startsWith('size_')) {
+    const sku = msg.id.replace('size_', '');
+    const product = PRODUCTS[sku];
+    if (product) {
+      meta.selectedSku = sku;
+      meta.selectedItemName = product.name;
+      meta.selectedItemPrice = product.price;
+      await sendWhatsApp(phoneId, token, buildQtyButtons(waId, sku, product.name, product.price, lang));
+      await updateSession(db, waId, 'awaiting_qty', JSON.stringify(meta), cartTotal);
+      return;
+    }
+  }
+
+  // ── Resend size buttons ──
+  if (meta.selectedBaseSku && meta.selectedItemName) {
+    await sendWhatsApp(phoneId, token, buildSizeButtons(waId, meta.selectedBaseSku, meta.selectedItemName, lang));
+  } else {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+  }
+}
+
+// ─── STATE: AWAITING QTY → How many? ──
+async function handleQtyState(context, session, user, msg, waId, phoneId, token, db) {
+  const lang = userLang(user);
+  let meta;
+  try { meta = JSON.parse(session.cart || '{}'); } catch { meta = {}; }
+  const cart = meta.cart || [];
+  let cartTotal = meta.cartTotal || 0;
+
+  let qty = 0;
+  let sku = meta.selectedSku;
+
+  // ── Button reply: qty_SKU_N ──
+  if (msg.type === 'button_reply' && msg.id.startsWith('qty_')) {
+    const parts = msg.id.split('_');
+    qty = parseInt(parts[parts.length - 1]) || 1;
+    // Reconstruct SKU from middle parts
+    sku = parts.slice(1, parts.length - 1).join('_');
+  }
+  // ── Text: user types a number ──
+  else if (msg.type === 'text' && /^[1-9]\d*$/.test(msg.body || '')) {
+    qty = Math.min(parseInt(msg.body), 20); // Cap at 20
+  }
+
+  if (qty > 0 && sku) {
+    const product = PRODUCTS[sku];
+    if (product) {
+      // Add to cart
+      const existingIndex = cart.findIndex(c => c.code === sku);
+      if (existingIndex >= 0) {
+        cart[existingIndex].qty += qty;
+      } else {
+        cart.push({
+          code: sku,
+          name: product.name,
+          price: product.price,
+          qty,
+          odooId: product.odooId,
+        });
+      }
+      cartTotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+      const cartCount = cart.reduce((sum, c) => sum + c.qty, 0);
+
+      // Show "Added! Add more or checkout?"
+      await sendWhatsApp(phoneId, token, buildAddMoreOrCheckout(waId, qty, product.name, cartCount, cartTotal, lang));
+      await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+      return;
+    }
+  }
+
+  // ── Resend qty buttons ──
+  if (meta.selectedSku && meta.selectedItemName && meta.selectedItemPrice) {
+    await sendWhatsApp(phoneId, token, buildQtyButtons(waId, meta.selectedSku, meta.selectedItemName, meta.selectedItemPrice, lang));
+  } else {
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, t('select_category', lang)));
+    await updateSession(db, waId, 'awaiting_category', JSON.stringify(cart), cartTotal);
+  }
 }
 
 // ─── HANDLE ORDER MESSAGE (from MPM native cart) ──────────────────
@@ -1170,7 +1547,7 @@ async function handleOrderMessage(context, session, user, msg, waId, phoneId, to
   const orderItems = msg.items;
   if (!orderItems || orderItems.length === 0) {
     await sendWhatsApp(phoneId, token, buildText(waId, "We couldn't read your order. Please try again from the menu."));
-    await sendWhatsApp(phoneId, token, buildMPM(waId, 'Browse our menu 👇'));
+    await sendWhatsApp(phoneId, token, buildCategoryMenu(waId, 'Browse our menu 👇'));
     return;
   }
 
@@ -1766,40 +2143,89 @@ function buildReplyButtons(to, body, buttons) {
   };
 }
 
-// ── Multi-Product Message (MPM) — Native catalog with cart + qty selector ──
-function buildMPM(to, bodyText) {
-  return {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'interactive',
-    interactive: {
-      type: 'product_list',
-      header: { type: 'text', text: '☕ Nawabi Chai House' },
-      body: { text: bodyText },
-      footer: { text: 'HKP Road delivery • ~5 min' },
-      action: {
-        catalog_id: CATALOG_ID,
-        sections: [
-          {
-            title: 'Chai & Beverages',
-            product_items: [
-              { product_retailer_id: 'NCH-IC' },
-              { product_retailer_id: 'NCH-NSC' },
-              { product_retailer_id: 'NCH-LT' },
-            ]
-          },
-          {
-            title: 'Snacks',
-            product_items: [
-              { product_retailer_id: 'NCH-BM' },
-              { product_retailer_id: 'NCH-OB3' },
-              { product_retailer_id: 'NCH-CC' },
-            ]
-          }
-        ]
-      }
-    }
-  };
+// ── Category Menu: Show 7 categories as interactive list ──
+function buildCategoryMenu(to, bodyText) {
+  const rows = MENU_CATEGORIES.map(c => ({
+    id: c.id,
+    title: `${c.emoji} ${c.title}`.slice(0, 24),
+    description: `${c.itemCount} items`.slice(0, 72),
+  }));
+  return buildListMessage(to, '☕ Nawabi Chai House', bodyText, 'View Menu', [{ title: 'Menu Categories', rows }]);
+}
+
+// ── Category Items: Show items in a category as interactive list ──
+function buildCategoryItemsList(to, categoryKey, categoryTitle, lang) {
+  const hasSizes = ['chai', 'milk', 'coffee'].includes(categoryKey);
+
+  if (hasSizes) {
+    // For beverage categories: show base items (user picks size after)
+    const baseItems = Object.entries(BEVERAGE_BASES)
+      .filter(([, v]) => v.category === categoryKey)
+      .map(([baseSku, v]) => {
+        const sku250 = baseSku + '-250';
+        const sku500 = baseSku + '-500';
+        const p250 = PRODUCTS[sku250];
+        const p500 = PRODUCTS[sku500];
+        return {
+          id: `item_${baseSku}`,
+          title: v.name.slice(0, 24),
+          description: p250 && p500 ? `250ml ₹${p250.price} • 500ml ₹${p500.price}` : '',
+        };
+      });
+    const selectItemText = t('select_item', lang);
+    const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
+    return buildListMessage(to, `☕ ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: baseItems }]);
+  }
+
+  // Non-beverage categories: show items directly
+  const items = Object.entries(PRODUCTS)
+    .filter(([, v]) => v.category === categoryKey)
+    .map(([sku, v]) => ({
+      id: `item_${sku}`,
+      title: v.name.slice(0, 24),
+      description: `₹${v.price}`,
+    }));
+  const selectItemText = t('select_item', lang);
+  const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
+  return buildListMessage(to, `${MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '🍽️'} ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: items }]);
+}
+
+// ── Size Selection: 250ml or 500ml for beverages ──
+function buildSizeButtons(to, baseSku, itemName, lang) {
+  const sku250 = baseSku + '-250';
+  const sku500 = baseSku + '-500';
+  const p250 = PRODUCTS[sku250];
+  const p500 = PRODUCTS[sku500];
+  const selectSizeText = t('select_size', lang);
+  const body = typeof selectSizeText === 'function' ? selectSizeText(itemName) : selectSizeText;
+  const buttons = [
+    { type: 'reply', reply: { id: `size_${sku250}`, title: `250ml — ₹${p250.price}` } },
+    { type: 'reply', reply: { id: `size_${sku500}`, title: `500ml — ₹${p500.price}` } },
+  ];
+  return buildReplyButtons(to, body, buttons);
+}
+
+// ── Quantity Selection: 1-5 ──
+function buildQtyButtons(to, sku, itemName, price, lang) {
+  const selectQtyText = t('select_qty', lang);
+  const body = typeof selectQtyText === 'function' ? selectQtyText(itemName, price) : selectQtyText;
+  const buttons = [
+    { type: 'reply', reply: { id: `qty_${sku}_1`, title: '1' } },
+    { type: 'reply', reply: { id: `qty_${sku}_2`, title: '2' } },
+    { type: 'reply', reply: { id: `qty_${sku}_3`, title: '3' } },
+  ];
+  return buildReplyButtons(to, body, buttons);
+}
+
+// ── After adding to cart: Add More or Checkout ──
+function buildAddMoreOrCheckout(to, qty, itemName, cartCount, cartTotal, lang) {
+  const addedText = t('item_added', lang);
+  const body = typeof addedText === 'function' ? addedText(qty, itemName, cartCount, cartTotal) : addedText;
+  const buttons = [
+    { type: 'reply', reply: { id: 'add_more', title: '➕ Add More' } },
+    { type: 'reply', reply: { id: 'checkout', title: `✅ Checkout ₹${cartTotal}` } },
+  ];
+  return buildReplyButtons(to, body + '\n\n' + t('add_more_or_checkout', lang), buttons);
 }
 
 // ── Native Order Details Payment Message — "Review and Pay" inside WhatsApp ──
