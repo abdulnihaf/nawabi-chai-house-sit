@@ -2160,28 +2160,26 @@ async function sendMenu(phoneId, token, to, bodyText) {
 
 // ── Category Items: Show items as MPM (catalog with images) ──
 function buildCategoryItemsList(to, categoryKey, categoryTitle, lang) {
-  const hasSizes = ['chai', 'milk', 'coffee'].includes(categoryKey);
-
-  if (hasSizes) {
-    const baseItems = Object.entries(BEVERAGE_BASES)
-      .filter(([, v]) => v.category === categoryKey)
-      .map(([baseSku, v]) => {
-        const p250 = PRODUCTS[baseSku + '-250'];
-        const p500 = PRODUCTS[baseSku + '-500'];
-        return { id: `item_${baseSku}`, title: v.name.slice(0, 24), description: p250 && p500 ? `250ml ₹${p250.price} • 500ml ₹${p500.price}` : '' };
-      });
-    const selectItemText = t('select_item', lang);
-    const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
-    return buildListMessage(to, `☕ ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: baseItems }]);
-  }
-
-  const items = Object.entries(PRODUCTS)
+  const emoji = MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '☕';
+  const productItems = Object.entries(PRODUCTS)
     .filter(([, v]) => v.category === categoryKey)
-    .map(([sku, v]) => ({ id: `item_${sku}`, title: v.name.slice(0, 24), description: `₹${v.price}` }));
-  const selectItemText = t('select_item', lang);
-  const body = typeof selectItemText === 'function' ? selectItemText(categoryTitle) : selectItemText;
-  const emoji = MENU_CATEGORIES.find(c => CAT_ID_TO_KEY[c.id] === categoryKey)?.emoji || '🍽️';
-  return buildListMessage(to, `${emoji} ${categoryTitle}`, body, 'Select Item', [{ title: categoryTitle, rows: items }]);
+    .map(([sku]) => ({ product_retailer_id: sku }));
+
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'product_list',
+      header: { type: 'text', text: `${emoji} ${categoryTitle}` },
+      body: { text: `Browse ${categoryTitle} — tap to add to cart 👇` },
+      footer: { text: 'HKP Road delivery • ~5 min' },
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [{ title: categoryTitle, product_items: productItems }]
+      }
+    }
+  };
 }
 
 // ── Size Selection: 250ml or 500ml for beverages ──
