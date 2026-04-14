@@ -2143,14 +2143,49 @@ function buildReplyButtons(to, body, buttons) {
   };
 }
 
-// ── Full Menu: Category list (interactive list message) ──
+// ── Full Menu: Single MPM with 30 items across 7 sections ──
+// Beverages show 250ml SKU only (customer picks size in cart)
+const MPM_ITEMS = [
+  // Chai (6)
+  'NCH-IC-250', 'NCH-IGC-250', 'NCH-IBC-250', 'NCH-LT-250', 'NCH-ZC-250', 'NCH-KC-250',
+  // Milk (3)
+  'NCH-IM-250', 'NCH-ICM-250', 'NCH-IBM-250',
+  // Coffee (2)
+  'NCH-MC-250', 'NCH-BKC-250',
+  // Buns & Bakery (7)
+  'NCH-CB', 'NCH-MB', 'NCH-MLB', 'NCH-NB', 'NCH-OB', 'NCH-BMJ', 'NCH-CO',
+  // Snacks (5)
+  'NCH-KS', 'NCH-IP', 'NCH-LK', 'NCH-KJ', 'NCH-DP',
+  // Biscuits (1)
+  'NCH-OB3',
+  // Combos (6)
+  'NCH-CMB1', 'NCH-CMB2', 'NCH-CMB3', 'NCH-CMB4', 'NCH-CMB5', 'NCH-CMB6',
+];
+
 function buildCategoryMenu(to, bodyText) {
-  const rows = MENU_CATEGORIES.map(c => ({
-    id: c.id,
-    title: (c.emoji + ' ' + c.title).slice(0, 24),
-    description: (c.itemCount + ' items').slice(0, 72),
-  }));
-  return buildListMessage(to, '☕ Nawabi Chai House', bodyText, 'View Menu', [{ title: 'Menu Categories', rows }]);
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'product_list',
+      header: { type: 'text', text: '☕ Nawabi Chai House' },
+      body: { text: bodyText },
+      footer: { text: 'HKP Road delivery • ~5 min • 500ml also available' },
+      action: {
+        catalog_id: CATALOG_ID,
+        sections: [
+          { title: '☕ Chai', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-IC-') || s.startsWith('NCH-IGC') || s.startsWith('NCH-IBC') || s.startsWith('NCH-LT-') || s.startsWith('NCH-ZC-') || s.startsWith('NCH-KC-')).map(s => ({product_retailer_id: s})) },
+          { title: '🥛 Milk Beverages', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-IM-') || s.startsWith('NCH-ICM') || s.startsWith('NCH-IBM')).map(s => ({product_retailer_id: s})) },
+          { title: '☕ Coffee', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-MC-') || s.startsWith('NCH-BKC')).map(s => ({product_retailer_id: s})) },
+          { title: '🍞 Buns & Bakery', product_items: MPM_ITEMS.filter(s => ['NCH-CB','NCH-MB','NCH-MLB','NCH-NB','NCH-OB','NCH-BMJ','NCH-CO'].includes(s)).map(s => ({product_retailer_id: s})) },
+          { title: '🥟 Savory & Snacks', product_items: MPM_ITEMS.filter(s => ['NCH-KS','NCH-IP','NCH-LK','NCH-KJ','NCH-DP'].includes(s)).map(s => ({product_retailer_id: s})) },
+          { title: '🍪 Biscuits', product_items: [{product_retailer_id: 'NCH-OB3'}] },
+          { title: '🎁 Combos', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-CMB')).map(s => ({product_retailer_id: s})) },
+        ]
+      }
+    }
+  };
 }
 
 // ── Send menu ──
