@@ -5,7 +5,7 @@
 // Payment: COD (instant confirm) or UPI via Razorpay Payment Links
 
 // ── Product catalog mapping: retailer_id → Odoo product + price ──
-const CATALOG_ID = '1986268632293641';
+const CATALOG_ID = '906593161959230';
 
 const PRODUCTS = {
   // ── Beverages - Chai ──
