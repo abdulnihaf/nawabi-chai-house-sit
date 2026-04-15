@@ -632,16 +632,17 @@
       let chaiQty = 0, coffeeQty = 0, lemonQty = 0;
 
       // Beverage IDs: 1028=Chai, 1102=Coffee, 1103=Lemon Tea
-      // Excluded: Khajoor (dates) — not a beverage counter item
+      // Excluded by ID: 1453=Khajor (dates) — not a beverage counter item
+      const EXCLUDED_IDS = new Set([1453]);
       if (data.products && data.products.length) {
         data.products.forEach(p => {
+          if (EXCLUDED_IDS.has(p.id)) return;
           if (p.id === 1028) chaiQty += p.qty;
           else if (p.id === 1102) coffeeQty += p.qty;
           else if (p.id === 1103) lemonQty += p.qty;
           else {
-            // Fallback: name-based matching (excludes khajoor explicitly)
+            // Fallback: name-based matching
             const name = (p.name || '').toLowerCase();
-            if (name.includes('khajoor') || name.includes('khajur')) return;
             if (name.includes('irani chai')) chaiQty += p.qty;
             else if (name.includes('coffee')) coffeeQty += p.qty;
             else if (name.includes('lemon tea')) lemonQty += p.qty;
