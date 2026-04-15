@@ -2144,8 +2144,11 @@ function buildReplyButtons(to, body, buttons) {
 }
 
 // ── Full Menu: Single MPM with 30 items across 7 sections ──
-// Beverages show 250ml SKU only (customer picks size in cart)
+// Order: Combos → Chai → Milk → Coffee → Buns → Snacks → Biscuits
+// Beverages show 250ml SKU in MPM; 500ml price visible in product card description.
 const MPM_ITEMS = [
+  // Combos (6) — shown first for visibility
+  'NCH-CMB1', 'NCH-CMB2', 'NCH-CMB3', 'NCH-CMB4', 'NCH-CMB5', 'NCH-CMB6',
   // Chai (6)
   'NCH-IC-250', 'NCH-IGC-250', 'NCH-IBC-250', 'NCH-LT-250', 'NCH-ZC-250', 'NCH-KC-250',
   // Milk (3)
@@ -2158,8 +2161,6 @@ const MPM_ITEMS = [
   'NCH-KS', 'NCH-IP', 'NCH-LK', 'NCH-KJ', 'NCH-DP',
   // Biscuits (1)
   'NCH-OB3',
-  // Combos (6)
-  'NCH-CMB1', 'NCH-CMB2', 'NCH-CMB3', 'NCH-CMB4', 'NCH-CMB5', 'NCH-CMB6',
 ];
 
 function buildCategoryMenu(to, bodyText) {
@@ -2171,17 +2172,17 @@ function buildCategoryMenu(to, bodyText) {
       type: 'product_list',
       header: { type: 'text', text: '☕ Nawabi Chai House' },
       body: { text: bodyText },
-      footer: { text: 'HKP Road delivery • ~5 min • 500ml also available' },
+      footer: { text: 'HKP Road • Tap item for 500ml option & full details' },
       action: {
         catalog_id: CATALOG_ID,
         sections: [
+          { title: '🎁 Combos', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-CMB')).map(s => ({product_retailer_id: s})) },
           { title: '☕ Chai', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-IC-') || s.startsWith('NCH-IGC') || s.startsWith('NCH-IBC') || s.startsWith('NCH-LT-') || s.startsWith('NCH-ZC-') || s.startsWith('NCH-KC-')).map(s => ({product_retailer_id: s})) },
           { title: '🥛 Milk Beverages', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-IM-') || s.startsWith('NCH-ICM') || s.startsWith('NCH-IBM')).map(s => ({product_retailer_id: s})) },
           { title: '☕ Coffee', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-MC-') || s.startsWith('NCH-BKC')).map(s => ({product_retailer_id: s})) },
           { title: '🍞 Buns & Bakery', product_items: MPM_ITEMS.filter(s => ['NCH-CB','NCH-MB','NCH-MLB','NCH-NB','NCH-OB','NCH-BMJ','NCH-CO'].includes(s)).map(s => ({product_retailer_id: s})) },
           { title: '🥟 Savory & Snacks', product_items: MPM_ITEMS.filter(s => ['NCH-KS','NCH-IP','NCH-LK','NCH-KJ','NCH-DP'].includes(s)).map(s => ({product_retailer_id: s})) },
           { title: '🍪 Biscuits', product_items: [{product_retailer_id: 'NCH-OB3'}] },
-          { title: '🎁 Combos', product_items: MPM_ITEMS.filter(s => s.startsWith('NCH-CMB')).map(s => ({product_retailer_id: s})) },
         ]
       }
     }
