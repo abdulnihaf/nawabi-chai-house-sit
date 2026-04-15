@@ -20,6 +20,7 @@
       --chai: #D4A44C;
       --coffee: #8B6914;
       --lemon: #84CC16;
+      --khajoor: #a16207;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
@@ -174,6 +175,7 @@
     .counter-card.chai::before { background: var(--chai); }
     .counter-card.coffee::before { background: var(--coffee); }
     .counter-card.lemon::before { background: var(--lemon); }
+    .counter-card.khajoor::before { background: var(--khajoor); }
 
     .counter-icon {
       width: 52px; height: 52px;
@@ -187,6 +189,7 @@
     .chai .counter-icon { background: rgba(212,164,76,.15); }
     .coffee .counter-icon { background: rgba(139,105,20,.15); }
     .lemon .counter-icon { background: rgba(132,204,22,.15); }
+    .khajoor .counter-icon { background: rgba(161,98,7,.15); }
 
     .counter-info { flex: 1; }
     .counter-name {
@@ -204,6 +207,7 @@
     .chai .counter-value { color: var(--chai); }
     .coffee .counter-value { color: var(--coffee); }
     .lemon .counter-value { color: var(--lemon); }
+    .khajoor .counter-value { color: var(--khajoor); }
 
     /* ── Total Row ── */
     .total-row {
@@ -412,6 +416,13 @@
         <div class="counter-info">
           <div class="counter-name">Lemon Tea</div>
           <div class="counter-value" id="lemonCount">—</div>
+        </div>
+      </div>
+      <div class="counter-card khajoor">
+        <div class="counter-icon">🫘</div>
+        <div class="counter-info">
+          <div class="counter-name">Khajoor</div>
+          <div class="counter-value" id="khajoorCount">—</div>
         </div>
       </div>
     </div>
@@ -629,23 +640,22 @@
 
     // ── Update UI ──
     function updateUI(data) {
-      let chaiQty = 0, coffeeQty = 0, lemonQty = 0;
+      let chaiQty = 0, coffeeQty = 0, lemonQty = 0, khajoorQty = 0;
 
-      // Beverage IDs: 1028=Chai, 1102=Coffee, 1103=Lemon Tea
-      // Excluded by ID: 1453=Khajor (dates) — not a beverage counter item
-      const EXCLUDED_IDS = new Set([1453]);
+      // Product IDs: 1028=Chai, 1102=Coffee, 1103=Lemon Tea, 1453=Khajoor
       if (data.products && data.products.length) {
         data.products.forEach(p => {
-          if (EXCLUDED_IDS.has(p.id)) return;
           if (p.id === 1028) chaiQty += p.qty;
           else if (p.id === 1102) coffeeQty += p.qty;
           else if (p.id === 1103) lemonQty += p.qty;
+          else if (p.id === 1453) khajoorQty += p.qty;
           else {
             // Fallback: name-based matching
             const name = (p.name || '').toLowerCase();
             if (name.includes('irani chai')) chaiQty += p.qty;
             else if (name.includes('coffee')) coffeeQty += p.qty;
             else if (name.includes('lemon tea')) lemonQty += p.qty;
+            else if (name.includes('khajor')) khajoorQty += p.qty;
           }
         });
       }
@@ -656,6 +666,7 @@
       animateCount('chaiCount', chaiQty);
       animateCount('coffeeCount', coffeeQty);
       animateCount('lemonCount', lemonQty);
+      animateCount('khajoorCount', khajoorQty);
       animateCount('totalCount', bevTotal);
 
       // Hourly breakdown from productHourly
