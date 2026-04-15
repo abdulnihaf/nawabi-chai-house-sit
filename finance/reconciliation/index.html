@@ -325,7 +325,7 @@ function render(){
         h+="<div style=\"color:var(--dm);font-size:.76rem;margin-top:3px\">Comp: "+fmt(d.he.comp_amount)+" ("+d.he.comp_count+")</div>";
       }
     }else{
-      h+="<div style=\"color:var(--dm);font-size:.78rem\">"+(d.date<"2026-03-27"?"HE not started (pre-launch on ops.hamzahotel.com)":"HE launched Mar 27 7PM — ₹54,711 in 5 days (test.hamzahotel.com, not in this page)")+"</div>";
+      h+="<div style=\"color:var(--dm);font-size:.78rem\">"+(d.date<"2026-02-27"?"HE not yet started":d.date<="2026-03-01"?"HE on ops.hamzahotel.com — not in this page":"HE on test.hamzahotel.com — not in this page")+"</div>";
     }
     h+="</div>";
     h+="</div></div>";
@@ -399,8 +399,8 @@ function render(){
   var lastRz=rzDates.length>0?rzDates[rzDates.length-1]:"none";
 
   h+="<div class=\"fl\"><h3>Flags &amp; Notes</h3><ul>";
-  h+="<li><span class=\"d\">!</span> <strong style=\"color:var(--or)\">HE real ops started March 27, 2026 at 7PM</strong> &mdash; All prior HE data on ops.hamzahotel.com was test/training (Jan 29 – Mar 23). HE production runs on test.hamzahotel.com (POS configs 5,6,7,10). Real ops: Mar 27–31 = ₹54,711 (163 orders, 5 days). NOT in this page's DATA.</li>";
-  h+="<li><span class=\"d\">!</span> <strong style=\"color:var(--or)\">Total HN real ops revenue (Odoo verified): ₹18,65,903</strong> — NCH ₹18,11,192 (57 days, ops.hamzahotel.com) + HE ₹54,711 (5 days, test.hamzahotel.com). See investor report for full P&amp;L.</li>";
+  h+="<li><span class=\"d\">!</span> <strong style=\"color:var(--or)\">HE real ops: Feb 27 – Mar 31, 2026 (33 days, 1,666 orders, ₹7,18,523)</strong> &mdash; Feb 27–Mar 1 16:33 IST on ops.hamzahotel.com (102 orders, ₹58,620). Mar 1 17:27 IST onward on test.hamzahotel.com (1,564 orders, ₹6,59,903). NCH was always on ops.hamzahotel.com — no transition. HE data NOT in this page.</li>";
+  h+="<li><span class=\"d\">!</span> <strong style=\"color:var(--or)\">Total HN real ops revenue (Odoo verified): ₹25,29,675</strong> — NCH ₹18,11,152 (57 days, ops.hamzahotel.com) + HE ₹7,18,523 (33 days, ops→test). See investor report for full P&amp;L.</li>";
   if(lastRz<"2026-03-31")h+="<li><span class=\"d\">*</span> Razorpay DayBook recording stopped after "+lastRz+"</li>";
   h+="<li><span class=\"d\">*</span> Police payments: "+fmt(polT)+" across "+polC+" entries</li>";
   if(famS)h+="<li><span class=\"d\">*</span> Family withdrawals: "+famS+"</li>";
