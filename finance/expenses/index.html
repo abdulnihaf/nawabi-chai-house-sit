@@ -288,12 +288,46 @@ var SALARIES=[
   {n:'Cleaning Boys',               a:800,    note:'Ad hoc'},
 ];
 
+// ─── M.N. Broilers — complete day-level ledger (Mar 1–30 2026) ────────────────
+var CHICKEN_LEDGER=[
+  {d:'01 Mar',inv:'S2526-11469',kg:71.6, rate:133,amt:9523},
+  {d:'02 Mar',inv:'S2526-11509',kg:53.5, rate:135,amt:7223},
+  {d:'03 Mar',inv:'S2526-11539',kg:15.6, rate:138,amt:2153},
+  {d:'04 Mar',inv:'S2526-11575',kg:38.1, rate:140,amt:5334},
+  {d:'05 Mar',inv:'S2526-11611',kg:23.1, rate:143,amt:3303},
+  {d:'06 Mar',inv:'S2526-11646',kg:26.9, rate:146,amt:3927},
+  {d:'07 Mar',inv:'S2526-11684',kg:35.9, rate:146,amt:5241},
+  {d:'08 Mar',inv:'S2526-11722',kg:32.4, rate:150,amt:4860},
+  {d:'09 Mar',inv:'S2526-11761',kg:57.1, rate:150,amt:8565},
+  {d:'10 Mar',inv:'S2526-11794',kg:45.1, rate:153,amt:6900},
+  {d:'11 Mar',inv:'S2526-11830',kg:13.0, rate:153,amt:1989},
+  {d:'12 Mar',inv:'S2526-11865',kg:45.3, rate:153,amt:6931},
+  {d:'13 Mar',inv:'S2526-11903',kg:35.3, rate:153,amt:5401},
+  {d:'14 Mar',inv:'S2526-11938',kg:53.4, rate:153,amt:8170},
+  {d:'15 Mar',inv:'S2526-11976',kg:63.5, rate:153,amt:9716},
+  {d:'16 Mar',inv:'S2526-12017',kg:56.9, rate:153,amt:8706},
+  {d:'17 Mar',inv:'S2526-12052',kg:67.7, rate:153,amt:10358},
+  {d:'18 Mar',inv:'S2526-12085',kg:62.9, rate:155,amt:9750},
+  {d:'19 Mar',inv:'S2526-12123',kg:66.1, rate:157,amt:10378},
+  {d:'20 Mar',inv:'S2526-12157',kg:81.3, rate:159,amt:12927},
+  {d:'21 Mar',inv:'S2526-12196',kg:150.6,rate:159,amt:23945},
+  {d:'22 Mar',inv:'S2526-12222',kg:9.9,  rate:159,amt:1574},
+  {d:'24 Mar',inv:'S2526-12254',kg:22.1, rate:159,amt:3514},
+  {d:'25 Mar',inv:'S2526-12285',kg:43.9, rate:150,amt:6585},
+  {d:'27 Mar',inv:'S2526-12350',kg:39.4, rate:132,amt:5201},
+  {d:'28 Mar',inv:'S2526-12369',kg:13.0, rate:122,amt:1586},
+  {d:'29 Mar',inv:'S2526-12405',kg:24.8, rate:115,amt:2852},
+  {d:'30 Mar',inv:'S2526-12446',kg:30.6, rate:110,amt:3366}
+];
+// Payments: 11 Mar ₹50,000 · 18 Mar ₹50,000 · 24 Mar ₹50,000 = ₹1,50,000 total paid
+// Closing balance: ₹83,905 outstanding to M.N. Broilers
+
 // RM_ITEMS: qty/unit/est fields added Feb–Mar 2026 (est=true = derived from market rate)
 var RM_ITEMS=[
   {n:'Chicken Purchase',              a:233905, icon:'🍗',
-   qty:'~1,609 kg', unit:'kg', est:true,
-   detail:'Feb 27–28 ~330 kg (est) ₹43,927 · Mar 1–30 1,279 kg EXACT (M.N. Broilers ledger) ₹1,89,978 · Journal accrual ₹2,33,905 · 3 NEFTs paid ₹1,50,000 · Balance ₹83,905 outstanding',
-   rate:'~₹145/kg blended'},
+   qty:'1,609 kg', unit:'kg', est:false, isChicken:true,
+   detail:'Mar 1–30: 1,279 kg EXACT (M.N. Broilers ledger) · Feb 27–28: ~330 kg estimated (₹43,927 prev balance) · 3 cash payments ₹1,50,000 · Balance ₹83,905 outstanding',
+   rate:'₹110–159/kg (daily market rate)'},
   {n:'Milk Purchase',                 a:254455, icon:'🥛',
    qty:'4,626.5 L', unit:'L', est:false,
    detail:'Buffalo Milk — daily supply Feb–Mar · 4,626.5 L @ market rate ₹55/L',
@@ -637,6 +671,8 @@ function render(){
   RM_ITEMS.forEach(function(item){
     if(item.isShariff){
       rmIn+=buildShariff();
+    } else if(item.isChicken){
+      rmIn+=buildChicken();
     } else {
       var qtyDisplay=item.qty||(item.unit&&item.unit!=='—'?'—':'—');
       var estMark=(item.est&&item.qty&&item.qty!=='—')?' <span class="badge b-am">*est</span>':'';
@@ -889,6 +925,143 @@ function pShariffAll(){
 
 function tAcc(id){document.getElementById('acc-'+id).classList.toggle('open');}
 function tSub(head){head.parentElement.classList.toggle('open');}
+
+// ─── Chicken ledger builder ───────────────────────────────────────────────────
+function buildChicken(){
+  var marTot=CHICKEN_LEDGER.reduce(function(s,r){return s+r.amt;},0);
+  var marKg =CHICKEN_LEDGER.reduce(function(s,r){return s+r.kg;},0);
+  var rows='';
+  CHICKEN_LEDGER.forEach(function(r){
+    rows+='<tr>'
+      +'<td style="font-variant-numeric:tabular-nums">'+r.d+'</td>'
+      +'<td style="color:var(--tx3);font-size:11px">'+r.inv+'</td>'
+      +'<td class="num">'+r.kg.toFixed(1)+' kg</td>'
+      +'<td class="num">₹'+r.rate+'/kg</td>'
+      +'<td class="num">'+f(r.amt)+'</td>'
+      +'</tr>';
+  });
+  var h='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
+    +'<span style="font-size:16px">🍗</span>'
+    +'<div class="sub-acc-name">Chicken Purchase — HE</div>'
+    +'<div class="sub-acc-amt" style="color:#ef4444">'+f(233905)+'</div>'
+    +'<div class="dl-btns" onclick="event.stopPropagation()">'
+    +'<button class="dl-btn pdf" onclick="pChicken()">🖨 PDF</button>'
+    +'<button class="dl-btn xlsx" onclick="dlChicken()">📊 XLSX</button>'
+    +'</div>'
+    +'<span class="sub-acc-chev">▾</span></div>'
+    +'<div class="sub-acc-body"><div style="padding:10px 14px">'
+    +'<div class="info-box"><strong>Vendor: M.N. Broilers, Shivajinagar · Customer: Hamza Express</strong>'
+    +'&nbsp;·&nbsp;Grand Total ₹2,33,905 &nbsp;·&nbsp; Paid ₹1,50,000 (3 cash payments) &nbsp;·&nbsp; Outstanding ₹83,905'
+    +'</div>'
+    // Feb 27-28 summary row
+    +'<div class="tbl-wrap"><table><thead><tr>'
+    +'<th>Date</th><th>Invoice</th><th class="num">Weight (kg)</th><th class="num">Rate</th><th class="num">Amount (₹)</th>'
+    +'</tr></thead><tbody>'
+    +'<tr style="background:rgba(212,164,76,.07)">'
+    +'<td style="color:var(--tx3)">Feb 27–28</td>'
+    +'<td style="color:var(--tx3);font-size:11px">Previous Balance</td>'
+    +'<td class="num" style="color:var(--tx3)">~330 kg <span class="badge b-am">est</span></td>'
+    +'<td class="num" style="color:var(--tx3)">~₹133/kg</td>'
+    +'<td class="num" style="color:var(--tx3)">'+f(43927)+'</td>'
+    +'</tr>'
+    +rows
+    // Payments
+    +'<tr style="background:rgba(34,197,94,.07)">'
+    +'<td style="color:var(--gn)">11 Mar</td><td style="color:var(--gn);font-size:11px">R-25265361 Cash In Hand</td>'
+    +'<td class="num">—</td><td class="num">—</td><td class="num" style="color:var(--gn)">− '+f(50000)+'</td></tr>'
+    +'<tr style="background:rgba(34,197,94,.07)">'
+    +'<td style="color:var(--gn)">18 Mar</td><td style="color:var(--gn);font-size:11px">R-25265493 Cash In Hand</td>'
+    +'<td class="num">—</td><td class="num">—</td><td class="num" style="color:var(--gn)">− '+f(50000)+'</td></tr>'
+    +'<tr style="background:rgba(34,197,94,.07)">'
+    +'<td style="color:var(--gn)">24 Mar</td><td style="color:var(--gn);font-size:11px">R-25265576 Cash In Hand</td>'
+    +'<td class="num">—</td><td class="num">—</td><td class="num" style="color:var(--gn)">− '+f(50000)+'</td></tr>'
+    // Totals
+    +'<tr class="tr-total" style="border-top:1px solid var(--bd)">'
+    +'<td>March Total (exact)</td><td style="font-size:11px">28 delivery days</td>'
+    +'<td class="num">'+marKg.toFixed(1)+' kg</td><td class="num">avg ₹'+(marTot/marKg).toFixed(0)+'/kg</td>'
+    +'<td class="num">'+f(marTot)+'</td></tr>'
+    +'<tr class="tr-total">'
+    +'<td>Grand Total</td><td style="font-size:11px">Feb 27–Mar 30</td>'
+    +'<td class="num">~1,609 kg</td><td class="num">avg ₹145/kg</td>'
+    +'<td class="num">'+f(233905)+'</td></tr>'
+    +'<tr style="background:rgba(239,68,68,.07)">'
+    +'<td style="color:var(--rd)">Closing Balance (Outstanding)</td><td colspan="3"></td>'
+    +'<td class="num" style="color:var(--rd)">'+f(83905)+'</td></tr>'
+    +'</tbody></table></div>'
+    +'</div></div></div>';
+  return h;
+}
+
+function dlChicken(){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded yet.');return;}
+  var wb=XLSX.utils.book_new();
+  var aoa=[
+    ['M.N. Broilers — Chicken Purchase Ledger'],
+    ['Customer: Hamza Express · Period: Feb 27 – Mar 30, 2026'],
+    ['Vendor: M.N. Broilers, No.21 M.No. 1st Street, Old Bamboo Bazaar Cross, Shivajinagar, Bangalore-560051'],
+    ['Mob: 7406187755, 9845507755'],
+    [],
+    ['Date','Invoice','Weight (kg)','Rate (₹/kg)','Amount (₹)','Note']
+  ];
+  aoa.push(['Feb 27–28','Previous Balance',330,133,43927,'Estimated — no daily ledger']);
+  CHICKEN_LEDGER.forEach(function(r){aoa.push([r.d,r.inv,r.kg,r.rate,r.amt,'Exact']);});
+  aoa.push([]);
+  aoa.push(['11 Mar','R-25265361 Cash Payment','','','-50000','Payment']);
+  aoa.push(['18 Mar','R-25265493 Cash Payment','','','-50000','Payment']);
+  aoa.push(['24 Mar','R-25265576 Cash Payment','','','-50000','Payment']);
+  aoa.push([]);
+  var marKg=CHICKEN_LEDGER.reduce(function(s,r){return s+r.kg;},0);
+  var marTot=CHICKEN_LEDGER.reduce(function(s,r){return s+r.amt;},0);
+  aoa.push(['March Total (exact)','28 days',marKg.toFixed(1),(marTot/marKg).toFixed(0),marTot,'']);
+  aoa.push(['Grand Total','Feb–Mar','~1609','~145',233905,'']);
+  aoa.push(['Outstanding Balance','','','',83905,'Closing balance to vendor']);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:14},{wch:20},{wch:14},{wch:12},{wch:14},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws,'Chicken Ledger');
+  XLSX.writeFile(wb,'NCH_HE_Chicken_MNBroilers_Feb_Mar_2026.xlsx');
+}
+
+function pChicken(){
+  var marKg=CHICKEN_LEDGER.reduce(function(s,r){return s+r.kg;},0);
+  var marTot=CHICKEN_LEDGER.reduce(function(s,r){return s+r.amt;},0);
+  var rows='<tr style="background:#f9f5ee">'
+    +'<td>Feb 27–28</td><td style="color:#888">Previous Balance</td>'
+    +'<td class="num" style="color:#888">~330 kg <em>(est)</em></td>'
+    +'<td class="num" style="color:#888">~₹133/kg</td>'
+    +'<td class="num">₹'+Number(43927).toLocaleString('en-IN')+'</td></tr>';
+  CHICKEN_LEDGER.forEach(function(r){
+    rows+='<tr><td>'+r.d+'</td><td style="color:#888;font-size:10px">'+r.inv+'</td>'
+      +'<td class="num">'+r.kg.toFixed(1)+' kg</td>'
+      +'<td class="num">₹'+r.rate+'/kg</td>'
+      +'<td class="num">₹'+Number(r.amt).toLocaleString('en-IN')+'</td></tr>';
+  });
+  rows+='<tr style="background:#f0fdf4;color:#16a34a">'
+    +'<td>11 Mar</td><td style="font-size:10px">R-25265361 — Cash Payment</td>'
+    +'<td class="num" colspan="2"></td><td class="num">− ₹50,000</td></tr>';
+  rows+='<tr style="background:#f0fdf4;color:#16a34a">'
+    +'<td>18 Mar</td><td style="font-size:10px">R-25265493 — Cash Payment</td>'
+    +'<td class="num" colspan="2"></td><td class="num">− ₹50,000</td></tr>';
+  rows+='<tr style="background:#f0fdf4;color:#16a34a">'
+    +'<td>24 Mar</td><td style="font-size:10px">R-25265576 — Cash Payment</td>'
+    +'<td class="num" colspan="2"></td><td class="num">− ₹50,000</td></tr>';
+  rows+='<tr class="total-row"><td>March Total (exact)</td><td>28 delivery days</td>'
+    +'<td class="num">'+marKg.toFixed(1)+' kg</td>'
+    +'<td class="num">avg ₹'+(marTot/marKg).toFixed(0)+'/kg</td>'
+    +'<td class="num">₹'+Number(marTot).toLocaleString('en-IN')+'</td></tr>';
+  rows+='<tr class="total-row"><td>Grand Total</td><td>Feb 27 – Mar 30</td>'
+    +'<td class="num">~1,609 kg</td><td class="num">avg ₹145/kg</td>'
+    +'<td class="num">₹'+Number(233905).toLocaleString('en-IN')+'</td></tr>';
+  rows+='<tr style="background:#fff5f5;color:#dc2626"><td>Outstanding Balance</td>'
+    +'<td colspan="3">Closing balance to M.N. Broilers</td>'
+    +'<td class="num">₹'+Number(83905).toLocaleString('en-IN')+'</td></tr>';
+  openPrint('M.N. Broilers — Chicken Ledger',
+    '<h1>M.N. Broilers — Chicken Purchase Ledger</h1>'
+    +'<h2>Customer: Hamza Express &nbsp;·&nbsp; Feb 27 – Mar 30, 2026</h2>'
+    +'<div class="meta">Vendor: M.N. Broilers, No.21 M.No. 1st Street, Old Bamboo Bazaar Cross, Shivajinagar, Bangalore-560051 &nbsp;·&nbsp; Mob: 7406187755, 9845507755</div>'
+    +'<div class="note">Grand Total ₹2,33,905 &nbsp;·&nbsp; Paid ₹1,50,000 (3 cash payments) &nbsp;·&nbsp; Outstanding ₹83,905. Feb 27–28 previous balance — no daily kg breakdown available.</div>'
+    +'<table><thead><tr><th>Date</th><th>Invoice</th><th class="num">Weight (kg)</th><th class="num">Rate</th><th class="num">Amount (₹)</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>');
+}
 
 // ─── EXPORT DATA MAP ─────────────────────────────────────────────────────────
 function secData(id){
