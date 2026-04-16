@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Expense Audit — Feb–Mar 2026</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1117;color:#e2e8f0;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;min-height:100vh}
+#pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px}
+#pin-screen h2{font-size:22px;color:#94a3b8;letter-spacing:1px}
+#pin-screen input{background:#1e2230;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:22px;letter-spacing:8px;padding:12px 24px;text-align:center;width:220px;outline:none}
+#pin-screen input:focus{border-color:#6366f1}
+#pin-err{color:#ef4444;font-size:13px;min-height:18px}
+#app{display:none}
+header{background:#161b2e;border-bottom:1px solid #1e2a40;padding:14px 24px;display:flex;align-items:center;gap:16px}
+header h1{font-size:17px;font-weight:700;color:#f1f5f9}
+header .sub{font-size:12px;color:#64748b;margin-left:auto}
+nav{background:#161b2e;border-bottom:1px solid #1e2a40;display:flex;gap:2px;padding:0 16px;overflow-x:auto}
+nav button{background:none;border:none;color:#64748b;cursor:pointer;font-size:13px;font-weight:500;padding:12px 16px;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}
+nav button:hover{color:#94a3b8}
+nav button.active{color:#818cf8;border-bottom-color:#818cf8}
+.tab-body{display:none;padding:20px 24px;max-width:1200px}
+.tab-body.active{display:block}
+h2{font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:14px}
+h3{font-size:13px;font-weight:600;color:#94a3b8;margin:18px 0 10px;text-transform:uppercase;letter-spacing:.6px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px}
+th{background:#1a2035;color:#64748b;font-size:11px;font-weight:600;letter-spacing:.5px;padding:8px 10px;text-align:left;text-transform:uppercase;position:sticky;top:0;z-index:1}
+td{border-bottom:1px solid #1a2035;color:#cbd5e1;padding:7px 10px;vertical-align:top}
+tr:hover td{background:#161b2e}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-family:'Courier New',monospace}
+.bold{font-weight:700;color:#f1f5f9}
+.total-row td{background:#1a2035;font-weight:700;color:#f1f5f9;border-top:1px solid #334155}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+.card{background:#1a2035;border-radius:10px;padding:14px 16px;border:1px solid #253047}
+.card .label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.card .value{font-size:22px;font-weight:700;color:#f1f5f9}
+.card .sub{font-size:11px;color:#64748b;margin-top:4px}
+.badge{display:inline-block;border-radius:4px;font-size:11px;font-weight:600;padding:2px 7px}
+.badge-red{background:#450a0a;color:#fca5a5}
+.badge-amber{background:#451a03;color:#fbbf24}
+.badge-green{background:#052e16;color:#86efac}
+.badge-blue{background:#1e3a5f;color:#93c5fd}
+.badge-purple{background:#2e1065;color:#c4b5fd}
+.disc-item{background:#1a2035;border-radius:10px;padding:16px;margin-bottom:14px;border-left:3px solid #334155}
+.disc-item.high{border-left-color:#ef4444}
+.disc-item.medium{border-left-color:#f59e0b}
+.disc-item.info{border-left-color:#6366f1}
+.disc-item .disc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.disc-item .disc-num{background:#334155;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.disc-item .disc-title{font-weight:700;color:#f1f5f9;font-size:14px}
+.disc-item .disc-body{color:#94a3b8;font-size:13px;line-height:1.6}
+.disc-item .disc-q{color:#fbbf24;font-size:13px;margin-top:8px;font-style:italic}
+.disc-item .disc-amounts{display:flex;gap:16px;margin:8px 0;flex-wrap:wrap}
+.disc-item .disc-amounts .amt-block{background:#0f1117;border-radius:6px;padding:8px 12px;font-size:12px}
+.disc-item .disc-amounts .amt-block .alabel{color:#64748b;font-size:11px;margin-bottom:2px}
+.disc-item .disc-amounts .amt-block .aval{font-size:15px;font-weight:700;color:#f1f5f9}
+.note{background:#1a2035;border-left:3px solid #6366f1;border-radius:0 6px 6px 0;padding:10px 14px;font-size:12px;color:#94a3b8;margin-bottom:14px;line-height:1.6}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}.card-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div id="pin-screen">
+  <h2>NCH Expense Audit</h2>
+  <div style="color:#64748b;font-size:13px">Feb–Mar 2026 · Naveen DayBook Review</div>
+  <input id="pin-input" type="password" maxlength="4" placeholder="····" autocomplete="off" autofocus>
+  <div id="pin-err"></div>
+</div>
+
+<div id="app">
+<header>
+  <h1>NCH Expense Audit — Feb 3 to Mar 31, 2026</h1>
+  <div class="sub">Source: Naveen DayBook · M.N. Broilers Ledger · Shariff Store · Veg Bills · NCH D1 Settlement</div>
+</header>
+<nav>
+  <button class="active" onclick="showTab('summary')">Summary</button>
+  <button onclick="showTab('chicken')">Chicken</button>
+  <button onclick="showTab('shariff')">Shariff Store</button>
+  <button onclick="showTab('veg')">Veg & Petty Cash</button>
+  <button onclick="showTab('milk')">Milk & Butter</button>
+  <button onclick="showTab('disc')">⚠ Discrepancies (10)</button>
+</nav>
+
+<!-- ===== SUMMARY ===== -->
+<div id="tab-summary" class="tab-body active">
+  <h2>Declared Expenses — Naveen DayBook, Feb 3 – Mar 31</h2>
+  <div class="card-grid" id="summary-cards"></div>
+  <h3>Expense Category Totals</h3>
+  <table id="summary-table"></table>
+  <div class="note">⚠ Shariff Store (₹2,24,807) is a combined HE + NCH supplier — no brand-wise split provided. NCH-specific items from Shariff: Milk Maid ₹30,445, Sugar ₹20,059, some spices. HE-specific: Ruchi Gold Oil ₹32,287, Cow Ghee ₹26,210, Baby Kaju ₹7,260, etc.</div>
+  <h3>NCH Settlement System (D1) — Operational Opex</h3>
+  <table id="settlement-table"></table>
+</div>
+
+<!-- ===== CHICKEN ===== -->
+<div id="tab-chicken" class="tab-body">
+  <h2>Chicken Purchases — M.N. Broilers Ledger</h2>
+  <div class="note">DayBook "Chicken Purchase" entries are Journal type — daily accruals matching M.N. Broilers ledger exactly. 3 NEFT payments of ₹50,000 each = ₹1,50,000 paid. Closing balance with M.N. Broilers: ₹83,905 (still outstanding). Chicken Cutlet is a SEPARATE product from Nisarcha Brothers — not from M.N. Broilers.</div>
+  <div class="card-grid" id="chicken-cards"></div>
+  <h3>Day-by-Day — M.N. Broilers (Mar 2026)</h3>
+  <table id="chicken-daily"></table>
+  <div class="two-col">
+    <div>
+      <h3>NEFT Payments to M.N. Broilers</h3>
+      <table id="chicken-neft"></table>
+    </div>
+    <div>
+      <h3>Chicken Cutlet — Nisarcha Brothers</h3>
+      <table id="chicken-cutlet"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SHARIFF ===== -->
+<div id="tab-shariff" class="tab-body">
+  <h2>Shariff Store Purchases — Feb 3 to Mar 22, 2026</h2>
+  <div class="note">572 line items. HE + NCH combined — no brand split. All payment type entries. Cross-reference with DayBook for any overlap.</div>
+  <div class="card-grid" id="shariff-cat-cards"></div>
+  <h3>Per Item Breakdown</h3>
+  <table id="shariff-items"></table>
+</div>
+
+<!-- ===== VEG & PETTY ===== -->
+<div id="tab-veg" class="tab-body">
+  <h2>Vegetables, Fruits, Dairy, Staff Food</h2>
+  <div class="note">DayBook bundles ALL these into one category per day — no sub-item breakdown. Counter_expenses records the same types of items (lemon, ginger, iftari fruit) as petty cash. Cross-reference required to confirm no double-entry.</div>
+  <div class="card-grid" id="veg-cards"></div>
+  <div class="two-col">
+    <div>
+      <h3>DayBook — Daily Entries</h3>
+      <table id="veg-daybook"></table>
+    </div>
+    <div>
+      <h3>Counter Cash — Veg/Food Type Expenses</h3>
+      <table id="veg-counter"></table>
+      <h3>Veg Bills Decoded (Mar 24 – Apr 11)</h3>
+      <table id="veg-bills"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MILK & BUTTER ===== -->
+<div id="tab-milk" class="tab-body">
+  <h2>Milk, Butter & Milk Powder</h2>
+  <div class="note">Milk: 31 DayBook payment entries, ₹1,90,395 total. No litre quantities on any entry. At ₹55/L (Prabhu Buffalo Milk rate), this implies ~3,462 litres over 57 days = 60.7 L/day. Butter: 43 daily entries, ₹44,746. No kg/vendor data.</div>
+  <div class="card-grid" id="milk-cards"></div>
+  <div class="two-col">
+    <div>
+      <h3>Milk Purchase — All DayBook Entries</h3>
+      <table id="milk-table"></table>
+    </div>
+    <div>
+      <h3>Butter Purchase — All DayBook Entries</h3>
+      <table id="butter-table"></table>
+      <h3>Milk Powder Purchase</h3>
+      <table id="smp-table"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DISCREPANCIES ===== -->
+<div id="tab-disc" class="tab-body">
+  <h2>Discrepancies & Clarifications Required</h2>
+  <div class="note">These are items to raise with Naveen. Numbered by priority. <span class="badge badge-red">HIGH</span> = possible double-counting. <span class="badge badge-amber">MEDIUM</span> = missing data. <span class="badge badge-blue">INFO</span> = observation.</div>
+  <div id="disc-list"></div>
+</div>
+</div>
+
+<script>
+// PIN
+document.getElementById('pin-input').addEventListener('input', function() {
+  const pins = ['0305','2026','3678'];
+  if (pins.includes(this.value)) {
+    document.getElementById('pin-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    renderAll();
+  } else if (this.value.length === 4) {
+    document.getElementById('pin-err').textContent = 'Incorrect PIN';
+    this.value = '';
+  } else {
+    document.getElementById('pin-err').textContent = '';
+  }
+});
+
+function showTab(id) {
+  document.querySelectorAll('.tab-body').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function fmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+function fmtN(n) { return Math.round(n).toLocaleString('en-IN'); }
+
+// ===== DATA =====
+
+const SUMMARY_CATS = [
+  {cat:'Chicken Purchase (M.N. Broilers)',  amt:233905, entries:31, note:'Journal accruals, 100% verified vs ledger'},
+  {cat:'Milk Purchase',                     amt:190395, entries:31, note:'No litre quantity — vendor invoices needed'},
+  {cat:'Shariff Store (HE+NCH combined)',   amt:224807, entries:572, note:'Brand split not provided — 11 sub-categories'},
+  {cat:'Butter Purchase',                   amt:44746,  entries:43, note:'No kg/vendor — daily small entries'},
+  {cat:'Veg, Fruits, Dairy, Staff Food',   amt:66942,  entries:48, note:'Fully bundled, no sub-items. Office Staff Food ₹1,741 separate'},
+  {cat:'Mutton Purchase (HKGN)',            amt:54750,  entries:2,  note:'2 NEFT payments — no kg/rate data'},
+  {cat:'Brain Purchase (Sajid)',            amt:16150,  entries:3,  note:'3 payments — no kg/rate data'},
+  {cat:'Milk Powder (Jay & Jay)',           amt:31000,  entries:5,  note:'5 payments — SMP for NCH chai'},
+  {cat:'Chicken Cutlet (Nisarcha Brothers)',amt:5400,   entries:6,  note:'Feb 3–10 only, then stopped. No invoice.'},
+  {cat:'Office Staff Food & Snacks',        amt:1741,   entries:3,  note:'Separate from main veg category'},
+];
+
+const SETTLEMENT_SUMMARY = [
+  {label:'Settlement Revenue (NCH, Feb 12–Mar 31)', amt:1679301, note:'33 settlements'},
+  {label:'COGS Actual (computed from recipes)',      amt:844862,  note:'System-calculated — NOT actual payments'},
+  {label:'Salaries (all staff)',                     amt:300669,  note:'Farooq, Basheer, Nafees, Kesmat, others'},
+  {label:'Counter Expenses opex (Feb 12–Mar 17)',    amt:39986,   note:'counter_expenses table — police + petty cash'},
+  {label:'Counter Expenses v2 — NOT in settlement', amt:4100,    note:'Mar 18–26 police (₹4,100) — zero settlements after Mar 19'},
+];
+
+const CHICKEN_MNB = [
+  {d:'Feb 26–28', kg:344.0, rate:127, amt:43927, note:'Opening balance (Feb purchases)'},
+  {d:'Mar 1',  kg:71.6, rate:133, amt:9523},
+  {d:'Mar 2',  kg:53.5, rate:135, amt:7223},
+  {d:'Mar 3',  kg:15.6, rate:138, amt:2153},
+  {d:'Mar 4',  kg:38.1, rate:140, amt:5334},
+  {d:'Mar 5',  kg:23.1, rate:143, amt:3303},
+  {d:'Mar 6',  kg:26.9, rate:146, amt:3927},
+  {d:'Mar 7',  kg:35.9, rate:146, amt:5241},
+  {d:'Mar 8',  kg:32.4, rate:150, amt:4860},
+  {d:'Mar 9',  kg:57.1, rate:150, amt:8565},
+  {d:'Mar 10', kg:45.1, rate:153, amt:6900},
+  {d:'Mar 11', kg:13.0, rate:153, amt:1989},
+  {d:'Mar 12', kg:45.3, rate:153, amt:6931},
+  {d:'Mar 13', kg:35.3, rate:153, amt:5401},
+  {d:'Mar 14', kg:53.4, rate:153, amt:8170},
+  {d:'Mar 15', kg:63.5, rate:153, amt:9716},
+  {d:'Mar 16', kg:56.9, rate:153, amt:8706},
+  {d:'Mar 17', kg:67.7, rate:153, amt:10358},
+  {d:'Mar 18', kg:62.9, rate:155, amt:9750},
+  {d:'Mar 19', kg:66.1, rate:157, amt:10378},
+  {d:'Mar 20', kg:81.3, rate:159, amt:12927},
+  {d:'Mar 21', kg:150.6,rate:159, amt:23945},
+  {d:'Mar 22', kg:9.9,  rate:159, amt:1574},
+  {d:'Mar 24', kg:22.1, rate:159, amt:3514},
+  {d:'Mar 25', kg:43.9, rate:150, amt:6585},
+  {d:'Mar 27', kg:39.4, rate:132, amt:5201},
+  {d:'Mar 28', kg:13.0, rate:122, amt:1586},
+  {d:'Mar 29', kg:24.8, rate:115, amt:2852},
+  {d:'Mar 30', kg:30.6, rate:110, amt:3366},
+];
+
+const CHICKEN_NEFT = [
+  {d:'Mar 12', amt:50000, narr:'CHQ PAID — M N BROILERS (CTS S6-RK S)'},
+  {d:'Mar 18', amt:50000, narr:'NEFT — M N BROILERS PROP SYED AHMEDULLA'},
+  {d:'Mar 24', amt:50000, narr:'NEFT — MN BROILERS PROP SYED AHMEDULLA'},
+];
+
+const CHICKEN_CUTLET = [
+  {d:'Feb 3', amt:3000, note:'Vch 51'},
+  {d:'Feb 6', amt:450,  note:'Vch 132'},
+  {d:'Feb 7', amt:450,  note:'Vch 133'},
+  {d:'Feb 8', amt:750,  note:'Vch 134'},
+  {d:'Feb 9', amt:300,  note:'Vch 135'},
+  {d:'Feb 10',amt:450,  note:'Vch 136'},
+];
+
+const SHARIFF_CATS = [
+  {cat:'Oils & Fats',          amt:78243,  items:[
+    {n:'Ruchi Gold Oil',         u:'box', amt:32287, cnt:28},
+    {n:'Cow Ghee (Desi)',        u:'kg',  amt:18630, cnt:29},
+    {n:'Sunpure Oil',            u:'box', amt:6282,  cnt:8},
+    {n:'Cow Ghee - Nandini',     u:'L',   amt:3720,  cnt:4},
+    {n:'Oil (Box)',               u:'box', amt:2300,  cnt:2},
+    {n:'Refined Oil',             u:'box', amt:2220,  cnt:1},
+    {n:'Cow Ghee (N.Ghee)',       u:'kg',  amt:2040,  cnt:3},
+    {n:'Mustard Oil',             u:'L',   amt:1910,  cnt:7},
+    {n:'Cow Ghee (Desi)-Nandini', u:'kg',  amt:1820,  cnt:1},
+    {n:'Oil (Sunpure Box)',        u:'box', amt:1740,  cnt:1},
+    {n:'Sunflower Oil',           u:'box', amt:1640,  cnt:1},
+    {n:'Oil',                     u:'L',   amt:859,   cnt:2},
+    {n:'Salat Oil (Blended)',     u:'L',   amt:810,   cnt:3},
+    {n:'Oil (DP)',                u:'pkt', amt:690,   cnt:1},
+    {n:'Vanaspati Ghee',          u:'kg',  amt:680,   cnt:1},
+    {n:'Agro Gold Oil',           u:'kg',  amt:615,   cnt:1},
+  ]},
+  {cat:'Sugar & Sweeteners',   amt:52664,  items:[
+    {n:'Milk Maid (Nestle)',     u:'kg',  amt:29600, cnt:9,  flag:'⚠ NCH ingredient — overlap risk'},
+    {n:'Sugar',                  u:'kg',  amt:20059, cnt:15},
+    {n:'Honey',                  u:'kg',  amt:1680,  cnt:7},
+    {n:'Milk Maid (small)',      u:'gm',  amt:845,   cnt:5,  flag:'⚠ Overlap risk'},
+    {n:'Custard/CS',             u:'pkt', amt:300,   cnt:1},
+    {n:'Custard Powder',         u:'kg',  amt:180,   cnt:1},
+  ]},
+  {cat:'Spices & Masala',      amt:29847,  items:[
+    {n:'Green Cardamom (Elaichi)',u:'gm', amt:3805, cnt:9},
+    {n:'Cloves (Laung)',          u:'gm', amt:2120, cnt:2},
+    {n:'Kitchen King Masala',     u:'kg', amt:2015, cnt:6},
+    {n:'Turmeric Powder',         u:'kg', amt:1930, cnt:10},
+    {n:'Red Chilli Powder',       u:'kg', amt:1620, cnt:3},
+    {n:'Kashmiri Chilli Powder',  u:'gm', amt:1560, cnt:3},
+    {n:'Nutmeg & Mace',           u:'kg', amt:1350, cnt:1},
+    {n:'Cumin Powder',            u:'gm', amt:1250, cnt:6},
+    {n:'White Pepper Powder',     u:'kg', amt:1070, cnt:6},
+    {n:'Dry Red Chilli',          u:'kg', amt:820,  cnt:1},
+    {n:'Shah Jeera',              u:'kg', amt:780,  cnt:5},
+    {n:'Mace (Javantri)',         u:'pkt',amt:770,  cnt:2},
+    {n:'Whole Black Pepper',      u:'gm', amt:730,  cnt:4},
+    {n:'Nutmeg (Jaiphal)',        u:'gm', amt:725,  cnt:4},
+    {n:'Chaat Masala',            u:'gm', amt:650,  cnt:2},
+    {n:'Kasuri Methi',            u:'kg', amt:640,  cnt:2},
+    {n:'(+29 more spice items)', u:'—',  amt:5012, cnt:29},
+  ]},
+  {cat:'Nuts & Dry Fruits',    amt:17966,  items:[
+    {n:'Baby Kaju (Broken Cashew)',u:'kg', amt:7260, cnt:13},
+    {n:'Cashew Paste (Magaz)',    u:'kg',  amt:2920, cnt:4},
+    {n:'Sara Kaju (Whole)',       u:'gm',  amt:2060, cnt:4},
+    {n:'Whole Kaju',              u:'pkt', amt:1970, cnt:5},
+    {n:'Baby Kaju White',         u:'gm',  amt:1220, cnt:2},
+    {n:'Dates (Kajoor)',          u:'kg',  amt:960,  cnt:4},
+    {n:'Peanuts',                 u:'kg',  amt:380,  cnt:2},
+    {n:'White Sesame Seeds',      u:'gm',  amt:270,  cnt:4},
+    {n:'(+7 more)',               u:'—',   amt:926,  cnt:7},
+  ]},
+  {cat:'Dry Goods/Flour',      amt:16257,  items:[
+    {n:'All-Purpose Flour (Maida)',u:'kg', amt:6518, cnt:11},
+    {n:'Rice',                    u:'bag', amt:3254, cnt:3},
+    {n:'Semolina (Sooji)',        u:'kg',  amt:1626, cnt:10},
+    {n:'Wheat Flour',             u:'kg',  amt:1245, cnt:4},
+    {n:'Corn Flour',              u:'kg',  amt:810,  cnt:5},
+    {n:'Table Salt',              u:'pkt', amt:582,  cnt:4},
+    {n:'Semolina (Rawa)',         u:'kg',  amt:576,  cnt:3},
+    {n:'Instant Noodles',         u:'pkt', amt:558,  cnt:6},
+    {n:'(+6 more)',               u:'—',   amt:1088, cnt:6},
+  ]},
+  {cat:'Lentils & Pulses',     amt:10975,  items:[
+    {n:'Moong Dal',              u:'kg',  amt:2492, cnt:7},
+    {n:'Vanaspati Ghee (Dalda)',  u:'kg',  amt:2030, cnt:11},
+    {n:'Yellow Dal (Toor)',       u:'kg',  amt:1750, cnt:2},
+    {n:'Masoor Dal',             u:'kg',  amt:1375, cnt:5},
+    {n:'(+7 more)',              u:'—',   amt:3328, cnt:7},
+  ]},
+  {cat:'Staff Food',           amt:6840,   items:[
+    {n:'Staff Rice',             u:'kg',  amt:6840, cnt:10, flag:'⚠ Also in DayBook Veg/Staff Food + Counter'},
+  ]},
+  {cat:'Dairy',                amt:6825,   items:[
+    {n:'Amul Fresh Cream',       u:'L',   amt:5425, cnt:19},
+    {n:'Milk Powder',            u:'L',   amt:1230, cnt:1},
+    {n:'Butter',                 u:'kg',  amt:140,  cnt:1},
+    {n:'SMP',                    u:'gm',  amt:30,   cnt:1},
+  ]},
+  {cat:'Other',                amt:3310,   items:[
+    {n:'Coffee Powder (various)',u:'pkt', amt:767, cnt:4},
+    {n:'Saffron/Marigold',       u:'gm',  amt:770, cnt:2},
+    {n:'(+12 misc items)',       u:'—',   amt:1773,cnt:12},
+  ]},
+  {cat:'Condiments & Sauces',  amt:1760,   items:[
+    {n:'Soya Sauce',             u:'btl', amt:400, cnt:5},
+    {n:'Tomato Sauce',           u:'pkt', amt:315, cnt:4},
+    {n:'Chilli Sauce',           u:'btl', amt:300, cnt:4},
+    {n:'(+7 more)',              u:'—',   amt:745, cnt:7},
+  ]},
+  {cat:'Packaging/Cleaning',   amt:120,    items:[
+    {n:'Dun Cloth/Cleaning',     u:'pcs', amt:120, cnt:1},
+  ]},
+];
+
+const VEG_DAYBOOK = [
+  {d:'Feb 3', amt:1330,vch:'479'},{d:'Feb 4', amt:4050,vch:'480'},{d:'Feb 5', amt:2430,vch:'481'},
+  {d:'Feb 6', amt:1965,vch:'482'},{d:'Feb 7', amt:2100,vch:'483'},{d:'Feb 8', amt:4880,vch:'484'},
+  {d:'Feb 9', amt:1440,vch:'485'},{d:'Feb 10',amt:2320,vch:'486'},{d:'Feb 11',amt:1235,vch:'487'},
+  {d:'Feb 12',amt:1390,vch:'488'},{d:'Feb 13',amt:1560,vch:'490'},{d:'Feb 14',amt:1170,vch:'491'},
+  {d:'Feb 15',amt:1715,vch:'492'},{d:'Feb 15',amt:620, vch:'610'},{d:'Feb 16',amt:913, vch:'493'},
+  {d:'Feb 17',amt:1223,vch:'494'},{d:'Feb 17',amt:780, vch:'614'},{d:'Feb 18',amt:1810,vch:'495'},
+  {d:'Feb 18',amt:1320,vch:'616'},{d:'Feb 19',amt:2508,vch:'496'},{d:'Feb 19',amt:710, vch:'617'},
+  {d:'Feb 20',amt:90,  vch:'243'},{d:'Feb 21',amt:970, vch:'489'},{d:'Feb 21',amt:140, vch:'621'},
+  {d:'Feb 22',amt:935, vch:'497'},{d:'Feb 23',amt:1374,vch:'498'},{d:'Feb 24',amt:496, vch:'499'},
+  {d:'Feb 25',amt:1930,vch:'500'},{d:'Feb 26',amt:855, vch:'501'},{d:'Feb 27',amt:1560,vch:'502'},
+  {d:'Feb 28',amt:1390,vch:'503'},{d:'Feb 28',amt:840, vch:'628'},
+  {d:'Mar 1', amt:974, vch:'504'},{d:'Mar 1', amt:940, vch:'589'},{d:'Mar 2', amt:160, vch:'505'},
+  {d:'Mar 3', amt:650, vch:'506'},{d:'Mar 3', amt:1040,vch:'591'},{d:'Mar 3', amt:1200,vch:'593'},
+  {d:'Mar 4', amt:2470,vch:'508'},{d:'Mar 5', amt:1610,vch:'509'},{d:'Mar 6', amt:1040,vch:'510'},
+  {d:'Mar 6', amt:400, vch:'595'},{d:'Mar 7', amt:1469,vch:'507'},{d:'Mar 9', amt:3000,vch:'385'},
+  {d:'Mar 10',amt:1110,vch:'386'},{d:'Mar 11',amt:1110,vch:'387'},
+  {d:'Mar 26',amt:220, vch:'434'},{d:'Mar 29',amt:1500,vch:'436'},
+];
+
+const VEG_COUNTER_CATS = [
+  {cat:'Iftari Fruits (Ramadan)', note:'₹260–520/day, Feb–Mar', amt:5480, entries:15},
+  {cat:'Staff Rice & Veg',        note:'"Staff rice", "Sheri for staff"', amt:4550, entries:9},
+  {cat:'Fresh Lemon',             note:'Multiple entries daily', amt:2910, entries:18},
+  {cat:'Cash Advances (Kitchen)', note:'"Given to head chef" daily in Feb', amt:3830, entries:12},
+  {cat:'Kothmir/Green Chilli',    note:'Counter spot buys', amt:580,  entries:8},
+  {cat:'Ginger/Mint/Cucumber',    note:'Small petty purchases', amt:620,  entries:22},
+  {cat:'Brinjal/Cabbage/Beans',  note:'Mar 4–5 counter veg', amt:430,  entries:6},
+  {cat:'Eggs',                    note:'Counter cash buys', amt:870,  entries:3},
+  {cat:'Ghee (counter cash)',     note:'₹350–₹662 each', amt:1672, entries:3},
+  {cat:'Milk Maid (counter cash)',note:'3 small purchases', amt:700,  entries:3},
+  {cat:'Tea Powder (counter)',    note:'₹500 counter buy', amt:500,  entries:1},
+];
+
+const VEG_BILLS = [
+  {item:'Lemon',         qty:'295 pcs', rate:'₹5/pc', amt:1270},
+  {item:'Capsicum',      qty:'15 kg',   rate:'₹57/kg',amt:860},
+  {item:'Garlic (Lasun)',qty:'7 kg',    rate:'₹106/kg',amt:740},
+  {item:'Carrot',        qty:'59 kg',   rate:'₹11/kg',amt:640},
+  {item:'Aloo (Potato)', qty:'17 kg',   rate:'₹36/kg',amt:610},
+  {item:'Kothimir',      qty:'31 bundle',rate:'₹18/bd',amt:565},
+  {item:'Garlic',        qty:'5 kg',    rate:'₹104/kg',amt:520},
+  {item:'Ginger',        qty:'7.5 kg',  rate:'₹65/kg',amt:490},
+  {item:'Staff Sabzi',   qty:'11 lots', rate:'₹42/lot',amt:460},
+  {item:'Green Chilly',  qty:'6 kg',    rate:'₹73/kg',amt:440},
+  {item:'Baji Mirchi',   qty:'10.5 kg', rate:'₹39/kg',amt:410},
+  {item:'Pudina',        qty:'25 bundle',rate:'₹15/bd',amt:386},
+  {item:'Cucumber',      qty:'12.5 kg', rate:'₹29/kg',amt:360},
+  {item:'Beans',         qty:'5 kg',    rate:'₹45/kg',amt:225},
+  {item:'Cabbage',       qty:'7 kg',    rate:'₹29/kg',amt:200},
+  {item:'Others',        qty:'—',       rate:'—',      amt:830},
+];
+
+const MILK_ENTRIES = [
+  {d:'Feb 4', amt:132},{d:'Feb 4', amt:168},{d:'Feb 4', amt:1025},{d:'Feb 4', amt:12600},
+  {d:'Feb 6', amt:10300},{d:'Feb 10',amt:20000},{d:'Feb 11',amt:7000},{d:'Feb 12',amt:1600},
+  {d:'Feb 12',amt:3200},{d:'Feb 13',amt:1900},{d:'Feb 14',amt:4400},{d:'Feb 15',amt:4400},
+  {d:'Feb 16',amt:2600},{d:'Feb 17',amt:3500},{d:'Feb 17',amt:1650},{d:'Feb 19',amt:5500},
+  {d:'Feb 20',amt:270},{d:'Feb 21',amt:4950},{d:'Feb 22',amt:6600},{d:'Feb 23',amt:9900},
+  {d:'Feb 24',amt:6600},{d:'Feb 28',amt:15400},
+  {d:'Mar 9', amt:9900},{d:'Mar 17',amt:8700},{d:'Mar 18',amt:3300},{d:'Mar 20',amt:11000},
+  {d:'Mar 22',amt:1400},{d:'Mar 22',amt:8800},{d:'Mar 26',amt:11000},
+  {d:'Mar 29',amt:6000},{d:'Mar 30',amt:6600},
+];
+
+const BUTTER_ENTRIES = [
+  {d:'Feb 4', amt:1120},{d:'Feb 4', amt:562},{d:'Feb 5', amt:284},{d:'Feb 6', amt:560},
+  {d:'Feb 7', amt:840},{d:'Feb 8', amt:1120},{d:'Feb 9', amt:560},{d:'Feb 10',amt:1160},
+  {d:'Feb 11',amt:840},{d:'Feb 12',amt:1120},{d:'Feb 13',amt:930},{d:'Feb 14',amt:560},
+  {d:'Feb 15',amt:1120},{d:'Feb 16',amt:1072},{d:'Feb 17',amt:1160},{d:'Feb 18',amt:1394},
+  {d:'Feb 19',amt:840},{d:'Feb 20',amt:560},{d:'Feb 22',amt:937},{d:'Feb 24',amt:538},
+  {d:'Feb 25',amt:807},{d:'Feb 26',amt:1160},{d:'Feb 27',amt:1132},{d:'Feb 28',amt:536},
+  {d:'Mar 1', amt:840},{d:'Mar 2', amt:1390},{d:'Mar 4', amt:804},{d:'Mar 5', amt:1140},
+  {d:'Mar 6', amt:1394},{d:'Mar 8', amt:858},{d:'Mar 9', amt:840},{d:'Mar 10',amt:560},
+  {d:'Mar 12',amt:1120},{d:'Mar 13',amt:1680},{d:'Mar 14',amt:1940},{d:'Mar 15',amt:536},
+  {d:'Mar 15',amt:1680},{d:'Mar 16',amt:3100},{d:'Mar 18',amt:1400},{d:'Mar 19',amt:1400},
+  {d:'Mar 20',amt:1960},{d:'Mar 22',amt:542},{d:'Mar 22',amt:650},
+];
+
+const SMP_ENTRIES = [
+  {d:'Feb 4', amt:1550, narr:'Payment'},
+  {d:'Feb 5', amt:6200, narr:'Payment'},
+  {d:'Feb 16',amt:7750, narr:'Payment'},
+  {d:'Mar 12',amt:7750, narr:'NEFT — JAY AND JAY DEHYDROFOODS PVT LTD'},
+  {d:'Mar 18',amt:7750, narr:'NEFT — JAY AND JAY DEHYDROFOODS PVT LTD'},
+];
+
+const DISC = [
+  {
+    sev:'high', num:1,
+    title:'Veg/Iftari Fruits — Possible Double-Entry',
+    body:'DayBook "Veg, Fruits, Dairy, Staff Food" (₹66,942, 48 entries) is a bundled daily payment with NO sub-item breakdown. Counter_expenses simultaneously records iftari fruits (₹350–520/day during Ramadan Feb–Mar), staff rice & veg, and fresh lemon/ginger/mint. If the DayBook entries represent the SAME counter petty cash spend (i.e. Naveen records what counter staff tell him they spent), this is double-counted — once in the counter_expenses/settlement system, once in DayBook.',
+    amounts:[
+      {l:'DayBook Veg/Dairy/Staff', v:'₹66,942'},
+      {l:'Counter — iftari+staff food', v:'~₹10,030'},
+      {l:'Counter — kitchen cash advances', v:'~₹3,830'},
+      {l:'Overlap risk', v:'₹10,000–14,000'},
+    ],
+    q:'Q for Naveen: Who is the vendor for each daily DayBook veg entry? Are these bank/UPI payments to a vendor like Manju Veg Supplier? Or are these the same petty cash disbursements that counter staff already recorded in the ops settlement system?',
+  },
+  {
+    sev:'high', num:2,
+    title:'Staff Rice — 3-Source Recording',
+    body:'Staff Rice appears in 3 separate expense records: (1) Shariff Store "Staff Rice" ₹6,840 in 10 entries. (2) DayBook "Veg/Dairy/Staff Food" ₹66,942 (which includes "staff food" in the category name). (3) Counter_expenses "Staff rice and veg" entries, ~₹4,550 (cash from counter). Unless these are clearly different vendors/channels, all 3 records may reflect the same staff food expense.',
+    amounts:[
+      {l:'Shariff Store Staff Rice', v:'₹6,840'},
+      {l:'Counter "staff rice+veg"', v:'~₹4,550'},
+      {l:'DayBook Staff Food component', v:'Unknown'},
+    ],
+    q:'Q for Naveen: Does the Shariff "Staff Rice" overlap with the counter petty cash staff rice entries? And does the DayBook "Staff Food" component represent ADDITIONAL purchases, or is it a re-entry of Shariff/counter purchases?',
+  },
+  {
+    sev:'high', num:3,
+    title:'Milk Maid — Shariff vs Counter vs DayBook',
+    body:'Milk Maid appears in 3 places: (1) Shariff Store: ₹30,445 total (Nestle Milk Maid, 9+5 entries). (2) Counter_expenses: ₹700 in 3 small cash purchases. (3) DayBook "Veg/Dairy/Staff Food" category includes "Dairy" — unclear if this contains Milk Maid payments separate from Shariff. Counter ₹700 may be spot-buy top-ups between Shariff deliveries (acceptable), OR they may be included in the Shariff invoice (double-entry).',
+    amounts:[
+      {l:'Shariff — Milk Maid (Nestle)', v:'₹30,445'},
+      {l:'Counter — Milk Maid cash', v:'₹700'},
+    ],
+    q:'Q for Naveen: Are the 3 counter Milk Maid purchases (₹140, ₹280, ₹280) included in the Shariff Store bills? Or are they emergency spot buys on top of Shariff deliveries?',
+  },
+  {
+    sev:'medium', num:4,
+    title:'Butter — No KG / No Vendor',
+    body:'43 daily DayBook "Butter Purchase" entries, ₹44,746 total. NOT a single entry has a kg quantity or vendor name. At NCH RM rate ₹580/kg, this implies ~77 kg over 57 days = 1.35 kg/day. Counter_expenses also has ₹280 butter (Mar 5 petty cash). Shariff Store has ₹140 butter (1 entry). Whether the DayBook butter entries and Shariff/counter butter are the same or different is unclear.',
+    amounts:[
+      {l:'DayBook Butter (43 entries)', v:'₹44,746'},
+      {l:'Implied qty at ₹580/kg', v:'~77 kg'},
+      {l:'Daily average', v:'~1.35 kg/day'},
+    ],
+    q:'Q for Naveen: Who is the butter vendor? Please show invoices with kg quantity for each entry. Is this the same vendor every day, or counter-level purchases?',
+  },
+  {
+    sev:'medium', num:5,
+    title:'Milk — No Litre Quantity on Any Entry',
+    body:'31 DayBook "Milk Purchase" entries, ₹1,90,395 total. Zero litre quantities recorded. Large irregular amounts (Feb 4: ₹12,600 and ₹10,300 same day; Feb 10: ₹20,000; Feb 28: ₹15,400). At Prabhu Buffalo Milk rate of ₹55/L, ₹1,90,395 implies 3,462 litres over 57 days = 60.7 L/day. For a chai cafe, 60L/day is plausible if selling 400+ cups/day. However, irregular payments suggest multiple vendors or advance payments rather than daily delivery.',
+    amounts:[
+      {l:'Total Milk (31 entries)', v:'₹1,90,395'},
+      {l:'Implied litres @₹55/L', v:'~3,462 L'},
+      {l:'Per day average', v:'~60.7 L'},
+    ],
+    q:'Q for Naveen: Please provide Prabhu milk vendor\'s delivery book showing daily litres and rate. Are there multiple milk vendors? What is the average litre purchased per day?',
+  },
+  {
+    sev:'medium', num:6,
+    title:'Mutton — No KG or Rate on Bills',
+    body:'2 NEFT payments to HKGN Mutton Stall: ₹50,000 (Mar 24) + ₹4,750 (Mar 25) = ₹54,750. Bank narration confirmed. However, no invoice with kg weight or rate. At market rate ₹500–600/kg, ₹54,750 implies ~91–110 kg of mutton for the entire period. Were there no mutton purchases before Mar 24? What was the pre-March mutton supply?',
+    amounts:[
+      {l:'HKGN Mutton Stall NEFT', v:'₹54,750'},
+      {l:'Implied qty @₹550/kg', v:'~100 kg'},
+    ],
+    q:'Q for Naveen: Show HKGN Mutton Stall\'s ledger/invoice showing kg per delivery and rate. Were there mutton purchases before Mar 24 that are not in this DayBook?',
+  },
+  {
+    sev:'medium', num:7,
+    title:'Chicken Cutlet — Stopped After Feb 10',
+    body:'6 "Chicken Cutlet Purchase" payments from Feb 3–10 totalling ₹5,400. Then completely stopped. NCH RM registry lists Nisarcha Brothers as the cutlet vendor at ₹15/pc. ₹5,400 at ₹15/pc = 360 pieces (Feb 3 entry alone = ₹3,000 = 200 pcs). Was this product discontinued? Or was the purchase method changed (switched to another vendor, or included elsewhere)?',
+    amounts:[
+      {l:'Total Chicken Cutlet (6 entries)', v:'₹5,400'},
+      {l:'Period', v:'Feb 3–10 only'},
+    ],
+    q:'Q for Naveen: Why did chicken cutlet purchases stop after Feb 10? Was it discontinued from the menu or is it being procured through a different channel after Feb 10?',
+  },
+  {
+    sev:'medium', num:8,
+    title:'Brain — No KG or Invoice',
+    body:'3 "Sajid - Brain Purchase" payments: ₹5,100 (Mar 18) + ₹6,800 (Mar 24) + ₹4,250 (Mar 30) = ₹16,150. All payment type. Vendor is Sajid. No kg weight, no rate, no invoice. At typical brain rates of ₹250–350/kg, ₹16,150 implies ~46–65 kg of brain over 13 days. This seems very high for a chai house (unless it\'s a menu item — not currently in NCH menu registry).',
+    amounts:[
+      {l:'Total Brain Purchase', v:'₹16,150'},
+      {l:'Implied qty @₹300/kg', v:'~54 kg'},
+    ],
+    q:'Q for Naveen: What is the brain used for in NCH? Is this a counter item (Brain fry/sandwich)? Show Sajid\'s invoices with kg and rate.',
+  },
+  {
+    sev:'info', num:9,
+    title:'Counter Police Payments Missing from P&L',
+    body:'counter_expenses_v2 has 42 entries totalling ₹4,100 for police/authority payments (BEAT, ASI, HOYSALA, CHETA, CIRCLE, WEEKLY) recorded by Nafees and Kesmat from Mar 18–26. All settlements from Mar 19 onwards show ₹0 for opex_counter_expenses — these ₹4,100 were never pulled into any NCH settlement. They are invisible in the declared P&L. Total NCH settlement counter opex = ₹39,986 (Feb 12 – Mar 17 only).',
+    amounts:[
+      {l:'Settlement counter opex (Feb–Mar 17)', v:'₹39,986'},
+      {l:'Unsettled counter_v2 (Mar 18–26)', v:'₹4,100'},
+      {l:'Missing from P&L', v:'₹4,100'},
+    ],
+    q:'Action: Run a settlement for Mar 18–31 that captures the remaining counter_expenses_v2 entries before closing the books.',
+  },
+  {
+    sev:'info', num:10,
+    title:'Shariff Store — No Brand Split (HE vs NCH)',
+    body:'Shariff Store ₹2,24,807 covers purchases for BOTH HE (biryani) and NCH (chai). Key HE items: Ruchi Gold Oil ₹32,287, Cow Ghee ₹26,210, Baby Kaju ₹7,260, all biryani spices. Key NCH items: Milk Maid ₹30,445, Sugar ₹20,059, Amul Fresh Cream ₹5,425. Estimated NCH portion: ~₹65,000–80,000. Estimated HE portion: ~₹1,45,000–1,60,000. For accurate brand P&L, Naveen needs to split this supplier bill by brand.',
+    amounts:[
+      {l:'Shariff Total', v:'₹2,24,807'},
+      {l:'Est. NCH portion', v:'₹65–80K'},
+      {l:'Est. HE portion', v:'₹1,45–1,60K'},
+    ],
+    q:'Q for Naveen: Please provide the Shariff Store bills with brand-wise attribution, or mark each line item as HE or NCH. NCH items are primarily: Milk Maid, Sugar, cream, selected spices.',
+  },
+];
+
+// ===== RENDER FUNCTIONS =====
+
+function renderAll() {
+  renderSummary();
+  renderChicken();
+  renderShariff();
+  renderVeg();
+  renderMilk();
+  renderDisc();
+}
+
+function renderSummary() {
+  const total = SUMMARY_CATS.reduce((s,r)=>s+r.amt,0);
+  const cards = [
+    {label:'Total Declared Expenses', value:fmt(total), sub:'All Naveen DayBook categories'},
+    {label:'Chicken (M.N. Broilers)', value:fmt(233905), sub:'100% verified — ledger match'},
+    {label:'Milk + Butter', value:fmt(190395+44746), sub:'No qty data — invoices needed'},
+    {label:'Shariff Store', value:fmt(224807), sub:'HE+NCH combined, no brand split'},
+    {label:'Veg/Dairy/Staff Food', value:fmt(66942), sub:'Bundled — no sub-items'},
+    {label:'Counter Opex (settlement)', value:fmt(39986), sub:'Police + petty cash (Feb–Mar 17)'},
+  ];
+  document.getElementById('summary-cards').innerHTML = cards.map(c=>`
+    <div class="card">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+
+  let h = `<tr><th>Category</th><th>Entries</th><th class="num">Amount</th><th>Notes</th></tr>`;
+  SUMMARY_CATS.forEach(r=>{
+    h+=`<tr><td class="bold">${r.cat}</td><td>${r.entries}</td><td class="num">${fmt(r.amt)}</td><td style="color:#64748b;font-size:12px">${r.note}</td></tr>`;
+  });
+  const gt = SUMMARY_CATS.reduce((s,r)=>s+r.amt,0);
+  h+=`<tr class="total-row"><td>GRAND TOTAL</td><td>${SUMMARY_CATS.reduce((s,r)=>s+r.entries,0)}</td><td class="num">${fmt(gt)}</td><td></td></tr>`;
+  document.getElementById('summary-table').innerHTML = h;
+
+  let sh = `<tr><th>Metric</th><th class="num">Amount</th><th>Note</th></tr>`;
+  SETTLEMENT_SUMMARY.forEach(r=>{
+    sh+=`<tr><td>${r.label}</td><td class="num">${fmt(r.amt)}</td><td style="color:#64748b;font-size:12px">${r.note}</td></tr>`;
+  });
+  document.getElementById('settlement-table').innerHTML = sh;
+}
+
+function renderChicken() {
+  const marTotal = CHICKEN_MNB.filter(r=>r.d.startsWith('Mar')).reduce((s,r)=>s+r.amt,0);
+  const marKg = CHICKEN_MNB.filter(r=>r.d.startsWith('Mar')).reduce((s,r)=>s+r.kg,0);
+  const febOpening = CHICKEN_MNB.find(r=>r.d.startsWith('Feb'));
+  const neft = CHICKEN_NEFT.reduce((s,r)=>s+r.amt,0);
+  const closing = 83905;
+  const cutletTotal = CHICKEN_CUTLET.reduce((s,r)=>s+r.amt,0);
+  const cards = [
+    {label:'M.N. Broilers — Feb Opening', value:fmt(febOpening.amt), sub:`~${febOpening.kg} kg @ ₹127/kg avg`},
+    {label:'M.N. Broilers — Mar Purchases', value:fmt(marTotal), sub:`${marKg.toFixed(1)} kg over 29 days`},
+    {label:'Total on M.N. Ledger', value:fmt(febOpening.amt+marTotal), sub:'Matches DayBook ₹2,33,905 ✓'},
+    {label:'NEFT Payments Made', value:fmt(neft), sub:'3 × ₹50,000'},
+    {label:'Closing Balance (outstanding)', value:fmt(closing), sub:'Still payable to M.N. Broilers'},
+    {label:'Chicken Cutlet (Nisarcha)', value:fmt(cutletTotal), sub:'Feb 3–10, 6 entries'},
+  ];
+  document.getElementById('chicken-cards').innerHTML = cards.map(c=>`
+    <div class="card">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+
+  let h = `<tr><th>Date</th><th class="num">Net Wt (kg)</th><th class="num">Rate (₹/kg)</th><th class="num">Amount</th><th>Note</th></tr>`;
+  let cumKg=0, cumAmt=0;
+  CHICKEN_MNB.forEach(r=>{
+    if(r.d.startsWith('Mar')){cumKg+=r.kg;cumAmt+=r.amt;}
+    h+=`<tr><td>${r.d}</td><td class="num">${r.kg.toFixed(1)}</td><td class="num">${r.rate||'~127'}</td><td class="num">${fmt(r.amt)}</td><td style="font-size:12px;color:#64748b">${r.note||''}</td></tr>`;
+  });
+  h+=`<tr class="total-row"><td>Mar Total</td><td class="num">${cumKg.toFixed(1)} kg</td><td class="num">—</td><td class="num">${fmt(cumAmt)}</td><td></td></tr>`;
+  h+=`<tr class="total-row"><td>Grand Total (incl. Feb)</td><td class="num">${(344+cumKg).toFixed(1)} kg</td><td class="num">—</td><td class="num">${fmt(43927+cumAmt)}</td><td>= DayBook ₹2,33,905 ✓</td></tr>`;
+  document.getElementById('chicken-daily').innerHTML = h;
+
+  let nh=`<tr><th>Date</th><th class="num">Amount</th><th>Narration</th></tr>`;
+  CHICKEN_NEFT.forEach(r=>{nh+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td><td style="font-size:11px;color:#64748b">${r.narr}</td></tr>`;});
+  nh+=`<tr class="total-row"><td>Total Paid</td><td class="num">${fmt(neft)}</td><td>Closing balance ₹83,905 outstanding</td></tr>`;
+  document.getElementById('chicken-neft').innerHTML = nh;
+
+  let ch=`<tr><th>Date</th><th class="num">Amount</th><th>Note</th></tr>`;
+  CHICKEN_CUTLET.forEach(r=>{ch+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td><td style="font-size:12px;color:#64748b">${r.note}</td></tr>`;});
+  ch+=`<tr class="total-row"><td>Total</td><td class="num">${fmt(cutletTotal)}</td><td>⚠ No entries after Feb 10</td></tr>`;
+  document.getElementById('chicken-cutlet').innerHTML = ch;
+}
+
+function renderShariff() {
+  const gt = SHARIFF_CATS.reduce((s,c)=>s+c.amt,0);
+  const cards = SHARIFF_CATS.slice(0,6).map(c=>`
+    <div class="card">
+      <div class="label">${c.cat}</div>
+      <div class="value">${fmt(c.amt)}</div>
+      <div class="sub">${c.items.length} items</div>
+    </div>`).join('');
+  document.getElementById('shariff-cat-cards').innerHTML = cards + `
+    <div class="card">
+      <div class="label">Grand Total</div>
+      <div class="value">${fmt(gt)}</div>
+      <div class="sub">572 line items, Feb–Mar 2026</div>
+    </div>`;
+
+  let h=`<tr><th>Category</th><th>Item</th><th>Unit</th><th class="num">Amount</th><th class="num">Entries</th><th>Flag</th></tr>`;
+  SHARIFF_CATS.forEach(cat=>{
+    let first=true;
+    cat.items.forEach(item=>{
+      h+=`<tr>
+        <td style="color:#64748b;font-size:12px">${first?cat.cat:''}</td>
+        <td class="${item.flag?'bold':''}">${item.n}</td>
+        <td style="color:#64748b">${item.u}</td>
+        <td class="num">${fmt(item.amt)}</td>
+        <td class="num" style="color:#64748b">${item.cnt}</td>
+        <td style="font-size:11px;color:#f59e0b">${item.flag||''}</td>
+      </tr>`;
+      first=false;
+    });
+    h+=`<tr style="background:#131929"><td></td><td style="color:#64748b;font-size:12px">Category Total</td><td></td><td class="num bold">${fmt(cat.amt)}</td><td></td><td></td></tr>`;
+  });
+  h+=`<tr class="total-row"><td colspan="3">GRAND TOTAL</td><td class="num">${fmt(gt)}</td><td></td><td></td></tr>`;
+  document.getElementById('shariff-items').innerHTML = h;
+}
+
+function renderVeg() {
+  const dbTotal = VEG_DAYBOOK.reduce((s,r)=>s+r.amt,0);
+  const counterTotal = VEG_COUNTER_CATS.reduce((s,r)=>s+r.amt,0);
+  const billsTotal = VEG_BILLS.reduce((s,r)=>s+r.amt,0);
+  const cards = [
+    {label:'DayBook — Veg/Dairy/Staff Food', value:fmt(dbTotal), sub:'48 entries, Feb 3 – Mar 29'},
+    {label:'Counter Cash — Food/Veg Types', value:fmt(counterTotal), sub:'Estimated, from 336 counter entries'},
+    {label:'Veg Bills Decoded (Mar 24–Apr 11)', value:fmt(billsTotal), sub:'19 days, Manju Veg Supplier'},
+    {label:'Est. Monthly Veg (Manju)', value:'₹21,000–36,000', sub:'30 days × ₹700–1,200/day'},
+  ];
+  document.getElementById('veg-cards').innerHTML = cards.map(c=>`
+    <div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  let h=`<tr><th>Date</th><th class="num">Amount</th><th>Vch No.</th></tr>`;
+  let running=0;
+  VEG_DAYBOOK.forEach(r=>{running+=r.amt;h+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td><td style="color:#64748b;font-size:12px">#${r.vch}</td></tr>`;});
+  h+=`<tr class="total-row"><td>Total</td><td class="num">${fmt(dbTotal)}</td><td></td></tr>`;
+  document.getElementById('veg-daybook').innerHTML = h;
+
+  let ch=`<tr><th>Category</th><th class="num">Amount</th><th class="num">Entries</th><th>Note</th></tr>`;
+  VEG_COUNTER_CATS.forEach(r=>{ch+=`<tr><td>${r.cat}</td><td class="num">${fmt(r.amt)}</td><td class="num">${r.entries}</td><td style="font-size:12px;color:#64748b">${r.note}</td></tr>`;});
+  ch+=`<tr class="total-row"><td>Counter Total (est.)</td><td class="num">${fmt(counterTotal)}</td><td></td><td></td></tr>`;
+  document.getElementById('veg-counter').innerHTML = ch;
+
+  let bh=`<tr><th>Item</th><th>Qty</th><th>Rate</th><th class="num">Amount</th></tr>`;
+  VEG_BILLS.forEach(r=>{bh+=`<tr><td>${r.item}</td><td>${r.qty}</td><td>${r.rate}</td><td class="num">${fmt(r.amt)}</td></tr>`;});
+  bh+=`<tr class="total-row"><td colspan="3">19-day total (partial)</td><td class="num">${fmt(billsTotal)}</td></tr>`;
+  document.getElementById('veg-bills').innerHTML = bh;
+}
+
+function renderMilk() {
+  const milkTotal = MILK_ENTRIES.reduce((s,r)=>s+r.amt,0);
+  const butterTotal = BUTTER_ENTRIES.reduce((s,r)=>s+r.amt,0);
+  const smpTotal = SMP_ENTRIES.reduce((s,r)=>s+r.amt,0);
+  const cards = [
+    {label:'Milk Purchase Total', value:fmt(milkTotal), sub:'31 entries — no litre data'},
+    {label:'Implied Litres (@₹55/L)', value:'~3,462 L', sub:'60.7 L/day over 57 days'},
+    {label:'Butter Purchase Total', value:fmt(butterTotal), sub:'43 daily entries — no kg'},
+    {label:'Implied KG (@₹580/kg)', value:'~77 kg', sub:'1.35 kg/day over 57 days'},
+    {label:'Milk Powder (Jay & Jay)', value:fmt(smpTotal), sub:'5 payments including 3 NEFT'},
+    {label:'Shariff Milk Maid', value:'₹30,445', sub:'Nestle, 9+5 entries from Shariff'},
+  ];
+  document.getElementById('milk-cards').innerHTML = cards.map(c=>`
+    <div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  let mh=`<tr><th>Date</th><th class="num">Amount</th></tr>`;
+  let mRun=0;
+  MILK_ENTRIES.forEach(r=>{mRun+=r.amt;mh+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td></tr>`;});
+  mh+=`<tr class="total-row"><td>Total (31 entries)</td><td class="num">${fmt(milkTotal)}</td></tr>`;
+  document.getElementById('milk-table').innerHTML = mh;
+
+  let bh=`<tr><th>Date</th><th class="num">Amount</th></tr>`;
+  let bRun=0;
+  BUTTER_ENTRIES.forEach(r=>{bRun+=r.amt;bh+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td></tr>`;});
+  bh+=`<tr class="total-row"><td>Total (43 entries)</td><td class="num">${fmt(butterTotal)}</td></tr>`;
+  document.getElementById('butter-table').innerHTML = bh;
+
+  let sh=`<tr><th>Date</th><th class="num">Amount</th><th>Narration</th></tr>`;
+  SMP_ENTRIES.forEach(r=>{sh+=`<tr><td>${r.d}</td><td class="num">${fmt(r.amt)}</td><td style="font-size:11px;color:#64748b">${r.narr}</td></tr>`;});
+  sh+=`<tr class="total-row"><td>Total</td><td class="num">${fmt(smpTotal)}</td><td></td></tr>`;
+  document.getElementById('smp-table').innerHTML = sh;
+}
+
+function renderDisc() {
+  const sevColor = {high:'#ef4444',medium:'#f59e0b',info:'#6366f1'};
+  const sevLabel = {high:'HIGH',medium:'MEDIUM',info:'INFO'};
+  let h = '';
+  DISC.forEach(d=>{
+    const amts = d.amounts.map(a=>`<div class="amt-block"><div class="alabel">${a.l}</div><div class="aval">${a.v}</div></div>`).join('');
+    h+=`<div class="disc-item ${d.sev}">
+      <div class="disc-head">
+        <div class="disc-num">${d.num}</div>
+        <span class="badge badge-${d.sev==='high'?'red':d.sev==='medium'?'amber':'blue'}">${sevLabel[d.sev]}</span>
+        <div class="disc-title">${d.title}</div>
+      </div>
+      <div class="disc-body">${d.body}</div>
+      <div class="disc-amounts">${amts}</div>
+      <div class="disc-q">${d.q}</div>
+    </div>`;
+  });
+  document.getElementById('disc-list').innerHTML = h;
+}
+</script>
+</body>
+</html>
