@@ -136,7 +136,19 @@ tr:hover td{background:#0f0f1a}
   .gtotal-val{font-size:26px}
   .pair{grid-template-columns:1fr}
 }
+
+/* Download buttons */
+.dl-btns{display:flex;gap:5px;margin-left:8px;flex-shrink:0}
+.dl-btn{background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx3);cursor:pointer;font-size:10px;font-weight:600;padding:4px 8px;transition:all .15s;white-space:nowrap;line-height:1.4}
+.dl-btn:hover{background:var(--s3);color:var(--tx)}
+.dl-btn.pdf:hover{border-color:#ef4444;color:#ef4444}
+.dl-btn.xlsx:hover{border-color:#22c55e;color:#22c55e}
+.dl-all-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.dl-all-btn{background:rgba(212,164,76,.12);border:1px solid rgba(212,164,76,.4);border-radius:8px;color:var(--ac);cursor:pointer;font-size:12px;font-weight:600;padding:8px 16px;transition:all .15s}
+.dl-all-btn:hover{background:rgba(212,164,76,.22);border-color:var(--ac)}
+@media(max-width:600px){.dl-btns{display:none}}
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -172,6 +184,10 @@ tr:hover td{background:#0f0f1a}
         <div class="gtotal-label">12 categories · 30 staff</div>
         <div style="font-size:15px;color:var(--tx);font-weight:700">Feb 3 – Mar 31, 2026</div>
         <div class="gtotal-pills"><span class="pill">Salaries 37%</span><span class="pill">Raw Materials 36%</span><span class="pill">Capex 15%</span></div>
+        <div class="dl-all-row">
+          <button class="dl-all-btn" onclick="dlAll()">📊 Download Full Register (XLSX)</button>
+          <button class="dl-all-btn" onclick="pAll()">🖨 Print Full Register (PDF)</button>
+        </div>
       </div>
     </div>
 
@@ -593,6 +609,10 @@ function acc(id,icon,name,desc,color,amt,tot,inner){
     +'<div class="acc-head" onclick="tAcc(\''+id+'\')"><div class="acc-icon">'+icon+'</div>'
     +'<div class="acc-info"><div class="acc-name">'+name+'</div><div class="acc-desc">'+desc+'</div></div>'
     +'<div class="acc-right"><div class="acc-amt" style="color:'+color+'">'+f(amt)+'</div><div class="acc-pct">'+p+'% of total</div></div>'
+    +'<div class="dl-btns" onclick="event.stopPropagation()">'
+    +'<button class="dl-btn pdf" title="Print as PDF" onclick="pSec(\''+id+'\')">🖨 PDF</button>'
+    +'<button class="dl-btn xlsx" title="Download Excel" onclick="dlXLSX(\''+id+'\')">📊 XLSX</button>'
+    +'</div>'
     +'<span class="acc-chevron">▾</span></div>'
     +'<div class="acc-body">'+inner+'</div></div>';
 }
@@ -624,6 +644,246 @@ function buildShariff(){
 
 function tAcc(id){document.getElementById('acc-'+id).classList.toggle('open');}
 function tSub(head){head.parentElement.classList.toggle('open');}
+
+// ─── EXPORT DATA MAP ─────────────────────────────────────────────────────────
+function secData(id){
+  var map={
+    salary:{title:'Salaries',note:'Journal accrual only. Salary Payable disbursements (₹9,26,390) are separate liability settlements — not additional expense.',
+      cols:['Employee / Role','Amount (₹)','Note'],
+      rows:SALARIES.map(function(e){return[e.n,e.a,e.note||''];}),
+      totalLabel:'Total Salaries',totalAmt:SALARIES.reduce(function(s,e){return s+e.a;},0)},
+    rm:{title:'Raw Materials',note:'Shariff invoice ₹2,24,807 — only ₹1,95,000 posted in DayBook. See Shariff Detail sheet for item breakdown.',
+      cols:['Item','Amount (₹)','Detail / Note'],
+      rows:RM_ITEMS.map(function(i){return[i.n,i.a,i.isShariff?'Shariff Dry Goods — see Shariff Detail sheet':i.detail];}),
+      totalLabel:'Total Raw Materials',totalAmt:RM_ITEMS.reduce(function(s,i){return s+i.a;},0),
+      extra:{name:'Shariff Detail',cols:['Category','Item','Unit','Qty','Amount (₹)'],rows:(function(){
+        var r=[];SHARIFF_CATS.forEach(function(c){c.items.forEach(function(it){r.push([c.name,it.n,it.u,it.cnt||'',it.a]);});});return r;})(),
+        totalLabel:'Shariff Invoice Total',totalAmt:224807}},
+    capex:{title:'One-Time Capex',note:'Capital expenditures — should be depreciated, not fully expensed in P&L.',
+      cols:['Item','Amount (₹)'],
+      rows:CAPEX.map(function(i){return[i.n,i.a];}),
+      totalLabel:'Total Capex',totalAmt:CAPEX.reduce(function(s,i){return s+i.a;},0)},
+    ops:{title:'Operations',note:'Police Payment ₹16,500 is off-books — no bank entry, no DayBook journal. Counter settlement system only.',
+      cols:['Item','Note','Amount (₹)'],
+      rows:OPS.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Operations',totalAmt:OPS.reduce(function(s,i){return s+i.a;},0)},
+    util:{title:'Utilities',note:'RENT IS MISSING from all records. Electricity Journal ₹26,214 is mirror of BESCOM payment — do NOT add both.',
+      cols:['Item','Note','Amount (₹)'],
+      rows:UTIL.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Utilities',totalAmt:UTIL.reduce(function(s,i){return s+i.a;},0)},
+    comp:{title:'Complementary',note:'Journal entries — free meals & chai for NCH and HE staff/guests.',
+      cols:['Brand','Note','Amount (₹)'],
+      rows:COMPS.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Complementary',totalAmt:COMPS.reduce(function(s,i){return s+i.a;},0)},
+    compliance:{title:'Compliance & Legal',note:'',
+      cols:['Item','Note','Amount (₹)'],
+      rows:COMPLIANCE.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Compliance & Legal',totalAmt:COMPLIANCE.reduce(function(s,i){return s+i.a;},0)},
+    welfare:{title:'Staff Welfare',note:'',
+      cols:['Item','Amount (₹)'],
+      rows:WELFARE.map(function(i){return[i.n,i.a];}),
+      totalLabel:'Total Staff Welfare',totalAmt:WELFARE.reduce(function(s,i){return s+i.a;},0)},
+    tech:{title:'Technology',note:'',
+      cols:['Item','Amount (₹)'],
+      rows:[['Claude AI Subscription Charges',18504]],
+      totalLabel:'Total Technology',totalAmt:18504},
+    maint:{title:'Maintenance & Repairs',note:'',
+      cols:['Item','Amount (₹)'],
+      rows:MAINT.map(function(i){return[i.n,i.a];}),
+      totalLabel:'Total Maintenance',totalAmt:MAINT.reduce(function(s,i){return s+i.a;},0)},
+    mkt:{title:'Marketing & Promotion',note:'',
+      cols:['Item','Note','Amount (₹)'],
+      rows:MKT.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Marketing',totalAmt:MKT.reduce(function(s,i){return s+i.a;},0)},
+    transport:{title:'Transport & Logistics',note:'',
+      cols:['Item','Note','Amount (₹)'],
+      rows:TRANSPORT.map(function(i){return[i.n,i.note||'',i.a];}),
+      totalLabel:'Total Transport',totalAmt:TRANSPORT.reduce(function(s,i){return s+i.a;},0)},
+    draw:{title:'Owner Drawings (Excl. from P&L)',note:'Balance sheet items — not operating expenses.',
+      cols:['Person','Amount (₹)'],
+      rows:[['KM Haneef — Withdrawal',25000],['Mujib — Advance Paid Out',25000],['Nihaf Expenses',10633],['Tanveer — Advance Paid Out',10000],['Shaheen Expenses',5099],['Juhaina Haneef — Withdrawal',5000],['Juvairia Haneef — Withdrawal',5000]],
+      totalLabel:'Total Drawings',totalAmt:85732}
+  };
+  return map[id];
+}
+
+// ─── XLSX: single section ─────────────────────────────────────────────────────
+function dlXLSX(id){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded yet — try again in a moment.');return;}
+  var d=secData(id); if(!d)return;
+  var wb=XLSX.utils.book_new();
+  var ws=buildSheet(d);
+  XLSX.utils.book_append_sheet(wb,ws,d.title.substring(0,31));
+  if(d.extra){
+    var ws2=buildSheet(d.extra);
+    XLSX.utils.book_append_sheet(wb,ws2,d.extra.name.substring(0,31));
+  }
+  XLSX.writeFile(wb,'NCH_'+id+'_Feb_Mar_2026.xlsx');
+}
+
+function buildSheet(d){
+  var aoa=[];
+  aoa.push(['NCH Expense Register — '+d.title]);
+  aoa.push(['Period: Feb 3 – Mar 31, 2026']);
+  if(d.note) aoa.push(['Note: '+d.note]);
+  aoa.push([]);
+  aoa.push(d.cols);
+  d.rows.forEach(function(r){aoa.push(r);});
+  // total row
+  var tot=[];
+  d.cols.forEach(function(c,i){
+    if(i===0) tot.push(d.totalLabel);
+    else if(i===d.cols.length-1) tot.push(d.totalAmt);
+    else tot.push('');
+  });
+  aoa.push(tot);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  // column widths
+  var wscols=d.cols.map(function(c,i){
+    if(i===0) return{wch:40};
+    if(typeof d.rows[0]&&typeof d.rows[0][i]==='number') return{wch:14};
+    return{wch:30};
+  });
+  ws['!cols']=wscols;
+  return ws;
+}
+
+// ─── XLSX: full register ──────────────────────────────────────────────────────
+function dlAll(){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded yet — try again in a moment.');return;}
+  var wb=XLSX.utils.book_new();
+  // Summary sheet
+  var tot=CATS.reduce(function(s,c){return s+c.total;},0);
+  var sumAoa=[['NCH Full Expense Register'],['Period: Feb 3 – Mar 31, 2026'],['Source: Naveen DayBook + HN Hotels Financial Overview'],[]];
+  sumAoa.push(['Category','Amount (₹)','% of Total','Notes']);
+  CATS.forEach(function(c){sumAoa.push([c.name,c.total,(c.total/tot*100).toFixed(1)+'%',c.sub]);});
+  sumAoa.push([]);
+  sumAoa.push(['GRAND TOTAL (excl. drawings)',tot,'100%','']);
+  sumAoa.push(['Owner Drawings (excl.)',85732,'','Balance sheet items']);
+  var wsSummary=XLSX.utils.aoa_to_sheet(sumAoa);
+  wsSummary['!cols']=[{wch:30},{wch:16},{wch:12},{wch:45}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'Summary');
+  // Each section
+  var ids=['salary','rm','capex','ops','util','comp','compliance','welfare','tech','maint','mkt','transport','draw'];
+  ids.forEach(function(id){
+    var d=secData(id); if(!d) return;
+    var ws=buildSheet(d);
+    XLSX.utils.book_append_sheet(wb,ws,d.title.substring(0,31));
+    if(d.extra){
+      var ws2=buildSheet(d.extra);
+      XLSX.utils.book_append_sheet(wb,ws2,d.extra.name.substring(0,31));
+    }
+  });
+  XLSX.writeFile(wb,'NCH_Full_Expense_Register_Feb_Mar_2026.xlsx');
+}
+
+// ─── PDF: single section ──────────────────────────────────────────────────────
+var PRINT_CSS='*{box-sizing:border-box;margin:0;padding:0}'
+  +'body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;padding:28px;max-width:900px;margin:0 auto}'
+  +'h1{font-size:17px;font-weight:700;color:#1a1a1a;margin-bottom:3px}'
+  +'h2{font-size:11px;color:#666;font-weight:normal;margin-bottom:4px}'
+  +'.meta{font-size:10px;color:#888;margin-bottom:18px;padding-bottom:10px;border-bottom:2px solid #c8860a}'
+  +'.note{background:#fffde7;border-left:3px solid #f9a825;padding:9px 12px;font-size:11px;color:#555;margin-bottom:14px;border-radius:3px}'
+  +'table{width:100%;border-collapse:collapse;margin-bottom:16px}'
+  +'th{background:#f5f0e8;color:#555;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:7px 9px;text-align:left;border-bottom:2px solid #c8860a}'
+  +'td{padding:6px 9px;border-bottom:1px solid #ece8e0;font-size:11px;vertical-align:top}'
+  +'tr:last-child td{border-bottom:none}'
+  +'.num{text-align:right;font-family:"Courier New",monospace}'
+  +'.total-row td{background:#f5f0e8;font-weight:700;border-top:2px solid #c8860a}'
+  +'.footer{margin-top:24px;font-size:9px;color:#aaa;border-top:1px solid #ddd;padding-top:8px;text-align:center}'
+  +'@media print{body{padding:10px}@page{margin:14mm 12mm}}';
+
+function pSec(id){
+  var d=secData(id); if(!d) return;
+  var rows='';
+  d.rows.forEach(function(r){
+    rows+='<tr>'+r.map(function(c,i){
+      var isAmt=(i===d.cols.length-1&&typeof c==='number');
+      return '<td'+(isAmt?' class="num"':'')+'>'+(isAmt?'₹'+Number(c).toLocaleString('en-IN'):c)+'</td>';
+    }).join('')+'</tr>';
+  });
+  // total row
+  var totCells=d.cols.map(function(c,i){
+    if(i===0) return'<td>'+d.totalLabel+'</td>';
+    if(i===d.cols.length-1) return'<td class="num">₹'+Number(d.totalAmt).toLocaleString('en-IN')+'</td>';
+    return'<td></td>';
+  }).join('');
+  var extraHtml='';
+  if(d.extra){
+    var eRows='';
+    d.extra.rows.forEach(function(r){
+      eRows+='<tr>'+r.map(function(c,i){
+        var isAmt=(i===d.extra.cols.length-1&&typeof c==='number');
+        return'<td'+(isAmt?' class="num"':'')+'>'+(isAmt?'₹'+Number(c).toLocaleString('en-IN'):c)+'</td>';
+      }).join('')+'</tr>';
+    });
+    var eTotCells=d.extra.cols.map(function(c,i){
+      if(i===0) return'<td>'+d.extra.totalLabel+'</td>';
+      if(i===d.extra.cols.length-1) return'<td class="num">₹'+Number(d.extra.totalAmt).toLocaleString('en-IN')+'</td>';
+      return'<td></td>';
+    }).join('');
+    extraHtml='<h2 style="margin:20px 0 8px;font-size:13px;font-weight:700;color:#1a1a1a">'+d.extra.name+'</h2>'
+      +'<table><thead><tr>'+d.extra.cols.map(function(c){return'<th>'+c+'</th>';}).join('')+'</tr></thead>'
+      +'<tbody>'+eRows+'<tr class="total-row">'+eTotCells+'</tr></tbody></table>';
+  }
+  openPrint('NCH — '+d.title,
+    '<h1>NCH Expense Register — '+d.title+'</h1>'
+    +'<h2>₹'+Number(d.totalAmt).toLocaleString('en-IN')+' &nbsp;·&nbsp; Feb 3 – Mar 31, 2026</h2>'
+    +'<div class="meta">Source: Naveen DayBook + HN Hotels Financial Overview &nbsp;·&nbsp; Nawabi Chai House</div>'
+    +(d.note?'<div class="note">'+d.note+'</div>':'')
+    +'<table><thead><tr>'+d.cols.map(function(c){return'<th>'+c+'</th>';}).join('')+'</tr></thead>'
+    +'<tbody>'+rows+'<tr class="total-row">'+totCells+'</tr></tbody></table>'
+    +extraHtml);
+}
+
+// ─── PDF: full register ───────────────────────────────────────────────────────
+function pAll(){
+  var tot=CATS.reduce(function(s,c){return s+c.total;},0);
+  var sumRows=CATS.map(function(c){
+    return'<tr><td>'+c.icon+' '+c.name+'</td><td class="num">₹'+Number(c.total).toLocaleString('en-IN')+'</td>'
+      +'<td class="num">'+(c.total/tot*100).toFixed(1)+'%</td><td>'+c.sub+'</td></tr>';
+  }).join('');
+  var body='<h1>NCH Full Expense Register</h1>'
+    +'<h2>₹'+Number(tot).toLocaleString('en-IN')+' total &nbsp;·&nbsp; Feb 3 – Mar 31, 2026</h2>'
+    +'<div class="meta">Source: Naveen DayBook + HN Hotels Financial Overview &nbsp;·&nbsp; Combined HE + NCH · No brand split</div>'
+    +'<div class="note">Rent is missing from all records. Capex should be depreciated. Police payment ₹16,500 is off-books.</div>'
+    +'<table><thead><tr><th>Category</th><th class="num">Amount (₹)</th><th class="num">%</th><th>Notes</th></tr></thead>'
+    +'<tbody>'+sumRows
+    +'<tr class="total-row"><td>GRAND TOTAL (excl. drawings)</td><td class="num">₹'+Number(tot).toLocaleString('en-IN')+'</td><td class="num">100%</td><td></td></tr>'
+    +'</tbody></table>';
+  // append each section table
+  var ids=['salary','rm','capex','ops','util','comp','compliance','welfare','tech','maint','mkt','transport'];
+  ids.forEach(function(id){
+    var d=secData(id); if(!d) return;
+    var rows=d.rows.map(function(r){
+      return'<tr>'+r.map(function(c,i){
+        var isAmt=(i===d.cols.length-1&&typeof c==='number');
+        return'<td'+(isAmt?' class="num"':'')+'>'+(isAmt?'₹'+Number(c).toLocaleString('en-IN'):c)+'</td>';
+      }).join('')+'</tr>';
+    }).join('');
+    var totCells=d.cols.map(function(c,i){
+      if(i===0)return'<td>'+d.totalLabel+'</td>';
+      if(i===d.cols.length-1)return'<td class="num">₹'+Number(d.totalAmt).toLocaleString('en-IN')+'</td>';
+      return'<td></td>';
+    }).join('');
+    body+='<div style="margin-top:24px;page-break-inside:avoid">'
+      +'<h2 style="font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #c8860a;padding-bottom:4px">'+d.title+'</h2>'
+      +'<table><thead><tr>'+d.cols.map(function(c){return'<th>'+c+'</th>';}).join('')+'</tr></thead>'
+      +'<tbody>'+rows+'<tr class="total-row">'+totCells+'</tr></tbody></table></div>';
+  });
+  openPrint('NCH Full Expense Register',body);
+}
+
+function openPrint(title,body){
+  var w=window.open('','_blank','width=960,height=800');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title+'</title>'
+    +'<style>'+PRINT_CSS+'</style></head><body>'
+    +body
+    +'<div class="footer">Nawabi Chai House &nbsp;·&nbsp; Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' &nbsp;·&nbsp; Confidential</div>'
+    +'</body></html>');
+  w.document.close();
+  setTimeout(function(){w.print();},600);
+}
 </script>
 </body>
 </html>
