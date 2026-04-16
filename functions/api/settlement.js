@@ -1200,6 +1200,147 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // === SHIFT PREVIEW — compute expected drawer before handover ===
+    if (action === 'shift-preview') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
+      const ODOO_API_KEY = context.env.ODOO_API_KEY;
+
+      // Period start = settled_at of last cashier_shifts row (or 48h ago as floor)
+      const lastShift = await DB.prepare(
+        'SELECT settled_at, drawer_cash_entered FROM cashier_shifts ORDER BY settled_at DESC LIMIT 1'
+      ).first();
+      const floorIST = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+      const periodStart = lastShift?.settled_at || floorIST;
+      const pettyFloatStart = lastShift?.drawer_cash_entered || 0;
+
+      // IST→UTC for Odoo
+      const fromDate = new Date(periodStart);
+      const fromUTC = new Date(fromDate.getTime() - 5.5 * 3600 * 1000);
+      const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
+
+      // 1. Runner cash settled to counter since period_start (D1)
+      const runnerCashRow = await DB.prepare(
+        "SELECT COALESCE(SUM(cash_settled),0) as total FROM settlements WHERE runner_id != 'counter' AND settled_at > ?"
+      ).bind(periodStart).first();
+      const runnerCashReceived = Math.round(runnerCashRow?.total || 0);
+
+      // 2. PM37 walk-in cash from POS 27 since period_start (Odoo)
+      let pm37WalkIn = 0;
+      if (ODOO_API_KEY) {
+        try {
+          const ordersPayload = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+            args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+              [[['config_id','=',27],['date_order','>=',fromOdoo],['state','in',['paid','done','invoiced','posted']]]],
+              {fields:['id','payment_ids']}]}, id: Date.now()};
+          const ordersRes = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ordersPayload)});
+          const ordersData = await ordersRes.json();
+          const orders = ordersData.result || [];
+          const paymentIds = orders.flatMap(o => o.payment_ids || []);
+          if (paymentIds.length > 0) {
+            const pmPayload = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+              args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+                [[['id','in',paymentIds],['payment_method_id','=',37]]],
+                {fields:['amount']}]}, id: Date.now()};
+            const pmRes = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pmPayload)});
+            const pmData = await pmRes.json();
+            pm37WalkIn = Math.round((pmData.result || []).reduce((s, p) => s + (p.amount || 0), 0));
+          }
+        } catch (e) { console.error('shift-preview pm37 error:', e.message); }
+      }
+
+      // 3. Expenses (counter + petty) since period_start
+      const counterExpRow = await DB.prepare(
+        'SELECT COALESCE(SUM(amount),0) as total FROM counter_expenses_v2 WHERE created_at > ?'
+      ).bind(periodStart).first();
+      const pettyExpRow = await DB.prepare(
+        "SELECT COALESCE(SUM(amount),0) as total FROM petty_cash WHERE transaction_type='expense' AND created_at > ?"
+      ).bind(periodStart).first();
+      const expensesTotal = Math.round((counterExpRow?.total || 0) + (pettyExpRow?.total || 0));
+
+      // 4. Cash already collected (taken out of drawer) since period_start
+      const collectRow = await DB.prepare(
+        "SELECT COALESCE(SUM(amount),0) as total FROM cash_collections WHERE collected_at > ?"
+      ).bind(periodStart).first();
+      const cashCollections = Math.round(collectRow?.total || 0);
+
+      // Expected = float_start + runner_cash + walk_in_cash - expenses - collections
+      const expectedDrawer = pettyFloatStart + runnerCashReceived + pm37WalkIn - expensesTotal - cashCollections;
+
+      return new Response(JSON.stringify({
+        success: true,
+        period_start: periodStart,
+        petty_float_start: pettyFloatStart,
+        runner_cash_received: runnerCashReceived,
+        pm37_walk_in: pm37WalkIn,
+        expenses_total: expensesTotal,
+        cash_collections: cashCollections,
+        expected_drawer: Math.round(expectedDrawer)
+      }), {headers: corsHeaders});
+    }
+
+    // === RECORD SHIFT HANDOVER — simple insert into cashier_shifts ===
+    if (action === 'record-shift-handover' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
+      const WA_TOKEN = context.env.WA_ACCESS_TOKEN;
+      const WA_PHONE_ID_VAL = context.env.WA_PHONE_ID || '987158291152067';
+
+      const body = await context.request.json();
+      const {
+        cashier_code, cashier_person,
+        period_start, period_end,
+        petty_float_start, runner_cash_received, pm37_walk_in,
+        expenses_total, cash_collections, expected_drawer,
+        drawer_cash_entered, drawer_variance,
+        handover_to, notes
+      } = body;
+
+      if (!cashier_code || !drawer_cash_entered && drawer_cash_entered !== 0) {
+        return new Response(JSON.stringify({success: false, error: 'cashier_code and drawer_cash_entered required'}), {headers: corsHeaders});
+      }
+
+      const settledAt = new Date().toISOString();
+
+      await DB.prepare(`
+        INSERT INTO cashier_shifts (
+          cashier_name, settled_at, period_start, period_end,
+          petty_cash_start, runner_cash_settled, expenses_total,
+          expected_drawer, drawer_cash_entered, drawer_variance,
+          counter_cash_settled, unsettled_counter_cash,
+          counter_cash_expected, counter_cash_entered, counter_cash_variance,
+          counter_upi, counter_card, counter_token_issue, counter_complimentary,
+          counter_qr_odoo, counter_qr_razorpay, counter_qr_variance,
+          runner_counter_qr_odoo, runner_counter_qr_razorpay, runner_counter_qr_variance,
+          total_cash_physical, total_cash_expected, final_variance,
+          variance_resolved, variance_unresolved,
+          discrepancy_resolutions, runner_count, notes, handover_to
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        cashier_person || cashier_code, settledAt,
+        period_start || settledAt, period_end || settledAt,
+        petty_float_start || 0, runner_cash_received || 0, expenses_total || 0,
+        expected_drawer || 0, drawer_cash_entered || 0, drawer_variance || 0,
+        0, 0, // counter_cash_settled, unsettled_counter_cash
+        pm37_walk_in || 0, drawer_cash_entered || 0, drawer_variance || 0,
+        0, 0, 0, 0, // counter_upi, card, token_issue, complimentary
+        0, 0, 0,   // counter_qr_odoo/razorpay/variance
+        0, 0, 0,   // runner_counter_qr_odoo/razorpay/variance
+        drawer_cash_entered || 0, expected_drawer || 0, drawer_variance || 0,
+        0, Math.abs(drawer_variance || 0),
+        '[]', 0,
+        notes || '', handover_to || ''
+      ).run();
+
+      // WABA alert if variance > ₹50
+      const absVariance = Math.abs(drawer_variance || 0);
+      if (absVariance > 50 && WA_TOKEN) {
+        const sign = (drawer_variance || 0) < 0 ? 'SHORT' : 'OVER';
+        const msg = `🔄 *NCH Shift Handover*\n${cashier_person || cashier_code} → ${handover_to || 'next shift'}\n\nExpected drawer: ₹${expected_drawer || 0}\nActual count: ₹${drawer_cash_entered}\nVariance: ${sign} ₹${absVariance}\n\nNeeds attention.`;
+        await sendWhatsAppAlert(WA_PHONE_ID_VAL, WA_TOKEN, '917010426808', msg).catch(() => {});
+      }
+
+      return new Response(JSON.stringify({success: true, settled_at: settledAt}), {headers: corsHeaders});
+    }
+
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
   } catch (error) {
     return new Response(JSON.stringify({success: false, error: error.message}), {status: 500, headers: corsHeaders});

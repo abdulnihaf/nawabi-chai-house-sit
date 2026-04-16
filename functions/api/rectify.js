@@ -85,6 +85,7 @@ export async function onRequest(context) {
       case 'get-petty': return await getPetty(url, DB, cors);
       case 'resolve-discrepancy': return await resolveDiscrepancy(context, DB, cors);
       case 'create-cross-qr-tag': return await createCrossQrTag(context, DB, cors);
+      case 'verify-staff': return await verifyStaff(url, cors);
       default: return json({success: false, error: `Unknown action: ${action}`}, cors, 400);
     }
   } catch (e) {
@@ -750,6 +751,16 @@ async function createCrossQrTag(context, DB, cors) {
   } catch (e) { /* non-critical */ }
 
   return json({success: true, tag: {amount, source_entity, dest_entity, impact: impactDesc}}, cors);
+}
+
+async function verifyStaff(url, cors) {
+  const code = (url.searchParams.get('code') || '').toUpperCase();
+  const pin = url.searchParams.get('pin');
+  if (!code || !pin) return json({success: false, error: 'Code and PIN required'}, cors, 400);
+  const slot = STAFF_SLOTS[code];
+  if (!slot) return json({success: false, error: 'Invalid role code'}, cors, 401);
+  if (slot.pin !== pin) return json({success: false, error: 'Incorrect PIN'}, cors, 401);
+  return json({success: true, role: slot.role, code, person: slot.person, partner_id: slot.partner_id || null}, cors);
 }
 
 function verifyPin(pin) {

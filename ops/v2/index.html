@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>NCH Ops v2</title>
+<style>
+  :root {
+    --bg: #08101e;
+    --card: #111827;
+    --card2: #1a2234;
+    --border: #1e2d42;
+    --text: #e8edf5;
+    --muted: rgba(232,237,245,0.38);
+    --dim: rgba(232,237,245,0.18);
+    --purple: #7c56f7;
+    --purple-dim: rgba(124,86,247,0.15);
+    --green: #32cd80;
+    --green-dim: rgba(50,205,128,0.13);
+    --red: #ef5350;
+    --red-dim: rgba(239,83,80,0.13);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.13);
+    --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif; font-size: 14px; }
+
+  /* ── LAYOUT ── */
+  .screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+  .screen.active { display: flex; }
+  .scroll { overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+  .pad { padding: 0 16px; }
+
+  /* ── NAV BAR ── */
+  .nav { display: flex; align-items: center; padding: 14px 16px 10px; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .nav-back { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); font-size: 20px; border-radius: 8px; }
+  .nav-back:active { background: var(--card); }
+  .nav-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .nav-sub { font-size: 11px; color: var(--muted); }
+  .nav-badge { font-size: 11px; background: var(--purple); color: #fff; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+
+  /* ── CARDS ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .card-sm { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+
+  /* ── HERO CARD ── */
+  .hero { background: linear-gradient(135deg, #1a1040 0%, #0f1e38 100%); border: 1px solid #2d1f60; border-radius: 16px; padding: 20px; margin: 12px 16px; }
+  .hero-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .hero-amount { font-size: 36px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+  .hero-amount.ok { color: var(--green); }
+  .hero-amount.warn { color: var(--amber); }
+  .hero-amount.bad { color: var(--red); }
+  .hero-meta { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+  .hero-meta-item { display: flex; flex-direction: column; }
+  .hero-meta-label { font-size: 10px; color: var(--dim); }
+  .hero-meta-val { font-size: 13px; font-weight: 600; }
+
+  /* ── DISCREPANCY BANNER ── */
+  .disc-banner { background: var(--red-dim); border: 1px solid rgba(239,83,80,0.35); border-radius: 12px; padding: 12px 14px; margin: 0 16px 12px; display: flex; align-items: center; gap: 10px; }
+  .disc-banner .icon { font-size: 20px; flex-shrink: 0; }
+  .disc-banner .msg { font-size: 13px; line-height: 1.4; }
+  .disc-banner .amount { font-weight: 700; color: var(--red); }
+
+  /* ── SECTION HEADER ── */
+  .section-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .section-count { font-size: 11px; color: var(--dim); }
+  .section-toggle { font-size: 11px; color: var(--purple); cursor: pointer; }
+
+  /* ── ROW ITEMS ── */
+  .row-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .row-item:last-child { border-bottom: none; }
+  .row-left { display: flex; flex-direction: column; gap: 2px; }
+  .row-title { font-size: 13px; font-weight: 500; }
+  .row-sub { font-size: 11px; color: var(--muted); }
+  .row-right { text-align: right; }
+  .row-amount { font-size: 14px; font-weight: 600; }
+  .row-time { font-size: 10px; color: var(--dim); }
+
+  /* ── RUNNER GRID (cashier view) ── */
+  .runner-grid { padding: 0 16px; }
+  .runner-row { display: flex; align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; gap: 12px; }
+  .runner-row:active { background: var(--card2); }
+  .runner-badge { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; background: var(--purple-dim); color: var(--purple); }
+  .runner-badge.ok { background: var(--green-dim); color: var(--green); }
+  .runner-badge.warn { background: var(--amber-dim); color: var(--amber); }
+  .runner-badge.bad { background: var(--red-dim); color: var(--red); }
+  .runner-info { flex: 1; min-width: 0; }
+  .runner-name { font-size: 13px; font-weight: 600; }
+  .runner-detail { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .runner-cash { font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  .runner-cash.ok { color: var(--green); }
+  .runner-cash.warn { color: var(--amber); }
+  .runner-cash.bad { color: var(--red); }
+
+  /* ── ACTION BUTTONS ── */
+  .action-bar { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); background: var(--bg); flex-shrink: 0; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px; border: none; cursor: pointer; font-size: 15px; font-weight: 600; transition: opacity .15s; width: 100%; }
+  .btn:active { opacity: .7; }
+  .btn-primary { background: var(--purple); color: #fff; }
+  .btn-secondary { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,83,80,0.3); }
+  .btn-success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(50,205,128,0.3); }
+  .btn-sm { padding: 9px 14px; font-size: 13px; border-radius: 8px; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* ── INPUTS ── */
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; display: block; }
+  .input { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 15px; outline: none; }
+  .input:focus { border-color: var(--purple); }
+  .input-amount { font-size: 22px; font-weight: 700; text-align: right; letter-spacing: -0.5px; }
+  select.input { appearance: none; }
+
+  /* ── NUMPAD ── */
+  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 0; }
+  .numpad-key { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; font-size: 20px; font-weight: 600; cursor: pointer; }
+  .numpad-key:active { background: var(--purple-dim); border-color: var(--purple); }
+  .numpad-key.del { color: var(--red); font-size: 16px; }
+  .numpad-key.ok { background: var(--purple); color: #fff; border-color: var(--purple); }
+
+  /* ── CODE INPUT ── */
+  .code-input-wrap { display: flex; gap: 6px; justify-content: center; margin: 20px 0; }
+  .code-char { width: 44px; height: 52px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; transition: border-color .2s; }
+  .code-char.active { border-color: var(--purple); }
+
+  /* ── PIN DOTS ── */
+  .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 20px 0; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); transition: all .15s; }
+  .pin-dot.filled { background: var(--purple); border-color: var(--purple); }
+
+  /* ── SUMMARY ROW ── */
+  .sum-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .sum-row:last-child { border-bottom: none; }
+  .sum-label { font-size: 13px; color: var(--muted); }
+  .sum-val { font-size: 13px; font-weight: 600; }
+  .sum-row.total .sum-label { font-weight: 700; color: var(--text); font-size: 15px; }
+  .sum-row.total .sum-val { font-size: 18px; font-weight: 700; color: var(--purple); }
+  .sum-row.variance .sum-val.bad { color: var(--red); }
+  .sum-row.variance .sum-val.ok { color: var(--green); }
+
+  /* ── CHIPS ── */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); }
+  .chip.active { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+
+  /* ── LOADING / ERROR ── */
+  .loading { text-align: center; padding: 40px 20px; color: var(--dim); font-size: 13px; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: var(--red-dim); border: 1px solid rgba(239,83,80,0.3); border-radius: 10px; padding: 12px; font-size: 13px; color: var(--red); margin: 8px 16px; }
+
+  /* ── VARIANCE INDICATOR ── */
+  .var-indicator { border-radius: 10px; padding: 12px 14px; margin: 8px 0; font-size: 13px; font-weight: 600; text-align: center; }
+  .var-indicator.ok { background: var(--green-dim); color: var(--green); }
+  .var-indicator.warn { background: var(--amber-dim); color: var(--amber); }
+  .var-indicator.bad { background: var(--red-dim); color: var(--red); }
+
+  /* ── REFRESH BAR ── */
+  .refresh-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid var(--border); background: var(--bg); flex-shrink: 0; }
+  .refresh-time { font-size: 11px; color: var(--dim); }
+  .refresh-btn { font-size: 12px; color: var(--purple); cursor: pointer; padding: 4px 8px; }
+
+  /* ── PAST SETTLEMENTS ── */
+  .past-wrap { overflow: hidden; transition: max-height .3s ease; }
+  .past-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .past-item:last-child { border-bottom: none; }
+
+  /* ── POOL TOGGLE ── */
+  .pool-toggle { display: flex; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+  .pool-opt { flex: 1; text-align: center; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); }
+  .pool-opt.active { background: var(--purple); color: #fff; }
+
+  /* ── LOGIN ── */
+  .login-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 32px 24px; }
+  .logo { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .logo-sub { font-size: 12px; color: var(--muted); margin-bottom: 40px; }
+  .login-hint { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .err-msg { font-size: 13px; color: var(--red); min-height: 20px; text-align: center; margin-top: 8px; }
+
+  /* ── MISC ── */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .tag-green { background: var(--green-dim); color: var(--green); }
+  .tag-red { background: var(--red-dim); color: var(--red); }
+  .tag-amber { background: var(--amber-dim); color: var(--amber); }
+  .tag-purple { background: var(--purple-dim); color: var(--purple); }
+  .tag-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .mb8 { margin-bottom: 8px; }
+  .mb12 { margin-bottom: 12px; }
+  .mt8 { margin-top: 8px; }
+  .faded { color: var(--muted); }
+  .bold { font-weight: 700; }
+  .small { font-size: 11px; }
+  .center { text-align: center; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 1: CODE ENTRY
+═══════════════════════════════════════════════════════ -->
+<div id="s-code" class="screen">
+  <div class="login-wrap">
+    <div class="logo">NCH</div>
+    <div class="logo-sub">Cash Operations v2</div>
+    <div class="login-hint">Enter your role code</div>
+    <div class="code-input-wrap" id="code-display">
+      <div class="code-char" id="cc0">_</div>
+      <div class="code-char" id="cc1">_</div>
+      <div class="code-char" id="cc2">_</div>
+      <div class="code-char" id="cc3">_</div>
+      <div class="code-char" id="cc4">_</div>
+      <div class="code-char" id="cc5">_</div>
+    </div>
+    <div class="numpad" style="width:100%;max-width:280px;">
+      <div class="numpad-key" onclick="codeKey('1')">1</div>
+      <div class="numpad-key" onclick="codeKey('2')">2</div>
+      <div class="numpad-key" onclick="codeKey('3')">3</div>
+      <div class="numpad-key" onclick="codeKey('4')">4</div>
+      <div class="numpad-key" onclick="codeKey('5')">5</div>
+      <div class="numpad-key" onclick="codeKey('6')">6</div>
+      <div class="numpad-key" onclick="codeKey('7')">7</div>
+      <div class="numpad-key" onclick="codeKey('8')">8</div>
+      <div class="numpad-key" onclick="codeKey('9')">9</div>
+      <div class="numpad-key" onclick="codeAlpha()">ABC</div>
+      <div class="numpad-key" onclick="codeKey('0')">0</div>
+      <div class="numpad-key del" onclick="codeDel()">⌫</div>
+    </div>
+    <div id="code-err" class="err-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 2: PIN ENTRY
+═══════════════════════════════════════════════════════ -->
+<div id="s-pin" class="screen">
+  <div class="login-wrap">
+    <div class="logo-sub" style="margin-bottom:6px">Logged in as</div>
+    <div class="logo" id="pin-role-display" style="font-size:20px;margin-bottom:24px">—</div>
+    <div class="login-hint">Enter PIN</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="numpad" style="width:100%;max-width:280px;">
+      <div class="numpad-key" onclick="pinKey('1')">1</div>
+      <div class="numpad-key" onclick="pinKey('2')">2</div>
+      <div class="numpad-key" onclick="pinKey('3')">3</div>
+      <div class="numpad-key" onclick="pinKey('4')">4</div>
+      <div class="numpad-key" onclick="pinKey('5')">5</div>
+      <div class="numpad-key" onclick="pinKey('6')">6</div>
+      <div class="numpad-key" onclick="pinKey('7')">7</div>
+      <div class="numpad-key" onclick="pinKey('8')">8</div>
+      <div class="numpad-key" onclick="pinKey('9')">9</div>
+      <div class="numpad-key del" onclick="goBack()">←</div>
+      <div class="numpad-key" onclick="pinKey('0')">0</div>
+      <div class="numpad-key del" onclick="pinDel()">⌫</div>
+    </div>
+    <div id="pin-err" class="err-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 3: RUNNER VIEW
+═══════════════════════════════════════════════════════ -->
+<div id="s-runner" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="logout()">✕</div>
+    <div>
+      <div class="nav-title" id="runner-nav-title">Runner</div>
+      <div class="nav-sub" id="runner-nav-sub"></div>
+    </div>
+    <div class="nav-badge" id="runner-nav-badge" style="display:none"></div>
+  </div>
+  <div class="scroll">
+    <div id="runner-content">
+      <div class="loading"><div class="spinner"></div><br>Loading…</div>
+    </div>
+    <div style="height:80px"></div>
+  </div>
+  <div class="refresh-bar">
+    <div class="refresh-time" id="runner-refresh-time"></div>
+    <div class="refresh-btn" onclick="loadRunnerView()">↻ Refresh</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 4: CASHIER HOME
+═══════════════════════════════════════════════════════ -->
+<div id="s-cashier" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="logout()">✕</div>
+    <div>
+      <div class="nav-title" id="cashier-nav-title">Cashier</div>
+      <div class="nav-sub" id="cashier-nav-sub"></div>
+    </div>
+    <div class="refresh-btn" onclick="loadCashierHome()" style="font-size:16px">↻</div>
+  </div>
+  <div class="scroll">
+    <div id="cashier-runner-grid" class="runner-grid" style="padding-top:12px">
+      <div class="loading"><div class="spinner"></div><br>Loading runners…</div>
+    </div>
+    <div style="height:8px"></div>
+  </div>
+  <div class="action-bar">
+    <div class="btn-row">
+      <button class="btn btn-secondary btn-sm" onclick="goto('s-expense')">💸 Expense</button>
+      <button class="btn btn-secondary btn-sm" onclick="goto('s-collect')">📥 Collect</button>
+    </div>
+    <button class="btn btn-primary" onclick="goto('s-settle-runner')">💰 Settle Runner</button>
+    <button class="btn btn-secondary" onclick="goto('s-shift-handover')">🔄 End Shift</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 5: SETTLE RUNNER
+═══════════════════════════════════════════════════════ -->
+<div id="s-settle-runner" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="goBack()">‹</div>
+    <div class="nav-title">Settle Runner</div>
+  </div>
+  <div class="scroll pad">
+    <div style="height:12px"></div>
+    <div class="input-group">
+      <label class="input-label">Select Runner</label>
+      <div id="settle-runner-chips" class="chip-row mb12"></div>
+    </div>
+    <div id="settle-runner-preview" class="card" style="display:none">
+      <div class="sum-row"><span class="sum-label">Token Issues (PM48)</span><span class="sum-val" id="sr-tokens">—</span></div>
+      <div class="sum-row"><span class="sum-label">Sales (PM40)</span><span class="sum-val" id="sr-sales">—</span></div>
+      <div class="sum-row"><span class="sum-label">UPI collected</span><span class="sum-val" id="sr-upi">— 0</span></div>
+      <div class="divider"></div>
+      <div class="sum-row total"><span class="sum-label">Expected cash</span><span class="sum-val" id="sr-expected">₹—</span></div>
+    </div>
+    <div class="input-group" id="settle-amount-wrap" style="display:none">
+      <label class="input-label">Cash received from runner (₹)</label>
+      <input id="sr-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0" oninput="updateSettleVariance()">
+    </div>
+    <div id="sr-variance" class="var-indicator" style="display:none"></div>
+    <div style="height:8px"></div>
+    <div id="settle-runner-error" class="error-box" style="display:none"></div>
+  </div>
+  <div class="action-bar">
+    <button id="settle-runner-btn" class="btn btn-primary" onclick="submitSettleRunner()" disabled>Confirm Settlement</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 6: RECORD EXPENSE
+═══════════════════════════════════════════════════════ -->
+<div id="s-expense" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="goBack()">‹</div>
+    <div class="nav-title">Record Expense</div>
+  </div>
+  <div class="scroll pad">
+    <div style="height:12px"></div>
+    <div class="pool-toggle">
+      <div class="pool-opt active" id="pool-counter" onclick="setPool('counter')">Counter</div>
+      <div class="pool-opt" id="pool-petty" onclick="setPool('petty')">Petty Cash</div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Category</label>
+      <select id="exp-cat" class="input"></select>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Amount (₹)</label>
+      <input id="exp-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="input-group">
+      <label class="input-label">Notes (optional)</label>
+      <input id="exp-notes" class="input" type="text" placeholder="e.g. beat cop, gas refill…">
+    </div>
+    <div class="input-group hidden" id="exp-photo-wrap">
+      <label class="input-label">Receipt photo</label>
+      <input id="exp-photo" type="file" accept="image/*" class="input" style="padding:8px">
+    </div>
+    <div id="exp-error" class="error-box" style="display:none"></div>
+    <div style="height:12px"></div>
+    <div class="section-hdr"><span class="section-title">Today's expenses</span></div>
+    <div id="today-expenses" class="card"><div class="loading" style="padding:16px">—</div></div>
+  </div>
+  <div class="action-bar">
+    <button class="btn btn-primary" onclick="submitExpense()">Save Expense</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 7: SHIFT HANDOVER
+═══════════════════════════════════════════════════════ -->
+<div id="s-shift-handover" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="goBack()">‹</div>
+    <div class="nav-title">End Shift</div>
+  </div>
+  <div class="scroll pad">
+    <div style="height:12px"></div>
+    <div id="shift-preview-loading" class="loading"><div class="spinner"></div><br>Computing expected drawer…</div>
+    <div id="shift-preview-card" class="card" style="display:none">
+      <div class="sum-row"><span class="sum-label">Opening float</span><span class="sum-val" id="sp-float">₹—</span></div>
+      <div class="sum-row"><span class="sum-label">Runner cash received</span><span class="sum-val" id="sp-runner">+ ₹—</span></div>
+      <div class="sum-row"><span class="sum-label">Walk-in cash (PM37)</span><span class="sum-val" id="sp-pm37">+ ₹—</span></div>
+      <div class="sum-row"><span class="sum-label">Expenses paid out</span><span class="sum-val" id="sp-exp">− ₹—</span></div>
+      <div class="sum-row"><span class="sum-label">Cash collected by owner</span><span class="sum-val" id="sp-coll">− ₹—</span></div>
+      <div class="divider"></div>
+      <div class="sum-row total"><span class="sum-label">Expected in drawer</span><span class="sum-val" id="sp-expected">₹—</span></div>
+    </div>
+    <div id="shift-preview-error" class="error-box" style="display:none"></div>
+    <div class="input-group">
+      <label class="input-label">Actual cash counted (₹)</label>
+      <input id="sh-cash" class="input input-amount" type="number" inputmode="decimal" placeholder="0" oninput="updateShiftVariance()">
+    </div>
+    <div id="sh-variance" class="var-indicator" style="display:none"></div>
+    <div class="input-group">
+      <label class="input-label">Handing over to</label>
+      <div class="chip-row" id="handover-to-chips">
+        <div class="chip" onclick="selectHandoverTo('CASH001','Kesmat', this)">Kesmat</div>
+        <div class="chip" onclick="selectHandoverTo('CASH002','Nafees', this)">Nafees</div>
+        <div class="chip" onclick="selectHandoverTo('GM001','Basheer', this)">Basheer</div>
+        <div class="chip" onclick="selectHandoverTo('MGR001','Tanveer', this)">Tanveer</div>
+        <div class="chip" onclick="selectHandoverTo('ADMIN001','Nihaf', this)">Nihaf</div>
+      </div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Notes</label>
+      <input id="sh-notes" class="input" type="text" placeholder="Optional handover note">
+    </div>
+    <div id="sh-error" class="error-box" style="display:none"></div>
+    <div style="height:12px"></div>
+  </div>
+  <div class="action-bar">
+    <button id="shift-submit-btn" class="btn btn-primary" onclick="submitShiftHandover()">Confirm Handover</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 8: MANAGER / COLLECT VIEW
+═══════════════════════════════════════════════════════ -->
+<div id="s-collect" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="goBack()">‹</div>
+    <div class="nav-title" id="collect-nav-title">Collect Cash</div>
+  </div>
+  <div class="scroll">
+    <div id="collect-content">
+      <div class="loading"><div class="spinner"></div><br>Loading…</div>
+    </div>
+    <div style="height:80px"></div>
+  </div>
+  <div class="action-bar" id="collect-action-bar" style="display:none">
+    <div class="card-sm" style="margin:0 0 8px">
+      <div class="input-group" style="margin:0">
+        <label class="input-label">Amount collecting (₹)</label>
+        <input id="collect-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
+      </div>
+    </div>
+    <button class="btn btn-success" onclick="submitCollectCash()">Collect from Drawer</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════ -->
+<script>
+// ─── STATE ───────────────────────────────────────────────
+const S = {
+  code: '',
+  pin: '',
+  role: null,
+  person: null,
+  partner_id: null,
+  prevScreen: null,
+  selectedRunner: null,     // {code, name, partner_id}
+  runnerLiveData: {},       // keyed by code
+  shiftPreview: null,
+  handoverTo: null,
+  expensePool: 'counter',
+};
+
+const RUNNERS = [
+  {code:'RUN001', name:'Farzaib', partner_id:64},
+  {code:'RUN002', name:'Ritiqu',  partner_id:65},
+  {code:'RUN003', name:'Anshu',   partner_id:66},
+  {code:'RUN004', name:'Shabeer', partner_id:67},
+  {code:'RUN005', name:'Dhanush', partner_id:68},
+];
+
+const COUNTER_CATS = [
+  {code:'BEAT',    name:'Beat Cop'},
+  {code:'CHETA',   name:'Cheta'},
+  {code:'HOYSALA', name:'Hoysala'},
+  {code:'ASI',     name:'ASI'},
+  {code:'WEEKLY',  name:'Weekly'},
+  {code:'CIRCLE',  name:'Circle'},
+  {code:'SI',      name:'SI'},
+  {code:'MISC',    name:'Miscellaneous'},
+];
+const PETTY_CATS = [
+  {code:'MILK',       name:'Milk'},
+  {code:'GAS',        name:'Gas Cylinder'},
+  {code:'SUPPLIES',   name:'Supplies'},
+  {code:'CLEANING',   name:'Cleaning'},
+  {code:'STAFF_FOOD', name:'Staff Food'},
+  {code:'TRANSPORT',  name:'Transport'},
+  {code:'REPAIR',     name:'Repair'},
+  {code:'EMERGENCY',  name:'Emergency'},
+  {code:'MISC',       name:'Miscellaneous'},
+];
+
+// ─── ROUTING ─────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function goto(id) {
+  S.prevScreen = document.querySelector('.screen.active')?.id;
+  show(id);
+  setupScreen(id);
+}
+
+function goBack() {
+  if (S.prevScreen) { show(S.prevScreen); S.prevScreen = null; }
+  else logout();
+}
+
+function logout() {
+  Object.assign(S, {code:'', pin:'', role:null, person:null, partner_id:null, prevScreen:null, selectedRunner:null});
+  resetCodeInput();
+  show('s-code');
+}
+
+function setupScreen(id) {
+  if (id === 's-runner') { loadRunnerView(); }
+  else if (id === 's-cashier') { loadCashierHome(); }
+  else if (id === 's-settle-runner') { initSettleRunner(); }
+  else if (id === 's-expense') { initExpense(); }
+  else if (id === 's-shift-handover') { initShiftHandover(); }
+  else if (id === 's-collect') { initCollectScreen(); }
+}
+
+// ─── SCREEN 1: CODE INPUT ────────────────────────────────
+function codeKey(k) {
+  if (S.code.length >= 6) return;
+  S.code += k.toUpperCase();
+  renderCodeDisplay();
+}
+function codeDel() {
+  S.code = S.code.slice(0, -1);
+  renderCodeDisplay();
+  el('code-err').textContent = '';
+}
+function codeAlpha() {
+  // simple alpha cycle for codes like CASH001, RUN001
+  // implemented as tap-cycle: show a modal or just allow typing
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  // For simplicity, cycle last char if it's alpha
+  if (S.code.length === 0) { S.code = 'C'; }
+  else {
+    const last = S.code.slice(-1);
+    if (/[A-Z]/.test(last)) {
+      const idx = chars.indexOf(last);
+      S.code = S.code.slice(0, -1) + chars[(idx + 1) % 26];
+    } else {
+      S.code += 'A';
+    }
+  }
+  renderCodeDisplay();
+}
+function renderCodeDisplay() {
+  const chars = (S.code + '______').slice(0, 6).split('');
+  chars.forEach((c, i) => {
+    const el_c = document.getElementById('cc' + i);
+    el_c.textContent = c === '_' ? '_' : c;
+    el_c.classList.toggle('active', i === S.code.length);
+  });
+  if (S.code.length === 6) tryProceedToPin();
+}
+function tryProceedToPin() {
+  const validPrefixes = ['CASH001','CASH002','RUN001','RUN002','RUN003','RUN004','RUN005','GM001','MGR001','ADMIN001','ADMIN002'];
+  if (!validPrefixes.includes(S.code)) {
+    el('code-err').textContent = 'Unknown code';
+    return;
+  }
+  el('pin-role-display').textContent = S.code;
+  S.pin = '';
+  renderPinDots();
+  show('s-pin');
+}
+
+// ─── SCREEN 2: PIN INPUT ─────────────────────────────────
+function pinKey(k) {
+  if (S.pin.length >= 4) return;
+  S.pin += k;
+  renderPinDots();
+  if (S.pin.length === 4) verifyStaff();
+}
+function pinDel() {
+  S.pin = S.pin.slice(0, -1);
+  renderPinDots();
+  el('pin-err').textContent = '';
+}
+function renderPinDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('pd' + i).classList.toggle('filled', i < S.pin.length);
+  }
+}
+async function verifyStaff() {
+  try {
+    const r = await api(`/api/rectify?action=verify-staff&code=${encodeURIComponent(S.code)}&pin=${encodeURIComponent(S.pin)}`);
+    if (!r.success) {
+      el('pin-err').textContent = r.error || 'Wrong PIN';
+      S.pin = '';
+      renderPinDots();
+      return;
+    }
+    S.role = r.role;
+    S.person = r.person;
+    S.partner_id = r.partner_id;
+    routeByRole();
+  } catch (e) {
+    el('pin-err').textContent = 'Network error';
+    S.pin = '';
+    renderPinDots();
+  }
+}
+function routeByRole() {
+  if (S.role === 'runner') {
+    S.selectedRunner = RUNNERS.find(r => r.partner_id === S.partner_id) || null;
+    el('runner-nav-title').textContent = S.code;
+    el('runner-nav-sub').textContent = S.person;
+    show('s-runner');
+    loadRunnerView();
+  } else if (S.role === 'cashier') {
+    el('cashier-nav-title').textContent = S.code;
+    el('cashier-nav-sub').textContent = S.person;
+    show('s-cashier');
+    loadCashierHome();
+  } else if (['admin','gm','manager'].includes(S.role)) {
+    // Admins/GM see cashier home + collect option
+    el('cashier-nav-title').textContent = S.code;
+    el('cashier-nav-sub').textContent = S.person;
+    show('s-cashier');
+    loadCashierHome();
+  } else {
+    el('pin-err').textContent = 'Role not supported in this app';
+    S.pin = '';
+    renderPinDots();
+  }
+}
+
+// ─── SCREEN 3: RUNNER VIEW ───────────────────────────────
+async function loadRunnerView() {
+  const runner = S.selectedRunner;
+  if (!runner) return;
+  el('runner-content').innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading…</div>';
+  el('runner-refresh-time').textContent = '';
+  try {
+    const data = await api(`/api/settlement?action=runner-live&runner_id=${runner.partner_id}&barcode=${runner.code}`);
+    if (!data.success) { el('runner-content').innerHTML = errBox(data.error || 'Failed'); return; }
+    renderRunnerView(data);
+    el('runner-refresh-time').textContent = 'Updated ' + fmtTime(new Date());
+  } catch(e) {
+    el('runner-content').innerHTML = errBox('Network error: ' + e.message);
+  }
+}
+
+function renderRunnerView(d) {
+  const cih = d.cashInHand || 0;
+  const amtClass = cih > 0 ? 'ok' : cih < 0 ? 'bad' : 'warn';
+  const hasPending = (d.pending_errors || 0) > 0;
+
+  let html = `
+    <div class="hero">
+      <div class="hero-label">Cash in hand</div>
+      <div class="hero-amount ${amtClass}">₹${fmt(cih)}</div>
+      <div class="hero-meta">
+        <div class="hero-meta-item"><span class="hero-meta-label">Tokens</span><span class="hero-meta-val">₹${fmt(d.tokens||0)}</span></div>
+        <div class="hero-meta-item"><span class="hero-meta-label">Sales</span><span class="hero-meta-val">₹${fmt(d.sales||0)}</span></div>
+        <div class="hero-meta-item"><span class="hero-meta-label">UPI paid</span><span class="hero-meta-val">−₹${fmt(d.upi||0)}</span></div>
+        <div class="hero-meta-item"><span class="hero-meta-label">Period</span><span class="hero-meta-val">${fmtPeriod(d.period?.from)}</span></div>
+      </div>
+    </div>`;
+
+  if (hasPending) {
+    html += `<div class="disc-banner"><div class="icon">⚠️</div><div class="msg">
+      <strong>${d.pending_errors} pending error${d.pending_errors>1?'s':''}</strong><br>
+      <span style="color:var(--muted);font-size:11px">Contact cashier to resolve before settling</span>
+    </div></div>`;
+  }
+
+  if (d.lastSettlement) {
+    const ls = d.lastSettlement;
+    html += `<div class="section-hdr"><span class="section-title">Last settlement</span></div>
+    <div style="padding:0 16px 8px">
+      <div class="card-sm" style="display:flex;justify-content:space-between;align-items:center">
+        <div><div class="row-title">₹${fmt(ls.cash_settled||0)} settled</div>
+          <div class="row-sub">${ls.variance && ls.variance !== 0 ? (ls.variance < 0 ? '▼ SHORT ' : '▲ OVER ') + '₹' + fmt(Math.abs(ls.variance)) : '✓ Exact'}</div></div>
+        <div class="row-time">${fmtDatetime(ls.settled_at)}</div>
+      </div>
+    </div>`;
+  }
+
+  // Token breakdown
+  const tokens = d.tokenBreakdown || [];
+  if (tokens.length > 0) {
+    html += `<div class="section-hdr"><span class="section-title">Token issues</span><span class="section-count">${tokens.length} items</span></div>
+    <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
+    tokens.forEach(t => {
+      html += `<div class="row-item">
+        <div class="row-left"><div class="row-title">${t.product_name || 'Item'}</div><div class="row-sub">${t.qty} × ₹${t.unit_price||0}</div></div>
+        <div class="row-right"><div class="row-amount">₹${fmt(t.total||0)}</div></div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Direct sales
+  const sales = d.salesDetails || [];
+  if (sales.length > 0) {
+    html += `<div class="section-hdr"><span class="section-title">Direct sales</span><span class="section-count">${sales.length} orders</span></div>
+    <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
+    sales.slice(0, 10).forEach(s => {
+      html += `<div class="row-item">
+        <div class="row-left"><div class="row-title">₹${fmt(s.amount||0)}</div><div class="row-sub">${fmtDatetime(s.date_order)}</div></div>
+        <div class="row-right"><div class="row-amount">${s.upi_credit ? '<span class="tag tag-blue">UPI</span>' : ''}</div></div>
+      </div>`;
+    });
+    if (sales.length > 10) html += `<div class="row-item faded small">+${sales.length-10} more orders</div>`;
+    html += `</div></div>`;
+  }
+
+  // UPI payments
+  if ((d.upi || 0) > 0) {
+    html += `<div class="section-hdr"><span class="section-title">UPI received</span><span class="section-count">−₹${fmt(d.upi)} from cash</span></div>`;
+  }
+
+  el('runner-content').innerHTML = html;
+  const pendingBadge = el('runner-nav-badge');
+  if (hasPending) { pendingBadge.textContent = d.pending_errors; pendingBadge.style.display=''; }
+  else pendingBadge.style.display='none';
+}
+
+// ─── SCREEN 4: CASHIER HOME ──────────────────────────────
+async function loadCashierHome() {
+  el('cashier-runner-grid').innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading runners…</div>';
+  try {
+    const results = await Promise.allSettled(
+      RUNNERS.map(r => api(`/api/settlement?action=runner-live&runner_id=${r.partner_id}&barcode=${r.code}`))
+    );
+    let html = '';
+    RUNNERS.forEach((runner, i) => {
+      const res = results[i];
+      const d = res.status === 'fulfilled' ? res.value : null;
+      const cih = d?.cashInHand || 0;
+      const cls = cih > 500 ? 'warn' : cih > 0 ? 'ok' : cih < 0 ? 'bad' : 'ok';
+      const hasPending = (d?.pending_errors || 0) > 0;
+      html += `<div class="runner-row" onclick="openRunnerDetail('${runner.code}')">
+        <div class="runner-badge ${cls}">${runner.code.replace('RUN0','R')}</div>
+        <div class="runner-info">
+          <div class="runner-name">${runner.name} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
+          <div class="runner-detail">T:₹${fmt(d?.tokens||0)} S:₹${fmt(d?.sales||0)} U:−₹${fmt(d?.upi||0)}</div>
+        </div>
+        <div class="runner-cash ${cls}">₹${fmt(cih)}</div>
+      </div>`;
+      if (d) S.runnerLiveData[runner.code] = d;
+    });
+    el('cashier-runner-grid').innerHTML = html;
+  } catch(e) {
+    el('cashier-runner-grid').innerHTML = errBox('Failed to load: ' + e.message);
+  }
+}
+
+function openRunnerDetail(code) {
+  const runner = RUNNERS.find(r => r.code === code);
+  if (!runner) return;
+  S.selectedRunner = runner;
+  const data = S.runnerLiveData[code];
+  if (data) {
+    el('runner-nav-title').textContent = code;
+    el('runner-nav-sub').textContent = runner.name;
+    show('s-runner');
+    renderRunnerView(data);
+    el('runner-refresh-time').textContent = 'Tap ↻ to refresh';
+  }
+}
+
+// ─── SCREEN 5: SETTLE RUNNER ─────────────────────────────
+function initSettleRunner() {
+  const chipsEl = el('settle-runner-chips');
+  chipsEl.innerHTML = '';
+  RUNNERS.forEach(r => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = r.name;
+    chip.onclick = () => selectSettleRunner(r, chip);
+    chipsEl.appendChild(chip);
+  });
+  el('settle-runner-preview').style.display = 'none';
+  el('settle-amount-wrap').style.display = 'none';
+  el('sr-variance').style.display = 'none';
+  el('sr-amount').value = '';
+  el('settle-runner-btn').disabled = true;
+  el('settle-runner-error').style.display = 'none';
+  S.selectedRunner = null;
+}
+
+async function selectSettleRunner(runner, chipEl) {
+  document.querySelectorAll('#settle-runner-chips .chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  S.selectedRunner = runner;
+  el('settle-runner-preview').style.display = 'none';
+  el('settle-amount-wrap').style.display = 'none';
+  el('sr-variance').style.display = 'none';
+  el('sr-amount').value = '';
+  el('settle-runner-btn').disabled = true;
+
+  // Load live data
+  try {
+    const d = await api(`/api/settlement?action=runner-live&runner_id=${runner.partner_id}&barcode=${runner.code}`);
+    if (!d.success) { showSettleError(d.error); return; }
+    S.runnerLiveData[runner.code] = d;
+    const expected = d.cashInHand || 0;
+    el('sr-tokens').textContent = '₹' + fmt(d.tokens||0);
+    el('sr-sales').textContent  = '₹' + fmt(d.sales||0);
+    el('sr-upi').textContent    = '−₹' + fmt(d.upi||0);
+    el('sr-expected').textContent = '₹' + fmt(expected);
+    el('settle-runner-preview').style.display = 'block';
+    el('settle-amount-wrap').style.display = 'block';
+    el('sr-amount').focus();
+    updateSettleVariance();
+  } catch(e) { showSettleError('Network error: ' + e.message); }
+}
+
+function updateSettleVariance() {
+  const d = S.selectedRunner ? S.runnerLiveData[S.selectedRunner.code] : null;
+  if (!d) return;
+  const expected = d.cashInHand || 0;
+  const entered = parseFloat(el('sr-amount').value) || 0;
+  if (!el('sr-amount').value) { el('sr-variance').style.display = 'none'; el('settle-runner-btn').disabled = true; return; }
+  const variance = entered - expected;
+  el('sr-variance').style.display = 'block';
+  if (Math.abs(variance) < 5) {
+    el('sr-variance').className = 'var-indicator ok';
+    el('sr-variance').textContent = '✓ Exact match';
+  } else if (variance < 0) {
+    el('sr-variance').className = 'var-indicator bad';
+    el('sr-variance').textContent = `▼ SHORT ₹${fmt(Math.abs(variance))}`;
+  } else {
+    el('sr-variance').className = 'var-indicator warn';
+    el('sr-variance').textContent = `▲ OVER ₹${fmt(variance)}`;
+  }
+  el('settle-runner-btn').disabled = false;
+}
+
+function showSettleError(msg) {
+  const e = el('settle-runner-error');
+  e.textContent = msg;
+  e.style.display = 'block';
+}
+
+async function submitSettleRunner() {
+  const runner = S.selectedRunner;
+  if (!runner) return;
+  const d = S.runnerLiveData[runner.code];
+  if (!d) return;
+  const cashSettled = parseFloat(el('sr-amount').value) || 0;
+  const expected = d.cashInHand || 0;
+  const variance = cashSettled - expected;
+
+  el('settle-runner-btn').disabled = true;
+  el('settle-runner-btn').textContent = 'Settling…';
+
+  try {
+    const r = await apiPost('/api/settlement?action=settle', {
+      runner_id: String(runner.partner_id),
+      barcode: runner.code,
+      settled_by: S.code,
+      cash_settled: cashSettled,
+      expected: expected,
+      variance,
+      period_start: d.period?.from,
+      period_end: new Date().toISOString()
+    });
+    if (r.success) {
+      delete S.runnerLiveData[runner.code];
+      goBack();
+      loadCashierHome();
+    } else {
+      el('settle-runner-btn').disabled = false;
+      el('settle-runner-btn').textContent = 'Confirm Settlement';
+      showSettleError(r.error || 'Failed');
+    }
+  } catch(e) {
+    el('settle-runner-btn').disabled = false;
+    el('settle-runner-btn').textContent = 'Confirm Settlement';
+    showSettleError('Network error: ' + e.message);
+  }
+}
+
+// ─── SCREEN 6: EXPENSE ───────────────────────────────────
+function initExpense() {
+  setPool('counter');
+  el('exp-amount').value = '';
+  el('exp-notes').value = '';
+  el('exp-error').style.display = 'none';
+  loadTodayExpenses();
+}
+
+function setPool(pool) {
+  S.expensePool = pool;
+  el('pool-counter').classList.toggle('active', pool === 'counter');
+  el('pool-petty').classList.toggle('active', pool === 'petty');
+  const cats = pool === 'counter' ? COUNTER_CATS : PETTY_CATS;
+  const sel = el('exp-cat');
+  sel.innerHTML = cats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+  el('exp-photo-wrap').classList.toggle('hidden', pool !== 'petty');
+}
+
+async function loadTodayExpenses() {
+  el('today-expenses').innerHTML = '<div class="loading" style="padding:16px">Loading…</div>';
+  try {
+    const r = await api('/api/rectify?action=get-expenses&limit=20');
+    const items = r.expenses || [];
+    if (items.length === 0) { el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--dim)">No expenses today</div>'; return; }
+    el('today-expenses').innerHTML = '<div style="padding:0">' + items.map(e =>
+      `<div class="row-item">
+        <div class="row-left"><div class="row-title">${e.category_code||e.category||'—'}</div><div class="row-sub">${e.notes||''}</div></div>
+        <div class="row-right"><div class="row-amount">₹${fmt(e.amount||0)}</div><div class="row-time">${fmtDatetime(e.created_at)}</div></div>
+      </div>`
+    ).join('') + '</div>';
+  } catch(e) { el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--muted)">Could not load</div>'; }
+}
+
+async function submitExpense() {
+  const amount = parseFloat(el('exp-amount').value);
+  const cat = el('exp-cat').value;
+  const notes = el('exp-notes').value.trim();
+  el('exp-error').style.display = 'none';
+
+  if (!amount || amount <= 0) { showExpError('Enter a valid amount'); return; }
+  if (!cat) { showExpError('Select a category'); return; }
+
+  const action = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
+  try {
+    const r = await apiPost(`/api/rectify?action=${action}`, {
+      code: S.code,
+      pin: S.pin,
+      category_code: cat,
+      amount,
+      notes,
+      pool: S.expensePool,
+      transaction_type: 'expense'
+    });
+    if (r.success) {
+      el('exp-amount').value = '';
+      el('exp-notes').value = '';
+      loadTodayExpenses();
+    } else {
+      showExpError(r.error || 'Failed to save');
+    }
+  } catch(e) { showExpError('Network error: ' + e.message); }
+}
+function showExpError(msg) { const e = el('exp-error'); e.textContent = msg; e.style.display = 'block'; }
+
+// ─── SCREEN 7: SHIFT HANDOVER ────────────────────────────
+async function initShiftHandover() {
+  el('shift-preview-loading').style.display = 'block';
+  el('shift-preview-card').style.display = 'none';
+  el('shift-preview-error').style.display = 'none';
+  el('sh-cash').value = '';
+  el('sh-variance').style.display = 'none';
+  el('sh-notes').value = '';
+  el('sh-error').style.display = 'none';
+  S.shiftPreview = null;
+  S.handoverTo = null;
+  document.querySelectorAll('#handover-to-chips .chip').forEach(c => c.classList.remove('active'));
+
+  try {
+    const d = await api('/api/settlement?action=shift-preview');
+    if (!d.success) { showShiftPreviewError(d.error || 'Failed to load shift data'); return; }
+    S.shiftPreview = d;
+    el('sp-float').textContent  = '₹' + fmt(d.petty_float_start||0);
+    el('sp-runner').textContent = '+ ₹' + fmt(d.runner_cash_received||0);
+    el('sp-pm37').textContent   = '+ ₹' + fmt(d.pm37_walk_in||0);
+    el('sp-exp').textContent    = '− ₹' + fmt(d.expenses_total||0);
+    el('sp-coll').textContent   = '− ₹' + fmt(d.cash_collections||0);
+    el('sp-expected').textContent = '₹' + fmt(d.expected_drawer||0);
+    el('shift-preview-loading').style.display = 'none';
+    el('shift-preview-card').style.display = 'block';
+  } catch(e) {
+    showShiftPreviewError('Network error: ' + e.message);
+  }
+}
+
+function showShiftPreviewError(msg) {
+  el('shift-preview-loading').style.display = 'none';
+  el('shift-preview-error').textContent = msg;
+  el('shift-preview-error').style.display = 'block';
+}
+
+function updateShiftVariance() {
+  if (!S.shiftPreview) return;
+  const entered = parseFloat(el('sh-cash').value);
+  if (isNaN(entered)) { el('sh-variance').style.display = 'none'; return; }
+  const expected = S.shiftPreview.expected_drawer || 0;
+  const variance = entered - expected;
+  el('sh-variance').style.display = 'block';
+  if (Math.abs(variance) < 5) {
+    el('sh-variance').className = 'var-indicator ok';
+    el('sh-variance').textContent = '✓ Exact match';
+  } else if (variance < 0) {
+    el('sh-variance').className = 'var-indicator bad';
+    el('sh-variance').textContent = `▼ SHORT ₹${fmt(Math.abs(variance))}`;
+  } else {
+    el('sh-variance').className = 'var-indicator warn';
+    el('sh-variance').textContent = `▲ OVER ₹${fmt(variance)}`;
+  }
+}
+
+function selectHandoverTo(code, name, chipEl) {
+  document.querySelectorAll('#handover-to-chips .chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  S.handoverTo = {code, name};
+}
+
+async function submitShiftHandover() {
+  if (!S.shiftPreview) { el('sh-error').textContent = 'Shift data not loaded'; el('sh-error').style.display='block'; return; }
+  const cashEntered = parseFloat(el('sh-cash').value);
+  if (isNaN(cashEntered) || cashEntered < 0) { el('sh-error').textContent = 'Enter actual cash count'; el('sh-error').style.display='block'; return; }
+  const expected = S.shiftPreview.expected_drawer || 0;
+  const variance = cashEntered - expected;
+
+  el('shift-submit-btn').disabled = true;
+  el('shift-submit-btn').textContent = 'Saving…';
+
+  try {
+    const r = await apiPost('/api/settlement?action=record-shift-handover', {
+      cashier_code: S.code,
+      cashier_person: S.person,
+      period_start: S.shiftPreview.period_start,
+      period_end: new Date().toISOString(),
+      petty_float_start: S.shiftPreview.petty_float_start,
+      runner_cash_received: S.shiftPreview.runner_cash_received,
+      pm37_walk_in: S.shiftPreview.pm37_walk_in,
+      expenses_total: S.shiftPreview.expenses_total,
+      cash_collections: S.shiftPreview.cash_collections,
+      expected_drawer: expected,
+      drawer_cash_entered: cashEntered,
+      drawer_variance: variance,
+      handover_to: S.handoverTo?.name || '',
+      notes: el('sh-notes').value.trim()
+    });
+    if (r.success) {
+      S.shiftPreview = null;
+      goBack();
+    } else {
+      el('sh-error').textContent = r.error || 'Failed';
+      el('sh-error').style.display = 'block';
+      el('shift-submit-btn').disabled = false;
+      el('shift-submit-btn').textContent = 'Confirm Handover';
+    }
+  } catch(e) {
+    el('sh-error').textContent = 'Network error: ' + e.message;
+    el('sh-error').style.display = 'block';
+    el('shift-submit-btn').disabled = false;
+    el('shift-submit-btn').textContent = 'Confirm Handover';
+  }
+}
+
+// ─── SCREEN 8: COLLECT / MANAGER ─────────────────────────
+async function initCollectScreen() {
+  el('collect-content').innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading…</div>';
+  el('collect-action-bar').style.display = 'none';
+
+  const canCollect = ['admin','gm','manager'].includes(S.role);
+  el('collect-nav-title').textContent = canCollect ? 'Counter Balance' : 'Collections';
+
+  try {
+    const [balData, collData] = await Promise.all([
+      api('/api/settlement?action=counter-balance'),
+      api('/api/rectify?action=get-collections')
+    ]);
+
+    let html = '';
+
+    if (balData.success) {
+      const b = balData.balance || balData;
+      const bal = b.balance || b.counter_balance || 0;
+      html += `<div class="hero" style="margin:12px 16px">
+        <div class="hero-label">Counter drawer balance</div>
+        <div class="hero-amount ${bal > 1000 ? 'ok' : bal > 0 ? 'warn' : 'bad'}">₹${fmt(bal)}</div>
+        <div class="hero-meta">
+          <div class="hero-meta-item"><span class="hero-meta-label">Runner settled</span><span class="hero-meta-val">₹${fmt(b.runner_cash||0)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Walk-in cash</span><span class="hero-meta-val">₹${fmt(b.counter_cash||0)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Expenses</span><span class="hero-meta-val">−₹${fmt(b.expenses||0)}</span></div>
+        </div>
+      </div>`;
+    }
+
+    const inTransit = collData.in_transit || [];
+    const collected = collData.collected || [];
+
+    if (inTransit.length > 0) {
+      html += `<div class="section-hdr"><span class="section-title">In transit</span><span class="section-count">${inTransit.length}</span></div>
+      <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
+      inTransit.forEach(c => {
+        html += `<div class="row-item">
+          <div class="row-left"><div class="row-title">₹${fmt(c.amount||0)}</div><div class="row-sub">${c.collected_by||'—'} → Naveen</div></div>
+          <div class="row-right"><span class="tag tag-amber">In Transit</span><div class="row-time">${fmtDatetime(c.collected_at)}</div></div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    if (collected.length > 0) {
+      html += `<div class="section-hdr"><span class="section-title">Collected today</span><span class="section-count">${collected.length}</span></div>
+      <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
+      collected.forEach(c => {
+        html += `<div class="row-item">
+          <div class="row-left"><div class="row-title">₹${fmt(c.amount||0)}</div><div class="row-sub">${c.collected_by||'—'}</div></div>
+          <div class="row-right"><span class="tag tag-green">Done</span><div class="row-time">${fmtDatetime(c.collected_at)}</div></div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    if (inTransit.length === 0 && collected.length === 0) {
+      html += `<div class="loading" style="color:var(--dim)">No collections today</div>`;
+    }
+
+    el('collect-content').innerHTML = html;
+    if (canCollect) el('collect-action-bar').style.display = 'block';
+  } catch(e) {
+    el('collect-content').innerHTML = errBox('Failed: ' + e.message);
+  }
+}
+
+async function submitCollectCash() {
+  const amount = parseFloat(el('collect-amount').value);
+  if (!amount || amount <= 0) return;
+
+  try {
+    const r = await apiPost('/api/rectify?action=collect-cash', {
+      code: S.code,
+      pin: S.pin,
+      amount,
+      notes: ''
+    });
+    if (r.success) {
+      el('collect-amount').value = '';
+      initCollectScreen();
+    } else {
+      alert(r.error || 'Failed');
+    }
+  } catch(e) { alert('Network error: ' + e.message); }
+}
+
+// ─── HELPERS ─────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+function fmtTime(d) { return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'}); }
+function fmtDatetime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  const now = new Date();
+  const diffMs = now - d;
+  if (diffMs < 60000) return 'just now';
+  if (diffMs < 3600000) return Math.floor(diffMs/60000) + 'm ago';
+  return d.toLocaleString('en-IN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'});
+}
+function fmtPeriod(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return d.toLocaleString('en-IN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'});
+}
+function errBox(msg) { return `<div class="error-box" style="margin:16px">${msg}</div>`; }
+
+async function api(path) {
+  const r = await fetch(path);
+  return r.json();
+}
+async function apiPost(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  return r.json();
+}
+
+function resetCodeInput() {
+  S.code = '';
+  for (let i = 0; i < 6; i++) {
+    const c = document.getElementById('cc' + i);
+    c.textContent = '_';
+    c.classList.remove('active');
+  }
+  document.getElementById('cc0').classList.add('active');
+  el('code-err').textContent = '';
+}
+
+// ─── INIT ────────────────────────────────────────────────
+resetCodeInput();
+show('s-code');
+</script>
+</body>
+</html>
