@@ -122,11 +122,6 @@
   .numpad-key.del { color: var(--red); font-size: 16px; }
   .numpad-key.ok { background: var(--purple); color: #fff; border-color: var(--purple); }
 
-  /* ── CODE INPUT ── */
-  .code-input-wrap { display: flex; gap: 6px; justify-content: center; margin: 20px 0; }
-  .code-char { width: 44px; height: 52px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; transition: border-color .2s; }
-  .code-char.active { border-color: var(--purple); }
-
   /* ── PIN DOTS ── */
   .pin-dots { display: flex; gap: 12px; justify-content: center; margin: 20px 0; }
   .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); transition: all .15s; }
@@ -202,47 +197,12 @@
 <body>
 
 <!-- ═══════════════════════════════════════════════════════
-     SCREEN 1: CODE ENTRY
-═══════════════════════════════════════════════════════ -->
-<div id="s-code" class="screen">
-  <div class="login-wrap">
-    <div class="logo">NCH</div>
-    <div class="logo-sub">Cash Operations v2</div>
-    <div class="login-hint">Enter your role code</div>
-    <div class="code-input-wrap" id="code-display">
-      <div class="code-char" id="cc0">_</div>
-      <div class="code-char" id="cc1">_</div>
-      <div class="code-char" id="cc2">_</div>
-      <div class="code-char" id="cc3">_</div>
-      <div class="code-char" id="cc4">_</div>
-      <div class="code-char" id="cc5">_</div>
-    </div>
-    <div class="numpad" style="width:100%;max-width:280px;">
-      <div class="numpad-key" onclick="codeKey('1')">1</div>
-      <div class="numpad-key" onclick="codeKey('2')">2</div>
-      <div class="numpad-key" onclick="codeKey('3')">3</div>
-      <div class="numpad-key" onclick="codeKey('4')">4</div>
-      <div class="numpad-key" onclick="codeKey('5')">5</div>
-      <div class="numpad-key" onclick="codeKey('6')">6</div>
-      <div class="numpad-key" onclick="codeKey('7')">7</div>
-      <div class="numpad-key" onclick="codeKey('8')">8</div>
-      <div class="numpad-key" onclick="codeKey('9')">9</div>
-      <div class="numpad-key" onclick="codeAlpha()">ABC</div>
-      <div class="numpad-key" onclick="codeKey('0')">0</div>
-      <div class="numpad-key del" onclick="codeDel()">⌫</div>
-    </div>
-    <div id="code-err" class="err-msg"></div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     SCREEN 2: PIN ENTRY
+     SCREEN 1: PIN LOGIN
 ═══════════════════════════════════════════════════════ -->
 <div id="s-pin" class="screen">
   <div class="login-wrap">
-    <div class="logo-sub" style="margin-bottom:6px">Logged in as</div>
-    <div class="logo" id="pin-role-display" style="font-size:20px;margin-bottom:24px">—</div>
-    <div class="login-hint">Enter PIN</div>
+    <div class="logo">NCH</div>
+    <div class="logo-sub">Cash Operations</div>
     <div class="pin-dots" id="pin-dots">
       <div class="pin-dot" id="pd0"></div>
       <div class="pin-dot" id="pd1"></div>
@@ -259,7 +219,7 @@
       <div class="numpad-key" onclick="pinKey('7')">7</div>
       <div class="numpad-key" onclick="pinKey('8')">8</div>
       <div class="numpad-key" onclick="pinKey('9')">9</div>
-      <div class="numpad-key del" onclick="goBack()">←</div>
+      <div class="numpad-key" style="opacity:0"></div>
       <div class="numpad-key" onclick="pinKey('0')">0</div>
       <div class="numpad-key del" onclick="pinDel()">⌫</div>
     </div>
@@ -534,9 +494,11 @@ function goBack() {
 }
 
 function logout() {
-  Object.assign(S, {code:'', pin:'', role:null, person:null, partner_id:null, prevScreen:null, selectedRunner:null});
-  resetCodeInput();
-  show('s-code');
+  Object.assign(S, {pin:'', role:null, person:null, code:null, partner_id:null, prevScreen:null, selectedRunner:null});
+  S.pin = '';
+  renderPinDots();
+  el('pin-err').textContent = '';
+  show('s-pin');
 }
 
 function setupScreen(id) {
@@ -548,56 +510,7 @@ function setupScreen(id) {
   else if (id === 's-collect') { initCollectScreen(); }
 }
 
-// ─── SCREEN 1: CODE INPUT ────────────────────────────────
-function codeKey(k) {
-  if (S.code.length >= 6) return;
-  S.code += k.toUpperCase();
-  renderCodeDisplay();
-}
-function codeDel() {
-  S.code = S.code.slice(0, -1);
-  renderCodeDisplay();
-  el('code-err').textContent = '';
-}
-function codeAlpha() {
-  // simple alpha cycle for codes like CASH001, RUN001
-  // implemented as tap-cycle: show a modal or just allow typing
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  // For simplicity, cycle last char if it's alpha
-  if (S.code.length === 0) { S.code = 'C'; }
-  else {
-    const last = S.code.slice(-1);
-    if (/[A-Z]/.test(last)) {
-      const idx = chars.indexOf(last);
-      S.code = S.code.slice(0, -1) + chars[(idx + 1) % 26];
-    } else {
-      S.code += 'A';
-    }
-  }
-  renderCodeDisplay();
-}
-function renderCodeDisplay() {
-  const chars = (S.code + '______').slice(0, 6).split('');
-  chars.forEach((c, i) => {
-    const el_c = document.getElementById('cc' + i);
-    el_c.textContent = c === '_' ? '_' : c;
-    el_c.classList.toggle('active', i === S.code.length);
-  });
-  if (S.code.length === 6) tryProceedToPin();
-}
-function tryProceedToPin() {
-  const validPrefixes = ['CASH001','CASH002','RUN001','RUN002','RUN003','RUN004','RUN005','GM001','MGR001','ADMIN001','ADMIN002'];
-  if (!validPrefixes.includes(S.code)) {
-    el('code-err').textContent = 'Unknown code';
-    return;
-  }
-  el('pin-role-display').textContent = S.code;
-  S.pin = '';
-  renderPinDots();
-  show('s-pin');
-}
-
-// ─── SCREEN 2: PIN INPUT ─────────────────────────────────
+// ─── SCREEN 1: PIN LOGIN ─────────────────────────────────
 function pinKey(k) {
   if (S.pin.length >= 4) return;
   S.pin += k;
@@ -616,7 +529,7 @@ function renderPinDots() {
 }
 async function verifyStaff() {
   try {
-    const r = await api(`/api/rectify?action=verify-staff&code=${encodeURIComponent(S.code)}&pin=${encodeURIComponent(S.pin)}`);
+    const r = await api(`/api/rectify?action=verify-staff&pin=${encodeURIComponent(S.pin)}`);
     if (!r.success) {
       el('pin-err').textContent = r.error || 'Wrong PIN';
       S.pin = '';
@@ -624,6 +537,7 @@ async function verifyStaff() {
       return;
     }
     S.role = r.role;
+    S.code = r.code;
     S.person = r.person;
     S.partner_id = r.partner_id;
     routeByRole();
@@ -636,23 +550,22 @@ async function verifyStaff() {
 function routeByRole() {
   if (S.role === 'runner') {
     S.selectedRunner = RUNNERS.find(r => r.partner_id === S.partner_id) || null;
-    el('runner-nav-title').textContent = S.code;
-    el('runner-nav-sub').textContent = S.person;
+    el('runner-nav-title').textContent = S.person;
+    el('runner-nav-sub').textContent = S.code;
     show('s-runner');
     loadRunnerView();
   } else if (S.role === 'cashier') {
-    el('cashier-nav-title').textContent = S.code;
-    el('cashier-nav-sub').textContent = S.person;
+    el('cashier-nav-title').textContent = S.person;
+    el('cashier-nav-sub').textContent = S.code;
     show('s-cashier');
     loadCashierHome();
   } else if (['admin','gm','manager'].includes(S.role)) {
-    // Admins/GM see cashier home + collect option
-    el('cashier-nav-title').textContent = S.code;
-    el('cashier-nav-sub').textContent = S.person;
+    el('cashier-nav-title').textContent = S.person;
+    el('cashier-nav-sub').textContent = S.code;
     show('s-cashier');
     loadCashierHome();
   } else {
-    el('pin-err').textContent = 'Role not supported in this app';
+    el('pin-err').textContent = 'Access not allowed';
     S.pin = '';
     renderPinDots();
   }
@@ -1196,20 +1109,8 @@ async function apiPost(path, body) {
   return r.json();
 }
 
-function resetCodeInput() {
-  S.code = '';
-  for (let i = 0; i < 6; i++) {
-    const c = document.getElementById('cc' + i);
-    c.textContent = '_';
-    c.classList.remove('active');
-  }
-  document.getElementById('cc0').classList.add('active');
-  el('code-err').textContent = '';
-}
-
 // ─── INIT ────────────────────────────────────────────────
-resetCodeInput();
-show('s-code');
+show('s-pin');
 </script>
 </body>
 </html>

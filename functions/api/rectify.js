@@ -754,13 +754,11 @@ async function createCrossQrTag(context, DB, cors) {
 }
 
 async function verifyStaff(url, cors) {
-  const code = (url.searchParams.get('code') || '').toUpperCase();
   const pin = url.searchParams.get('pin');
-  if (!code || !pin) return json({success: false, error: 'Code and PIN required'}, cors, 400);
-  const slot = STAFF_SLOTS[code];
-  if (!slot) return json({success: false, error: 'Invalid role code'}, cors, 401);
-  if (slot.pin !== pin) return json({success: false, error: 'Incorrect PIN'}, cors, 401);
-  return json({success: true, role: slot.role, code, person: slot.person, partner_id: slot.partner_id || null}, cors);
+  if (!pin) return json({success: false, error: 'PIN required'}, cors, 400);
+  const staff = STAFF_BY_PIN[pin];
+  if (!staff) return json({success: false, error: 'Wrong PIN'}, cors, 401);
+  return json({success: true, role: staff.role, code: staff.slot, person: staff.name, partner_id: staff.partner_id || null}, cors);
 }
 
 function verifyPin(pin) {
