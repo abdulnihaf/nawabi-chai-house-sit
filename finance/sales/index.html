@@ -6,126 +6,187 @@
 <title>HN Hotels — Sales Register</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a28;--s3:#222236;--nch:#d4a44c;--he:#f97316;--tx:#e2e8f0;--tx2:#94a3b8;--tx3:#64748b;--bd:#1e2a40;--gn:#22c55e;--rd:#ef4444}
-body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;min-height:100vh}
+:root{
+  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a28;--s3:#222236;
+  --nch:#d4a44c;--he:#f97316;--tx:#e2e8f0;--tx2:#94a3b8;--tx3:#64748b;
+  --bd:#1e2a40;--gn:#22c55e;--rd:#ef4444;
+  --hdr:56px;--sum:72px;
+}
+body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh}
 
-/* PIN */
+/* ── PIN ────────────────────────────────────────────── */
 #pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column}
 .pin-box{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:32px 28px;width:320px;text-align:center}
-.pin-logo{font-size:26px;font-weight:800;letter-spacing:2px;margin-bottom:4px}
+.pin-logo{font-size:24px;font-weight:800;letter-spacing:2px;margin-bottom:4px}
 .pin-sub{font-size:12px;color:var(--tx3);margin-bottom:24px}
 .pin-dots{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
 .pin-dot{width:12px;height:12px;border-radius:50%;background:var(--s3);border:1px solid var(--bd);transition:background .15s}
-.pin-dot.filled{border-color:var(--nch);background:var(--nch)}
 .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .pin-btn{background:var(--s2);border:1px solid var(--bd);border-radius:10px;color:var(--tx);cursor:pointer;font-size:18px;font-weight:600;padding:14px;transition:all .1s}
-.pin-btn:hover{background:var(--s3);border-color:var(--nch)}
+.pin-btn:hover{background:var(--s3)}
 .pin-btn:active{transform:scale(.95)}
 .pin-err{color:var(--rd);font-size:12px;min-height:16px;margin-top:10px}
 
-/* App */
+/* ── APP SHELL ──────────────────────────────────────── */
 #app{display:none}
-.hdr{background:var(--s1);border-bottom:1px solid var(--bd);padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
-.hdr-logo{font-weight:800;font-size:15px;letter-spacing:1px}
-.hdr-title{font-size:13px;font-weight:600;color:var(--tx)}
-.brand-tabs{display:flex;gap:4px;margin-left:auto}
-.brand-tab{background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx3);cursor:pointer;font-size:12px;font-weight:600;padding:6px 14px;transition:all .15s}
-.brand-tab.active-nch{background:rgba(212,164,76,.15);border-color:var(--nch);color:var(--nch)}
-.brand-tab.active-he{background:rgba(249,115,22,.15);border-color:var(--he);color:var(--he)}
-.brand-tab.active-both{background:rgba(99,102,241,.15);border-color:#6366f1;color:#6366f1}
-.hdr-actions{display:flex;gap:6px}
-.hdr-btn{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx3);cursor:pointer;font-size:11px;font-weight:600;padding:6px 12px;transition:all .15s}
-.hdr-btn:hover{background:var(--s3);color:var(--tx);border-color:var(--nch)}
 
-.wrap{max-width:1200px;margin:0 auto;padding:16px 20px}
-
-/* Date controls */
-.date-row{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.date-label{font-size:12px;color:var(--tx3);font-weight:600}
-.date-inp{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-size:12px;padding:6px 10px;outline:none}
-.date-inp:focus{border-color:var(--nch)}
-.preset-btn{background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx3);cursor:pointer;font-size:11px;font-weight:600;padding:5px 10px;transition:all .1s}
-.preset-btn:hover{background:var(--s3);color:var(--tx);border-color:var(--nch)}
-.apply-btn{background:rgba(212,164,76,.15);border:1px solid var(--nch);border-radius:7px;color:var(--nch);cursor:pointer;font-size:12px;font-weight:700;padding:6px 14px;transition:all .15s}
+/* Header */
+.hdr{
+  height:var(--hdr);background:var(--s1);border-bottom:1px solid var(--bd);
+  padding:0 18px;display:flex;align-items:center;gap:10px;
+  position:fixed;top:0;left:0;right:0;z-index:200;
+}
+.hdr-logo{font-weight:800;font-size:14px;letter-spacing:1px;flex-shrink:0}
+.brand-tabs{display:flex;gap:4px;margin-left:8px}
+.btab{background:none;border:1px solid var(--bd);border-radius:8px;color:var(--tx3);cursor:pointer;font-size:11px;font-weight:700;padding:5px 13px;transition:all .15s;letter-spacing:.3px}
+.btab.on-nch{background:rgba(212,164,76,.15);border-color:var(--nch);color:var(--nch)}
+.btab.on-he{background:rgba(249,115,22,.15);border-color:var(--he);color:var(--he)}
+.date-row{display:flex;align-items:center;gap:6px;margin-left:auto}
+.dt-lbl{font-size:11px;color:var(--tx3)}
+.dt-inp{background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:11px;padding:4px 8px;outline:none;width:110px}
+.dt-inp:focus{border-color:var(--nch)}
+.preset-sel{background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx3);font-size:11px;padding:4px 8px;cursor:pointer;outline:none}
+.apply-btn{background:rgba(212,164,76,.15);border:1px solid rgba(212,164,76,.5);border-radius:6px;color:var(--nch);cursor:pointer;font-size:11px;font-weight:700;padding:5px 12px;transition:all .15s;flex-shrink:0}
 .apply-btn:hover{background:rgba(212,164,76,.25)}
-.sep{color:var(--bd);font-size:18px;line-height:1}
 
-/* Summary cards */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:16px}
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:13px 15px}
-.card-label{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
-.card-val{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums}
-.card-sub{font-size:11px;color:var(--tx3);margin-top:3px}
+/* Summary strip */
+.sum-strip{
+  position:fixed;top:var(--hdr);left:0;right:0;z-index:190;
+  background:var(--s1);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;gap:0;height:var(--sum);padding:0;
+  overflow-x:auto;
+}
+.sum-card{flex:1;min-width:120px;padding:10px 16px;border-right:1px solid var(--bd)}
+.sum-card:last-child{border-right:none}
+.sum-lbl{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.sum-val{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.sum-sub{font-size:10px;color:var(--tx3);margin-top:2px}
 
-/* View tabs */
-.view-tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--bd);padding-bottom:10px}
-.view-tab{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;transition:all .15s}
-.view-tab:hover{background:var(--s2)}
-.view-tab.active{background:var(--s2);color:var(--tx);border:1px solid var(--bd)}
+/* Main two-pane */
+.main-wrap{
+  display:flex;
+  position:fixed;
+  top:calc(var(--hdr) + var(--sum));
+  left:0;right:0;
+  bottom:0;
+  overflow:hidden;
+}
+.left-pane{
+  width:400px;min-width:280px;
+  border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;
+  overflow:hidden;flex-shrink:0;
+}
+.right-pane{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.pane-hdr{
+  background:var(--s1);border-bottom:1px solid var(--bd);
+  padding:10px 14px;display:flex;align-items:center;gap:8px;
+  flex-shrink:0;
+}
+.pane-title{font-size:12px;font-weight:700;color:var(--tx);text-transform:uppercase;letter-spacing:.5px;flex:1}
+.pane-action{background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx3);cursor:pointer;font-size:10px;font-weight:600;padding:4px 10px;transition:all .1s}
+.pane-action:hover{border-color:var(--nch);color:var(--nch)}
+.pane-action.xlsx:hover{border-color:var(--gn);color:var(--gn)}
+.left-scroll{flex:1;overflow-y:auto}
 
-/* Day table */
-.day-table{width:100%;border-collapse:collapse}
-.day-head th{background:var(--s1);color:var(--tx3);font-size:11px;font-weight:600;letter-spacing:.5px;padding:9px 12px;text-align:left;text-transform:uppercase;position:sticky;top:56px;z-index:10;border-bottom:1px solid var(--bd)}
-.day-row{border-bottom:1px solid #12121a;cursor:pointer;transition:background .1s}
+/* Sort bar */
+.sort-bar{display:flex;gap:4px;padding:8px 14px;background:var(--bg);border-bottom:1px solid var(--bd);flex-shrink:0}
+.sort-lbl{font-size:10px;color:var(--tx3);padding-top:2px}
+.sort-btn{background:none;border:1px solid var(--bd);border-radius:5px;color:var(--tx3);cursor:pointer;font-size:10px;font-weight:600;padding:3px 9px;transition:all .1s}
+.sort-btn.active{background:var(--s2);color:var(--tx);border-color:var(--tx3)}
+.sort-btn:hover{border-color:var(--nch)}
+
+/* Item rows */
+.item-row{padding:10px 14px;border-bottom:1px solid #0d0d18;transition:background .1s;cursor:default}
+.item-row:hover{background:var(--s2)}
+.item-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.item-rank{font-size:10px;color:var(--tx3);width:18px;flex-shrink:0;padding-top:2px;font-variant-numeric:tabular-nums}
+.item-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.item-name{flex:1;font-size:12px;font-weight:600;color:var(--tx);line-height:1.3}
+.item-cat{font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;margin-left:4px;flex-shrink:0;margin-top:2px}
+.item-stats{display:flex;gap:10px;padding-left:26px;margin-bottom:5px}
+.stat-block{text-align:center}
+.stat-v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat-l{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px}
+.item-bar-bg{background:var(--s3);border-radius:3px;height:4px;margin:0 0 2px 26px;overflow:hidden}
+.item-bar-fill{height:100%;border-radius:3px}
+.item-pct{font-size:9px;color:var(--tx3);padding-left:26px}
+
+/* Day rows */
+.day-wrap{border-bottom:1px solid #0d0d18}
+.day-row{
+  display:flex;align-items:center;gap:8px;padding:10px 16px;
+  cursor:pointer;transition:background .1s;
+}
 .day-row:hover{background:var(--s1)}
-.day-row.expanded{background:var(--s1)}
-.day-row td{padding:10px 12px;font-size:13px;color:var(--tx2);vertical-align:middle}
-.day-row td.day-date{font-weight:700;color:var(--tx);font-size:13px}
-.day-row td.day-rev{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px}
-.day-row td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:monospace}
-.day-tag{display:inline-block;border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;margin-left:6px;text-transform:uppercase;letter-spacing:.4px}
-.tag-nch{background:rgba(212,164,76,.2);color:var(--nch)}
-.tag-he{background:rgba(249,115,22,.2);color:var(--he)}
-.expand-btn{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:5px}
-.expand-btn:hover{background:var(--s3)}
-.print-day-btn{background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--tx3);cursor:pointer;font-size:10px;font-weight:600;padding:3px 8px;transition:all .1s}
+.day-row.open{background:var(--s1)}
+.day-date{font-weight:700;font-size:13px;color:var(--tx);width:100px;flex-shrink:0}
+.day-dow{font-size:11px;color:var(--tx3);width:32px;flex-shrink:0}
+.day-rev-bar{flex:1;display:flex;align-items:center;gap:6px}
+.day-rev-track{flex:1;background:var(--s3);border-radius:3px;height:5px;overflow:hidden;max-width:120px}
+.day-rev-fill{height:100%;border-radius:3px}
+.day-rev-amt{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;width:80px;text-align:right;flex-shrink:0}
+.day-orders{font-size:11px;color:var(--tx3);width:60px;text-align:right;flex-shrink:0}
+.day-chv{font-size:12px;color:var(--tx3);margin-left:4px;transition:transform .2s;flex-shrink:0}
+.day-row.open .day-chv{transform:rotate(180deg)}
+.print-day-btn{background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--tx3);cursor:pointer;font-size:9px;font-weight:600;padding:3px 7px;transition:all .1s;flex-shrink:0}
 .print-day-btn:hover{border-color:var(--nch);color:var(--nch)}
 
-/* Item detail row */
-.detail-row{display:none;background:#0d0d18}
-.detail-row.show{display:table-row}
-.detail-cell{padding:0 0 0 0}
-.item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px;background:var(--s3)}
-.item-cell{background:#0e0e1a;padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
-.item-name{font-size:12px;color:var(--tx2);flex:1}
-.item-qty{font-size:11px;color:var(--tx3);font-variant-numeric:tabular-nums;margin:0 10px}
-.item-amt{font-size:12px;font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums;font-family:monospace}
+/* Day detail */
+.day-detail{display:none;background:#080810;border-top:1px solid #0d0d18}
+.day-detail.show{display:block}
+.detail-table{width:100%;border-collapse:collapse}
+.detail-table th{background:#0d0d18;color:var(--tx3);font-size:10px;font-weight:600;letter-spacing:.4px;padding:7px 16px;text-align:left;text-transform:uppercase}
+.detail-table th.num{text-align:right}
+.detail-table td{border-bottom:1px solid #0d0d1a;color:var(--tx2);padding:7px 16px;font-size:12px;vertical-align:middle}
+.detail-table tr:last-child td{border-bottom:none}
+.detail-table tr:hover td{background:#0d0d18}
+.detail-table .num{text-align:right;font-variant-numeric:tabular-nums;font-family:monospace}
+.detail-table .bold{font-weight:700;color:var(--tx)}
+.detail-table .tr-sub td{background:#0e0e1a;font-weight:700;color:var(--tx);border-top:1px solid var(--bd)}
+.detail-item-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:6px;flex-shrink:0;vertical-align:middle}
 
-/* Item summary view */
-.item-summary-table{width:100%;border-collapse:collapse;font-size:13px}
-.item-summary-table th{background:var(--s1);color:var(--tx3);font-size:11px;font-weight:600;letter-spacing:.5px;padding:9px 12px;text-align:left;text-transform:uppercase;position:sticky;top:56px;z-index:10;border-bottom:1px solid var(--bd)}
-.item-summary-table td{border-bottom:1px solid #12121a;color:var(--tx2);padding:8px 12px;vertical-align:middle}
-.item-summary-table tr:hover td{background:var(--s1)}
-.item-summary-table .num{text-align:right;font-variant-numeric:tabular-nums;font-family:monospace}
-.item-summary-table .bold{font-weight:700;color:var(--tx)}
-.item-bar-bg{background:var(--s3);border-radius:3px;height:5px;width:100px;display:inline-block;vertical-align:middle;overflow:hidden}
-.item-bar-fill{height:100%;border-radius:3px}
-.tr-total td{background:var(--s2);font-weight:700;color:var(--tx);border-top:1px solid var(--bd)}
+/* Bottom bar in right pane */
+.right-bottom{
+  position:sticky;bottom:0;
+  background:var(--s1);border-top:1px solid var(--bd);
+  padding:10px 16px;display:flex;gap:8px;align-items:center;
+}
+.rb-btn{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx3);cursor:pointer;font-size:11px;font-weight:600;padding:7px 14px;transition:all .15s}
+.rb-btn:hover{border-color:var(--nch);color:var(--nch)}
+.rb-btn.primary{background:rgba(212,164,76,.12);border-color:rgba(212,164,76,.4);color:var(--nch)}
+.rb-btn.xlsx-btn:hover{border-color:var(--gn);color:var(--gn)}
+.rb-info{margin-left:auto;font-size:11px;color:var(--tx3)}
 
-/* Trend view */
-.trend-wrap{overflow-x:auto}
-.trend-chart{display:flex;align-items:flex-end;gap:4px;height:180px;padding:10px 0}
-.trend-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;min-width:28px;max-width:60px}
-.trend-bar{width:100%;border-radius:4px 4px 0 0;min-height:2px;cursor:pointer;transition:opacity .15s}
-.trend-bar:hover{opacity:.75}
-.trend-bar-label{font-size:9px;color:var(--tx3);margin-top:4px;white-space:nowrap;transform:rotate(-45deg);transform-origin:top left;height:36px}
-
-/* Bottom actions */
-.bottom-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center}
-.bottom-btn{background:var(--s1);border:1px solid var(--bd);border-radius:8px;color:var(--tx3);cursor:pointer;font-size:12px;font-weight:600;padding:10px 18px;transition:all .15s}
-.bottom-btn:hover{border-color:var(--nch);color:var(--nch)}
-.bottom-btn.primary{background:rgba(212,164,76,.12);border-color:rgba(212,164,76,.4);color:var(--nch)}
-
-/* Print CSS */
-@media print{
-  body{background:#fff;color:#111;font-size:11px}
-  .no-print{display:none!important}
-  table{border-collapse:collapse;width:100%}
-  th{background:#f5f0e8!important;color:#555!important;padding:6px 8px!important;text-align:left!important;border-bottom:2px solid #c8860a!important;font-size:10px}
-  td{border-bottom:1px solid #eee!important;padding:5px 8px!important;color:#222!important}
+/* Mobile */
+@media(max-width:900px){
+  :root{--hdr:auto;--sum:auto}
+  .hdr{position:relative;height:auto;flex-wrap:wrap;padding:10px 14px;gap:8px}
+  .date-row{margin-left:0;flex-wrap:wrap}
+  .sum-strip{position:relative;top:0;height:auto;flex-wrap:wrap}
+  .sum-card{min-width:calc(50% - 1px);border-right:1px solid var(--bd);border-bottom:1px solid var(--bd)}
+  .main-wrap{position:relative;top:0;bottom:auto;flex-direction:column;overflow:visible}
+  .left-pane{width:100%;border-right:none;border-bottom:1px solid var(--bd)}
+  .left-scroll{overflow:visible;max-height:none}
+  .right-pane{overflow:visible}
+  .right-bottom{position:relative}
 }
 
-@media(max-width:700px){.cards{grid-template-columns:1fr 1fr}.item-grid{grid-template-columns:1fr}}
+/* Print */
+@media print{
+  :root{--bg:#fff;--tx:#111;--tx2:#333;--tx3:#666;--s1:#f8f8f8;--s2:#f0f0f0;--bd:#ddd}
+  body{background:#fff;color:#111;font-size:11px}
+  .no-print,.hdr,.sum-strip,.sort-bar,.pane-hdr,.right-bottom,.pin-screen,.print-day-btn,.pane-action,.apply-btn,.brand-tabs,.date-row,.preset-sel,.btab,.day-chv,.rb-btn{display:none!important}
+  .main-wrap{position:static;flex-direction:column;overflow:visible}
+  .left-pane,.right-pane{width:100%;overflow:visible}
+  .item-bar-bg,.item-bar-fill{display:none}
+  .day-detail{display:block!important}
+  @page{margin:14mm 12mm}
+}
 </style>
 </head>
 <body>
@@ -133,8 +194,8 @@ body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-
 <!-- PIN -->
 <div id="pin-screen">
   <div class="pin-box">
-    <div class="pin-logo" style="background:linear-gradient(90deg,var(--nch),var(--he));-webkit-background-clip:text;-webkit-text-fill-color:transparent">HN Sales</div>
-    <div class="pin-sub">NCH + Hamza Express · Sales Register</div>
+    <div class="pin-logo" id="pin-logo">HN Sales</div>
+    <div class="pin-sub">NCH · Hamza Express · Sales Register</div>
     <div class="pin-dots"><div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div></div>
     <div class="pin-pad" id="pin-pad"></div>
     <div class="pin-err" id="pin-err"></div>
@@ -143,65 +204,82 @@ body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-
 
 <!-- App -->
 <div id="app">
+  <!-- Header -->
   <div class="hdr no-print">
-    <div class="hdr-logo" style="background:linear-gradient(90deg,var(--nch),var(--he));-webkit-background-clip:text;-webkit-text-fill-color:transparent">ن HN</div>
-    <div class="hdr-title">Sales Register</div>
+    <div class="hdr-logo" id="hdr-logo">ن HN</div>
     <div class="brand-tabs">
-      <button class="brand-tab active-nch" id="tab-nch" onclick="setBrand('nch')">ن NCH</button>
-      <button class="brand-tab" id="tab-he" onclick="setBrand('he')">🍚 HE</button>
-      <button class="brand-tab" id="tab-both" onclick="setBrand('both')">Both</button>
+      <button class="btab on-nch" id="btab-nch" onclick="setBrand('nch')">ن NCH</button>
+      <button class="btab" id="btab-he" onclick="setBrand('he')">🍚 HE</button>
     </div>
-    <div class="hdr-actions">
-      <button class="hdr-btn" onclick="printRange()">🖨 Print Range</button>
-      <button class="hdr-btn" onclick="dlXLSX()">📊 XLSX</button>
-    </div>
-  </div>
-  <div class="wrap">
-    <!-- Date controls -->
-    <div class="date-row no-print">
-      <span class="date-label">From</span>
-      <input class="date-inp" type="date" id="dt-from" value="2026-02-03">
-      <span class="sep">→</span>
-      <input class="date-inp" type="date" id="dt-to" value="2026-03-31">
-      <button class="apply-btn" onclick="apply()">Apply</button>
-      <span class="sep" style="margin-left:6px">|</span>
-      <button class="preset-btn" onclick="setPreset('naveen')">Naveen Period (Feb 3 – Mar 31)</button>
-      <button class="preset-btn" onclick="setPreset('nch-launch')">NCH Launch (Feb 3 – Feb 28)</button>
-      <button class="preset-btn" onclick="setPreset('he-launch')">HE Launch (Feb 27 – Mar 31)</button>
-      <button class="preset-btn" onclick="setPreset('all')">All Data</button>
-    </div>
-    <!-- Summary -->
-    <div class="cards" id="summary-cards"></div>
-    <!-- View tabs -->
-    <div class="view-tabs no-print">
-      <button class="view-tab active" id="vtab-day" onclick="setView('day')">📅 By Day</button>
-      <button class="view-tab" id="vtab-item" onclick="setView('item')">📦 By Item</button>
-      <button class="view-tab" id="vtab-trend" onclick="setView('trend')">📊 Trend</button>
-    </div>
-    <!-- Views -->
-    <div id="view-day"></div>
-    <div id="view-item" style="display:none"></div>
-    <div id="view-trend" style="display:none"></div>
-    <!-- Bottom -->
-    <div class="bottom-row no-print">
-      <button class="bottom-btn primary" onclick="printRange()">🖨 Print Selected Range as PDF</button>
-      <button class="bottom-btn" onclick="dlXLSX()">📊 Download XLSX</button>
-      <span id="range-summary" style="font-size:12px;color:var(--tx3);margin-left:auto"></span>
+    <div class="date-row">
+      <span class="dt-lbl">From</span>
+      <input class="dt-inp" type="date" id="dt-from">
+      <span class="dt-lbl">→</span>
+      <input class="dt-inp" type="date" id="dt-to">
+      <select class="preset-sel" id="preset-sel" onchange="setPreset(this.value)">
+        <option value="">Presets…</option>
+        <option value="naveen">Naveen Period (Feb 3 – Mar 31)</option>
+        <option value="feb">February (NCH first month)</option>
+        <option value="mar">March</option>
+        <option value="he-start">HE Launch (Feb 27 – Mar 31)</option>
+        <option value="all">All Data</option>
+      </select>
+      <button class="apply-btn" onclick="applyFilters()">Apply</button>
     </div>
   </div>
-</div>
+
+  <!-- Summary strip -->
+  <div class="sum-strip no-print" id="sum-strip"></div>
+
+  <!-- Two-pane main -->
+  <div class="main-wrap">
+
+    <!-- LEFT: Item Totals -->
+    <div class="left-pane">
+      <div class="pane-hdr no-print">
+        <div class="pane-title" id="left-title">Item Totals</div>
+        <button class="pane-action" onclick="printItems()">🖨 PDF</button>
+        <button class="pane-action xlsx" onclick="dlXLSX('items')">📊 XLSX</button>
+      </div>
+      <div class="sort-bar no-print">
+        <span class="sort-lbl">Sort:</span>
+        <button class="sort-btn active" id="sb-qty" onclick="setSort('qty')">Qty ▾</button>
+        <button class="sort-btn" id="sb-rev" onclick="setSort('rev')">Revenue</button>
+        <button class="sort-btn" id="sb-name" onclick="setSort('name')">Name</button>
+        <button class="sort-btn" id="sb-avg" onclick="setSort('avg')">Avg/Day</button>
+      </div>
+      <div class="left-scroll" id="left-scroll"></div>
+    </div>
+
+    <!-- RIGHT: Daily Breakdown -->
+    <div class="right-pane" id="right-pane">
+      <div class="pane-hdr no-print">
+        <div class="pane-title" id="right-title">Daily Breakdown</div>
+        <button class="pane-action" onclick="printRange()">🖨 Print Range</button>
+        <button class="pane-action xlsx" onclick="dlXLSX('daily')">📊 XLSX</button>
+      </div>
+      <div id="daily-list"></div>
+      <div class="right-bottom no-print">
+        <button class="rb-btn primary" onclick="printRange()">🖨 Print Selected Range PDF</button>
+        <button class="rb-btn xlsx-btn" onclick="dlXLSX('full')">📊 Download Full XLSX</button>
+        <div class="rb-info" id="rb-info"></div>
+      </div>
+    </div>
+
+  </div><!-- /main-wrap -->
+</div><!-- /app -->
 
 <script>
+// ── PIN ──────────────────────────────────────────────────────────
 var PINS=['0305','2026','3678'],pinVal='';
 (function(){
   var pad=document.getElementById('pin-pad');
   [1,2,3,4,5,6,7,8,9,'','0','⌫'].forEach(function(k){
-    var b=document.createElement('button'); b.className='pin-btn'; b.textContent=k;
+    var b=document.createElement('button');b.className='pin-btn';b.textContent=k;
     if(k===''){b.style.visibility='hidden';}
     else{b.addEventListener('click',function(){
-      if(k==='⌫'){pinVal=pinVal.slice(0,-1);}
-      else if(pinVal.length<4){pinVal+=k;}
-      upD(); if(pinVal.length===4)chkP();
+      if(k==='⌫'){pinVal=pinVal.slice(0,-1);}else if(pinVal.length<4){pinVal+=String(k);}
+      upD();if(pinVal.length===4)chkP();
     });}
     pad.appendChild(b);
   });
@@ -212,339 +290,449 @@ function chkP(){
   else{document.getElementById('pin-err').textContent='Incorrect PIN';pinVal='';upD();}
 }
 
-// ─── RAW DATA ────────────────────────────────────────────────────────────────
+// ── DATA ─────────────────────────────────────────────────────────
 var RAW={"nch":[{"d":"2026-02-03","n":99,"g":3967.0,"items":{"[NCH-BM] Bun Maska":{"q":23.0,"a":800.0},"[NCH-IC] Irani Chai":{"q":68.0,"a":630.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":27.0,"a":540.0},"[NCH-WTR] Water":{"q":17.0,"a":130.0},"[NCH-CC] Chicken Cutlet":{"q":29.0,"a":375.0},"[NCH-OB] Osmania Biscuit":{"q":4.0,"a":24.0},"[NCH-PS] Pyaaz Samosa":{"q":14.0,"a":90.0}}},{"d":"2026-02-04","n":323,"g":18663.0,"items":{"[NCH-CC] Chicken Cutlet":{"q":66.0,"a":875.0},"[NCH-WTR] Water":{"q":35.0,"a":320.0},"[NCH-BM] Bun Maska":{"q":74.0,"a":2440.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":87.0,"a":1060.0},"[NCH-IC] Irani Chai":{"q":544.0,"a":3280.0},"[NCH-OB] Osmania Biscuit":{"q":11.0,"a":64.0},"[NCH-PS] Pyaaz Samosa":{"q":65.0,"a":525.0}}},{"d":"2026-02-05","n":174,"g":10933.0,"items":{"[NCH-IC] Irani Chai":{"q":378.0,"a":1970.0},"[NCH-CC] Chicken Cutlet":{"q":27.0,"a":400.0},"[NCH-NSC] Nawabi Special Coffee":{"q":2.0,"a":60.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":44.0,"a":760.0},"[NCH-OB] Osmania Biscuit":{"q":6.0,"a":48.0},"[NCH-WTR] Water":{"q":18.0,"a":150.0},"[NCH-BM] Bun Maska":{"q":37.0,"a":1320.0}}},{"d":"2026-02-06","n":176,"g":11735.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":62.0,"a":980.0},"[NCH-IC] Irani Chai":{"q":426.0,"a":2350.0},"[NCH-WTR] Water":{"q":11.0,"a":100.0},"[NCH-CC] Chicken Cutlet":{"q":33.0,"a":450.0},"Lemon Tea":{"q":3.0,"a":60.0},"[NCH-BM] Bun Maska":{"q":20.0,"a":600.0},"[NCH-OB] Osmania Biscuit":{"q":10.0,"a":80.0},"[NCH-NSC] Nawabi Special Coffee":{"q":1.0,"a":30.0}}},{"d":"2026-02-07","n":212,"g":14194.0,"items":{"[NCH-CC] Chicken Cutlet":{"q":36.0,"a":500.0},"[NCH-IC] Irani Chai":{"q":481.0,"a":2540.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":54.0,"a":960.0},"[NCH-WTR] Water":{"q":34.0,"a":280.0},"[NCH-CB] Cheese Balls":{"q":3.0,"a":100.0},"[NCH-PS] Pyaaz Samosa":{"q":6.0,"a":60.0},"[NCH-BM] Bun Maska":{"q":29.0,"a":760.0},"Lemon Tea":{"q":3.0,"a":40.0},"[NCH-BM] Malai Bun":{"q":11.0,"a":180.0},"[NCH-NSC] Nawabi Special Coffee":{"q":5.0,"a":90.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"[NCH-OB] Osmania Biscuit":{"q":8.0,"a":56.0}}},{"d":"2026-02-08","n":282,"g":19657.0,"items":{"[NCH-WTR] Water":{"q":41.0,"a":350.0},"[NCH-IC] Irani Chai":{"q":710.0,"a":3860.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":94.0,"a":1500.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":184.0},"[NCH-PS] Pyaaz Samosa":{"q":22.0,"a":210.0},"[NCH-CB] Cheese Balls":{"q":15.0,"a":550.0},"[NCH-CC] Chicken Cutlet":{"q":33.0,"a":375.0},"Lemon Tea":{"q":14.0,"a":140.0},"[NCH-NSC] Nawabi Special Coffee":{"q":18.0,"a":270.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0}}},{"d":"2026-02-09","n":235,"g":12369.0,"items":{"[NCH-PS] Pyaaz Samosa":{"q":15.0,"a":195.0},"[NCH-IC] Irani Chai":{"q":410.0,"a":2780.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":57.0,"a":980.0},"[NCH-WTR] Water":{"q":26.0,"a":250.0},"[NCH-BM] Bun Maska":{"q":30.0,"a":800.0},"[NCH-NSC] Nawabi Special Coffee":{"q":6.0,"a":120.0},"[NCH-BM] Malai Bun":{"q":2.0,"a":60.0},"[NCH-OB] Osmania Biscuit":{"q":8.0,"a":64.0},"[NCH-CC] Chicken Cutlet":{"q":22.0,"a":425.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"Lemon Tea":{"q":2.0,"a":40.0},"[NCH-CB] Cheese Balls":{"q":4.0,"a":100.0}}},{"d":"2026-02-10","n":212,"g":14585.0,"items":{"[NCH-IC] Irani Chai":{"q":471.0,"a":2560.0},"[NCH-BM] Malai Bun":{"q":16.0,"a":330.0},"[NCH-WTR] Water":{"q":19.0,"a":140.0},"[NCH-BM] Bun Maska":{"q":25.0,"a":880.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":55.0,"a":960.0},"[NCH-CB] Cheese Balls":{"q":1.0,"a":50.0},"[NCH-OB] Osmania Biscuit":{"q":10.0,"a":72.0},"[NCH-CC] Chicken Cutlet":{"q":27.0,"a":425.0},"[NCH-PS] Pyaaz Samosa":{"q":28.0,"a":105.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":1000.0},"[NCH-NSC] Nawabi Special Coffee":{"q":5.0,"a":90.0},"Lemon Tea":{"q":1.0,"a":20.0}}},{"d":"2026-02-11","n":221,"g":18639.0,"items":{"[NCH-IC] Irani Chai":{"q":590.0,"a":2480.0},"[NCH-BM] Bun Maska":{"q":44.0,"a":1200.0},"[NCH-OB] Osmania Biscuit":{"q":18.0,"a":112.0},"[NCH-BM] Malai Bun":{"q":29.0,"a":540.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":65.0,"a":960.0},"[NCH-WTR] Water":{"q":27.0,"a":200.0},"[NCH-CC] Chicken Cutlet":{"q":39.0,"a":550.0},"Lemon Tea":{"q":8.0,"a":100.0},"[NCH-NSC] Nawabi Special Coffee":{"q":7.0,"a":180.0},"[NCH-CB] Cheese Balls":{"q":15.0,"a":550.0},"[NCH-PS] Pyaaz Samosa":{"q":10.0,"a":135.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0}}},{"d":"2026-02-12","n":261,"g":18371.0,"items":{"[NCH-IC] Irani Chai":{"q":604.0,"a":2460.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":70.0,"a":1140.0},"[NCH-BM] Bun Maska":{"q":32.0,"a":1120.0},"[NCH-BM] Malai Bun":{"q":36.0,"a":750.0},"[NCH-WTR] Water":{"q":40.0,"a":330.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0},"[NCH-OB] Osmania Biscuit":{"q":12.0,"a":88.0},"Lemon Tea":{"q":5.0,"a":80.0},"[NCH-CC] Chicken Cutlet":{"q":33.0,"a":375.0},"[NCH-NSC] Nawabi Special Coffee":{"q":6.0,"a":150.0},"[NCH-PS] Pyaaz Samosa":{"q":12.0,"a":165.0},"[NCH-CB] Cheese Balls":{"q":5.0,"a":200.0}}},{"d":"2026-02-13","n":251,"g":16758.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":57.0,"a":1020.0},"[NCH-BM] Bun Maska":{"q":29.0,"a":920.0},"[NCH-WTR] Water":{"q":32.0,"a":280.0},"[NCH-IC] Irani Chai":{"q":505.0,"a":2540.0},"[NCH-NSC] Nawabi Special Coffee":{"q":17.0,"a":330.0},"[NCH-BM] Malai Bun":{"q":30.0,"a":750.0},"Lemon Tea":{"q":10.0,"a":140.0},"[NCH-CC] Chicken Cutlet":{"q":19.0,"a":350.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":6.0,"a":1500.0},"[NCH-PS] Pyaaz Samosa":{"q":7.0,"a":105.0},"[NCH-OB] Osmania Biscuit":{"q":6.0,"a":48.0},"[NCH-CB] Cheese Balls":{"q":6.0,"a":250.0}}},{"d":"2026-02-14","n":283,"g":21046.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":48.0,"a":800.0},"[NCH-NSC] Nawabi Special Coffee":{"q":14.0,"a":240.0},"[NCH-IC] Irani Chai":{"q":654.0,"a":2900.0},"[NCH-BM] Malai Bun":{"q":35.0,"a":810.0},"[NCH-BM] Bun Maska":{"q":49.0,"a":1680.0},"[NCH-WTR] Water":{"q":42.0,"a":370.0},"[NCH-CC] Chicken Cutlet":{"q":26.0,"a":350.0},"[NCH-CB] Cheese Balls":{"q":6.0,"a":250.0},"[NCH-OB] Osmania Biscuit":{"q":17.0,"a":104.0},"[NCH-PS] Pyaaz Samosa":{"q":12.0,"a":150.0},"Lemon Tea":{"q":7.0,"a":120.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":7.0,"a":1250.0}}},{"d":"2026-02-15","n":292,"g":22455.0,"items":{"[NCH-WTR] Water":{"q":34.0,"a":310.0},"[NCH-IC] Irani Chai":{"q":800.0,"a":3380.0},"[NCH-BM] Malai Bun":{"q":22.0,"a":480.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":87.0,"a":1500.0},"[NCH-NSC] Nawabi Special Coffee":{"q":7.0,"a":150.0},"[NCH-CC] Chicken Cutlet":{"q":41.0,"a":475.0},"[NCH-BM] Bun Maska":{"q":41.0,"a":1440.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"Lemon Tea":{"q":12.0,"a":160.0},"[NCH-OB] Osmania Biscuit":{"q":25.0,"a":144.0},"[NCH-CB] Cheese Balls":{"q":3.0,"a":100.0}}},{"d":"2026-02-16","n":268,"g":20295.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":58.0,"a":1060.0},"[NCH-PS] Pyaaz Samosa":{"q":5.0,"a":75.0},"[NCH-BM] Malai Bun":{"q":19.0,"a":510.0},"[NCH-WTR] Water":{"q":28.0,"a":220.0},"[NCH-IC] Irani Chai":{"q":577.0,"a":3020.0},"[NCH-CC] Chicken Cutlet":{"q":30.0,"a":425.0},"[NCH-CB] Cheese Balls":{"q":3.0,"a":150.0},"[NCH-NSC] Nawabi Special Coffee":{"q":19.0,"a":390.0},"[NCH-BM] Bun Maska":{"q":42.0,"a":1320.0},"[NCH-OB] Osmania Biscuit":{"q":420.0,"a":96.0},"Lemon Tea":{"q":8.0,"a":140.0}}},{"d":"2026-02-17","n":295,"g":20393.0,"items":{"[NCH-BM] Bun Maska":{"q":47.0,"a":1480.0},"[NCH-WTR] Water":{"q":25.0,"a":230.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":65.0,"a":1200.0},"[NCH-IC] Irani Chai":{"q":662.0,"a":3300.0},"[NCH-BM] Malai Bun":{"q":21.0,"a":450.0},"[NCH-OB] Osmania Biscuit":{"q":21.0,"a":120.0},"[NCH-NSC] Nawabi Special Coffee":{"q":30.0,"a":600.0},"[NCH-PS] Pyaaz Samosa":{"q":28.0,"a":255.0},"[NCH-CC] Chicken Cutlet":{"q":31.0,"a":300.0},"[NCH-CB] Cheese Balls":{"q":13.0,"a":400.0},"Lemon Tea":{"q":9.0,"a":140.0}}},{"d":"2026-02-18","n":224,"g":16522.0,"items":{"[NCH-NSC] Nawabi Special Coffee":{"q":23.0,"a":450.0},"[NCH-IC] Irani Chai":{"q":637.0,"a":2660.0},"[NCH-WTR] Water":{"q":33.0,"a":300.0},"[NCH-BM] Bun Maska":{"q":12.0,"a":400.0},"[NCH-BM] Malai Bun":{"q":16.0,"a":390.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":48.0,"a":860.0},"[NCH-OB] Osmania Biscuit":{"q":29.0,"a":152.0},"[NCH-CC] Chicken Cutlet":{"q":11.0,"a":225.0},"[NCH-PS] Pyaaz Samosa":{"q":7.0,"a":75.0},"[NCH-CB] Cheese Balls":{"q":3.0,"a":150.0},"Lemon Tea":{"q":4.0,"a":60.0}}},{"d":"2026-02-19","n":251,"g":18189.0,"items":{"[NCH-IC] Irani Chai":{"q":597.0,"a":1800.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":5.0,"a":250.0},"[NCH-PS] Pyaaz Samosa":{"q":11.0,"a":120.0},"[NCH-BM] Malai Bun":{"q":27.0,"a":720.0},"[NCH-NSC] Nawabi Special Coffee":{"q":46.0,"a":900.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":43.0,"a":800.0},"[NCH-CB] Cheese Balls":{"q":3.0,"a":100.0},"[NCH-OB] Osmania Biscuit":{"q":13.0,"a":80.0},"[NCH-CC] Chicken Cutlet":{"q":26.0,"a":300.0},"[NCH-BM] Bun Maska":{"q":35.0,"a":1160.0},"[NCH-WTR] Water":{"q":32.0,"a":310.0},"Lemon Tea":{"q":8.0,"a":120.0}}},{"d":"2026-02-20","n":244,"g":21607.0,"items":{"[NCH-IC] Irani Chai":{"q":723.0,"a":1540.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":16.0,"a":650.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":136.0},"[NCH-WTR] Water":{"q":38.0,"a":360.0},"[NCH-BM] Bun Maska":{"q":42.0,"a":1320.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":52.0,"a":860.0},"[NCH-NSC] Nawabi Special Coffee":{"q":32.0,"a":750.0},"[NCH-CC] Chicken Cutlet":{"q":32.0,"a":425.0},"[NCH-PS] Pyaaz Samosa":{"q":17.0,"a":180.0},"[NCH-BM] Malai Bun":{"q":32.0,"a":630.0},"Lemon Tea":{"q":4.0,"a":60.0}}},{"d":"2026-02-21","n":308,"g":27937.0,"items":{"[NCH-IC] Irani Chai":{"q":1039.0,"a":2380.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":59.0,"a":1080.0},"[NCH-WTR] Water":{"q":38.0,"a":350.0},"[NCH-BM] Bun Maska":{"q":54.0,"a":1840.0},"[NCH-BM] Malai Bun":{"q":36.0,"a":930.0},"[NCH-CC] Chicken Cutlet":{"q":25.0,"a":400.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":176.0},"Lemon Tea":{"q":9.0,"a":100.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":6.0,"a":300.0},"[NCH-NSC] Nawabi Special Coffee":{"q":26.0,"a":600.0},"[NCH-CB] Cheese Balls":{"q":2.0,"a":100.0},"[NCH-PS] Pyaaz Samosa":{"q":12.0,"a":135.0}}},{"d":"2026-02-22","n":469,"g":35297.0,"items":{"[NCH-NSC] Nawabi Special Coffee":{"q":40.0,"a":900.0},"[NCH-IC] Irani Chai":{"q":1361.0,"a":5420.0},"[NCH-BM] Bun Maska":{"q":14.0,"a":400.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":117.0,"a":2040.0},"[NCH-OB] Osmania Biscuit":{"q":64.0,"a":360.0},"[NCH-BM] Malai Bun":{"q":4.0,"a":90.0},"[NCH-WTR] Water":{"q":65.0,"a":570.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":8.0,"a":350.0},"Lemon Tea":{"q":25.0,"a":340.0},"[NCH-CC] Chicken Cutlet":{"q":47.0,"a":725.0},"[NCH-CB] Cheese Balls":{"q":7.0,"a":250.0},"[NCH-PS] Pyaaz Samosa":{"q":18.0,"a":180.0}}},{"d":"2026-02-23","n":311,"g":25138.0,"items":{"[NCH-IC] Irani Chai":{"q":905.0,"a":2380.0},"[NCH-OB] Osmania Biscuit":{"q":46.0,"a":248.0},"[NCH-WTR] Water":{"q":37.0,"a":340.0},"[NCH-PS] Pyaaz Samosa":{"q":7.0,"a":90.0},"[NCH-BM] Bun Maska":{"q":42.0,"a":1360.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":78.0,"a":1200.0},"[NCH-BM] Malai Bun":{"q":22.0,"a":450.0},"[NCH-NSC] Nawabi Special Coffee":{"q":38.0,"a":690.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":375.0},"[NCH-FAJ] Chicken Fajita":{"q":6.0,"a":120.0},"[NCH-CB] Cheese Balls":{"q":4.0,"a":200.0},"Lemon Tea":{"q":10.0,"a":180.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":1.0,"a":50.0}}},{"d":"2026-02-24","n":281,"g":23132.0,"items":{"[NCH-IC] Irani Chai":{"q":840.0,"a":2360.0},"[NCH-BM] Bun Maska":{"q":46.0,"a":1680.0},"[NCH-PS] Pyaaz Samosa":{"q":9.0,"a":90.0},"[NCH-WTR] Water":{"q":46.0,"a":420.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":59.0,"a":1100.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":325.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":4.0,"a":200.0},"[NCH-OB] Osmania Biscuit":{"q":49.0,"a":272.0},"[NCH-BM] Malai Bun":{"q":19.0,"a":450.0},"[NCH-NSC] Nawabi Special Coffee":{"q":25.0,"a":330.0},"Lemon Tea":{"q":3.0,"a":60.0},"[NCH-CB] Cheese Balls":{"q":2.0,"a":100.0},"[NCH-FAJ] Chicken Fajita":{"q":4.0,"a":90.0}}},{"d":"2026-02-25","n":337,"g":37108.0,"items":{"[NCH-IC] Irani Chai":{"q":817.0,"a":2380.0},"Haleem Quarter (250g)":{"q":78.0,"a":5742.0},"Lemon Tea":{"q":4.0,"a":60.0},"[NCH-BM] Bun Maska":{"q":66.0,"a":1920.0},"[NCH-OB] Osmania Biscuit":{"q":32.0,"a":184.0},"[NCH-CC] Chicken Cutlet":{"q":23.0,"a":350.0},"[NCH-WTR] Water":{"q":49.0,"a":440.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":34.0,"a":580.0},"[NCH-PS] Pyaaz Samosa":{"q":14.0,"a":150.0},"[NCH-BM] Malai Bun":{"q":33.0,"a":600.0},"Haleem (Mutton) 300gm":{"q":20.0,"a":5000.0},"[NCH-NSC] Nawabi Special Coffee":{"q":28.0,"a":450.0},"Haleem Half (500g)":{"q":5.0,"a":796.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":2.0,"a":100.0}}},{"d":"2026-02-26","n":390,"g":41257.0,"items":{"[NCH-IC] Irani Chai":{"q":938.0,"a":3780.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":38.0,"a":680.0},"[NCH-NSC] Nawabi Special Coffee":{"q":17.0,"a":330.0},"[NCH-BM] Malai Bun":{"q":22.0,"a":450.0},"[NCH-WTR] Water":{"q":39.0,"a":360.0},"[NCH-BM] Bun Maska":{"q":37.0,"a":1280.0},"[NCH-OB] Osmania Biscuit":{"q":23.0,"a":120.0},"Haleem Quarter (250g)":{"q":110.0,"a":7154.0},"Haleem Half (500g)":{"q":12.0,"a":2396.0},"[NCH-CC] Chicken Cutlet":{"q":15.0,"a":275.0},"[NCH-PS] Pyaaz Samosa":{"q":14.0,"a":120.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":5.0,"a":250.0},"Lemon Tea":{"q":16.0,"a":260.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":2.0,"a":140.0},"Haleem (Mutton) 300gm":{"q":10.0,"a":1500.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":5.0,"a":1000.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0}}},{"d":"2026-02-27","n":462,"g":46541.0,"items":{"[NCH-IC] Irani Chai":{"q":1089.0,"a":3820.0},"Haleem Quarter (250g)":{"q":107.0,"a":9100.0},"Lemon Tea":{"q":19.0,"a":240.0},"[NCH-BM] Malai Bun":{"q":22.0,"a":420.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":57.0,"a":1100.0},"[NCH-WTR] Water":{"q":67.0,"a":610.0},"[NCH-BM] Bun Maska":{"q":61.0,"a":1800.0},"[NCH-NSC] Nawabi Special Coffee":{"q":25.0,"a":570.0},"[NCH-PS] Pyaaz Samosa":{"q":11.0,"a":135.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":1.0,"a":50.0},"[NCH-OB] Osmania Biscuit":{"q":44.0,"a":240.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":325.0},"Haleem Half (500g)":{"q":18.0,"a":3000.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":9.0,"a":1750.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":450.0},"[NCH-CB] Cheese Balls":{"q":1.0,"a":50.0},"Haleem Full (750g)":{"q":1.0,"a":319.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":2.0,"a":140.0}}},{"d":"2026-02-28","n":543,"g":49775.0,"items":{"[NCH-IC] Irani Chai":{"q":1288.0,"a":7300.0},"Haleem Quarter (250g)":{"q":112.0,"a":8300.0},"Haleem Half (500g)":{"q":17.0,"a":3000.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":89.0,"a":1280.0},"[NCH-BM] Malai Bun":{"q":18.0,"a":180.0},"[NCH-NSC] Nawabi Special Coffee":{"q":28.0,"a":570.0},"Lemon Tea":{"q":17.0,"a":300.0},"[NCH-WTR] Water":{"q":44.0,"a":400.0},"[NCH-BM] Bun Maska":{"q":55.0,"a":1400.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":144.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":5.0,"a":1000.0},"Haleem Full (750g)":{"q":2.0,"a":638.0},"[NCH-PS] Pyaaz Samosa":{"q":17.0,"a":120.0},"[NCH-CC] Chicken Cutlet":{"q":12.0,"a":75.0},"[NCH-CMR] Chicken Roll (with mayo)":{"q":1.0,"a":50.0},"[NCH-CB] Cheese Balls":{"q":1.0,"a":50.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"[HN-RM-221] Niloufer DCC 75g":{"q":2.0,"a":120.0}}},{"d":"2026-03-01","n":642,"g":57060.0,"items":{"[NCH-IC] Irani Chai":{"q":1384.0,"a":8580.0},"[NCH-OB] Osmania Biscuit":{"q":13.0,"a":96.0},"Lemon Tea":{"q":36.0,"a":380.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":65.0,"a":1060.0},"[NCH-BM] Bun Maska":{"q":78.0,"a":1880.0},"[NCH-WTR] Water":{"q":66.0,"a":540.0},"Haleem Quarter (250g)":{"q":177.0,"a":14900.0},"[NCH-NSC] Nawabi Special Coffee":{"q":31.0,"a":570.0},"[NCH-PS] Pyaaz Samosa":{"q":18.0,"a":135.0},"Haleem Full (750g)":{"q":4.0,"a":957.0},"[NCH-CB] Cheese Balls":{"q":5.0,"a":150.0},"[NCH-CC] Chicken Cutlet":{"q":10.0,"a":175.0},"Haleem Half (500g)":{"q":10.0,"a":2000.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0}}},{"d":"2026-03-02","n":433,"g":38962.0,"items":{"[NCH-IC] Irani Chai":{"q":998.0,"a":5640.0},"Haleem Quarter (250g)":{"q":117.0,"a":8000.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":48.0,"a":780.0},"[NCH-NSC] Nawabi Special Coffee":{"q":22.0,"a":510.0},"[NCH-WTR] Water":{"q":40.0,"a":330.0},"Lemon Tea":{"q":12.0,"a":180.0},"[NCH-BM] Bun Maska":{"q":28.0,"a":960.0},"Haleem Half (500g)":{"q":6.0,"a":1200.0},"[NCH-BM] Malai Bun":{"q":10.0,"a":150.0},"[NCH-PS] Pyaaz Samosa":{"q":4.0,"a":60.0},"[NCH-OB] Osmania Biscuit":{"q":10.0,"a":80.0},"[NCH-CC] Chicken Cutlet":{"q":17.0,"a":275.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"[NCH-CB] Cheese Balls":{"q":2.0,"a":50.0},"Haleem Full (750g)":{"q":3.0,"a":957.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0}}},{"d":"2026-03-03","n":392,"g":33122.0,"items":{"Haleem Quarter (250g)":{"q":63.0,"a":5200.0},"[NCH-IC] Irani Chai":{"q":887.0,"a":4840.0},"Lemon Tea":{"q":14.0,"a":220.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":1000.0},"[NCH-BM] Bun Maska":{"q":48.0,"a":1560.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":64.0,"a":920.0},"[NCH-WTR] Water":{"q":49.0,"a":380.0},"[NCH-NSC] Nawabi Special Coffee":{"q":31.0,"a":810.0},"[NCH-BM] Malai Bun":{"q":14.0,"a":240.0},"[NCH-OB] Osmania Biscuit":{"q":21.0,"a":136.0},"[NCH-CC] Chicken Cutlet":{"q":9.0,"a":150.0},"Haleem Half (500g)":{"q":8.0,"a":1400.0},"[NCH-CB] Cheese Balls":{"q":6.0,"a":200.0},"Haleem Full (750g)":{"q":1.0,"a":319.0}}},{"d":"2026-03-04","n":448,"g":39724.0,"items":{"Lemon Tea":{"q":26.0,"a":320.0},"[NCH-IC] Irani Chai":{"q":1069.0,"a":5640.0},"Haleem Quarter (250g)":{"q":84.0,"a":6200.0},"[NCH-BM] Bun Maska":{"q":51.0,"a":1440.0},"[NCH-OB] Osmania Biscuit":{"q":15.0,"a":88.0},"[NCH-WTR] Water":{"q":54.0,"a":450.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":40.0,"a":660.0},"[NCH-BM] Malai Bun":{"q":16.0,"a":300.0},"Haleem Full (750g)":{"q":1.0,"a":319.0},"[NCH-NSC] Nawabi Special Coffee":{"q":20.0,"a":600.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":6.0,"a":1500.0},"[NCH-PS] Pyaaz Samosa":{"q":2.0,"a":30.0},"Haleem Half (500g)":{"q":5.0,"a":1000.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":450.0},"[HN-RM-221] Niloufer DCC 75g":{"q":3.0,"a":360.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[NCH-CC] Chicken Cutlet":{"q":27.0,"a":325.0},"[NCH-CB] Cheese Balls":{"q":4.0,"a":100.0},"Niloufer Osmania Biscuit 100 grams":{"q":4.0,"a":240.0}}},{"d":"2026-03-05","n":517,"g":43858.0,"items":{"[NCH-BM] Bun Maska":{"q":31.0,"a":880.0},"[NCH-IC] Irani Chai":{"q":1135.0,"a":6120.0},"[NCH-WTR] Water":{"q":74.0,"a":640.0},"[NCH-NSC] Nawabi Special Coffee":{"q":26.0,"a":570.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":81.0,"a":1360.0},"Haleem Quarter (250g)":{"q":119.0,"a":8900.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":325.0},"Lemon Tea":{"q":11.0,"a":160.0},"[NCH-CB] Cheese Balls":{"q":5.0,"a":150.0},"[NCH-BM] Malai Bun":{"q":26.0,"a":570.0},"[NCH-OB] Osmania Biscuit":{"q":30.0,"a":200.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":7.0,"a":420.0},"Haleem Half (500g)":{"q":3.0,"a":600.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":750.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"Haleem Full (750g)":{"q":2.0,"a":319.0},"[NCH-PS] Pyaaz Samosa":{"q":1.0,"a":15.0}}},{"d":"2026-03-06","n":487,"g":36771.0,"items":{"[NCH-IC] Irani Chai":{"q":1070.0,"a":6620.0},"Haleem Quarter (250g)":{"q":83.0,"a":6500.0},"Lemon Tea":{"q":15.0,"a":180.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":4.0,"a":280.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":52.0,"a":920.0},"[NCH-BM] Bun Maska":{"q":42.0,"a":1360.0},"[NCH-WTR] Water":{"q":61.0,"a":530.0},"[NCH-NSC] Nawabi Special Coffee":{"q":33.0,"a":780.0},"[NCH-OB] Osmania Biscuit":{"q":32.0,"a":200.0},"Niloufer Osmania Biscuit 100 grams":{"q":6.0,"a":360.0},"[NCH-CC] Chicken Cutlet":{"q":23.0,"a":325.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0},"[NCH-CB] Cheese Balls":{"q":2.0,"a":100.0},"Haleem Half (500g)":{"q":1.0,"a":200.0},"[NCH-BM] Malai Bun":{"q":2.0,"a":30.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0}}},{"d":"2026-03-07","n":607,"g":47244.0,"items":{"[NCH-IC] Irani Chai":{"q":1197.0,"a":8680.0},"[NCH-BM] Bun Maska":{"q":69.0,"a":1920.0},"[NCH-WTR] Water":{"q":60.0,"a":550.0},"Haleem Quarter (250g)":{"q":145.0,"a":10200.0},"[NCH-CC] Chicken Cutlet":{"q":19.0,"a":325.0},"[NCH-NSC] Nawabi Special Coffee":{"q":39.0,"a":900.0},"Lemon Tea":{"q":18.0,"a":280.0},"Niloufer Osmania Biscuit 100 grams":{"q":5.0,"a":240.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":51.0,"a":900.0},"[NCH-BM] Malai Bun":{"q":14.0,"a":240.0},"[NCH-CB] Cheese Balls":{"q":4.0,"a":150.0},"[NCH-PS] Pyaaz Samosa":{"q":13.0,"a":90.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[NCH-OB] Osmania Biscuit":{"q":8.0,"a":56.0},"Haleem Half (500g)":{"q":4.0,"a":600.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0}}},{"d":"2026-03-08","n":678,"g":54966.0,"items":{"[NCH-IC] Irani Chai":{"q":1554.0,"a":9700.0},"[NCH-BM] Bun Maska":{"q":116.0,"a":3320.0},"[NCH-WTR] Water":{"q":94.0,"a":730.0},"Haleem Quarter (250g)":{"q":136.0,"a":8900.0},"[NCH-NSC] Nawabi Special Coffee":{"q":49.0,"a":870.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":58.0,"a":1080.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":2.0,"a":140.0},"Niloufer Osmania Biscuit 100 grams":{"q":5.0,"a":240.0},"[NCH-OB] Osmania Biscuit":{"q":21.0,"a":128.0},"Lemon Tea":{"q":7.0,"a":140.0},"[NCH-CC] Chicken Cutlet":{"q":6.0,"a":125.0},"[NCH-PS] Pyaaz Samosa":{"q":6.0,"a":45.0},"Haleem Full (750g)":{"q":2.0,"a":638.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"Haleem Half (500g)":{"q":1.0,"a":200.0}}},{"d":"2026-03-09","n":515,"g":43471.0,"items":{"[NCH-IC] Irani Chai":{"q":1224.0,"a":7300.0},"[NCH-WTR] Water":{"q":88.0,"a":720.0},"[NCH-BM] Malai Bun":{"q":15.0,"a":210.0},"Haleem Quarter (250g)":{"q":93.0,"a":7500.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":69.0,"a":1240.0},"[NCH-NSC] Nawabi Special Coffee":{"q":23.0,"a":480.0},"[NCH-BM] Bun Maska":{"q":40.0,"a":1360.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":750.0},"Haleem Half (500g)":{"q":7.0,"a":1000.0},"[NCH-CC] Chicken Cutlet":{"q":14.0,"a":225.0},"Lemon Tea":{"q":7.0,"a":120.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[NCH-OB] Osmania Biscuit":{"q":15.0,"a":96.0},"[NCH-PS] Pyaaz Samosa":{"q":1.0,"a":15.0},"Niloufer Osmania Biscuit 100 grams":{"q":2.0,"a":120.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"Haleem Full (750g)":{"q":4.0,"a":319.0}}},{"d":"2026-03-10","n":394,"g":42851.0,"items":{"Haleem Quarter (250g)":{"q":94.0,"a":6700.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":70.0,"a":1120.0},"[NCH-BM] Bun Maska":{"q":46.0,"a":1360.0},"[NCH-IC] Irani Chai":{"q":1191.0,"a":4780.0},"[NCH-WTR] Water":{"q":37.0,"a":290.0},"[NCH-BM] Malai Bun":{"q":8.0,"a":210.0},"[NCH-NSC] Nawabi Special Coffee":{"q":30.0,"a":450.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":120.0},"[NCH-CC] Chicken Cutlet":{"q":10.0,"a":150.0},"Haleem Half (500g)":{"q":17.0,"a":2000.0},"Lemon Tea":{"q":10.0,"a":100.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"Haleem Full (750g)":{"q":1.0,"a":319.0}}},{"d":"2026-03-11","n":427,"g":45059.0,"items":{"[NCH-WTR] Water":{"q":51.0,"a":470.0},"[NCH-IC] Irani Chai":{"q":1421.0,"a":4400.0},"[NCH-BM] Bun Maska":{"q":69.0,"a":2040.0},"[NCH-CC] Chicken Cutlet":{"q":16.0,"a":225.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":73.0,"a":1100.0},"Haleem Quarter (250g)":{"q":91.0,"a":7000.0},"[NCH-NSC] Nawabi Special Coffee":{"q":40.0,"a":780.0},"[NCH-OB] Osmania Biscuit":{"q":28.0,"a":168.0},"[NCH-PS] Pyaaz Samosa":{"q":3.0,"a":30.0},"Lemon Tea":{"q":20.0,"a":220.0},"[NCH-BM] Malai Bun":{"q":8.0,"a":210.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0}}},{"d":"2026-03-12","n":394,"g":44087.0,"items":{"[NCH-BM] Malai Bun":{"q":22.0,"a":480.0},"Haleem Quarter (250g)":{"q":117.0,"a":7800.0},"[NCH-BM] Bun Maska":{"q":71.0,"a":2040.0},"[NCH-WTR] Water":{"q":76.0,"a":610.0},"[NCH-IC] Irani Chai":{"q":1191.0,"a":2740.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":61.0,"a":1040.0},"Haleem Half (500g)":{"q":3.0,"a":600.0},"Lemon Tea":{"q":6.0,"a":80.0},"[NCH-NSC] Nawabi Special Coffee":{"q":36.0,"a":840.0},"[NCH-OB] Osmania Biscuit":{"q":14.0,"a":88.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":450.0},"[HN-RM-221] Niloufer DCC 75g":{"q":4.0,"a":360.0},"[NCH-CC] Chicken Cutlet":{"q":3.0,"a":50.0},"[NCH-PS] Pyaaz Samosa":{"q":2.0,"a":15.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":2.0,"a":140.0}}},{"d":"2026-03-13","n":483,"g":52524.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":110.0,"a":1980.0},"Haleem Quarter (250g)":{"q":152.0,"a":10200.0},"[NCH-IC] Irani Chai":{"q":1413.0,"a":2940.0},"[NCH-WTR] Water":{"q":107.0,"a":920.0},"[NCH-BM] Bun Maska":{"q":72.0,"a":1840.0},"[NCH-NSC] Nawabi Special Coffee":{"q":54.0,"a":540.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[NCH-OB] Osmania Biscuit":{"q":33.0,"a":224.0},"Lemon Tea":{"q":7.0,"a":60.0},"[NCH-CC] Chicken Cutlet":{"q":14.0,"a":200.0},"[NCH-BM] Malai Bun":{"q":14.0,"a":300.0}}},{"d":"2026-03-14","n":456,"g":53654.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":87.0,"a":1340.0},"Haleem Quarter (250g)":{"q":134.0,"a":10400.0},"[NCH-IC] Irani Chai":{"q":1481.0,"a":2800.0},"[NCH-WTR] Water":{"q":109.0,"a":800.0},"[NCH-BM] Bun Maska":{"q":92.0,"a":2520.0},"Haleem Half (500g)":{"q":5.0,"a":1000.0},"[NCH-OB] Osmania Biscuit":{"q":50.0,"a":192.0},"Lemon Tea":{"q":7.0,"a":120.0},"[NCH-NSC] Nawabi Special Coffee":{"q":46.0,"a":750.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[NCH-CC] Chicken Cutlet":{"q":11.0,"a":150.0},"Haleem Full (750g)":{"q":1.0,"a":319.0},"[NCH-BM] Malai Bun":{"q":7.0,"a":90.0}}},{"d":"2026-03-15","n":546,"g":65500.0,"items":{"[NCH-CC] Chicken Cutlet":{"q":33.0,"a":525.0},"Haleem Quarter (250g)":{"q":213.0,"a":7500.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":96.0,"a":1760.0},"[NCH-WTR] Water":{"q":108.0,"a":910.0},"[NCH-BM] Bun Maska":{"q":128.0,"a":3560.0},"[NCH-IC] Irani Chai":{"q":1538.0,"a":3940.0},"[NCH-OB] Osmania Biscuit":{"q":27.0,"a":168.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0},"[NCH-NSC] Nawabi Special Coffee":{"q":32.0,"a":780.0},"Haleem Half (500g)":{"q":9.0,"a":1600.0},"Niloufer Osmania Biscuit 100 grams":{"q":5.0,"a":120.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"Lemon Tea":{"q":3.0,"a":60.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"Haleem Full (750g)":{"q":1.0,"a":319.0}}},{"d":"2026-03-16","n":404,"g":47181.0,"items":{"[NCH-BM] Bun Maska":{"q":79.0,"a":2080.0},"[NCH-IC] Irani Chai":{"q":1307.0,"a":2340.0},"[NCH-BM] Malai Bun":{"q":2.0,"a":60.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":70.0,"a":1200.0},"[NCH-OB] Osmania Biscuit":{"q":21.0,"a":136.0},"[NCH-WTR] Water":{"q":58.0,"a":520.0},"Niloufer Osmania Biscuit 100 grams":{"q":9.0,"a":420.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":3.0,"a":750.0},"[HN-RM-221] Niloufer DCC 75g":{"q":2.0,"a":240.0},"Haleem Full (750g)":{"q":2.0,"a":638.0},"[NCH-NSC] Nawabi Special Coffee":{"q":56.0,"a":750.0},"Haleem Quarter (250g)":{"q":106.0,"a":9700.0},"Haleem Half (500g)":{"q":4.0,"a":600.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"Lemon Tea":{"q":4.0,"a":40.0},"[NCH-CC] Chicken Cutlet":{"q":5.0,"a":75.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0}}},{"d":"2026-03-17","n":548,"g":57379.0,"items":{"[NCH-NSC] Nawabi Special Coffee":{"q":40.0,"a":630.0},"[NCH-IC] Irani Chai":{"q":1701.0,"a":4480.0},"[NCH-BM] Bun Maska":{"q":192.0,"a":4920.0},"Haleem Quarter (250g)":{"q":68.0,"a":5700.0},"[NCH-WTR] Water":{"q":99.0,"a":840.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":91.0,"a":1440.0},"[NCH-BM] Malai Bun":{"q":42.0,"a":570.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":6.0,"a":1250.0},"[NCH-OB] Osmania Biscuit":{"q":32.0,"a":192.0},"[NCH-CC] Chicken Cutlet":{"q":5.0,"a":50.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"Haleem Half (500g)":{"q":1.0,"a":200.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":5.0,"a":70.0},"Haleem Full (750g)":{"q":2.0,"a":638.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"Niloufer Osmania Biscuit 100 grams":{"q":2.0,"a":120.0}}},{"d":"2026-03-18","n":368,"g":41748.0,"items":{"Haleem Quarter (250g)":{"q":91.0,"a":7100.0},"[NCH-WTR] Water":{"q":78.0,"a":680.0},"[NCH-OB] Osmania Biscuit":{"q":46.0,"a":256.0},"[NCH-BM] Bun Maska":{"q":77.0,"a":2320.0},"[NCH-IC] Irani Chai":{"q":1184.0,"a":1840.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":75.0,"a":1260.0},"Haleem Half (500g)":{"q":6.0,"a":1200.0},"Lemon Tea":{"q":4.0,"a":60.0},"[NCH-NSC] Nawabi Special Coffee":{"q":37.0,"a":570.0},"[NCH-BM] Malai Bun":{"q":12.0,"a":180.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"[NCH-CC] Chicken Cutlet":{"q":2.0,"a":25.0},"Niloufer Osmania Biscuit 100 grams":{"q":2.0,"a":60.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0}}},{"d":"2026-03-19","n":532,"g":57984.0,"items":{"Lemon Tea":{"q":18.0,"a":160.0},"[NCH-BM] Bun Maska":{"q":112.0,"a":3040.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":114.0,"a":1960.0},"[NCH-NSC] Nawabi Special Coffee":{"q":63.0,"a":840.0},"[NCH-WTR] Water":{"q":89.0,"a":820.0},"Haleem Quarter (250g)":{"q":127.0,"a":9800.0},"[NCH-IC] Irani Chai":{"q":1560.0,"a":3500.0},"[NCH-OB] Osmania Biscuit":{"q":48.0,"a":264.0},"Haleem Half (500g)":{"q":14.0,"a":1600.0},"[NCH-BM] Malai Bun":{"q":4.0,"a":120.0},"Niloufer Osmania Biscuit 100 grams":{"q":1.0,"a":60.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":3.0,"a":750.0}}},{"d":"2026-03-20","n":584,"g":51082.0,"items":{"[NCH-IC] Irani Chai":{"q":1408.0,"a":5960.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":116.0,"a":1880.0},"[NCH-WTR] Water":{"q":87.0,"a":800.0},"Haleem Quarter (250g)":{"q":120.0,"a":9600.0},"[NCH-BM] Bun Maska":{"q":82.0,"a":2440.0},"[NCH-OB] Osmania Biscuit":{"q":34.0,"a":192.0},"[NCH-NSC] Nawabi Special Coffee":{"q":40.0,"a":750.0},"Lemon Tea":{"q":13.0,"a":140.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"Haleem Half (500g)":{"q":8.0,"a":1200.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":3.0,"a":210.0},"Niloufer Osmania Biscuit 100 grams":{"q":4.0,"a":240.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0}}},{"d":"2026-03-21","n":589,"g":42460.0,"items":{"[NCH-IC] Irani Chai":{"q":1539.0,"a":7640.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":169.0,"a":2740.0},"[NCH-OB] Osmania Biscuit":{"q":50.0,"a":328.0},"[NCH-WTR] Water":{"q":115.0,"a":1060.0},"Lemon Tea":{"q":22.0,"a":280.0},"[NCH-NSC] Nawabi Special Coffee":{"q":42.0,"a":930.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":750.0},"Niloufer Osmania Biscuit 100 grams":{"q":5.0,"a":240.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"Haleem Quarter (250g)":{"q":24.0,"a":1800.0},"[NCH-BM] Bun Maska":{"q":29.0,"a":840.0}}},{"d":"2026-03-22","n":309,"g":26277.0,"items":{"[NCH-WTR] Water":{"q":50.0,"a":480.0},"[NCH-IC] Irani Chai":{"q":966.0,"a":2780.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":88.0,"a":1400.0},"[NCH-BM] Bun Maska":{"q":61.0,"a":1760.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0},"Niloufer Osmania Biscuit 100 grams":{"q":1.0,"a":60.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":144.0},"Lemon Tea":{"q":6.0,"a":80.0},"[NCH-NSC] Nawabi Special Coffee":{"q":36.0,"a":630.0},"[NCH-BM] Malai Bun":{"q":7.0,"a":150.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[NCH-CC] Chicken Cutlet":{"q":1.0,"a":25.0}}},{"d":"2026-03-23","n":37,"g":2690.0,"items":{"[NCH-IC] Irani Chai":{"q":111.0,"a":540.0},"[NCH-BM] Bun Maska":{"q":3.0,"a":120.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":9.0,"a":140.0},"[NCH-NSC] Nawabi Special Coffee":{"q":3.0,"a":90.0},"[NCH-WTR] Water":{"q":8.0,"a":70.0}}},{"d":"2026-03-24","n":236,"g":19824.0,"items":{"[NCH-IC] Irani Chai":{"q":645.0,"a":1800.0},"Lemon Tea":{"q":2.0,"a":40.0},"[NCH-BM] Bun Maska":{"q":48.0,"a":1600.0},"[NCH-CC] Chicken Cutlet":{"q":12.0,"a":175.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":65.0,"a":1160.0},"[NCH-WTR] Water":{"q":56.0,"a":470.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":4.0,"a":450.0},"[NCH-OB] Osmania Biscuit":{"q":23.0,"a":144.0},"[NCH-BM] Malai Bun":{"q":13.0,"a":270.0},"[NCH-NSC] Nawabi Special Coffee":{"q":21.0,"a":240.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":1000.0}}},{"d":"2026-03-25","n":274,"g":24272.0,"items":{"[NCH-BM] Bun Maska":{"q":44.0,"a":1600.0},"[NCH-WTR] Water":{"q":47.0,"a":430.0},"[NCH-IC] Irani Chai":{"q":776.0,"a":3120.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":63.0,"a":1040.0},"[NCH-CC] Chicken Cutlet":{"q":16.0,"a":225.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":8.0,"a":1250.0},"[NCH-BM] Malai Bun":{"q":17.0,"a":390.0},"[NCH-OB] Osmania Biscuit":{"q":24.0,"a":136.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":3.0,"a":210.0},"Lemon Tea":{"q":3.0,"a":40.0},"[HN-RM-221] Niloufer DCC 75g":{"q":4.0,"a":360.0},"Niloufer Osmania Biscuit 100 grams":{"q":1.0,"a":60.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":2.0,"a":300.0},"[NCH-NSC] Nawabi Special Coffee":{"q":35.0,"a":480.0}}},{"d":"2026-03-26","n":261,"g":22255.0,"items":{"[NCH-BM] Malai Bun":{"q":16.0,"a":390.0},"[NCH-BM] Bun Maska":{"q":66.0,"a":1920.0},"[NCH-IC] Irani Chai":{"q":721.0,"a":2220.0},"[NCH-OB] Osmania Biscuit":{"q":40.0,"a":192.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":67.0,"a":980.0},"[NCH-CC] Chicken Cutlet":{"q":3.0,"a":50.0},"[NCH-WTR] Water":{"q":44.0,"a":440.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":3.0,"a":750.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":4.0,"a":450.0},"Lemon Tea":{"q":2.0,"a":40.0},"[NCH-NSC] Nawabi Special Coffee":{"q":32.0,"a":540.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0}}},{"d":"2026-03-27","n":273,"g":25841.0,"items":{"[NCH-IC] Irani Chai":{"q":856.0,"a":2120.0},"[NCH-WTR] Water":{"q":74.0,"a":570.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":73.0,"a":1040.0},"[NCH-BM] Bun Maska":{"q":84.0,"a":2400.0},"[NCH-BM] Malai Bun":{"q":9.0,"a":240.0},"[NCH-OB] Osmania Biscuit":{"q":47.0,"a":272.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":1.0,"a":250.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":4.0,"a":300.0},"[NCH-CC] Chicken Cutlet":{"q":19.0,"a":225.0},"[NCH-NSC] Nawabi Special Coffee":{"q":27.0,"a":420.0},"Lemon Tea":{"q":6.0,"a":80.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":2.0,"a":140.0}}},{"d":"2026-03-28","n":296,"g":27744.0,"items":{"[NCH-IC] Irani Chai":{"q":856.0,"a":1960.0},"Lemon Tea":{"q":15.0,"a":120.0},"[NCH-BM] Bun Maska":{"q":107.0,"a":2720.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":93.0,"a":1440.0},"[NCH-WTR] Water":{"q":84.0,"a":740.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":4.0,"a":1000.0},"[NCH-OB] Osmania Biscuit":{"q":33.0,"a":184.0},"[NCH-PS] Pyaaz Samosa":{"q":15.0,"a":155.0},"[NCH-NSC] Nawabi Special Coffee":{"q":32.0,"a":330.0},"[NCH-BM] Malai Bun":{"q":10.0,"a":270.0},"[NCH-CC] Chicken Cutlet":{"q":10.0,"a":125.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0}}},{"d":"2026-03-29","n":346,"g":27903.0,"items":{"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":75.0,"a":1340.0},"[NCH-IC] Irani Chai":{"q":967.0,"a":2760.0},"[NCH-BM] Bun Maska":{"q":84.0,"a":2760.0},"[NCH-WTR] Water":{"q":65.0,"a":570.0},"[NCH-OB] Osmania Biscuit":{"q":46.0,"a":248.0},"[NCH-BM] Malai Bun":{"q":18.0,"a":480.0},"[NCH-PS] Pyaaz Samosa":{"q":8.0,"a":120.0},"[NCH-NSC] Nawabi Special Coffee":{"q":42.0,"a":630.0},"Lemon Tea":{"q":5.0,"a":100.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[NCH-CC] Chicken Cutlet":{"q":13.0,"a":200.0},"[HN-RM-222] Niloufer Fruit 100g":{"q":1.0,"a":70.0}}},{"d":"2026-03-30","n":275,"g":28644.0,"items":{"[NCH-IC] Irani Chai":{"q":1025.0,"a":1840.0},"[NCH-WTR] Water":{"q":55.0,"a":420.0},"[NCH-BM] Malai Bun":{"q":8.0,"a":150.0},"[NCH-BM] Bun Maska":{"q":84.0,"a":2600.0},"Lemon Tea":{"q":12.0,"a":140.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":60.0,"a":1080.0},"[NCH-OB] Osmania Biscuit":{"q":43.0,"a":248.0},"[NCH-PS] Pyaaz Samosa":{"q":10.0,"a":105.0},"[NCH-NSC] Nawabi Special Coffee":{"q":43.0,"a":660.0},"[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams":{"q":2.0,"a":500.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0}}},{"d":"2026-03-31","n":243,"g":20047.0,"items":{"[NCH-BM] Bun Maska":{"q":71.0,"a":2200.0},"[NCH-BM] Malai Bun":{"q":16.0,"a":270.0},"[NCH-PS] Pyaaz Samosa":{"q":13.0,"a":105.0},"[NCH-IC] Irani Chai":{"q":669.0,"a":1720.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":76.0,"a":1180.0},"[NCH-WTR] Water":{"q":37.0,"a":370.0},"[NCH-OB] Osmania Biscuit":{"q":29.0,"a":184.0},"[NCH-NSC] Nawabi Special Coffee":{"q":29.0,"a":450.0},"Lemon Tea":{"q":2.0,"a":40.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0}}},{"d":"2026-04-01","n":283,"g":23996.0,"items":{"[NCH-BM] Bun Maska":{"q":49.0,"a":1560.0},"[NCH-BM] Malai Bun":{"q":27.0,"a":660.0},"[NCH-OB] Osmania Biscuit":{"q":27.0,"a":144.0},"[NCH-IC] Irani Chai":{"q":880.0,"a":2720.0},"[NCH-WTR] Water":{"q":53.0,"a":470.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":63.0,"a":1120.0},"[NCH-CC] Chicken Cutlet":{"q":10.0,"a":125.0},"[NCH-NSC] Nawabi Special Coffee":{"q":34.0,"a":570.0},"[NCH-PS] Pyaaz Samosa":{"q":6.0,"a":60.0},"Lemon Tea":{"q":13.0,"a":120.0}}},{"d":"2026-04-02","n":239,"g":24714.0,"items":{"[NCH-IC] Irani Chai":{"q":898.0,"a":2440.0},"[NCH-BM] Bun Maska":{"q":62.0,"a":1760.0},"[NCH-WTR] Water":{"q":55.0,"a":410.0},"Lemon Tea":{"q":6.0,"a":60.0},"[NCH-KH] Khajor":{"q":12.0,"a":225.0},"[NCH-BM] Malai Bun":{"q":10.0,"a":270.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":46.0,"a":700.0},"[NCH-OB] Osmania Biscuit":{"q":38.0,"a":200.0},"[NCH-NSC] Nawabi Special Coffee":{"q":29.0,"a":330.0},"[NCH-PS] Pyaaz Samosa":{"q":14.0,"a":150.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":300.0},"[NCH-CC] Chicken Cutlet":{"q":10.0,"a":125.0}}},{"d":"2026-04-03","n":280,"g":26454.0,"items":{"[NCH-BM] Bun Maska":{"q":76.0,"a":2360.0},"[NCH-IC] Irani Chai":{"q":952.0,"a":2680.0},"[NCH-WTR] Water":{"q":63.0,"a":570.0},"[NCH-PS] Pyaaz Samosa":{"q":7.0,"a":90.0},"[NCH-BM] Malai Bun":{"q":29.0,"a":300.0},"[NCH-NSC] Nawabi Special Coffee":{"q":31.0,"a":540.0},"[NCH-KH] Khajor":{"q":33.0,"a":575.0},"Lemon Tea":{"q":2.0,"a":40.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":150.0},"[NCH-OB] Osmania Biscuit":{"q":8.0,"a":48.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":23.0,"a":340.0}}},{"d":"2026-04-04","n":293,"g":26700.0,"items":{"[NCH-IC] Irani Chai":{"q":935.0,"a":2800.0},"[NCH-KH] Khajor":{"q":58.0,"a":1100.0},"Lemon Tea":{"q":18.0,"a":200.0},"[NCH-BM] Malai Bun":{"q":17.0,"a":450.0},"[NCH-BM] Bun Maska":{"q":69.0,"a":2040.0},"[NCH-CC] Chicken Cutlet":{"q":17.0,"a":275.0},"[NCH-WTR] Water":{"q":50.0,"a":460.0},"[NCH-NSC] Nawabi Special Coffee":{"q":51.0,"a":690.0},"[NCH-PS] Pyaaz Samosa":{"q":13.0,"a":150.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[HN-RM-221] Niloufer DCC 75g":{"q":1.0,"a":120.0}}},{"d":"2026-04-05","n":293,"g":28255.0,"items":{"[NCH-IC] Irani Chai":{"q":994.0,"a":2920.0},"[NCH-BM] Bun Maska":{"q":112.0,"a":3200.0},"[NCH-WTR] Water":{"q":65.0,"a":530.0},"[NCH-KH] Khajor":{"q":31.0,"a":625.0},"[NCH-CC] Chicken Cutlet":{"q":31.0,"a":375.0},"[NCH-BM] Malai Bun":{"q":13.0,"a":270.0},"[NCH-NSC] Nawabi Special Coffee":{"q":35.0,"a":600.0},"[NCH-PS] Pyaaz Samosa":{"q":9.0,"a":75.0},"Lemon Tea":{"q":6.0,"a":80.0}}},{"d":"2026-04-06","n":198,"g":20245.0,"items":{"[NCH-IC] Irani Chai":{"q":692.0,"a":1660.0},"[NCH-BM] Malai Bun":{"q":12.0,"a":270.0},"Lemon Tea":{"q":10.0,"a":60.0},"[NCH-BM] Bun Maska":{"q":73.0,"a":2000.0},"[NCH-WTR] Water":{"q":46.0,"a":370.0},"[NCH-CC] Chicken Cutlet":{"q":29.0,"a":350.0},"[NCH-PS] Pyaaz Samosa":{"q":10.0,"a":105.0},"[NCH-KH] Khajor":{"q":22.0,"a":350.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":1.0,"a":150.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":1.0,"a":20.0},"[NCH-NSC] Nawabi Special Coffee":{"q":29.0,"a":390.0}}},{"d":"2026-04-07","n":230,"g":21920.0,"items":{"[NCH-BM] Bun Maska":{"q":49.0,"a":1360.0},"[NCH-IC] Irani Chai":{"q":810.0,"a":2200.0},"[NCH-NSC] Nawabi Special Coffee":{"q":38.0,"a":630.0},"[NCH-CC] Chicken Cutlet":{"q":17.0,"a":250.0},"[NCH-WTR] Water":{"q":42.0,"a":360.0},"[NCH-KH] Khajor":{"q":15.0,"a":325.0},"[NCH-PS] Pyaaz Samosa":{"q":18.0,"a":210.0},"[NCH-BM] Malai Bun":{"q":20.0,"a":480.0},"Lemon Tea":{"q":4.0,"a":80.0},"[HN-RM-223] Niloufer Fruit 200g":{"q":3.0,"a":300.0}}},{"d":"2026-04-08","n":294,"g":22515.0,"items":{"[NCH-IC] Irani Chai":{"q":748.0,"a":3340.0},"[NCH-CC] Chicken Cutlet":{"q":38.0,"a":525.0},"[NCH-BM] Bun Maska":{"q":104.0,"a":3240.0},"[NCH-NSC] Nawabi Special Coffee":{"q":41.0,"a":750.0},"[NCH-BM] Malai Bun":{"q":9.0,"a":90.0},"[NCH-WTR] Water":{"q":49.0,"a":420.0},"[NCH-PS] Pyaaz Samosa":{"q":8.0,"a":90.0},"Lemon Tea":{"q":13.0,"a":160.0},"[NCH-KH] Khajor":{"q":3.0,"a":75.0}}},{"d":"2026-04-09","n":249,"g":22300.0,"items":{"[NCH-BM] Bun Maska":{"q":84.0,"a":2640.0},"[NCH-NSC] Nawabi Special Coffee":{"q":36.0,"a":630.0},"[NCH-IC] Irani Chai":{"q":772.0,"a":2100.0},"[NCH-CC] Chicken Cutlet":{"q":38.0,"a":525.0},"[NCH-WTR] Water":{"q":53.0,"a":470.0},"[NCH-BM] Malai Bun":{"q":20.0,"a":420.0},"[NCH-PS] Pyaaz Samosa":{"q":13.0,"a":150.0},"Lemon Tea":{"q":6.0,"a":100.0},"[NCH-KH] Khajor":{"q":1.0,"a":25.0}}},{"d":"2026-04-10","n":236,"g":22095.0,"items":{"[NCH-WTR] Water":{"q":58.0,"a":550.0},"[NCH-IC] Irani Chai":{"q":779.0,"a":1920.0},"[NCH-BM] Bun Maska":{"q":85.0,"a":2880.0},"[NCH-CC] Chicken Cutlet":{"q":47.0,"a":650.0},"[NCH-NSC] Nawabi Special Coffee":{"q":30.0,"a":360.0},"[NCH-BM] Malai Bun":{"q":8.0,"a":210.0},"Lemon Tea":{"q":11.0,"a":100.0}}},{"d":"2026-04-11","n":308,"g":27080.0,"items":{"[NCH-BM] Bun Maska":{"q":134.0,"a":3680.0},"[NCH-IC] Irani Chai":{"q":916.0,"a":2880.0},"[NCH-WTR] Water":{"q":64.0,"a":600.0},"[NCH-BM] Malai Bun":{"q":29.0,"a":660.0},"[NCH-NSC] Nawabi Special Coffee":{"q":35.0,"a":630.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":250.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":1.0,"a":20.0},"[NCH-PS] Pyaaz Samosa":{"q":9.0,"a":105.0},"Lemon Tea":{"q":8.0,"a":80.0}}},{"d":"2026-04-12","n":391,"g":33216.0,"items":{"[NCH-WTR] Water":{"q":76.0,"a":640.0},"[NCH-IC] Irani Chai":{"q":1154.0,"a":3680.0},"[NCH-CC] Chicken Cutlet":{"q":41.0,"a":475.0},"[NCH-BM] Malai Bun":{"q":29.0,"a":540.0},"[NCH-BM] Bun Maska":{"q":95.0,"a":3120.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":92.0,"a":1520.0},"[NCH-NSC] Nawabi Special Coffee":{"q":46.0,"a":810.0},"[NCH-OB] Osmania Biscuit":{"q":32.0,"a":224.0},"[NCH-PS] Pyaaz Samosa":{"q":7.0,"a":75.0},"Lemon Tea":{"q":5.0,"a":80.0}}},{"d":"2026-04-13","n":302,"g":22457.0,"items":{"[NCH-CC] Chicken Cutlet":{"q":34.0,"a":625.0},"[NCH-IC] Irani Chai":{"q":771.0,"a":2960.0},"[NCH-BM] Bun Maska":{"q":65.0,"a":2000.0},"[NCH-NSC] Nawabi Special Coffee":{"q":37.0,"a":540.0},"[NCH-KH] Khajor":{"q":24.0,"a":475.0},"[NCH-WTR] Water":{"q":68.0,"a":590.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":25.0,"a":480.0},"[NCH-BM] Malai Bun":{"q":13.0,"a":300.0},"[NCH-OB] Osmania Biscuit":{"q":14.0,"a":88.0},"Lemon Tea":{"q":3.0,"a":40.0},"[NCH-PS] Pyaaz Samosa":{"q":9.0,"a":60.0}}},{"d":"2026-04-14","n":300,"g":23945.0,"items":{"[NCH-BM] Malai Bun":{"q":25.0,"a":570.0},"[NCH-IC] Irani Chai":{"q":777.0,"a":2600.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":48.0,"a":680.0},"[NCH-BM] Bun Maska":{"q":77.0,"a":2520.0},"[NCH-KH] Khajor":{"q":32.0,"a":500.0},"[NCH-WTR] Water":{"q":65.0,"a":560.0},"[NCH-PS] Pyaaz Samosa":{"q":6.0,"a":75.0},"[NCH-OB] Osmania Biscuit":{"q":20.0,"a":144.0},"Lemon Tea":{"q":8.0,"a":100.0},"[NCH-CC] Chicken Cutlet":{"q":21.0,"a":300.0},"[NCH-NSC] Nawabi Special Coffee":{"q":41.0,"a":600.0}}},{"d":"2026-04-15","n":279,"g":23912.0,"items":{"[NCH-CC] Chicken Cutlet":{"q":17.0,"a":250.0},"[NCH-WTR] Water":{"q":67.0,"a":610.0},"[NCH-BM] Bun Maska":{"q":85.0,"a":2520.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":39.0,"a":640.0},"[NCH-OB] Osmania Biscuit":{"q":9.0,"a":64.0},"[NCH-IC] Irani Chai":{"q":823.0,"a":2300.0},"[NCH-BM] Malai Bun":{"q":14.0,"a":390.0},"[NCH-NSC] Nawabi Special Coffee":{"q":43.0,"a":840.0},"[NCH-PS] Pyaaz Samosa":{"q":4.0,"a":45.0},"[NCH-KH] Khajor":{"q":11.0,"a":250.0},"Lemon Tea":{"q":3.0,"a":60.0}}},{"d":"2026-04-16","n":171,"g":8766.0,"items":{"[NCH-IC] Irani Chai":{"q":307.0,"a":2680.0},"[NCH-BM] Bun Maska":{"q":25.0,"a":720.0},"[NCH-OB3] Osmania Biscuit - Pack of 3":{"q":16.0,"a":260.0},"[NCH-NSC] Nawabi Special Coffee":{"q":14.0,"a":390.0},"[NCH-WTR] Water":{"q":28.0,"a":230.0},"[NCH-KH] Khajor":{"q":6.0,"a":50.0},"Lemon Tea":{"q":5.0,"a":60.0},"[NCH-PS] Pyaaz Samosa":{"q":1.0,"a":15.0},"[NCH-CC] Chicken Cutlet":{"q":3.0,"a":25.0},"[NCH-BM] Malai Bun":{"q":7.0,"a":120.0},"[NCH-OB] Osmania Biscuit":{"q":7.0,"a":40.0}}}],"he":[{"d":"2026-02-27","n":15,"g":6663.06,"items":{"[HE-1163] Chicken Kabab":{"q":2.0,"a":342.86},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"[HE-1220] Butter Naan":{"q":4.0,"a":85.72},"[HE-1223] Tandoor Roti":{"q":7.0,"a":95.24},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1205] Ghee Rice":{"q":2.0,"a":190.48},"[HE-1149] Butter Chicken":{"q":2.0,"a":600.0},"[HE-1218] Roomali Roti":{"q":3.0,"a":17.14},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"Krispy Lollipop with Mayo (6pcs)":{"q":1.0,"a":122.86},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1222] Garlic Naan":{"q":1.0,"a":47.62},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"Reshmi Kabab":{"q":1.0,"a":228.57},"Fried Chicken \u2014 2 Pcs":{"q":1.0,"a":142.86},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1136] Barbeque Chicken (Boona)":{"q":4.0,"a":838.08},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"Fried Chicken \u2014 1 Pc":{"q":1.0,"a":71.43},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1201] Chicken Biryani":{"q":2.0,"a":238.1},"[HE-1140] American Chops":{"q":1.0,"a":257.14}}},{"d":"2026-02-28","n":26,"g":8923.08,"items":{"[HE-1201] Chicken Biryani":{"q":4.0,"a":476.2},"Chicken Boneless Biryani":{"q":2.0,"a":266.67},"[HE-1205] Ghee Rice":{"q":4.0,"a":380.96},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":209.52},"[HE-1198] Mutton Brain":{"q":1.0,"a":152.38},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"Reshmi Kabab":{"q":2.0,"a":685.71},"[HE-1163] Chicken Kabab":{"q":2.0,"a":342.86},"[HE-1177] Mutton Rogan Josh":{"q":2.0,"a":561.9},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1222] Garlic Naan":{"q":3.0,"a":95.24},"[HE-1213] Ceylon Paratha":{"q":1.0,"a":33.33},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1136] Barbeque Chicken (Boona)":{"q":2.0,"a":419.04},"[HE-1210] Veg Roll":{"q":1.0,"a":76.19},"[HE-1211] Mutton Sheekh Roll":{"q":1.0,"a":152.38},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"Fried Chicken \u2014 1 Pc":{"q":1.0,"a":71.43},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1218] Roomali Roti":{"q":0.0,"a":0.0},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"[HE-1180] Kadai Mutton":{"q":1.0,"a":209.52},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[NCH-BM] Malai Bun":{"q":2.0,"a":60.0},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57}}},{"d":"2026-03-01","n":83,"g":50890.39,"items":{"[HE-1135] Tandoori Chicken":{"q":35.0,"a":5904.88},"[HE-1149] Butter Chicken":{"q":20.0,"a":3800.0},"[HE-1169] Chicken Pepper Dry":{"q":4.0,"a":952.4},"[HE-1140] American Chops":{"q":5.0,"a":1285.7},"[HE-1205] Ghee Rice":{"q":34.0,"a":1619.08},"[HE-1136] Barbeque Chicken (Boona)":{"q":8.0,"a":1466.64},"[HE-1146] Mughlai Chicken":{"q":11.0,"a":2409.55},"[HE-1154] Methi Chicken":{"q":7.0,"a":1400.0},"Fried Chicken \u2014 1 Pc":{"q":2.0,"a":142.86},"Water 1 Liter":{"q":23.0,"a":266.7},"Water 500ml":{"q":4.0,"a":28.56},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1147] Chicken Dopiyaza":{"q":7.0,"a":1533.35},"[HE-1156] Chicken Chatpata":{"q":2.0,"a":476.2},"[HE-1217] Chapathi":{"q":21.0,"a":114.3},"Irani Chicken":{"q":2.0,"a":657.15},"[HE-1213] Ceylon Paratha":{"q":36.0,"a":233.31},"[HE-1203] Biryani Rice":{"q":13.0,"a":1028.61},"[HE-1212] Kerala Paratha":{"q":40.0,"a":257.13},"[HE-1221] Kulcha":{"q":11.0,"a":95.24},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"[HE-1160] Hamza Special":{"q":7.0,"a":2095.2},"[HE-1220] Butter Naan":{"q":10.0,"a":171.44},"[HE-1163] Chicken Kabab":{"q":13.0,"a":2228.59},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"Reshmi Kabab":{"q":1.0,"a":228.57},"[HE-1201] Chicken Biryani":{"q":8.0,"a":1666.7},"[HE-1172] Lollipop":{"q":2.0,"a":380.96},"[HE-1155] Kadai Chicken":{"q":5.0,"a":838.08},"[HE-1166] Chicken 65":{"q":6.0,"a":1257.12},"[HE-1192] Mutton Brain Dry":{"q":7.0,"a":2285.7},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":400.0},"[HE-1216] Wheat Paratha":{"q":6.0,"a":171.44},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1208] Chicken Roll":{"q":4.0,"a":257.13},"[HE-1178] Methi Mutton":{"q":1.0,"a":200.0},"[HE-1223] Tandoor Roti":{"q":6.0,"a":190.48},"[HE-1225] Daal Fry":{"q":2.0,"a":209.52},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1184] Mutton Hyderabadi Gravy":{"q":1.0,"a":209.52},"[HE-1194] Mutton Gurda Dry":{"q":1.0,"a":200.0},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"Shawarma Roll":{"q":1.0,"a":76.19},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48}}},{"d":"2026-03-02","n":35,"g":20079.33,"items":{"[HE-1149] Butter Chicken":{"q":3.0,"a":1000.0},"[HE-1205] Ghee Rice":{"q":38.0,"a":1619.08},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1160] Hamza Special":{"q":6.0,"a":1257.12},"[HE-1212] Kerala Paratha":{"q":22.0,"a":171.42},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"Water 1 Liter":{"q":26.0,"a":361.95},"[HE-1192] Mutton Brain Dry":{"q":6.0,"a":1066.66},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1140] American Chops":{"q":1.0,"a":257.14},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1333.36},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1201] Chicken Biryani":{"q":4.0,"a":714.3},"[HE-1203] Biryani Rice":{"q":4.0,"a":457.16},"Pathiri Roti":{"q":2.0,"a":36.19},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1218] Roomali Roti":{"q":1.0,"a":17.14},"[HE-1216] Wheat Paratha":{"q":19.0,"a":171.44},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":838.1},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":380.96},"[HE-1161] Chicken Tikka Masala":{"q":1.0,"a":285.71},"[HE-1163] Chicken Kabab":{"q":6.0,"a":1028.58},"[HE-1213] Ceylon Paratha":{"q":7.0,"a":66.66},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1220] Butter Naan":{"q":7.0,"a":128.58},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1185] Mutton Masala":{"q":2.0,"a":561.9},"[HE-1151] Chicken Kali Mirch":{"q":2.0,"a":400.0},"[HE-1148] Chicken Hyderabadi Gravy":{"q":2.0,"a":400.0},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":380.95}}},{"d":"2026-03-03","n":15,"g":5992.1,"items":{"[HE-1203] Biryani Rice":{"q":2.0,"a":114.29},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":571.44},"Water 1 Liter":{"q":7.0,"a":114.3},"[HE-1205] Ghee Rice":{"q":8.0,"a":380.96},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1163] Chicken Kabab":{"q":3.0,"a":685.72},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"Reshmi Kabab":{"q":1.0,"a":228.57},"[HE-1198] Mutton Brain":{"q":1.0,"a":152.38},"[HE-1218] Roomali Roti":{"q":4.0,"a":17.14},"[HE-1223] Tandoor Roti":{"q":2.0,"a":47.62},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":400.0},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1154] Methi Chicken":{"q":2.0,"a":400.0},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1169] Chicken Pepper Dry":{"q":3.0,"a":190.48}}},{"d":"2026-03-04","n":33,"g":15900.19,"items":{"[HE-1212] Kerala Paratha":{"q":12.0,"a":85.71},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":761.9},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":800.0},"Water 1 Liter":{"q":19.0,"a":266.7},"[HE-1203] Biryani Rice":{"q":4.0,"a":457.16},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1201] Chicken Biryani":{"q":7.0,"a":1190.5},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1205] Ghee Rice":{"q":16.0,"a":666.68},"Veg Kofta":{"q":1.0,"a":209.52},"[HE-1220] Butter Naan":{"q":6.0,"a":128.58},"Shawarma Roll":{"q":3.0,"a":228.57},"[HE-1216] Wheat Paratha":{"q":2.0,"a":42.86},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"Water 500ml":{"q":2.0,"a":19.04},"[HE-1200] Mutton Biryani":{"q":6.0,"a":1295.24},"[HE-1138] Kalmi Kabab":{"q":2.0,"a":514.28},"[HE-1163] Chicken Kabab":{"q":5.0,"a":1200.01},"Irani Chicken":{"q":1.0,"a":219.05},"Cold drink - 250ml":{"q":5.0,"a":75.0},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":200.0},"[HE-1198] Mutton Brain":{"q":1.0,"a":609.52},"Garlic Kabab":{"q":1.0,"a":457.14},"[HE-1225] Daal Fry":{"q":2.0,"a":104.76},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1213] Ceylon Paratha":{"q":9.0,"a":33.33},"[HE-1155] Kadai Chicken":{"q":1.0,"a":400.0},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":419.05},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"Fried Chicken \u2014 2 Pcs":{"q":1.0,"a":142.86}}},{"d":"2026-03-05","n":29,"g":10088.05,"items":{"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"[HE-1163] Chicken Kabab":{"q":2.0,"a":342.86},"Water 500ml":{"q":4.0,"a":38.08},"Shawarma Roll":{"q":8.0,"a":457.14},"[HE-1212] Kerala Paratha":{"q":5.0,"a":85.71},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1205] Ghee Rice":{"q":15.0,"a":952.4},"[HE-1201] Chicken Biryani":{"q":4.0,"a":476.2},"Water 1 Liter":{"q":5.0,"a":76.2},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":761.9},"[HE-1218] Roomali Roti":{"q":6.0,"a":17.14},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"[HE-1220] Butter Naan":{"q":7.0,"a":85.72},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":380.96},"Veg Kofta":{"q":1.0,"a":209.52},"[HE-1213] Ceylon Paratha":{"q":3.0,"a":33.33},"[HE-1149] Butter Chicken":{"q":3.0,"a":400.0},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1198] Mutton Brain":{"q":1.0,"a":609.52},"Cold drink - 500ml":{"q":1.0,"a":50.0},"[HE-1200] Mutton Biryani":{"q":4.0,"a":971.43},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0}}},{"d":"2026-03-06","n":36,"g":15382.1,"items":{"[HE-1212] Kerala Paratha":{"q":4.0,"a":57.14},"[HE-1160] Hamza Special":{"q":3.0,"a":628.56},"[HE-1203] Biryani Rice":{"q":3.0,"a":342.87},"Water 500ml":{"q":4.0,"a":38.08},"Shawarma Roll":{"q":2.0,"a":152.38},"[HE-1198] Mutton Brain":{"q":2.0,"a":304.76},"[HE-1213] Ceylon Paratha":{"q":13.0,"a":133.32},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":1066.66},"[HE-1218] Roomali Roti":{"q":1.0,"a":17.14},"[HE-1135] Tandoori Chicken":{"q":8.0,"a":1523.84},"[HE-1178] Methi Mutton":{"q":1.0,"a":361.9},"Water 1 Liter":{"q":8.0,"a":114.3},"[HE-1146] Mughlai Chicken":{"q":7.0,"a":1733.35},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1140] American Chops":{"q":4.0,"a":1028.56},"[HE-1136] Barbeque Chicken (Boona)":{"q":2.0,"a":419.04},"[HE-1147] Chicken Dopiyaza":{"q":2.0,"a":438.1},"Fried Chicken \u2014 4 Pcs":{"q":1.0,"a":265.71},"[HE-1181] Mutton Chatpata":{"q":2.0,"a":219.05},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"Cold drink - 500ml":{"q":4.0,"a":100.0},"[HE-1205] Ghee Rice":{"q":10.0,"a":571.44},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":1200.0},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"Cold drink - 250ml":{"q":1.0,"a":25.0},"[HE-1154] Methi Chicken":{"q":3.0,"a":600.0},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1225] Daal Fry":{"q":2.0,"a":209.52},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1179] Mutton Achari":{"q":1.0,"a":219.05}}},{"d":"2026-03-07","n":42,"g":19355.22,"items":{"Chicken Boneless Biryani":{"q":3.0,"a":266.67},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"Water 1 Liter":{"q":20.0,"a":285.75},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":419.05},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1192] Mutton Brain Dry":{"q":5.0,"a":1371.42},"[HE-1205] Ghee Rice":{"q":16.0,"a":857.16},"[HE-1216] Wheat Paratha":{"q":2.0,"a":42.86},"[HE-1217] Chapathi":{"q":2.0,"a":19.05},"[HE-1198] Mutton Brain":{"q":1.0,"a":304.76},"[HE-1213] Ceylon Paratha":{"q":3.0,"a":66.66},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"Water 500ml":{"q":6.0,"a":47.6},"[HE-1212] Kerala Paratha":{"q":15.0,"a":85.71},"[HE-1203] Biryani Rice":{"q":3.0,"a":342.87},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":838.1},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1163] Chicken Kabab":{"q":5.0,"a":952.39},"[HE-1142] Malai Tikka":{"q":2.0,"a":714.3},"[HE-1191] Mutton Pepper Dry":{"q":6.0,"a":2600.0},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":209.52},"[HE-1135] Tandoori Chicken":{"q":3.0,"a":571.44},"[HE-1220] Butter Naan":{"q":8.0,"a":85.72},"[HE-1178] Methi Mutton":{"q":1.0,"a":200.0},"[HE-1200] Mutton Biryani":{"q":3.0,"a":647.62},"Shawarma Roll":{"q":13.0,"a":457.14},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1223] Tandoor Roti":{"q":1.0,"a":47.62},"Cold drink - 250ml":{"q":14.0,"a":75.0},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1151] Chicken Kali Mirch":{"q":2.0,"a":580.95},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"[HE-1222] Garlic Naan":{"q":1.0,"a":47.62},"[HE-1160] Hamza Special":{"q":2.0,"a":838.08}}},{"d":"2026-03-08","n":78,"g":33495.23,"items":{"Shawarma Roll":{"q":13.0,"a":685.71},"Water 1 Liter":{"q":42.0,"a":590.55},"[HE-1190] Mutton Hamza Special":{"q":6.0,"a":2171.42},"[HE-1217] Chapathi":{"q":1.0,"a":19.05},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1160] Hamza Special":{"q":7.0,"a":2095.2},"[HE-1216] Wheat Paratha":{"q":12.0,"a":214.3},"[HE-1220] Butter Naan":{"q":22.0,"a":257.16},"[HE-1218] Roomali Roti":{"q":10.0,"a":85.7},"[HE-1205] Ghee Rice":{"q":34.0,"a":1714.32},"Water 500ml":{"q":6.0,"a":57.12},"[HE-1201] Chicken Biryani":{"q":5.0,"a":952.4},"Reshmi Kabab":{"q":1.0,"a":228.57},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1246] Shezwan Noodles":{"q":1.0,"a":190.48},"[HE-1192] Mutton Brain Dry":{"q":9.0,"a":2742.84},"Cold drink - 500ml":{"q":13.0,"a":550.0},"[HE-1163] Chicken Kabab":{"q":18.0,"a":2971.42},"[HE-1200] Mutton Biryani":{"q":4.0,"a":1295.24},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1203] Biryani Rice":{"q":6.0,"a":457.16},"Cold drink - 250ml":{"q":1.0,"a":25.0},"[HE-1208] Chicken Roll":{"q":12.0,"a":514.26},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1142.88},"[HE-1136] Barbeque Chicken (Boona)":{"q":1.0,"a":209.52},"[HE-1146] Mughlai Chicken":{"q":4.0,"a":876.2},"[HE-1212] Kerala Paratha":{"q":14.0,"a":171.42},"[HE-1147] Chicken Dopiyaza":{"q":2.0,"a":438.1},"[HE-1140] American Chops":{"q":2.0,"a":514.28},"Fried Chicken \u2014 1 Pc":{"q":2.0,"a":142.86},"[HE-1152] Chicken Burtha":{"q":1.0,"a":238.1},"[HE-1213] Ceylon Paratha":{"q":22.0,"a":233.31},"[HE-1235] Chicken Fried Rice":{"q":2.0,"a":361.9},"[HE-1149] Butter Chicken":{"q":5.0,"a":1400.0},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":571.44},"[HE-1223] Tandoor Roti":{"q":5.0,"a":47.62},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1222] Garlic Naan":{"q":1.0,"a":47.62},"[HE-1221] Kulcha":{"q":1.0,"a":47.62},"[HE-1207] Plain Rice":{"q":2.0,"a":47.62},"Soft Drink":{"q":1.0,"a":38.1},"[HE-1233] Daal Tadka":{"q":2.0,"a":228.58},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1138] Kalmi Kabab":{"q":2.0,"a":514.28},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0}}},{"d":"2026-03-09","n":37,"g":9869.11,"items":{"Water 500ml":{"q":11.0,"a":95.2},"Water 1 Liter":{"q":15.0,"a":247.65},"Shawarma Roll":{"q":11.0,"a":457.14},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1201] Chicken Biryani":{"q":5.0,"a":952.4},"Cold drink - 250ml":{"q":7.0,"a":125.0},"[HE-1200] Mutton Biryani":{"q":3.0,"a":971.43},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1333.36},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"[HE-1220] Butter Naan":{"q":3.0,"a":42.86},"[HE-1222] Garlic Naan":{"q":1.0,"a":47.62},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1205] Ghee Rice":{"q":4.0,"a":380.96},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"Cold drink - 500ml":{"q":5.0,"a":200.0},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1203] Biryani Rice":{"q":4.0,"a":342.87},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1163] Chicken Kabab":{"q":3.0,"a":514.26},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1218] Roomali Roti":{"q":3.0,"a":17.14},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1212] Kerala Paratha":{"q":2.0,"a":28.57},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1213] Ceylon Paratha":{"q":3.0,"a":33.33}}},{"d":"2026-03-10","n":40,"g":13998.05,"items":{"[HE-1205] Ghee Rice":{"q":11.0,"a":666.68},"[HE-1163] Chicken Kabab":{"q":3.0,"a":438.08},"Water 1 Liter":{"q":18.0,"a":285.75},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"Water 500ml":{"q":7.0,"a":66.64},"[HE-1190] Mutton Hamza Special":{"q":4.0,"a":1295.24},"Irani Chicken":{"q":4.0,"a":876.2},"[HE-1213] Ceylon Paratha":{"q":10.0,"a":166.65},"[HE-1203] Biryani Rice":{"q":5.0,"a":571.45},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1220] Butter Naan":{"q":8.0,"a":171.44},"[HE-1201] Chicken Biryani":{"q":3.0,"a":714.3},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1142] Malai Tikka":{"q":2.0,"a":476.2},"[HE-1212] Kerala Paratha":{"q":8.0,"a":85.71},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1218] Roomali Roti":{"q":21.0,"a":85.7},"[HE-1217] Chapathi":{"q":5.0,"a":19.05},"[HE-1149] Butter Chicken":{"q":1.0,"a":400.0},"[HE-1160] Hamza Special":{"q":3.0,"a":628.56},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"Shawarma Roll":{"q":20.0,"a":914.28},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1169] Chicken Pepper Dry":{"q":3.0,"a":571.44},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"Cold drink - 500ml":{"q":6.0,"a":300.0},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"Veg Kofta":{"q":1.0,"a":209.52},"[HE-1245] Shezwan Fried Rice":{"q":1.0,"a":190.48},"[HE-1246] Shezwan Noodles":{"q":1.0,"a":190.48}}},{"d":"2026-03-11","n":46,"g":25094.03,"items":{"[HE-1192] Mutton Brain Dry":{"q":8.0,"a":1523.8},"[HE-1200] Mutton Biryani":{"q":9.0,"a":1942.86},"[HE-1205] Ghee Rice":{"q":39.0,"a":1809.56},"Water 500ml":{"q":26.0,"a":104.72},"[HE-1212] Kerala Paratha":{"q":21.0,"a":142.85},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1333.36},"[HE-1203] Biryani Rice":{"q":6.0,"a":571.45},"Water 1 Liter":{"q":12.0,"a":228.6},"[HE-1191] Mutton Pepper Dry":{"q":5.0,"a":1800.0},"[HE-1145] Pathak Kabab":{"q":1.0,"a":219.05},"[HE-1213] Ceylon Paratha":{"q":23.0,"a":233.31},"[HE-1179] Mutton Achari":{"q":1.0,"a":219.05},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":380.95},"Cold drink - 250ml":{"q":3.0,"a":50.0},"[HE-1201] Chicken Biryani":{"q":5.0,"a":952.4},"[HE-1247] Veg Fried Rice":{"q":1.0,"a":142.86},"[HE-1246] Shezwan Noodles":{"q":1.0,"a":190.48},"Paneer Roll":{"q":1.0,"a":85.71},"[HE-1163] Chicken Kabab":{"q":6.0,"a":876.16},"[HE-1166] Chicken 65":{"q":6.0,"a":1047.6},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"Cold drink - 500ml":{"q":4.0,"a":200.0},"[HE-1218] Roomali Roti":{"q":13.0,"a":68.56},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"Irani Chicken":{"q":1.0,"a":438.1},"[HE-1160] Hamza Special":{"q":5.0,"a":1466.64},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":457.14},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"Reshmi Kabab":{"q":1.0,"a":228.57},"[HE-1220] Butter Naan":{"q":2.0,"a":42.86},"[HE-1158] Tandoori Chicken Masala":{"q":2.0,"a":533.34}}},{"d":"2026-03-12","n":38,"g":11090.12,"items":{"[HE-1201] Chicken Biryani":{"q":3.0,"a":714.3},"Water 1 Liter":{"q":13.0,"a":228.6},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1205] Ghee Rice":{"q":16.0,"a":1142.88},"[HE-1135] Tandoori Chicken":{"q":4.0,"a":761.92},"Cold drink - 250ml":{"q":4.0,"a":75.0},"[HE-1163] Chicken Kabab":{"q":9.0,"a":1809.48},"Cold drink - 500ml":{"q":4.0,"a":200.0},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"Water 500ml":{"q":15.0,"a":66.64},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1203] Biryani Rice":{"q":4.0,"a":457.16},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1212] Kerala Paratha":{"q":3.0,"a":28.57},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1213] Ceylon Paratha":{"q":5.0,"a":66.66},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":304.76},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"[HE-1223] Tandoor Roti":{"q":1.0,"a":47.62},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":380.95},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"Irani Chicken":{"q":1.0,"a":219.05}}},{"d":"2026-03-13","n":80,"g":36032.3,"items":{"[HE-1205] Ghee Rice":{"q":46.0,"a":2190.52},"[HE-1192] Mutton Brain Dry":{"q":5.0,"a":1371.42},"Jeera rice":{"q":1.0,"a":95.24},"Water 1 Liter":{"q":43.0,"a":609.6},"[HE-1199] Mutton Chops":{"q":5.0,"a":2752.39},"[HE-1200] Mutton Biryani":{"q":10.0,"a":1295.24},"Cold drink - 500ml":{"q":4.0,"a":200.0},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"[HE-1218] Roomali Roti":{"q":19.0,"a":102.84},"[HE-1190] Mutton Hamza Special":{"q":3.0,"a":1295.23},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1149] Butter Chicken":{"q":5.0,"a":1000.0},"[HE-1213] Ceylon Paratha":{"q":22.0,"a":199.98},"[HE-1208] Chicken Roll":{"q":3.0,"a":85.71},"[HE-1201] Chicken Biryani":{"q":11.0,"a":1190.5},"Cold drink - 250ml":{"q":37.0,"a":450.0},"[HE-1146] Mughlai Chicken":{"q":2.0,"a":438.1},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1142.88},"[HE-1163] Chicken Kabab":{"q":21.0,"a":3714.18},"[HE-1203] Biryani Rice":{"q":5.0,"a":457.16},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1138] Kalmi Kabab":{"q":2.0,"a":514.28},"[HE-1235] Chicken Fried Rice":{"q":4.0,"a":361.9},"Water 500ml":{"q":11.0,"a":66.64},"[HE-1212] Kerala Paratha":{"q":33.0,"a":228.56},"[HE-1216] Wheat Paratha":{"q":3.0,"a":85.72},"[HE-1223] Tandoor Roti":{"q":1.0,"a":47.62},"[HE-1148] Chicken Hyderabadi Gravy":{"q":3.0,"a":819.05},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":200.0},"[HE-1141] Haryali Tikka":{"q":1.0,"a":457.14},"[HE-1222] Garlic Naan":{"q":4.0,"a":47.62},"[HE-1160] Hamza Special":{"q":4.0,"a":1047.6},"[HE-1154] Methi Chicken":{"q":1.0,"a":400.0},"[HE-1169] Chicken Pepper Dry":{"q":3.0,"a":571.44},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1179] Mutton Achari":{"q":1.0,"a":409.53},"[HE-1204] Egg Biryani":{"q":1.0,"a":152.38},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1229] Paneer Mutter Masala":{"q":1.0,"a":190.48},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76}}},{"d":"2026-03-14","n":84,"g":25747.24,"items":{"Chicken Boneless Biryani":{"q":2.0,"a":533.34},"[HE-1172] Lollipop":{"q":2.0,"a":380.96},"[HE-1205] Ghee Rice":{"q":37.0,"a":1809.56},"Water 500ml":{"q":29.0,"a":218.96},"[HE-1246] Shezwan Noodles":{"q":1.0,"a":190.48},"Cold drink - 250ml":{"q":28.0,"a":425.0},"Water 1 Liter":{"q":38.0,"a":552.45},"[HE-1201] Chicken Biryani":{"q":7.0,"a":952.4},"[HE-1203] Biryani Rice":{"q":4.0,"a":457.16},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":761.9},"Cold drink - 500ml":{"q":5.0,"a":200.0},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1230] Aloo Gobi":{"q":1.0,"a":171.43},"[HE-1217] Chapathi":{"q":2.0,"a":19.05},"Irani Chicken":{"q":3.0,"a":876.2},"[HE-1190] Mutton Hamza Special":{"q":3.0,"a":1066.67},"[HE-1218] Roomali Roti":{"q":24.0,"a":34.28},"[HE-1135] Tandoori Chicken":{"q":10.0,"a":2285.76},"[HE-1166] Chicken 65":{"q":2.0,"a":419.04},"[HE-1160] Hamza Special":{"q":8.0,"a":2095.2},"[HE-1220] Butter Naan":{"q":9.0,"a":85.72},"[HE-1227] Kadai Paneer":{"q":1.0,"a":171.43},"[HE-1200] Mutton Biryani":{"q":3.0,"a":647.62},"[HE-1199] Mutton Chops":{"q":1.0,"a":361.91},"[HE-1136] Barbeque Chicken (Boona)":{"q":1.0,"a":209.52},"[HE-1163] Chicken Kabab":{"q":12.0,"a":2076.16},"[HE-1212] Kerala Paratha":{"q":9.0,"a":57.14},"[HE-1213] Ceylon Paratha":{"q":16.0,"a":199.98},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1221] Kulcha":{"q":3.0,"a":47.62},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1207] Plain Rice":{"q":2.0,"a":47.62},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1}}},{"d":"2026-03-15","n":81,"g":45999.55,"items":{"[HE-1163] Chicken Kabab":{"q":10.0,"a":2228.54},"[HE-1213] Ceylon Paratha":{"q":18.0,"a":166.65},"[HE-1183] Mutton Sagwala":{"q":1.0,"a":219.05},"Water 500ml":{"q":20.0,"a":133.28},"[HE-1205] Ghee Rice":{"q":41.0,"a":2190.52},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"Irani Chicken":{"q":7.0,"a":1971.45},"[HE-1203] Biryani Rice":{"q":7.0,"a":571.45},"Water 1 Liter":{"q":63.0,"a":857.25},"Cold drink - 250ml":{"q":32.0,"a":400.0},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1714.32},"[HE-1201] Chicken Biryani":{"q":6.0,"a":1190.5},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1148] Chicken Hyderabadi Gravy":{"q":4.0,"a":1019.05},"[HE-1220] Butter Naan":{"q":61.0,"a":685.76},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1200] Mutton Biryani":{"q":7.0,"a":1295.24},"[HE-1191] Mutton Pepper Dry":{"q":3.0,"a":1400.0},"[HE-1158] Tandoori Chicken Masala":{"q":2.0,"a":533.34},"Cold drink - 500ml":{"q":21.0,"a":800.0},"[HE-1166] Chicken 65":{"q":2.0,"a":628.56},"[HE-1155] Kadai Chicken":{"q":1.0,"a":400.0},"[HE-1221] Kulcha":{"q":12.0,"a":190.48},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"[HE-1146] Mughlai Chicken":{"q":2.0,"a":419.05},"[HE-1160] Hamza Special":{"q":5.0,"a":1466.64},"[HE-1197] Mutton Khima":{"q":2.0,"a":580.96},"[HE-1223] Tandoor Roti":{"q":7.0,"a":142.86},"[HE-1177] Mutton Rogan Josh":{"q":4.0,"a":1285.7},"[HE-1164] Chilli Chicken":{"q":3.0,"a":571.44},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1167] Singapore Chicken":{"q":4.0,"a":1047.6},"Jeera rice":{"q":1.0,"a":95.24},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1151] Chicken Kali Mirch":{"q":3.0,"a":580.95},"[HE-1192] Mutton Brain Dry":{"q":6.0,"a":2285.7},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1149] Butter Chicken":{"q":4.0,"a":1200.0},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1208] Chicken Roll":{"q":5.0,"a":171.42},"[HE-1187] Mutton Pepper (Roast)":{"q":4.0,"a":799.99},"[HE-1198] Mutton Brain":{"q":1.0,"a":152.38},"[HE-1188] Mutton Kassa":{"q":1.0,"a":409.53},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1199] Mutton Chops":{"q":3.0,"a":1447.62},"[HE-1228] Palak Paneer":{"q":1.0,"a":190.48},"Cold drink - 1Litre":{"q":1.0,"a":100.0},"[HE-1245] Shezwan Fried Rice":{"q":1.0,"a":190.48},"[HE-1218] Roomali Roti":{"q":18.0,"a":51.42},"[HE-1145] Pathak Kabab":{"q":1.0,"a":219.05},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62}}},{"d":"2026-03-16","n":55,"g":27384.13,"items":{"[HE-1178] Methi Mutton":{"q":1.0,"a":361.9},"[HE-1201] Chicken Biryani":{"q":3.0,"a":714.3},"[HE-1213] Ceylon Paratha":{"q":28.0,"a":233.31},"[HE-1192] Mutton Brain Dry":{"q":5.0,"a":1676.18},"[HE-1205] Ghee Rice":{"q":43.0,"a":1619.08},"[HE-1163] Chicken Kabab":{"q":10.0,"a":1885.64},"Water 500ml":{"q":12.0,"a":95.2},"Water 1 Liter":{"q":34.0,"a":247.65},"Cold drink - 250ml":{"q":28.0,"a":325.0},"[HE-1149] Butter Chicken":{"q":5.0,"a":1200.0},"[HE-1218] Roomali Roti":{"q":13.0,"a":51.42},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1523.84},"[HE-1208] Chicken Roll":{"q":4.0,"a":342.84},"[HE-1203] Biryani Rice":{"q":4.0,"a":228.58},"[HE-1179] Mutton Achari":{"q":3.0,"a":1019.05},"[HE-1225] Daal Fry":{"q":2.0,"a":209.52},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1212] Kerala Paratha":{"q":18.0,"a":171.42},"[HE-1155] Kadai Chicken":{"q":1.0,"a":400.0},"[HE-1220] Butter Naan":{"q":6.0,"a":85.72},"[HE-1190] Mutton Hamza Special":{"q":3.0,"a":1066.67},"Cold drink - 500ml":{"q":4.0,"a":200.0},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1223] Tandoor Roti":{"q":12.0,"a":95.24},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1177] Mutton Rogan Josh":{"q":3.0,"a":723.8},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":419.05},"Shezwan Chicken":{"q":1.0,"a":219.05},"[HE-1160] Hamza Special":{"q":5.0,"a":1257.12},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1168] Lemon Chicken":{"q":1.0,"a":438.1},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":533.34}}},{"d":"2026-03-17","n":62,"g":35782.27,"items":{"Water 500ml":{"q":13.0,"a":114.24},"[HE-1200] Mutton Biryani":{"q":5.0,"a":1295.24},"[HE-1218] Roomali Roti":{"q":19.0,"a":102.84},"[HE-1187] Mutton Pepper (Roast)":{"q":2.0,"a":971.42},"[HE-1207] Plain Rice":{"q":2.0,"a":47.62},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1135] Tandoori Chicken":{"q":11.0,"a":2476.24},"[HE-1201] Chicken Biryani":{"q":5.0,"a":1190.5},"Water 1 Liter":{"q":38.0,"a":590.55},"[HE-1238] Mutton Noodles":{"q":1.0,"a":219.05},"[HE-1205] Ghee Rice":{"q":49.0,"a":2285.76},"[HE-1235] Chicken Fried Rice":{"q":3.0,"a":361.9},"Cold drink - 500ml":{"q":2.0,"a":100.0},"[HE-1213] Ceylon Paratha":{"q":40.0,"a":399.96},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1163] Chicken Kabab":{"q":12.0,"a":1980.9},"[HE-1247] Veg Fried Rice":{"q":1.0,"a":142.86},"[HE-1204] Egg Biryani":{"q":1.0,"a":152.38},"[HE-1203] Biryani Rice":{"q":7.0,"a":685.74},"[HE-1160] Hamza Special":{"q":8.0,"a":1676.16},"Paneer Roll":{"q":1.0,"a":85.71},"[HE-1221] Kulcha":{"q":5.0,"a":95.24},"[HE-1158] Tandoori Chicken Masala":{"q":3.0,"a":1066.68},"Cold drink - 250ml":{"q":36.0,"a":425.0},"[HE-1192] Mutton Brain Dry":{"q":4.0,"a":1066.66},"[HE-1164] Chilli Chicken":{"q":3.0,"a":952.4},"[HE-1220] Butter Naan":{"q":6.0,"a":128.58},"[HE-1149] Butter Chicken":{"q":6.0,"a":1200.0},"[HE-1198] Mutton Brain":{"q":1.0,"a":609.52},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1212] Kerala Paratha":{"q":32.0,"a":228.56},"[HE-1142] Malai Tikka":{"q":2.0,"a":476.2},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1229] Paneer Mutter Masala":{"q":1.0,"a":190.48},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":200.0},"Irani Chicken":{"q":4.0,"a":876.2},"[HE-1167] Singapore Chicken":{"q":2.0,"a":419.04},"[HE-1141] Haryali Tikka":{"q":1.0,"a":457.14},"[HE-1199] Mutton Chops":{"q":2.0,"a":723.82},"[HE-1216] Wheat Paratha":{"q":2.0,"a":42.86},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":723.81},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1190] Mutton Hamza Special":{"q":3.0,"a":876.19},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0}}},{"d":"2026-03-18","n":52,"g":23829.08,"items":{"[HE-1205] Ghee Rice":{"q":40.0,"a":2095.28},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":380.95},"Water 1 Liter":{"q":29.0,"a":438.15},"[HE-1172] Lollipop":{"q":2.0,"a":380.96},"[HE-1203] Biryani Rice":{"q":2.0,"a":228.58},"[HE-1148] Chicken Hyderabadi Gravy":{"q":2.0,"a":400.0},"[HE-1138] Kalmi Kabab":{"q":3.0,"a":514.28},"Cold drink - 250ml":{"q":25.0,"a":350.0},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1523.84},"[HE-1141] Haryali Tikka":{"q":2.0,"a":685.71},"[HE-1163] Chicken Kabab":{"q":8.0,"a":1295.18},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1208] Chicken Roll":{"q":2.0,"a":171.42},"[HE-1169] Chicken Pepper Dry":{"q":3.0,"a":571.44},"[HE-1158] Tandoori Chicken Masala":{"q":4.0,"a":1066.68},"[HE-1212] Kerala Paratha":{"q":10.0,"a":85.71},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1243] Mix Fried Rice":{"q":1.0,"a":228.57},"[HE-1179] Mutton Achari":{"q":1.0,"a":409.53},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"Water 500ml":{"q":6.0,"a":47.6},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":914.28},"[HE-1213] Ceylon Paratha":{"q":17.0,"a":199.98},"[HE-1222] Garlic Naan":{"q":7.0,"a":142.86},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1228] Palak Paneer":{"q":1.0,"a":190.48},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"[HE-1220] Butter Naan":{"q":6.0,"a":85.72},"[HE-1146] Mughlai Chicken":{"q":2.0,"a":438.1},"Irani Chicken":{"q":2.0,"a":438.1},"Malai Kofta":{"q":1.0,"a":228.57},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1223] Tandoor Roti":{"q":4.0,"a":95.24},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1245] Shezwan Fried Rice":{"q":1.0,"a":190.48},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"Cold drink - 500ml":{"q":1.0,"a":50.0},"[HE-1218] Roomali Roti":{"q":13.0,"a":34.28},"[HE-1160] Hamza Special":{"q":2.0,"a":628.56},"[HE-1184] Mutton Hyderabadi Gravy":{"q":2.0,"a":209.52},"[HE-1221] Kulcha":{"q":3.0,"a":47.62},"[HE-1236] Chicken Noodles":{"q":2.0,"a":361.9},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1}}},{"d":"2026-03-19","n":85,"g":47678.28,"items":{"[HE-1218] Roomali Roti":{"q":31.0,"a":171.4},"[HE-1164] Chilli Chicken":{"q":5.0,"a":1142.88},"[HE-1149] Butter Chicken":{"q":4.0,"a":1200.0},"[HE-1205] Ghee Rice":{"q":61.0,"a":3047.68},"Water 1 Liter":{"q":51.0,"a":742.95},"[HE-1184] Mutton Hyderabadi Gravy":{"q":2.0,"a":590.47},"[HE-1203] Biryani Rice":{"q":13.0,"a":1028.61},"[HE-1177] Mutton Rogan Josh":{"q":3.0,"a":923.8},"[HE-1163] Chicken Kabab":{"q":25.0,"a":4476.06},"[HE-1172] Lollipop":{"q":3.0,"a":571.44},"[HE-1222] Garlic Naan":{"q":7.0,"a":142.86},"[HE-1160] Hamza Special":{"q":15.0,"a":3771.36},"[HE-1135] Tandoori Chicken":{"q":8.0,"a":1904.8},"[HE-1201] Chicken Biryani":{"q":9.0,"a":1428.6},"Cold drink - 250ml":{"q":41.0,"a":500.0},"[HE-1190] Mutton Hamza Special":{"q":3.0,"a":647.62},"Water 500ml":{"q":26.0,"a":152.32},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":419.05},"[HE-1212] Kerala Paratha":{"q":43.0,"a":342.84},"[HE-1213] Ceylon Paratha":{"q":29.0,"a":366.63},"[HE-1169] Chicken Pepper Dry":{"q":3.0,"a":571.44},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1223] Tandoor Roti":{"q":7.0,"a":142.86},"[HE-1198] Mutton Brain":{"q":1.0,"a":304.76},"Irani Chicken":{"q":7.0,"a":1752.4},"Cold drink - 500ml":{"q":4.0,"a":200.0},"[HE-1200] Mutton Biryani":{"q":5.0,"a":1619.05},"[HE-1220] Butter Naan":{"q":18.0,"a":300.02},"[HE-1226] Paneer Butter Masala":{"q":3.0,"a":514.29},"[HE-1192] Mutton Brain Dry":{"q":9.0,"a":2895.22},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1154] Methi Chicken":{"q":4.0,"a":1200.0},"[HE-1221] Kulcha":{"q":9.0,"a":142.86},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1247] Veg Fried Rice":{"q":1.0,"a":142.86},"[HE-1208] Chicken Roll":{"q":4.0,"a":257.13},"[HE-1199] Mutton Chops":{"q":2.0,"a":1085.72},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1228] Palak Paneer":{"q":1.0,"a":190.48},"[HE-1180] Kadai Mutton":{"q":1.0,"a":380.95},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57}}},{"d":"2026-03-20","n":99,"g":36259.38,"items":{"[HE-1205] Ghee Rice":{"q":56.0,"a":3238.16},"[HE-1218] Roomali Roti":{"q":22.0,"a":85.7},"[HE-1167] Singapore Chicken":{"q":2.0,"a":628.56},"Irani Chicken":{"q":5.0,"a":1095.25},"Cold drink - 250ml":{"q":34.0,"a":425.0},"[HE-1203] Biryani Rice":{"q":6.0,"a":571.45},"Water 500ml":{"q":20.0,"a":114.24},"[HE-1163] Chicken Kabab":{"q":21.0,"a":4133.22},"[HE-1192] Mutton Brain Dry":{"q":7.0,"a":1980.94},"[HE-1212] Kerala Paratha":{"q":30.0,"a":257.13},"Water 1 Liter":{"q":49.0,"a":742.95},"[HE-1213] Ceylon Paratha":{"q":38.0,"a":399.96},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":200.0},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"Cold drink - 500ml":{"q":2.0,"a":100.0},"[HE-1149] Butter Chicken":{"q":6.0,"a":1200.0},"[HE-1222] Garlic Naan":{"q":4.0,"a":142.86},"[HE-1220] Butter Naan":{"q":10.0,"a":214.3},"Jeera rice":{"q":1.0,"a":95.24},"[HE-1148] Chicken Hyderabadi Gravy":{"q":2.0,"a":400.0},"[HE-1235] Chicken Fried Rice":{"q":8.0,"a":361.9},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1150] Punjabi Chicken":{"q":3.0,"a":657.15},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":400.0},"[HE-1135] Tandoori Chicken":{"q":7.0,"a":1523.84},"[HE-1174] Hongkong Chicken":{"q":1.0,"a":209.52},"[HE-1216] Wheat Paratha":{"q":8.0,"a":128.58},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1155] Kadai Chicken":{"q":2.0,"a":419.04},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":647.62},"[HE-1164] Chilli Chicken":{"q":4.0,"a":571.44},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":533.34},"[HE-1199] Mutton Chops":{"q":3.0,"a":1085.72},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":380.95},"[HE-1162] Chicken Kolhapuri Gravy":{"q":2.0,"a":600.0},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1208] Chicken Roll":{"q":4.0,"a":257.13},"Test product":{"q":3.0,"a":1.0},"[HE-1141] Haryali Tikka":{"q":1.0,"a":457.14},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"[HE-1143] Andhra Tikka":{"q":1.0,"a":238.1},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"Garlic Kabab":{"q":1.0,"a":228.57},"Reshmi Kabab":{"q":1.0,"a":228.57}}},{"d":"2026-03-21","n":96,"g":38484.54,"items":{"Water 500ml":{"q":29.0,"a":218.96},"Water 1 Liter":{"q":49.0,"a":781.05},"[HE-1201] Chicken Biryani":{"q":29.0,"a":4285.8},"[HE-1160] Hamza Special":{"q":5.0,"a":1257.12},"[HE-1200] Mutton Biryani":{"q":15.0,"a":2914.29},"[HE-1135] Tandoori Chicken":{"q":10.0,"a":2285.76},"Sprite 740ml":{"q":10.0,"a":315.0},"[HE-1205] Ghee Rice":{"q":21.0,"a":1428.6},"[HE-1199] Mutton Chops":{"q":1.0,"a":361.91},"[HE-1223] Tandoor Roti":{"q":2.0,"a":95.24},"[HE-1163] Chicken Kabab":{"q":21.0,"a":4285.64},"[HE-1190] Mutton Hamza Special":{"q":6.0,"a":1752.38},"[HE-1220] Butter Naan":{"q":11.0,"a":257.16},"[HE-1155] Kadai Chicken":{"q":2.0,"a":419.04},"[HE-1192] Mutton Brain Dry":{"q":5.0,"a":609.52},"[HE-1166] Chicken 65":{"q":2.0,"a":419.04},"[HE-1203] Biryani Rice":{"q":10.0,"a":800.03},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"[HE-1138] Kalmi Kabab":{"q":2.0,"a":1028.56},"[HE-1218] Roomali Roti":{"q":18.0,"a":68.56},"Reshmi Kabab":{"q":1.0,"a":457.14},"[HE-1212] Kerala Paratha":{"q":16.0,"a":114.28},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1213] Ceylon Paratha":{"q":4.0,"a":66.66},"Cold drink - 500ml":{"q":6.0,"a":250.0},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"Garlic Kabab":{"q":1.0,"a":228.57},"[HE-1177] Mutton Rogan Josh":{"q":2.0,"a":361.9},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"Jeera rice":{"q":1.0,"a":95.24},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":380.96},"[HE-1208] Chicken Roll":{"q":5.0,"a":171.42},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"Cold drink - 250ml":{"q":1.0,"a":25.0}}},{"d":"2026-03-22","n":59,"g":24960.41,"items":{"Water 500ml":{"q":18.0,"a":114.24},"[HE-1203] Biryani Rice":{"q":15.0,"a":1371.48},"[HE-1163] Chicken Kabab":{"q":17.0,"a":3352.3},"Water 1 Liter":{"q":37.0,"a":533.4},"[HE-1205] Ghee Rice":{"q":39.0,"a":1619.08},"[HE-1201] Chicken Biryani":{"q":3.0,"a":476.2},"Cold drink - 500ml":{"q":1.0,"a":50.0},"[HE-1212] Kerala Paratha":{"q":19.0,"a":114.28},"[HE-1160] Hamza Special":{"q":4.0,"a":838.08},"Cold drink - 250ml":{"q":7.0,"a":80.0},"[HE-1213] Ceylon Paratha":{"q":7.0,"a":66.66},"Irani Chicken":{"q":6.0,"a":1095.25},"[HE-1225] Daal Fry":{"q":2.0,"a":209.52},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1216] Wheat Paratha":{"q":3.0,"a":42.86},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1135] Tandoori Chicken":{"q":5.0,"a":1142.88},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"[HE-1200] Mutton Biryani":{"q":6.0,"a":1619.05},"[HE-1191] Mutton Pepper Dry":{"q":3.0,"a":1000.0},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1220] Butter Naan":{"q":13.0,"a":214.3},"[HE-1222] Garlic Naan":{"q":6.0,"a":142.86},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"[HE-1162] Chicken Kolhapuri Gravy":{"q":4.0,"a":800.0},"[HE-1145] Pathak Kabab":{"q":1.0,"a":219.05},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"Garlic Kabab":{"q":1.0,"a":228.57},"[HE-1227] Kadai Paneer":{"q":1.0,"a":171.43},"[HE-1248] Veg Noodles":{"q":1.0,"a":142.86},"[HE-1138] Kalmi Kabab":{"q":2.0,"a":514.28},"[HE-1223] Tandoor Roti":{"q":14.0,"a":142.86},"[HE-1161] Chicken Tikka Masala":{"q":1.0,"a":285.71},"Sprite 740ml":{"q":1.0,"a":35.0}}},{"d":"2026-03-23","n":21,"g":11730.0,"items":{"Cold drink - 250ml":{"q":5.0,"a":80.0},"[HE-1192] Mutton Brain Dry":{"q":4.0,"a":1066.66},"[HE-1135] Tandoori Chicken":{"q":3.0,"a":952.4},"[HE-1216] Wheat Paratha":{"q":5.0,"a":85.72},"[HE-1212] Kerala Paratha":{"q":4.0,"a":57.14},"Jeera rice":{"q":1.0,"a":95.24},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":647.62},"Water 1 Liter":{"q":11.0,"a":133.35},"[HE-1221] Kulcha":{"q":5.0,"a":95.24},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1220] Butter Naan":{"q":2.0,"a":85.72},"[HE-1247] Veg Fried Rice":{"q":1.0,"a":142.86},"[HE-1235] Chicken Fried Rice":{"q":6.0,"a":542.85},"[HE-1248] Veg Noodles":{"q":1.0,"a":142.86},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1245] Shezwan Fried Rice":{"q":2.0,"a":380.96},"[HE-1246] Shezwan Noodles":{"q":1.0,"a":190.48},"[HE-1163] Chicken Kabab":{"q":4.0,"a":1028.56},"[HE-1236] Chicken Noodles":{"q":5.0,"a":361.9},"[HE-1213] Ceylon Paratha":{"q":17.0,"a":199.98},"[HE-1205] Ghee Rice":{"q":1.0,"a":95.24},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"Reshmi Kabab":{"q":1.0,"a":228.57},"Paneer Roll":{"q":1.0,"a":85.71},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"Irani Chicken":{"q":1.0,"a":438.1},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1203] Biryani Rice":{"q":6.0,"a":228.58},"Water 500ml":{"q":1.0,"a":9.52},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"Fried Chicken \u2014 2 Pcs":{"q":1.0,"a":142.86},"[HE-1223] Tandoor Roti":{"q":2.0,"a":47.62},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1}}},{"d":"2026-03-24","n":43,"g":13407.15,"items":{"[HE-1201] Chicken Biryani":{"q":6.0,"a":1190.5},"[HE-1163] Chicken Kabab":{"q":5.0,"a":952.38},"[HE-1212] Kerala Paratha":{"q":6.0,"a":85.71},"[HE-1203] Biryani Rice":{"q":6.0,"a":571.45},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"[HE-1205] Ghee Rice":{"q":18.0,"a":952.4},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"Cold drink - 250ml":{"q":11.0,"a":140.0},"Water 500ml":{"q":8.0,"a":47.6},"Water 1 Liter":{"q":18.0,"a":209.55},"[HE-1223] Tandoor Roti":{"q":20.0,"a":95.24},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1218] Roomali Roti":{"q":4.0,"a":17.14},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1714.32},"[HE-1142] Malai Tikka":{"q":3.0,"a":714.3},"[HE-1220] Butter Naan":{"q":4.0,"a":42.86},"[HE-1149] Butter Chicken":{"q":2.0,"a":800.0},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"Sprite 740ml":{"q":1.0,"a":35.0},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"[HE-1221] Kulcha":{"q":2.0,"a":47.62}}},{"d":"2026-03-25","n":52,"g":16698.13,"items":{"[HE-1236] Chicken Noodles":{"q":4.0,"a":723.8},"Water 1 Liter":{"q":21.0,"a":381.0},"[HE-1163] Chicken Kabab":{"q":13.0,"a":2590.42},"Water 500ml":{"q":7.0,"a":57.12},"[HE-1155] Kadai Chicken":{"q":3.0,"a":419.04},"[HE-1212] Kerala Paratha":{"q":16.0,"a":171.42},"[HE-1213] Ceylon Paratha":{"q":3.0,"a":99.99},"[HE-1205] Ghee Rice":{"q":7.0,"a":571.44},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":304.76},"[HE-1150] Punjabi Chicken":{"q":2.0,"a":638.1},"[HE-1141] Haryali Tikka":{"q":2.0,"a":457.14},"[HE-1201] Chicken Biryani":{"q":6.0,"a":952.4},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1223] Tandoor Roti":{"q":3.0,"a":47.62},"Cold drink - 500ml":{"q":8.0,"a":350.0},"Cold drink - 250ml":{"q":6.0,"a":120.0},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":457.14},"[HE-1208] Chicken Roll":{"q":5.0,"a":171.42},"[HE-1203] Biryani Rice":{"q":8.0,"a":571.45},"[HE-1187] Mutton Pepper (Roast)":{"q":2.0,"a":590.47},"[HE-1200] Mutton Biryani":{"q":4.0,"a":971.43},"[HE-1164] Chilli Chicken":{"q":1.0,"a":380.96},"[HE-1220] Butter Naan":{"q":6.0,"a":128.58},"[HE-1218] Roomali Roti":{"q":11.0,"a":68.56},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1245] Shezwan Fried Rice":{"q":2.0,"a":380.96},"Reshmi Kabab":{"q":1.0,"a":228.57},"[HE-1221] Kulcha":{"q":2.0,"a":47.62},"Sprite 740ml":{"q":3.0,"a":105.0},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":400.0},"[HE-1142] Malai Tikka":{"q":0.0,"a":0.0}}},{"d":"2026-03-26","n":50,"g":22461.09,"items":{"Cold drink - 250ml":{"q":24.0,"a":140.0},"[HE-1247] Veg Fried Rice":{"q":2.0,"a":285.72},"[HE-1201] Chicken Biryani":{"q":4.0,"a":476.2},"[HE-1229] Paneer Mutter Masala":{"q":1.0,"a":190.48},"Water 1 Liter":{"q":32.0,"a":457.2},"[HE-1205] Ghee Rice":{"q":21.0,"a":1238.12},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1190] Mutton Hamza Special":{"q":2.0,"a":838.1},"[HE-1213] Ceylon Paratha":{"q":41.0,"a":399.96},"[HE-1220] Butter Naan":{"q":4.0,"a":42.86},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"[HE-1212] Kerala Paratha":{"q":20.0,"a":171.42},"Water 500ml":{"q":7.0,"a":76.16},"[HE-1163] Chicken Kabab":{"q":10.0,"a":1561.86},"[HE-1216] Wheat Paratha":{"q":2.0,"a":42.86},"[HE-1225] Daal Fry":{"q":2.0,"a":209.52},"Cold drink - 500ml":{"q":15.0,"a":550.0},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1142.88},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1192] Mutton Brain Dry":{"q":12.0,"a":2895.22},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":761.9},"[HE-1167] Singapore Chicken":{"q":1.0,"a":419.04},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1248] Veg Noodles":{"q":1.0,"a":142.86},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1223] Tandoor Roti":{"q":1.0,"a":47.62},"[HE-1233] Daal Tadka":{"q":2.0,"a":114.29},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1203] Biryani Rice":{"q":2.0,"a":228.58},"[HE-1218] Roomali Roti":{"q":2.0,"a":17.14},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1}}},{"d":"2026-03-27","n":43,"g":12098.11,"items":{"[HE-1201] Chicken Biryani":{"q":4.0,"a":714.3},"Cold drink - 500ml":{"q":7.0,"a":350.0},"Water 1 Liter":{"q":22.0,"a":342.9},"Water 500ml":{"q":7.0,"a":57.12},"[HE-1212] Kerala Paratha":{"q":10.0,"a":114.28},"[HE-1217] Chapathi":{"q":2.0,"a":19.05},"[HE-1205] Ghee Rice":{"q":11.0,"a":666.68},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":380.96},"[HE-1220] Butter Naan":{"q":2.0,"a":42.86},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":380.96},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1203] Biryani Rice":{"q":5.0,"a":457.16},"[HE-1163] Chicken Kabab":{"q":5.0,"a":857.1},"[HE-1187] Mutton Pepper (Roast)":{"q":1.0,"a":380.95},"Cold drink - 250ml":{"q":7.0,"a":80.0},"Irani Chicken":{"q":1.0,"a":438.1},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1218] Roomali Roti":{"q":16.0,"a":68.56},"[HE-1222] Garlic Naan":{"q":4.0,"a":95.24},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"Sprite 740ml":{"q":1.0,"a":35.0},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1200] Mutton Biryani":{"q":4.0,"a":323.81},"[HE-1160] Hamza Special":{"q":1.0,"a":419.04},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1213] Ceylon Paratha":{"q":6.0,"a":133.32},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1247] Veg Fried Rice":{"q":2.0,"a":285.72},"[HE-1197] Mutton Khima":{"q":1.0,"a":219.05},"[HE-1216] Wheat Paratha":{"q":5.0,"a":85.72},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0}}},{"d":"2026-03-28","n":43,"g":18454.16,"items":{"Cold drink - 500ml":{"q":7.0,"a":300.0},"[HE-1205] Ghee Rice":{"q":25.0,"a":1333.36},"[HE-1163] Chicken Kabab":{"q":11.0,"a":1733.28},"[HE-1200] Mutton Biryani":{"q":2.0,"a":323.81},"Water 1 Liter":{"q":29.0,"a":342.9},"[HE-1135] Tandoori Chicken":{"q":6.0,"a":1142.88},"Cold drink - 250ml":{"q":16.0,"a":200.0},"Water 500ml":{"q":15.0,"a":104.72},"[HE-1208] Chicken Roll":{"q":6.0,"a":171.42},"[HE-1223] Tandoor Roti":{"q":7.0,"a":47.62},"[HE-1148] Chicken Hyderabadi Gravy":{"q":2.0,"a":400.0},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1220] Butter Naan":{"q":10.0,"a":171.44},"[HE-1218] Roomali Roti":{"q":13.0,"a":85.7},"[HE-1203] Biryani Rice":{"q":4.0,"a":457.16},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1207] Plain Rice":{"q":4.0,"a":95.24},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1192] Mutton Brain Dry":{"q":8.0,"a":1371.42},"[HE-1212] Kerala Paratha":{"q":1.0,"a":28.57},"[HE-1228] Palak Paneer":{"q":1.0,"a":190.48},"[HE-1160] Hamza Special":{"q":3.0,"a":628.56},"[HE-1201] Chicken Biryani":{"q":4.0,"a":714.3},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":380.96},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1221] Kulcha":{"q":1.0,"a":47.62},"[HE-1235] Chicken Fried Rice":{"q":9.0,"a":361.9},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":400.0},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1247] Veg Fried Rice":{"q":1.0,"a":142.86},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43}}},{"d":"2026-03-29","n":37,"g":14010.31,"items":{"Water 1 Liter":{"q":18.0,"a":304.8},"Water 500ml":{"q":7.0,"a":47.6},"Chicken Boneless Biryani":{"q":3.0,"a":800.01},"Cold drink - 250ml":{"q":18.0,"a":295.0},"[HE-1220] Butter Naan":{"q":5.0,"a":128.58},"[HE-1205] Ghee Rice":{"q":13.0,"a":571.44},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"Irani Chicken":{"q":6.0,"a":1533.35},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1201] Chicken Biryani":{"q":4.0,"a":476.2},"[HE-1163] Chicken Kabab":{"q":2.0,"a":342.84},"Cold drink - 500ml":{"q":7.0,"a":300.0},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1184] Mutton Hyderabadi Gravy":{"q":1.0,"a":380.95},"[HE-1218] Roomali Roti":{"q":5.0,"a":17.14},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1},"[HE-1200] Mutton Biryani":{"q":4.0,"a":647.62},"[HE-1168] Lemon Chicken":{"q":2.0,"a":438.1},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"[HE-1222] Garlic Naan":{"q":6.0,"a":95.24},"[HE-1223] Tandoor Roti":{"q":7.0,"a":47.62},"[HE-1149] Butter Chicken":{"q":1.0,"a":400.0},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"[HE-1143] Andhra Tikka":{"q":1.0,"a":476.2},"[HE-1179] Mutton Achari":{"q":1.0,"a":409.53},"[HE-1199] Mutton Chops":{"q":1.0,"a":361.91},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67}}},{"d":"2026-03-30","n":21,"g":8184.01,"items":{"[HE-1205] Ghee Rice":{"q":9.0,"a":571.44},"[HE-1220] Butter Naan":{"q":4.0,"a":85.72},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"Water 1 Liter":{"q":11.0,"a":171.45},"Cold drink - 500ml":{"q":3.0,"a":120.0},"[HE-1163] Chicken Kabab":{"q":5.0,"a":685.68},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"Cold drink - 250ml":{"q":28.0,"a":80.0},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":571.44},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":609.52},"[HE-1218] Roomali Roti":{"q":13.0,"a":34.28},"Water 500ml":{"q":5.0,"a":47.6},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1179] Mutton Achari":{"q":1.0,"a":409.53},"[HE-1201] Chicken Biryani":{"q":3.0,"a":714.3},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1223] Tandoor Roti":{"q":1.0,"a":47.62},"[HE-1243] Mix Fried Rice":{"q":1.0,"a":228.57},"Irani Chicken":{"q":1.0,"a":438.1},"[HE-1222] Garlic Naan":{"q":3.0,"a":47.62},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":723.81}}},{"d":"2026-03-31","n":42,"g":6919.1,"items":{"Cold drink - 250ml":{"q":16.0,"a":220.0},"Water 1 Liter":{"q":14.0,"a":190.5},"Cold drink - 500ml":{"q":6.0,"a":240.0},"Water 500ml":{"q":9.0,"a":85.68},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1160] Hamza Special":{"q":2.0,"a":628.56},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":361.9},"[HE-1223] Tandoor Roti":{"q":6.0,"a":95.24},"[HE-1205] Ghee Rice":{"q":12.0,"a":857.16},"[HE-1220] Butter Naan":{"q":5.0,"a":128.58},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":380.96},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":304.76},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1218] Roomali Roti":{"q":3.0,"a":34.28},"[HE-1163] Chicken Kabab":{"q":3.0,"a":285.72},"[HE-1222] Garlic Naan":{"q":1.0,"a":47.62}}},{"d":"2026-04-01","n":32,"g":8025.05,"items":{"[HE-1218] Roomali Roti":{"q":10.0,"a":51.42},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"Water 1 Liter":{"q":7.0,"a":114.3},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1208] Chicken Roll":{"q":2.0,"a":171.42},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1217] Chapathi":{"q":3.0,"a":19.05},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1205] Ghee Rice":{"q":12.0,"a":571.44},"Garlic Kabab":{"q":1.0,"a":228.57},"Water 500ml":{"q":14.0,"a":95.2},"[HE-1204] Egg Biryani":{"q":1.0,"a":152.38},"Cold drink - 250ml":{"q":8.0,"a":100.0},"Cold drink - 500ml":{"q":7.0,"a":240.0},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1220] Butter Naan":{"q":7.0,"a":85.72},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":571.44},"[HE-1203] Biryani Rice":{"q":4.0,"a":228.58},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1163] Chicken Kabab":{"q":1.0,"a":342.86},"[HE-1160] Hamza Special":{"q":1.0,"a":419.04},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1223] Tandoor Roti":{"q":2.0,"a":47.62}}},{"d":"2026-04-02","n":21,"g":5646.11,"items":{"Cold drink - 250ml":{"q":6.0,"a":120.0},"[HE-1208] Chicken Roll":{"q":3.0,"a":85.71},"[HE-1221] Kulcha":{"q":5.0,"a":95.24},"[HE-1223] Tandoor Roti":{"q":6.0,"a":119.05},"[HE-1222] Garlic Naan":{"q":3.0,"a":95.24},"[HE-1220] Butter Naan":{"q":7.0,"a":85.72},"[HE-1160] Hamza Special":{"q":2.0,"a":628.56},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"Water 1 Liter":{"q":8.0,"a":133.35},"Cold drink - 500ml":{"q":4.0,"a":160.0},"Water 500ml":{"q":2.0,"a":19.04},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"[HE-1205] Ghee Rice":{"q":7.0,"a":476.2},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1218] Roomali Roti":{"q":2.0,"a":17.14},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"[HE-1163] Chicken Kabab":{"q":1.0,"a":95.24},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"[HE-1161] Chicken Tikka Masala":{"q":1.0,"a":285.71},"[HE-1197] Mutton Khima":{"q":1.0,"a":219.05}}},{"d":"2026-04-03","n":30,"g":8879.13,"items":{"[HE-1218] Roomali Roti":{"q":13.0,"a":51.42},"[HE-1151] Chicken Kali Mirch":{"q":1.0,"a":200.0},"[HE-1201] Chicken Biryani":{"q":4.0,"a":952.4},"Water 1 Liter":{"q":16.0,"a":228.6},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1205] Ghee Rice":{"q":8.0,"a":571.44},"[HE-1160] Hamza Special":{"q":3.0,"a":628.56},"[HE-1163] Chicken Kabab":{"q":4.0,"a":780.94},"Cold drink - 250ml":{"q":11.0,"a":220.0},"[HE-1179] Mutton Achari":{"q":1.0,"a":219.05},"[HE-1203] Biryani Rice":{"q":3.0,"a":342.87},"[HE-1223] Tandoor Roti":{"q":2.0,"a":47.62},"[HE-1200] Mutton Biryani":{"q":3.0,"a":971.43},"Water 500ml":{"q":7.0,"a":47.6},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"Cold drink - 500ml":{"q":3.0,"a":120.0},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1220] Butter Naan":{"q":5.0,"a":85.72},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43}}},{"d":"2026-04-04","n":30,"g":15490.33,"items":{"[HE-1213] Ceylon Paratha":{"q":5.0,"a":66.66},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"Cold drink - 500ml":{"q":4.0,"a":160.0},"Water 1 Liter":{"q":19.0,"a":304.8},"[HE-1205] Ghee Rice":{"q":9.0,"a":761.92},"[HE-1167] Singapore Chicken":{"q":4.0,"a":1047.6},"Cold drink - 250ml":{"q":6.0,"a":100.0},"[HE-1188] Mutton Kassa":{"q":1.0,"a":219.05},"Irani Chicken":{"q":5.0,"a":1314.3},"[HE-1203] Biryani Rice":{"q":7.0,"a":571.45},"Water 500ml":{"q":5.0,"a":38.08},"[HE-1218] Roomali Roti":{"q":5.0,"a":34.28},"[HE-1163] Chicken Kabab":{"q":3.0,"a":514.26},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1222] Garlic Naan":{"q":5.0,"a":95.24},"[HE-1146] Mughlai Chicken":{"q":1.0,"a":219.05},"[HE-1200] Mutton Biryani":{"q":3.0,"a":647.62},"[HE-1216] Wheat Paratha":{"q":3.0,"a":42.86},"[HE-1231] Mixed Veg Curry":{"q":3.0,"a":380.96},"[HE-1237] Mutton Fried Rice":{"q":3.0,"a":219.05},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":800.0},"[HE-1223] Tandoor Roti":{"q":9.0,"a":95.24},"[HE-1160] Hamza Special":{"q":3.0,"a":628.56},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":571.44},"[HE-1201] Chicken Biryani":{"q":5.0,"a":714.3},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1212] Kerala Paratha":{"q":7.0,"a":57.14},"[HE-1220] Butter Naan":{"q":6.0,"a":128.58},"[HE-1143] Andhra Tikka":{"q":1.0,"a":476.2},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":304.76},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1149] Butter Chicken":{"q":1.0,"a":200.0},"[HE-1142] Malai Tikka":{"q":1.0,"a":238.1}}},{"d":"2026-04-05","n":38,"g":15939.11,"items":{"[HE-1205] Ghee Rice":{"q":15.0,"a":857.16},"Water 1 Liter":{"q":28.0,"a":361.95},"[HE-1203] Biryani Rice":{"q":7.0,"a":342.87},"Cold drink - 500ml":{"q":7.0,"a":120.0},"[HE-1208] Chicken Roll":{"q":3.0,"a":171.42},"[HE-1135] Tandoori Chicken":{"q":4.0,"a":1142.88},"[HE-1213] Ceylon Paratha":{"q":21.0,"a":199.98},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"Cold drink - 250ml":{"q":15.0,"a":160.0},"[HE-1141] Haryali Tikka":{"q":1.0,"a":228.57},"Water 500ml":{"q":8.0,"a":76.16},"[HE-1163] Chicken Kabab":{"q":5.0,"a":952.36},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":1066.66},"[HE-1223] Tandoor Roti":{"q":2.0,"a":23.81},"[HE-1201] Chicken Biryani":{"q":5.0,"a":1190.5},"Irani Chicken":{"q":4.0,"a":1314.3},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1191] Mutton Pepper Dry":{"q":2.0,"a":600.0},"[HE-1218] Roomali Roti":{"q":3.0,"a":17.14},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1172] Lollipop":{"q":3.0,"a":571.44},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"[HE-1230] Aloo Gobi":{"q":1.0,"a":171.43},"[HE-1167] Singapore Chicken":{"q":1.0,"a":419.04},"[HE-1212] Kerala Paratha":{"q":4.0,"a":28.57},"[HE-1220] Butter Naan":{"q":1.0,"a":42.86},"[HE-1143] Andhra Tikka":{"q":1.0,"a":476.2}}},{"d":"2026-04-06","n":28,"g":8876.11,"items":{"[HE-1135] Tandoori Chicken":{"q":2.0,"a":380.96},"[HE-1201] Chicken Biryani":{"q":4.0,"a":952.4},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":152.38},"[HE-1218] Roomali Roti":{"q":2.0,"a":17.14},"Water 1 Liter":{"q":14.0,"a":190.5},"[HE-1178] Methi Mutton":{"q":1.0,"a":200.0},"[HE-1223] Tandoor Roti":{"q":10.0,"a":71.43},"[HE-1220] Butter Naan":{"q":2.0,"a":42.86},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"[HE-1212] Kerala Paratha":{"q":4.0,"a":57.14},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"[HE-1205] Ghee Rice":{"q":9.0,"a":666.68},"[HE-1163] Chicken Kabab":{"q":3.0,"a":514.26},"[HE-1198] Mutton Brain":{"q":1.0,"a":152.38},"Cold drink - 250ml":{"q":9.0,"a":120.0},"[HE-1187] Mutton Pepper (Roast)":{"q":2.0,"a":590.47},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"Water 500ml":{"q":5.0,"a":28.56},"[HE-1216] Wheat Paratha":{"q":8.0,"a":85.72},"[HE-1161] Chicken Tikka Masala":{"q":1.0,"a":285.71},"[HE-1150] Punjabi Chicken":{"q":1.0,"a":219.05},"[HE-1197] Mutton Khima":{"q":1.0,"a":361.91},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"Cold drink - 500ml":{"q":2.0,"a":80.0},"[HE-1233] Daal Tadka":{"q":2.0,"a":114.29},"[HE-1188] Mutton Kassa":{"q":1.0,"a":219.05},"[HE-1154] Methi Chicken":{"q":1.0,"a":200.0},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"[HE-1213] Ceylon Paratha":{"q":2.0,"a":33.33}}},{"d":"2026-04-07","n":28,"g":8190.15,"items":{"Cold drink - 250ml":{"q":7.0,"a":100.0},"Cold drink - 500ml":{"q":5.0,"a":160.0},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1205] Ghee Rice":{"q":10.0,"a":666.68},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1200] Mutton Biryani":{"q":3.0,"a":971.43},"Water 500ml":{"q":7.0,"a":57.12},"[HE-1164] Chilli Chicken":{"q":1.0,"a":380.96},"[HE-1223] Tandoor Roti":{"q":2.0,"a":23.81},"[HE-1163] Chicken Kabab":{"q":3.0,"a":514.26},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"Water 1 Liter":{"q":11.0,"a":209.55},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1213] Ceylon Paratha":{"q":8.0,"a":66.66},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1203] Biryani Rice":{"q":4.0,"a":342.87},"[HE-1207] Plain Rice":{"q":3.0,"a":95.24},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1228] Palak Paneer":{"q":1.0,"a":190.48},"[HE-1201] Chicken Biryani":{"q":2.0,"a":238.1},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"Malai Kofta":{"q":1.0,"a":228.57},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"[HE-1212] Kerala Paratha":{"q":4.0,"a":57.14},"[HE-1220] Butter Naan":{"q":2.0,"a":42.86},"[HE-1198] Mutton Brain":{"q":1.0,"a":304.76}}},{"d":"2026-04-08","n":30,"g":9655.09,"items":{"Cold drink - 250ml":{"q":11.0,"a":160.0},"[HE-1212] Kerala Paratha":{"q":5.0,"a":28.57},"[HE-1203] Biryani Rice":{"q":8.0,"a":685.74},"[HE-1205] Ghee Rice":{"q":9.0,"a":666.68},"[HE-1135] Tandoori Chicken":{"q":2.0,"a":761.92},"Water 1 Liter":{"q":9.0,"a":171.45},"Cold drink - 500ml":{"q":2.0,"a":80.0},"[HE-1208] Chicken Roll":{"q":8.0,"a":171.42},"Water 500ml":{"q":12.0,"a":85.68},"[HE-1213] Ceylon Paratha":{"q":13.0,"a":166.65},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1163] Chicken Kabab":{"q":3.0,"a":685.7},"Irani Chicken":{"q":4.0,"a":1095.25},"[HE-1201] Chicken Biryani":{"q":2.0,"a":476.2},"[HE-1235] Chicken Fried Rice":{"q":2.0,"a":180.95},"[HE-1143] Andhra Tikka":{"q":1.0,"a":476.2},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1160] Hamza Special":{"q":2.0,"a":419.04},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48}}},{"d":"2026-04-09","n":35,"g":5505.08,"items":{"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1213] Ceylon Paratha":{"q":2.0,"a":33.33},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"Water 1 Liter":{"q":14.0,"a":209.55},"Cold drink - 500ml":{"q":7.0,"a":280.0},"[HE-1205] Ghee Rice":{"q":4.0,"a":285.72},"[HE-1179] Mutton Achari":{"q":1.0,"a":219.05},"Water 500ml":{"q":11.0,"a":57.12},"[HE-1212] Kerala Paratha":{"q":3.0,"a":28.57},"[HE-1163] Chicken Kabab":{"q":2.0,"a":342.84},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":228.57},"Cold drink - 250ml":{"q":10.0,"a":140.0},"Sprite 740ml":{"q":1.0,"a":35.0},"[HE-1201] Chicken Biryani":{"q":2.0,"a":238.1},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1192] Mutton Brain Dry":{"q":1.0,"a":304.76},"[HE-1200] Mutton Biryani":{"q":4.0,"a":647.62},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0}}},{"d":"2026-04-10","n":22,"g":7833.1,"items":{"Cold drink - 250ml":{"q":4.0,"a":80.0},"[HE-1149] Butter Chicken":{"q":2.0,"a":400.0},"[HE-1205] Ghee Rice":{"q":5.0,"a":285.72},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1221] Kulcha":{"q":2.0,"a":33.33},"Cold drink - 500ml":{"q":3.0,"a":120.0},"[HE-1163] Chicken Kabab":{"q":3.0,"a":514.26},"Water 1 Liter":{"q":16.0,"a":209.55},"[HE-1155] Kadai Chicken":{"q":1.0,"a":400.0},"[HE-1213] Ceylon Paratha":{"q":8.0,"a":66.66},"[HE-1220] Butter Naan":{"q":5.0,"a":85.72},"[HE-1207] Plain Rice":{"q":2.0,"a":95.24},"[HE-1164] Chilli Chicken":{"q":3.0,"a":380.96},"Water 500ml":{"q":2.0,"a":19.04},"[HE-1199] Mutton Chops":{"q":1.0,"a":361.91},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1156] Chicken Chatpata":{"q":1.0,"a":238.1},"[HE-1200] Mutton Biryani":{"q":2.0,"a":323.81},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"[HE-1174] Hongkong Chicken":{"q":1.0,"a":209.52},"Irani Chicken":{"q":1.0,"a":219.05},"[HE-1167] Singapore Chicken":{"q":1.0,"a":209.52},"[HE-1212] Kerala Paratha":{"q":2.0,"a":28.57},"Pathiri Roti":{"q":1.0,"a":36.19},"[HE-1180] Kadai Mutton":{"q":1.0,"a":209.52}}},{"d":"2026-04-11","n":41,"g":9366.12,"items":{"[HE-1205] Ghee Rice":{"q":10.0,"a":666.68},"[HE-1178] Methi Mutton":{"q":1.0,"a":200.0},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1148] Chicken Hyderabadi Gravy":{"q":1.0,"a":200.0},"[HE-1220] Butter Naan":{"q":1.0,"a":42.86},"[HE-1213] Ceylon Paratha":{"q":7.0,"a":133.32},"Cold drink - 500ml":{"q":13.0,"a":440.0},"[HE-1216] Wheat Paratha":{"q":3.0,"a":85.72},"[HE-1203] Biryani Rice":{"q":7.0,"a":342.87},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"Water 1 Liter":{"q":21.0,"a":323.85},"[HE-1222] Garlic Naan":{"q":2.0,"a":47.62},"[HE-1162] Chicken Kolhapuri Gravy":{"q":2.0,"a":400.0},"[HE-1192] Mutton Brain Dry":{"q":3.0,"a":609.52},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52},"Cold drink - 250ml":{"q":9.0,"a":140.0},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95},"[HE-1199] Mutton Chops":{"q":1.0,"a":219.05},"[HE-1223] Tandoor Roti":{"q":5.0,"a":23.81},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1142] Malai Tikka":{"q":2.0,"a":476.2},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"Water 500ml":{"q":10.0,"a":66.64},"[HE-1158] Tandoori Chicken Masala":{"q":1.0,"a":266.67},"[HE-1208] Chicken Roll":{"q":1.0,"a":85.71},"[HE-1218] Roomali Roti":{"q":2.0,"a":17.14},"[HE-1209] Egg Roll":{"q":1.0,"a":85.71},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1163] Chicken Kabab":{"q":1.0,"a":342.86}}},{"d":"2026-04-12","n":59,"g":10746.18,"items":{"Water 1 Liter":{"q":27.0,"a":438.15},"[HE-1164] Chilli Chicken":{"q":2.0,"a":571.44},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1245] Shezwan Fried Rice":{"q":2.0,"a":380.96},"Cold drink - 250ml":{"q":22.0,"a":360.0},"Cold drink - 500ml":{"q":10.0,"a":360.0},"[HE-1213] Ceylon Paratha":{"q":15.0,"a":166.65},"[HE-1177] Mutton Rogan Josh":{"q":3.0,"a":600.0},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1205] Ghee Rice":{"q":15.0,"a":1047.64},"[HE-1192] Mutton Brain Dry":{"q":5.0,"a":1371.42},"[HE-1212] Kerala Paratha":{"q":17.0,"a":171.42},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1204] Egg Biryani":{"q":1.0,"a":152.38},"Water 500ml":{"q":12.0,"a":104.72},"[HE-1163] Chicken Kabab":{"q":4.0,"a":685.68},"[HE-1168] Lemon Chicken":{"q":1.0,"a":219.05},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"Chicken Boneless Biryani":{"q":1.0,"a":266.67},"[HE-1169] Chicken Pepper Dry":{"q":2.0,"a":380.96},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"[HE-1218] Roomali Roti":{"q":2.0,"a":17.14},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0}}},{"d":"2026-04-13","n":24,"g":3365.12,"items":{"[HE-1205] Ghee Rice":{"q":6.0,"a":476.2},"Cold drink - 250ml":{"q":6.0,"a":100.0},"Water 1 Liter":{"q":13.0,"a":247.65},"[HE-1163] Chicken Kabab":{"q":3.0,"a":609.52},"[HE-1203] Biryani Rice":{"q":2.0,"a":114.29},"Cold drink - 500ml":{"q":2.0,"a":80.0},"[HE-1213] Ceylon Paratha":{"q":8.0,"a":66.66},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0},"[HE-1200] Mutton Biryani":{"q":1.0,"a":323.81},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1216] Wheat Paratha":{"q":1.0,"a":42.86},"Water 500ml":{"q":1.0,"a":9.52},"[HE-1212] Kerala Paratha":{"q":1.0,"a":28.57},"[HE-1160] Hamza Special":{"q":1.0,"a":209.52}}},{"d":"2026-04-14","n":29,"g":9470.15,"items":{"[HE-1203] Biryani Rice":{"q":5.0,"a":342.87},"[HE-1205] Ghee Rice":{"q":6.0,"a":476.2},"[HE-1166] Chicken 65":{"q":1.0,"a":209.52},"Water 1 Liter":{"q":11.0,"a":152.4},"[HE-1207] Plain Rice":{"q":1.0,"a":47.62},"[HE-1192] Mutton Brain Dry":{"q":2.0,"a":457.14},"[HE-1223] Tandoor Roti":{"q":1.0,"a":23.81},"[HE-1213] Ceylon Paratha":{"q":3.0,"a":33.33},"[HE-1190] Mutton Hamza Special":{"q":1.0,"a":419.05},"Cold drink - 500ml":{"q":7.0,"a":200.0},"[HE-1163] Chicken Kabab":{"q":4.0,"a":780.94},"[HE-1233] Daal Tadka":{"q":1.0,"a":114.29},"[HE-1220] Butter Naan":{"q":7.0,"a":42.86},"[HE-1208] Chicken Roll":{"q":2.0,"a":85.71},"[HE-1149] Butter Chicken":{"q":2.0,"a":200.0},"Irani Chicken":{"q":2.0,"a":219.05},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":400.0},"[HE-1172] Lollipop":{"q":1.0,"a":190.48},"[HE-1212] Kerala Paratha":{"q":1.0,"a":28.57},"Water 500ml":{"q":6.0,"a":47.6},"[HE-1169] Chicken Pepper Dry":{"q":1.0,"a":190.48},"[HE-1235] Chicken Fried Rice":{"q":2.0,"a":180.95},"[HE-1236] Chicken Noodles":{"q":1.0,"a":180.95},"[HE-1160] Hamza Special":{"q":1.0,"a":419.04},"Cold drink - 250ml":{"q":12.0,"a":80.0},"[HE-1201] Chicken Biryani":{"q":2.0,"a":238.1},"[HE-1216] Wheat Paratha":{"q":3.0,"a":85.72},"[HE-1225] Daal Fry":{"q":1.0,"a":104.76},"[HE-1200] Mutton Biryani":{"q":3.0,"a":323.81},"[HE-1177] Mutton Rogan Josh":{"q":1.0,"a":200.0}}},{"d":"2026-04-15","n":26,"g":6740.12,"items":{"Water 1 Liter":{"q":12.0,"a":209.55},"Cold drink - 250ml":{"q":17.0,"a":180.0},"[HE-1200] Mutton Biryani":{"q":2.0,"a":647.62},"[HE-1213] Ceylon Paratha":{"q":14.0,"a":199.98},"[HE-1205] Ghee Rice":{"q":2.0,"a":190.48},"[HE-1163] Chicken Kabab":{"q":4.0,"a":361.9},"[HE-1220] Butter Naan":{"q":2.0,"a":42.86},"[HE-1155] Kadai Chicken":{"q":1.0,"a":209.52},"Water 500ml":{"q":4.0,"a":28.56},"Cold drink - 500ml":{"q":2.0,"a":80.0},"[HE-1138] Kalmi Kabab":{"q":1.0,"a":257.14},"[HE-1247] Veg Fried Rice":{"q":2.0,"a":285.72},"[HE-1160] Hamza Special":{"q":3.0,"a":838.08},"Irani Chicken":{"q":2.0,"a":438.1},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"[HE-1203] Biryani Rice":{"q":2.0,"a":228.58},"[HE-1164] Chilli Chicken":{"q":1.0,"a":190.48},"[HE-1198] Mutton Brain":{"q":2.0,"a":304.76},"[HE-1212] Kerala Paratha":{"q":6.0,"a":57.14},"[HE-1201] Chicken Biryani":{"q":1.0,"a":238.1},"[HE-1162] Chicken Kolhapuri Gravy":{"q":1.0,"a":200.0},"[HE-1226] Paneer Butter Masala":{"q":1.0,"a":171.43},"[HE-1235] Chicken Fried Rice":{"q":1.0,"a":180.95}}},{"d":"2026-04-16","n":7,"g":1280.02,"items":{"Water 500ml":{"q":2.0,"a":19.04},"Water 1 Liter":{"q":3.0,"a":38.1},"[HE-1135] Tandoori Chicken":{"q":1.0,"a":190.48},"Cold drink - 250ml":{"q":1.0,"a":20.0},"[HE-1235] Chicken Fried Rice":{"q":2.0,"a":180.95},"Cold drink - 500ml":{"q":1.0,"a":40.0},"[HE-1204] Egg Biryani":{"q":1.0,"a":152.38},"[HE-1213] Ceylon Paratha":{"q":2.0,"a":33.33},"[HE-1191] Mutton Pepper Dry":{"q":1.0,"a":200.0},"[HE-1203] Biryani Rice":{"q":1.0,"a":114.29}}}]};
 
-// ─── STATE ───────────────────────────────────────────────────────────────────
-var brand='nch', view='day', dateFrom='2026-02-03', dateTo='2026-03-31';
+// ── CATEGORY MAP ─────────────────────────────────────────────────
+var NCH_CATMAP={
+  '[NCH-IC] Irani Chai':         {cat:'Beverages',  clr:'#d4a44c'},
+  '[NCH-NSC] Nawabi Special Coffee':{cat:'Beverages',clr:'#d4a44c'},
+  'Lemon Tea':                   {cat:'Beverages',  clr:'#d4a44c'},
+  '[NCH-WTR] Water':             {cat:'Beverages',  clr:'#64748b'},
+  '[NCH-BM] Bun Maska':          {cat:'Baked',      clr:'#a16207'},
+  '[NCH-BM] Malai Bun':          {cat:'Baked',      clr:'#a16207'},
+  '[NCH-OB] Osmania Biscuit':    {cat:'Biscuits',   clr:'#f97316'},
+  '[NCH-OB3] Osmania Biscuit - Pack of 3':{cat:'Biscuits',clr:'#f97316'},
+  '[NCH-OBBOX] Niloufer Osmania Biscuit 500 grams':{cat:'Biscuits',clr:'#f97316'},
+  'Niloufer Osmania Biscuit 100 grams':{cat:'Biscuits',clr:'#f97316'},
+  '[HN-RM-221] Niloufer DCC 75g':{cat:'Biscuits',  clr:'#f97316'},
+  '[HN-RM-222] Niloufer Fruit 100g':{cat:'Biscuits',clr:'#f97316'},
+  '[HN-RM-223] Niloufer Fruit 200g':{cat:'Biscuits',clr:'#f97316'},
+  '[NCH-CC] Chicken Cutlet':     {cat:'Snacks',     clr:'#ef4444'},
+  '[NCH-PS] Pyaaz Samosa':       {cat:'Snacks',     clr:'#ef4444'},
+  '[NCH-CB] Cheese Balls':       {cat:'Snacks',     clr:'#ef4444'},
+  '[NCH-CMR] Chicken Roll (with mayo)':{cat:'Snacks',clr:'#ef4444'},
+  '[NCH-FAJ] Chicken Fajita':    {cat:'Snacks',     clr:'#ef4444'},
+  '[NCH-KH] Khajor':             {cat:'Other',      clr:'#8b5cf6'},
+  'Haleem (Mutton) 300gm':       {cat:'Food',       clr:'#22c55e'},
+  'Haleem Full (750g)':          {cat:'Food',       clr:'#22c55e'},
+  'Haleem Half (500g)':          {cat:'Food',       clr:'#22c55e'},
+  'Haleem Quarter (250g)':       {cat:'Food',       clr:'#22c55e'},
+};
+var CAT_CLRS={'Beverages':'#d4a44c','Baked':'#a16207','Biscuits':'#f97316','Snacks':'#ef4444','Food':'#22c55e','Other':'#8b5cf6'};
 
-function init(){apply();}
+function heCat(name){
+  var n=name.toLowerCase();
+  if(/biryani|rice/.test(n)) return {cat:'Biryani',clr:'#f59e0b'};
+  if(/chicken/.test(n))      return {cat:'Chicken',clr:'#ef4444'};
+  if(/kabab|tikka|reshmi|kalmi|seekh|garlic/.test(n)) return {cat:'Kabab',clr:'#dc2626'};
+  if(/naan|roti|paratha|bread/.test(n)) return {cat:'Breads',clr:'#a16207'};
+  if(/mutton|lamb/.test(n))  return {cat:'Mutton',clr:'#7c3aed'};
+  if(/drink|soft|sprite|cola|water|cold/.test(n)) return {cat:'Drinks',clr:'#0ea5e9'};
+  if(/shawarma|roll/.test(n)) return {cat:'Snacks',clr:'#f97316'};
+  if(/paneer|veg|kofta/.test(n)) return {cat:'Veg',clr:'#22c55e'};
+  return {cat:'Other',clr:'#64748b'};
+}
+
+function getItemCat(key,brand){
+  if(brand==='nch') return NCH_CATMAP[key]||{cat:'Other',clr:'#8b5cf6'};
+  return heCat(cleanName(key));
+}
+
+function cleanName(n){return n.replace(/^\[(?:NCH|HE|HN)-[^\]]+\]\s*/,'');}
+function fDate(d){
+  var dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+}
+function fDow(d){return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short'});}
+function fRev(n){return '\u20b9'+Math.round(n).toLocaleString('en-IN');}
+function fQty(n){return n%1===0?n.toFixed(0):n.toFixed(1);}
+
+// ── STATE ─────────────────────────────────────────────────────────
+var brand='nch', sortBy='qty', dateFrom='2026-02-03', dateTo='2026-03-31';
+
+function init(){
+  document.getElementById('dt-from').value=dateFrom;
+  document.getElementById('dt-to').value=dateTo;
+  applyTheme();
+  applyFilters();
+}
 
 function setBrand(b){
   brand=b;
-  ['nch','he','both'].forEach(function(x){
-    var el=document.getElementById('tab-'+x);
-    el.className='brand-tab'+(b===x?' active-'+b:'');
-  });
-  // adjust date from for HE
-  if(b==='he' && dateFrom<'2026-02-27') document.getElementById('dt-from').value='2026-02-27';
-  if(b==='nch') document.getElementById('dt-from').value='2026-02-03';
-  apply();
-}
-
-function setPreset(p){
-  if(p==='naveen'){dateFrom='2026-02-03';dateTo='2026-03-31';}
-  else if(p==='nch-launch'){dateFrom='2026-02-03';dateTo='2026-02-28';}
-  else if(p==='he-launch'){dateFrom='2026-02-27';dateTo='2026-03-31';}
-  else if(p==='all'){
-    dateFrom=(brand==='he'?'2026-02-27':'2026-02-03');
-    dateTo='2026-04-16';
-  }
+  var defaults={nch:{from:'2026-02-03',to:'2026-03-31'},he:{from:'2026-02-27',to:'2026-03-31'}};
+  dateFrom=defaults[b].from; dateTo=defaults[b].to;
   document.getElementById('dt-from').value=dateFrom;
   document.getElementById('dt-to').value=dateTo;
-  apply();
+  applyTheme();
+  applyFilters();
 }
 
-function setView(v){
-  view=v;
-  ['day','item','trend'].forEach(function(x){
-    document.getElementById('vtab-'+x).className='view-tab'+(v===x?' active':'');
-    document.getElementById('view-'+x).style.display=(v===x?'block':'none');
+function applyTheme(){
+  var isNch=(brand==='nch');
+  var clr=isNch?'var(--nch)':'var(--he)';
+  document.getElementById('hdr-logo').style.color=clr;
+  document.getElementById('pin-logo').style.color=clr;
+  ['nch','he'].forEach(function(b){
+    var el=document.getElementById('btab-'+b);
+    el.className='btab'+(b===brand?' on-'+b:'');
   });
+  document.querySelector('.apply-btn').style.color=clr;
 }
 
-function apply(){
+function setPreset(v){
+  if(!v) return;
+  var p={
+    naveen:{from:'2026-02-03',to:'2026-03-31'},
+    feb:{from:'2026-02-03',to:'2026-02-28'},
+    mar:{from:'2026-03-01',to:'2026-03-31'},
+    'he-start':{from:'2026-02-27',to:'2026-03-31'},
+    all:{from:'2026-02-03',to:'2026-04-16'}
+  }[v];
+  if(!p) return;
+  if(brand==='he'&&p.from<'2026-02-27') p.from='2026-02-27';
+  dateFrom=p.from; dateTo=p.to;
+  document.getElementById('dt-from').value=dateFrom;
+  document.getElementById('dt-to').value=dateTo;
+  document.getElementById('preset-sel').value='';
+  applyFilters();
+}
+
+function setSort(s){
+  sortBy=s;
+  ['qty','rev','name','avg'].forEach(function(x){
+    document.getElementById('sb-'+x).className='sort-btn'+(x===s?' active':'');
+  });
+  renderItems(getRows());
+}
+
+function applyFilters(){
   dateFrom=document.getElementById('dt-from').value;
   dateTo=document.getElementById('dt-to').value;
   var rows=getRows();
-  renderCards(rows);
-  renderDay(rows);
-  renderItem(rows);
-  renderTrend(rows);
-  document.getElementById('range-summary').textContent=rows.length+' days shown';
+  renderSummary(rows);
+  renderItems(rows);
+  renderDaily(rows);
+  document.getElementById('rb-info').textContent=rows.length+' days · '+dateFrom+' → '+dateTo;
 }
 
 function getRows(){
-  var sets=[];
-  if(brand==='nch'||brand==='both') sets.push({data:RAW.nch,tag:'nch'});
-  if(brand==='he'||brand==='both') sets.push({data:RAW.he,tag:'he'});
-  var combined={};
-  sets.forEach(function(s){
-    s.data.forEach(function(row){
-      if(row.d<dateFrom||row.d>dateTo) return;
-      if(!combined[row.d]) combined[row.d]={d:row.d,n:0,g:0,items:{},tags:[]};
-      combined[row.d].n+=row.n;
-      combined[row.d].g+=row.g;
-      combined[row.d].tags.push(s.tag);
-      Object.keys(row.items).forEach(function(k){
-        var v=row.items[k];
-        if(!combined[row.d].items[k]) combined[row.d].items[k]={q:0,a:0,tag:s.tag};
-        combined[row.d].items[k].q+=v.q;
-        combined[row.d].items[k].a+=v.a;
-      });
-    });
-  });
-  return Object.values(combined).sort(function(a,b){return a.d>b.d?1:-1;});
+  var src=(brand==='nch'?RAW.nch:RAW.he);
+  return src.filter(function(r){return r.d>=dateFrom&&r.d<=dateTo;});
 }
 
-function cleanName(n){
-  return n.replace(/^\[(?:NCH|HE)-[^\]]+\]\s*/,'').replace(/^\[HN-RM-\d+\]\s*/,'');
-}
-
-function fmtDate(d){
-  var dt=new Date(d+'T00:00:00');
-  return dt.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
-}
-
-function f(n){return '\u20b9'+Number(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0});}
-
-// ─── CARDS ───────────────────────────────────────────────────────────────────
-function renderCards(rows){
-  var tot=rows.reduce(function(s,r){return s+r.g;},0);
+// ── SUMMARY ───────────────────────────────────────────────────────
+function renderSummary(rows){
+  var rev=rows.reduce(function(s,r){return s+r.g;},0);
   var ord=rows.reduce(function(s,r){return s+r.n;},0);
   var days=rows.length;
-  var avgDay=days?tot/days:0;
-  var avgTkt=ord?tot/ord:0;
-  var clr=(brand==='nch'?'var(--nch)':(brand==='he'?'var(--he)':'#6366f1'));
-  document.getElementById('summary-cards').innerHTML=
-    card('Total Revenue',f(tot),'',clr)+
-    card('Orders',ord.toLocaleString('en-IN'),'',clr)+
-    card('Days',days,'in range',clr)+
-    card('Avg / Day',f(avgDay),'daily revenue',clr)+
-    card('Avg Ticket',f(avgTkt),'per order',clr);
+  var clr=(brand==='nch'?'var(--nch)':'var(--he)');
+  // top item by qty
+  var itTot=accItems(rows);
+  var topItem=Object.entries(itTot).sort(function(a,b){return b[1].q-a[1].q;})[0];
+  var topStr=topItem?cleanName(topItem[0])+' ('+fQty(topItem[1].q)+' units)':'—';
+  document.getElementById('sum-strip').innerHTML=
+    sc('Revenue',fRev(rev),'total in period',clr)+
+    sc('Orders',ord.toLocaleString('en-IN'),'transactions',clr)+
+    sc('Days',days,'in selected range',clr)+
+    sc('Avg / Day',days?fRev(rev/days):fRev(0),'daily revenue',clr)+
+    sc('Top Item',topStr,'by qty sold',clr);
 }
-function card(l,v,s,c){return '<div class="card"><div class="card-label">'+l+'</div><div class="card-val" style="color:'+c+'">'+v+'</div><div class="card-sub">'+s+'</div></div>';}
+function sc(l,v,s,c){return '<div class="sum-card"><div class="sum-lbl">'+l+'</div><div class="sum-val" style="color:'+c+'">'+v+'</div><div class="sum-sub">'+s+'</div></div>';}
 
-// ─── BY DAY ──────────────────────────────────────────────────────────────────
-function renderDay(rows){
-  var clr=(brand==='nch'?'var(--nch)':(brand==='he'?'var(--he)':'#6366f1'));
-  var maxG=rows.reduce(function(m,r){return Math.max(m,r.g);},0);
-  var h='<table class="day-table"><thead class="day-head"><tr>'
-    +'<th>Date</th><th>Day</th><th style="text-align:right">Revenue</th>'
-    +'<th style="text-align:right">Orders</th><th style="text-align:right">Avg Ticket</th>'
-    +'<th style="text-align:right">Contribution</th><th style="text-align:center">Actions</th></tr></thead><tbody>';
-  rows.forEach(function(row,i){
-    var avg=row.n?row.g/row.n:0;
-    var pct=(maxG?row.g/maxG*100:0).toFixed(0);
-    var barW=(maxG?row.g/maxG*80:0).toFixed(0);
-    var tagHtml=brand==='both'?row.tags.map(function(t){return '<span class="day-tag tag-'+t+'">'+t.toUpperCase()+'</span>';}).join(''):'';
-    h+='<tr class="day-row" id="dr-'+i+'" onclick="toggleDetail('+i+')">'
-      +'<td class="day-date">'+fmtDate(row.d)+tagHtml+'</td>'
-      +'<td style="color:var(--tx3);font-size:12px">'+row.d+'</td>'
-      +'<td class="day-rev num" style="color:'+clr+'">'+f(row.g)+'</td>'
-      +'<td class="num">'+row.n+'</td>'
-      +'<td class="num">'+f(avg)+'</td>'
-      +'<td class="num"><div style="display:inline-flex;align-items:center;gap:6px">'
-      +'<div class="item-bar-bg" style="width:80px"><div class="item-bar-fill" style="width:'+barW+'%;background:'+clr+'"></div></div>'
-      +'<span style="font-size:11px;color:var(--tx3)">'+pct+'%</span></div></td>'
-      +'<td style="text-align:center;white-space:nowrap">'
-      +'<button class="print-day-btn" onclick="event.stopPropagation();printDay('+i+','+JSON.stringify(row.d)+')">🖨 PDF</button>'
-      +'<span style="color:var(--tx3);font-size:16px;margin-left:6px" id="chv-'+i+'">▾</span>'
-      +'</td></tr>';
-    // Detail row
-    h+='<tr class="detail-row" id="dd-'+i+'"><td colspan="7" class="detail-cell">';
-    var items=Object.entries(row.items).sort(function(a,b){return b[1].a-a[1].a;});
-    h+='<div class="item-grid">';
-    items.forEach(function(iv){
-      var itemClr=iv[1].tag==='he'?'var(--he)':(iv[1].tag==='nch'?'var(--nch)':'var(--tx)');
-      h+='<div class="item-cell"><span class="item-name">'+cleanName(iv[0])+'</span>'
-        +'<span class="item-qty">×'+iv[1].q+'</span>'
-        +'<span class="item-amt" style="color:'+itemClr+'">'+f(iv[1].a)+'</span></div>';
-    });
-    h+='</div></td></tr>';
-  });
-  h+='</tbody></table>';
-  document.getElementById('view-day').innerHTML=h;
-  document.getElementById('view-day').style.display=(view==='day'?'block':'none');
-}
-
-function toggleDetail(i){
-  var dd=document.getElementById('dd-'+i);
-  var chv=document.getElementById('chv-'+i);
-  var show=dd.classList.toggle('show');
-  chv.textContent=show?'▴':'▾';
-  document.getElementById('dr-'+i).classList.toggle('expanded',show);
-}
-
-// ─── BY ITEM ─────────────────────────────────────────────────────────────────
-function renderItem(rows){
-  var totals={};
-  var grandAmt=0;
-  rows.forEach(function(row){
-    Object.entries(row.items).forEach(function(iv){
-      if(!totals[iv[0]]) totals[iv[0]]={q:0,a:0,tag:iv[1].tag};
-      totals[iv[0]].q+=iv[1].q;
-      totals[iv[0]].a+=iv[1].a;
-      grandAmt+=iv[1].a;
+// ── ITEM TOTALS ───────────────────────────────────────────────────
+function accItems(rows){
+  var t={};
+  rows.forEach(function(r){
+    Object.entries(r.items).forEach(function(kv){
+      if(!t[kv[0]]) t[kv[0]]={q:0,a:0};
+      t[kv[0]].q+=kv[1].q; t[kv[0]].a+=kv[1].a;
     });
   });
-  var sorted=Object.entries(totals).sort(function(a,b){return b[1].a-a[1].a;});
-  var maxA=sorted.length?sorted[0][1].a:1;
-  var clr=(brand==='nch'?'var(--nch)':(brand==='he'?'var(--he)':'#6366f1'));
-  var h='<table class="item-summary-table"><thead><tr><th>#</th><th>Product</th><th style="text-align:right">Total Qty</th><th style="text-align:right">Revenue</th><th style="text-align:right">% Share</th><th>Bar</th></tr></thead><tbody>';
-  sorted.forEach(function(iv,i){
-    var pct=(grandAmt?iv[1].a/grandAmt*100:0).toFixed(1);
-    var barW=(maxA?iv[1].a/maxA*100:0).toFixed(0);
-    var itemClr=iv[1].tag==='he'?'var(--he)':(iv[1].tag==='nch'?'var(--nch)':clr);
-    h+='<tr><td style="color:var(--tx3);font-size:12px">'+(i+1)+'</td>'
-      +'<td class="bold">'+cleanName(iv[0])+'</td>'
-      +'<td class="num">'+iv[1].q.toFixed(1)+'</td>'
-      +'<td class="num" style="color:'+itemClr+'">'+f(iv[1].a)+'</td>'
-      +'<td class="num" style="color:var(--tx3)">'+pct+'%</td>'
-      +'<td><div class="item-bar-bg" style="width:120px"><div class="item-bar-fill" style="width:'+barW+'%;background:'+itemClr+'"></div></div></td></tr>';
-  });
-  h+='<tr class="tr-total"><td colspan="2">Total</td><td class="num">—</td><td class="num">'+f(grandAmt)+'</td><td class="num">100%</td><td></td></tr>';
-  h+='</tbody></table>';
-  document.getElementById('view-item').innerHTML=h;
-  document.getElementById('view-item').style.display=(view==='item'?'block':'none');
+  return t;
 }
 
-// ─── TREND ───────────────────────────────────────────────────────────────────
-function renderTrend(rows){
-  var maxG=rows.reduce(function(m,r){return Math.max(m,r.g);},0);
-  var clr=(brand==='nch'?'var(--nch)':(brand==='he'?'var(--he)':'#6366f1'));
-  var h='<div class="trend-wrap"><div class="trend-chart">';
+function renderItems(rows){
+  var tot=accItems(rows);
+  var days=rows.length||1;
+  var grandRev=Object.values(tot).reduce(function(s,v){return s+v.a;},0)||1;
+  var maxQ=Object.values(tot).reduce(function(m,v){return Math.max(m,v.q);},0)||1;
+  var maxR=Object.values(tot).reduce(function(m,v){return Math.max(m,v.a);},0)||1;
+  var entries=Object.entries(tot);
+  entries.sort(function(a,b){
+    if(sortBy==='qty') return b[1].q-a[1].q;
+    if(sortBy==='rev') return b[1].a-a[1].a;
+    if(sortBy==='avg') return (b[1].q/days)-(a[1].q/days);
+    return cleanName(a[0]).localeCompare(cleanName(b[0]));
+  });
+  var clr=(brand==='nch'?'var(--nch)':'var(--he)');
+  var html='';
+  entries.forEach(function(kv,i){
+    var key=kv[0],v=kv[1];
+    var ci=getItemCat(key,brand);
+    var barW=(sortBy==='rev'||sortBy==='name'?v.a/maxR:v.q/maxQ)*100;
+    var pct=(v.a/grandRev*100).toFixed(1);
+    var avgD=(v.q/days).toFixed(1);
+    html+='<div class="item-row">'
+      +'<div class="item-top">'
+      +'<span class="item-rank">'+(i+1)+'</span>'
+      +'<span class="item-dot" style="background:'+ci.clr+'"></span>'
+      +'<span class="item-name">'+cleanName(key)+'<span class="item-cat" style="background:'+ci.clr+'22;color:'+ci.clr+'">'+ci.cat+'</span></span>'
+      +'</div>'
+      +'<div class="item-stats">'
+      +'<div class="stat-block"><div class="stat-v" style="color:'+clr+'">'+fQty(v.q)+'</div><div class="stat-l">Total Qty</div></div>'
+      +'<div class="stat-block"><div class="stat-v">'+fRev(v.a)+'</div><div class="stat-l">Revenue</div></div>'
+      +'<div class="stat-block"><div class="stat-v" style="color:'+ci.clr+'">'+avgD+'</div><div class="stat-l">Avg/Day</div></div>'
+      +'<div class="stat-block"><div class="stat-v" style="color:var(--tx3)">'+pct+'%</div><div class="stat-l">Rev Share</div></div>'
+      +'</div>'
+      +'<div class="item-bar-bg"><div class="item-bar-fill" style="width:'+barW.toFixed(1)+'%;background:'+ci.clr+'"></div></div>'
+      +'</div>';
+  });
+  document.getElementById('left-scroll').innerHTML=html;
+  document.getElementById('left-title').textContent='Item Totals ('+entries.length+' products)';
+}
+
+// ── DAILY LIST ────────────────────────────────────────────────────
+function renderDaily(rows){
+  var maxG=rows.reduce(function(m,r){return Math.max(m,r.g);},0)||1;
+  var clr=(brand==='nch'?'var(--nch)':'var(--he)');
+  var html='';
   rows.forEach(function(row,i){
-    var h2=maxG?Math.max(4,row.g/maxG*160):4;
-    var lbl=row.d.slice(5); // MM-DD
-    h+='<div class="trend-bar-wrap" title="'+row.d+': '+f(row.g)+'">'
-      +'<div class="trend-bar" style="height:'+h2+'px;background:'+clr+'" onclick="setView('day')"></div>'
-      +'<div class="trend-bar-label">'+lbl+'</div></div>';
+    var pct=(row.g/maxG*100).toFixed(1);
+    html+='<div class="day-wrap">'
+      +'<div class="day-row" id="dr-'+i+'" onclick="togDay('+i+')">'
+      +'<span class="day-date">'+fDate(row.d)+'</span>'
+      +'<span class="day-dow">'+fDow(row.d)+'</span>'
+      +'<div class="day-rev-bar">'
+      +'<div class="day-rev-track"><div class="day-rev-fill" style="width:'+pct+'%;background:'+clr+'"></div></div>'
+      +'<span class="day-rev-amt" style="color:'+clr+'">'+fRev(row.g)+'</span>'
+      +'</div>'
+      +'<span class="day-orders">'+row.n+' orders</span>'
+      +'<button class="print-day-btn no-print" onclick="event.stopPropagation();printDay('+i+')">🖨</button>'
+      +'<span class="day-chv">▾</span>'
+      +'</div>'
+      +'<div class="day-detail" id="dd-'+i+'">'
+      +buildDayDetail(row)
+      +'</div>'
+      +'</div>';
   });
-  h+='</div></div>';
-  document.getElementById('view-trend').innerHTML=h;
-  document.getElementById('view-trend').style.display=(view==='trend'?'block':'none');
+  document.getElementById('daily-list').innerHTML=html;
+  document.getElementById('right-title').textContent='Daily Breakdown ('+rows.length+' days)';
 }
 
-// ─── PRINT DAY ───────────────────────────────────────────────────────────────
+function buildDayDetail(row){
+  var items=Object.entries(row.items).sort(function(a,b){return b[1].a-a[1].a;});
+  var tot=items.reduce(function(s,kv){return s+kv[1].a;},0);
+  var clr=(brand==='nch'?'var(--nch)':'var(--he)');
+  var h='<table class="detail-table"><thead><tr>'
+    +'<th>Product</th><th class="num">Qty</th><th class="num">Unit ₹</th><th class="num">Revenue</th>'
+    +'</tr></thead><tbody>';
+  items.forEach(function(kv){
+    var ci=getItemCat(kv[0],brand);
+    var unit=kv[1].q?kv[1].a/kv[1].q:0;
+    h+='<tr><td><span class="detail-item-dot" style="background:'+ci.clr+'"></span>'+cleanName(kv[0])+'</td>'
+      +'<td class="num bold">'+fQty(kv[1].q)+'</td>'
+      +'<td class="num" style="color:var(--tx3)">'+fRev(unit)+'</td>'
+      +'<td class="num" style="color:'+clr+'">'+fRev(kv[1].a)+'</td></tr>';
+  });
+  h+='<tr class="tr-sub"><td class="bold">Day Total</td><td class="num">—</td><td class="num">—</td>'
+    +'<td class="num">'+fRev(tot)+'</td></tr>';
+  h+='</tbody></table>';
+  return h;
+}
+
+function togDay(i){
+  var row=document.getElementById('dr-'+i);
+  var det=document.getElementById('dd-'+i);
+  var open=det.classList.toggle('show');
+  row.classList.toggle('open',open);
+}
+
+// ── PRINT: single day ─────────────────────────────────────────────
 var PSTYLE='*{box-sizing:border-box;margin:0;padding:0}'
-  +'body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:24px;max-width:900px;margin:0 auto}'
-  +'h1{font-size:17px;font-weight:700;margin-bottom:2px}'
-  +'h2{font-size:11px;color:#666;font-weight:normal;margin-bottom:4px}'
-  +'.meta{font-size:10px;color:#888;margin-bottom:16px;padding-bottom:8px;border-top:2px solid #c8860a;margin-top:6px;padding-top:6px}'
-  +'.stats{display:flex;gap:24px;margin-bottom:14px}'
-  +'.stat-box{background:#f9f5ee;border-radius:6px;padding:10px 14px;flex:1}'
-  +'.stat-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.4px}'
-  +'.stat-val{font-size:18px;font-weight:800;color:#1a1a1a}'
-  +'table{width:100%;border-collapse:collapse;margin-bottom:16px}'
-  +'th{background:#f5f0e8;color:#555;font-size:10px;font-weight:700;text-transform:uppercase;padding:7px 9px;text-align:left;border-bottom:2px solid #c8860a}'
-  +'td{padding:6px 9px;border-bottom:1px solid #ece8e0;font-size:11px}'
-  +'.num{text-align:right;font-family:monospace}'
-  +'.tr-total td{background:#f5f0e8;font-weight:700;border-top:2px solid #c8860a}'
-  +'.footer{margin-top:20px;font-size:9px;color:#aaa;border-top:1px solid #ddd;padding-top:6px;text-align:center}'
+  +'body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px;max-width:900px;margin:0 auto}'
+  +'h1{font-size:18px;font-weight:800;margin-bottom:2px}'
+  +'.sub{font-size:12px;color:#555;margin-bottom:4px}'
+  +'.meta{font-size:10px;color:#888;border-top:2px solid #b8860b;padding-top:6px;margin:6px 0 14px}'
+  +'.stats{display:flex;gap:16px;margin-bottom:14px}'
+  +'.sbox{background:#fdf8ee;border-radius:6px;padding:10px 14px;flex:1;border:1px solid #e8d8b0}'
+  +'.sl{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.5px}'
+  +'.sv{font-size:18px;font-weight:800}'
+  +'table{width:100%;border-collapse:collapse}'
+  +'th{background:#f5f0e0;color:#555;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:7px 9px;text-align:left;border-bottom:2px solid #b8860b}'
+  +'th.r{text-align:right}'
+  +'td{padding:6px 9px;border-bottom:1px solid #eee;font-size:11px}'
+  +'td.r{text-align:right;font-family:monospace}'
+  +'td.b{font-weight:700}'
+  +'.tr-tot td{background:#f5f0e0;font-weight:700;border-top:2px solid #b8860b}'
+  +'.footer{margin-top:20px;font-size:9px;color:#aaa;border-top:1px solid #ddd;padding-top:7px;text-align:center}'
   +'@media print{body{padding:10px}@page{margin:14mm 12mm}}';
 
-function printDay(i, dateStr){
+function printDay(i){
   var rows=getRows();
-  var row=rows.find(function(r){return r.d===dateStr;});
-  if(!row) return;
-  var avg=row.n?row.g/row.n:0;
+  var row=rows[i]; if(!row) return;
   var items=Object.entries(row.items).sort(function(a,b){return b[1].a-a[1].a;});
-  var tbl='<table><thead><tr><th>#</th><th>Product</th><th class="num">Qty Sold</th><th class="num">Revenue (₹)</th></tr></thead><tbody>';
-  var tot=0;
-  items.forEach(function(iv,n){
-    tbl+='<tr><td>'+(n+1)+'</td><td>'+cleanName(iv[0])+'</td><td class="num">'+iv[1].q.toFixed(1)+'</td><td class="num">'+Number(iv[1].a).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td></tr>';
-    tot+=iv[1].a;
+  var tot=items.reduce(function(s,kv){return s+kv[1].a;},0);
+  var totQ=items.reduce(function(s,kv){return s+kv[1].q;},0);
+  var brandName=(brand==='nch'?'Nawabi Chai House':'Hamza Express');
+  var tbl='<table><thead><tr><th>#</th><th>Product</th><th class="r">Qty</th><th class="r">Unit ₹</th><th class="r">Revenue</th></tr></thead><tbody>';
+  items.forEach(function(kv,n){
+    var unit=kv[1].q?kv[1].a/kv[1].q:0;
+    tbl+='<tr><td class="b">'+(n+1)+'</td><td>'+cleanName(kv[0])+'</td>'
+      +'<td class="r b">'+fQty(kv[1].q)+'</td>'
+      +'<td class="r">'+fRev(unit)+'</td>'
+      +'<td class="r">'+fRev(kv[1].a)+'</td></tr>';
   });
-  tbl+='<tr class="tr-total"><td colspan="2">Total</td><td class="num">—</td><td class="num">'+Number(tot).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td></tr></tbody></table>';
-  var brandName=brand==='nch'?'Nawabi Chai House':(brand==='he'?'Hamza Express':'HN Hotels');
-  openPrint(brandName+' — '+fmtDate(dateStr),
-    '<h1>'+brandName+'</h1><h2>Daily Sales — '+fmtDate(dateStr)+' ('+dateStr+')</h2>'
-    +'<div class="meta">POS Sales · Source: Odoo 19 · Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
+  tbl+='<tr class="tr-tot"><td colspan="2">Total</td><td class="r">'+fQty(totQ)+'</td><td class="r">—</td><td class="r">'+fRev(tot)+'</td></tr></tbody></table>';
+  openPrint(brandName+' — '+fDate(row.d),
+    '<h1>'+brandName+'</h1><div class="sub">Daily Sales — '+fDate(row.d)+', '+fDow(row.d)+' ('+row.d+')</div>'
+    +'<div class="meta">POS Sales · Odoo 19 · Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
     +'<div class="stats">'
-    +'<div class="stat-box"><div class="stat-label">Revenue</div><div class="stat-val">₹'+Number(row.g).toLocaleString('en-IN',{maximumFractionDigits:0})+'</div></div>'
-    +'<div class="stat-box"><div class="stat-label">Orders</div><div class="stat-val">'+row.n+'</div></div>'
-    +'<div class="stat-box"><div class="stat-label">Avg Ticket</div><div class="stat-val">₹'+Number(avg).toLocaleString('en-IN',{maximumFractionDigits:0})+'</div></div>'
+    +'<div class="sbox"><div class="sl">Revenue</div><div class="sv">'+fRev(tot)+'</div></div>'
+    +'<div class="sbox"><div class="sl">Orders</div><div class="sv">'+row.n+'</div></div>'
+    +'<div class="sbox"><div class="sl">Items Sold</div><div class="sv">'+items.length+'</div></div>'
+    +'<div class="sbox"><div class="sl">Avg Ticket</div><div class="sv">'+fRev(row.n?tot/row.n:0)+'</div></div>'
     +'</div>'+tbl);
 }
 
-// ─── PRINT RANGE ─────────────────────────────────────────────────────────────
+// ── PRINT: range ─────────────────────────────────────────────────
 function printRange(){
   var rows=getRows();
-  var grandTot=rows.reduce(function(s,r){return s+r.g;},0);
+  var brandName=(brand==='nch'?'Nawabi Chai House':'Hamza Express');
+  var grandRev=rows.reduce(function(s,r){return s+r.g;},0);
   var grandOrd=rows.reduce(function(s,r){return s+r.n;},0);
-  var brandName=brand==='nch'?'Nawabi Chai House':(brand==='he'?'Hamza Express':'HN Hotels (NCH+HE)');
-  var body='<h1>'+brandName+' — Sales Register</h1>'
-    +'<h2>'+dateFrom+' to '+dateTo+'</h2>'
-    +'<div class="meta">'+rows.length+' days · '+grandOrd.toLocaleString()+" orders · ₹"+Number(grandTot).toLocaleString('en-IN',{maximumFractionDigits:0})+' total · Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
-    +'<table><thead><tr><th>Date</th><th>Day</th><th class="num">Orders</th><th class="num">Revenue (₹)</th><th class="num">Avg Ticket (₹)</th></tr></thead><tbody>';
-  var running=0;
+  // Day-by-day table
+  var dTbl='<table><thead><tr><th>Date</th><th>Day</th><th class="r">Orders</th><th class="r">Revenue</th><th class="r">Avg Ticket</th></tr></thead><tbody>';
   rows.forEach(function(row){
-    running+=row.g;
-    body+='<tr><td>'+row.d+'</td><td>'+fmtDate(row.d).split(',')[0]+'</td>'
-      +'<td class="num">'+row.n+'</td>'
-      +'<td class="num">'+Number(row.g).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td>'
-      +'<td class="num">'+Number(row.n?row.g/row.n:0).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td></tr>';
+    dTbl+='<tr><td class="b">'+row.d+'</td><td>'+fDow(row.d)+'</td>'
+      +'<td class="r">'+row.n+'</td>'
+      +'<td class="r">'+fRev(row.g)+'</td>'
+      +'<td class="r">'+fRev(row.n?row.g/row.n:0)+'</td></tr>';
   });
-  body+='<tr class="tr-total"><td colspan="2">TOTAL</td><td class="num">'+grandOrd+'</td><td class="num">₹'+Number(grandTot).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td><td class="num">₹'+Number(grandOrd?grandTot/grandOrd:0).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td></tr>'
-    +'</tbody></table>';
-  // Item summary
-  var itemTotals={};
-  rows.forEach(function(row){Object.entries(row.items).forEach(function(iv){
-    if(!itemTotals[iv[0]]) itemTotals[iv[0]]={q:0,a:0};
-    itemTotals[iv[0]].q+=iv[1].q; itemTotals[iv[0]].a+=iv[1].a;
-  });});
-  var sortedI=Object.entries(itemTotals).sort(function(a,b){return b[1].a-a[1].a;});
-  body+='<h2 style="margin:20px 0 8px;font-size:13px;font-weight:700;border-bottom:1px solid #c8860a;padding-bottom:4px">Item Summary</h2>'
-    +'<table><thead><tr><th>#</th><th>Product</th><th class="num">Total Qty</th><th class="num">Revenue (₹)</th><th class="num">% Share</th></tr></thead><tbody>';
-  sortedI.forEach(function(iv,n){
-    var pct=(grandTot?iv[1].a/grandTot*100:0).toFixed(1);
-    body+='<tr><td>'+(n+1)+'</td><td>'+cleanName(iv[0])+'</td><td class="num">'+iv[1].q.toFixed(1)+'</td><td class="num">'+Number(iv[1].a).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td><td class="num">'+pct+'%</td></tr>';
+  dTbl+='<tr class="tr-tot"><td colspan="2">Total</td><td class="r">'+grandOrd+'</td><td class="r">'+fRev(grandRev)+'</td><td class="r">'+fRev(grandOrd?grandRev/grandOrd:0)+'</td></tr></tbody></table>';
+  // Item accumulation
+  var tot=accItems(rows);
+  var days=rows.length||1;
+  var sortedItems=Object.entries(tot).sort(function(a,b){return b[1].q-a[1].q;});
+  var iTbl='<table><thead><tr><th>#</th><th>Product</th><th>Category</th><th class="r">Total Qty</th><th class="r">Revenue</th><th class="r">Avg Qty/Day</th><th class="r">Rev %</th></tr></thead><tbody>';
+  sortedItems.forEach(function(kv,n){
+    var ci=getItemCat(kv[0],brand);
+    var pct=(kv[1].a/grandRev*100).toFixed(1);
+    var avg=(kv[1].q/days).toFixed(1);
+    iTbl+='<tr><td class="b">'+(n+1)+'</td><td>'+cleanName(kv[0])+'</td><td>'+ci.cat+'</td>'
+      +'<td class="r b">'+fQty(kv[1].q)+'</td>'
+      +'<td class="r">'+fRev(kv[1].a)+'</td>'
+      +'<td class="r">'+avg+'</td>'
+      +'<td class="r">'+pct+'%</td></tr>';
   });
-  body+='<tr class="tr-total"><td colspan="2">Total</td><td class="num">—</td><td class="num">₹'+Number(grandTot).toLocaleString('en-IN',{maximumFractionDigits:0})+'</td><td class="num">100%</td></tr></tbody></table>';
-  openPrint(brandName+' Sales '+dateFrom+' to '+dateTo, body);
+  iTbl+='<tr class="tr-tot"><td colspan="3">Total</td><td class="r">—</td><td class="r">'+fRev(grandRev)+'</td><td class="r">—</td><td class="r">100%</td></tr></tbody></table>';
+  openPrint(brandName+' Sales '+dateFrom+' to '+dateTo,
+    '<h1>'+brandName+'</h1><div class="sub">Sales Register · '+dateFrom+' to '+dateTo+'</div>'
+    +'<div class="meta">'+rows.length+' days · '+grandOrd.toLocaleString()+' orders · '+fRev(grandRev)+' total · Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
+    +'<div class="stats">'
+    +'<div class="sbox"><div class="sl">Total Revenue</div><div class="sv">'+fRev(grandRev)+'</div></div>'
+    +'<div class="sbox"><div class="sl">Total Orders</div><div class="sv">'+grandOrd.toLocaleString()+'</div></div>'
+    +'<div class="sbox"><div class="sl">Days</div><div class="sv">'+rows.length+'</div></div>'
+    +'<div class="sbox"><div class="sl">Avg / Day</div><div class="sv">'+fRev(grandRev/days)+'</div></div>'
+    +'</div>'
+    +'<h2 style="font-size:14px;font-weight:700;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid #b8860b">Daily Breakdown</h2>'+dTbl
+    +'<h2 style="font-size:14px;font-weight:700;margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid #b8860b">Item Accumulation (sorted by qty)</h2>'+iTbl);
 }
 
-// ─── XLSX ─────────────────────────────────────────────────────────────────────
-function dlXLSX(){
-  if(typeof XLSX==='undefined'){alert('Excel library not loaded.');return;}
+// ── PRINT: items only ─────────────────────────────────────────────
+function printItems(){
   var rows=getRows();
-  var brandName=brand==='nch'?'Nawabi Chai House':(brand==='he'?'Hamza Express':'HN Hotels');
-  var wb=XLSX.utils.book_new();
-  // Daily totals sheet
-  var aoa=[['HN Hotels — Sales Register'],['Brand: '+brandName],['Period: '+dateFrom+' to '+dateTo],[]];
-  aoa.push(['Date','Day Name','Orders','Revenue (₹)','Avg Ticket (₹)']);
-  rows.forEach(function(row){
-    aoa.push([row.d, fmtDate(row.d), row.n, Math.round(row.g), Math.round(row.n?row.g/row.n:0)]);
+  var brandName=(brand==='nch'?'Nawabi Chai House':'Hamza Express');
+  var tot=accItems(rows);
+  var days=rows.length||1;
+  var grandRev=rows.reduce(function(s,r){return s+r.g;},0);
+  var sorted=Object.entries(tot).sort(function(a,b){return b[1].q-a[1].q;});
+  var tbl='<table><thead><tr><th>#</th><th>Product</th><th>Category</th><th class="r">Total Qty</th><th class="r">Revenue</th><th class="r">Avg Qty/Day</th><th class="r">Rev %</th></tr></thead><tbody>';
+  sorted.forEach(function(kv,n){
+    var ci=getItemCat(kv[0],brand);
+    var pct=(kv[1].a/grandRev*100).toFixed(1);
+    tbl+='<tr><td class="b">'+(n+1)+'</td><td>'+cleanName(kv[0])+'</td><td>'+ci.cat+'</td>'
+      +'<td class="r b">'+fQty(kv[1].q)+'</td>'
+      +'<td class="r">'+fRev(kv[1].a)+'</td>'
+      +'<td class="r">'+(kv[1].q/days).toFixed(1)+'</td>'
+      +'<td class="r">'+pct+'%</td></tr>';
   });
-  var grandTot=rows.reduce(function(s,r){return s+r.g;},0);
-  var grandOrd=rows.reduce(function(s,r){return s+r.n;},0);
-  aoa.push(['TOTAL','',grandOrd,Math.round(grandTot),Math.round(grandOrd?grandTot/grandOrd:0)]);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:14},{wch:16},{wch:10},{wch:16},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws,'Daily Totals');
-  // Item totals sheet
-  var itemTotals={};
-  rows.forEach(function(row){Object.entries(row.items).forEach(function(iv){
-    if(!itemTotals[iv[0]]) itemTotals[iv[0]]={q:0,a:0};
-    itemTotals[iv[0]].q+=iv[1].q; itemTotals[iv[0]].a+=iv[1].a;
-  });});
-  var sortedI=Object.entries(itemTotals).sort(function(a,b){return b[1].a-a[1].a;});
-  var aoa2=[['Item Name','Total Qty','Revenue (₹)','% Share']];
-  sortedI.forEach(function(iv){
-    var pct=(grandTot?iv[1].a/grandTot*100:0).toFixed(1);
-    aoa2.push([cleanName(iv[0]),iv[1].q.toFixed(1),Math.round(iv[1].a),pct+'%']);
-  });
-  var ws2=XLSX.utils.aoa_to_sheet(aoa2);
-  ws2['!cols']=[{wch:38},{wch:12},{wch:16},{wch:10}];
-  XLSX.utils.book_append_sheet(wb,ws2,'Item Totals');
-  // Per-day item sheet
-  var aoa3=[['Date','Product','Qty','Revenue (₹)']];
-  rows.forEach(function(row){
-    var items=Object.entries(row.items).sort(function(a,b){return b[1].a-a[1].a;});
-    items.forEach(function(iv){aoa3.push([row.d,cleanName(iv[0]),iv[1].q.toFixed(1),Math.round(iv[1].a)]);});
-  });
-  var ws3=XLSX.utils.aoa_to_sheet(aoa3);
-  ws3['!cols']=[{wch:14},{wch:38},{wch:10},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws3,'Day x Item Detail');
-  XLSX.writeFile(wb,'HN_Sales_'+brand+'_'+dateFrom+'_'+dateTo+'.xlsx');
+  tbl+='<tr class="tr-tot"><td colspan="3">Total</td><td class="r">—</td><td class="r">'+fRev(grandRev)+'</td><td class="r">—</td><td class="r">100%</td></tr></tbody></table>';
+  openPrint(brandName+' Item Totals',
+    '<h1>'+brandName+'</h1><div class="sub">Item Accumulation · '+dateFrom+' to '+dateTo+'</div>'
+    +'<div class="meta">'+rows.length+' days · Sorted by total qty sold · Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
+    +'<div class="stats">'
+    +'<div class="sbox"><div class="sl">Total Revenue</div><div class="sv">'+fRev(grandRev)+'</div></div>'
+    +'<div class="sbox"><div class="sl">Unique Items</div><div class="sv">'+sorted.length+'</div></div>'
+    +'<div class="sbox"><div class="sl">Period</div><div class="sv" style="font-size:13px">'+days+' days</div></div>'
+    +'</div>'+tbl);
 }
 
 function openPrint(title,body){
-  var w=window.open('','_blank','width=960,height=800');
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title+'</title><style>'+PSTYLE+'</style></head><body>'+body+'<div class="footer">HN Hotels Pvt Ltd &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; Generated '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div></body></html>');
+  var w=window.open('','_blank','width=980,height=800');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title+'</title><style>'+PSTYLE+'</style></head><body>'
+    +body
+    +'<div class="footer">HN Hotels Pvt Ltd &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; '+title+'</div>'
+    +'</body></html>');
   w.document.close();
-  setTimeout(function(){w.print();},600);
+  setTimeout(function(){w.print();},700);
+}
+
+// ── XLSX ──────────────────────────────────────────────────────────
+function dlXLSX(mode){
+  if(typeof XLSX==='undefined'){alert('XLSX library loading — try again.');return;}
+  var rows=getRows();
+  var brandName=(brand==='nch'?'Nawabi Chai House':'Hamza Express');
+  var wb=XLSX.utils.book_new();
+
+  if(mode==='items'||mode==='full'){
+    var tot=accItems(rows);
+    var days=rows.length||1;
+    var grandRev=rows.reduce(function(s,r){return s+r.g;},0);
+    var sorted=Object.entries(tot).sort(function(a,b){return b[1].q-a[1].q;});
+    var aoa=[[brandName+' — Item Accumulation'],['Period: '+dateFrom+' to '+dateTo],['Days: '+days],[]];
+    aoa.push(['Rank','Product','Category','Total Qty','Revenue (₹)','Avg Qty/Day','Rev %']);
+    sorted.forEach(function(kv,n){
+      var ci=getItemCat(kv[0],brand);
+      var pct=(kv[1].a/grandRev*100).toFixed(1);
+      aoa.push([n+1,cleanName(kv[0]),ci.cat,+kv[1].q.toFixed(1),Math.round(kv[1].a),+(kv[1].q/days).toFixed(1),pct+'%']);
+    });
+    aoa.push(['','TOTAL','',null,Math.round(grandRev),null,'100%']);
+    var ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:6},{wch:36},{wch:12},{wch:12},{wch:14},{wch:14},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws,'Item Totals');
+  }
+
+  if(mode==='daily'||mode==='full'){
+    var grandRev2=rows.reduce(function(s,r){return s+r.g;},0);
+    var grandOrd=rows.reduce(function(s,r){return s+r.n;},0);
+    var aoa2=[[brandName+' — Daily Totals'],['Period: '+dateFrom+' to '+dateTo],[]];
+    aoa2.push(['Date','Day','Orders','Revenue (₹)','Avg Ticket (₹)']);
+    rows.forEach(function(row){aoa2.push([row.d,fDow(row.d),row.n,Math.round(row.g),Math.round(row.n?row.g/row.n:0)]);});
+    aoa2.push(['TOTAL','',grandOrd,Math.round(grandRev2),Math.round(grandOrd?grandRev2/grandOrd:0)]);
+    var ws2=XLSX.utils.aoa_to_sheet(aoa2);
+    ws2['!cols']=[{wch:14},{wch:8},{wch:10},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Daily Totals');
+  }
+
+  if(mode==='full'){
+    var aoa3=[[brandName+' — Day × Item Detail'],['Period: '+dateFrom+' to '+dateTo],[]];
+    aoa3.push(['Date','Day','Product','Category','Qty','Revenue (₹)','Unit Price (₹)']);
+    rows.forEach(function(row){
+      var its=Object.entries(row.items).sort(function(a,b){return b[1].a-a[1].a;});
+      its.forEach(function(kv){
+        var ci=getItemCat(kv[0],brand);
+        var unit=kv[1].q?kv[1].a/kv[1].q:0;
+        aoa3.push([row.d,fDow(row.d),cleanName(kv[0]),ci.cat,+kv[1].q.toFixed(1),Math.round(kv[1].a),Math.round(unit)]);
+      });
+    });
+    var ws3=XLSX.utils.aoa_to_sheet(aoa3);
+    ws3['!cols']=[{wch:14},{wch:8},{wch:36},{wch:12},{wch:10},{wch:14},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws3,'Day x Item');
+  }
+
+  var fname='HN_Sales_'+brand+'_'+dateFrom+'_'+dateTo+(mode==='items'?'_items':(mode==='daily'?'_daily':'_full'))+'.xlsx';
+  XLSX.writeFile(wb,fname);
 }
 </script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
