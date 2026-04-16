@@ -2,759 +2,628 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NCH · Expense Register · Feb–Mar 2026</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>NCH Expense Register — Feb–Mar 2026</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#0a0a0f;--s1:#12121a;--s2:#1a1a26;--s3:#1f2030;
-  --bd:#2a2a3a;--bd2:#353550;
-  --tx:#e0e0e8;--dm:#7878a0;--dm2:#9898b8;
-  --ac:#d4a44c;--ac2:#e8c07a;
-  --gn:#22c55e;--rd:#ef4444;--or:#f97316;--bl:#3b82f6;--pu:#a855f7;--cy:#06b6d4;
-}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a28;--s3:#222236;--ac:#d4a44c;--gn:#22c55e;--rd:#ef4444;--am:#f59e0b;--bl:#6366f1;--tx:#e2e8f0;--tx2:#94a3b8;--tx3:#64748b;--bd:#1e2a40}
+body{background:var(--bg);color:var(--tx);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
 
 /* PIN */
-#pin-gate{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0}
-#pin-gate.hidden{display:none}
-.pg-brand{font-size:.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--ac);margin-bottom:2rem}
-.pg-title{font-size:1.1rem;color:var(--dm2);font-weight:400;margin-bottom:2rem}
-.pg-dots{display:flex;gap:14px;margin-bottom:2rem}
-.pg-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--bd);transition:all .2s}
-.pg-dot.filled{background:var(--ac);border-color:var(--ac)}
-.pg-pad{display:grid;grid-template-columns:repeat(3,68px);gap:10px}
-.pg-btn{height:54px;border-radius:10px;border:1px solid var(--bd);background:var(--s1);color:var(--tx);font-size:1.2rem;cursor:pointer;transition:all .15s;font-weight:500}
-.pg-btn:active,.pg-btn:focus{background:var(--ac);color:var(--bg);border-color:var(--ac);outline:none}
-.pg-err{color:var(--rd);font-size:.8rem;margin-top:1rem;height:1.2rem;text-align:center}
+#pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column}
+.pin-box{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:32px 28px;width:320px;text-align:center}
+.pin-logo{font-size:28px;font-weight:800;color:var(--ac);letter-spacing:2px;margin-bottom:4px}
+.pin-sub{font-size:12px;color:var(--tx3);margin-bottom:24px}
+.pin-dots{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
+.pin-dot{width:12px;height:12px;border-radius:50%;background:var(--s3);border:1px solid var(--bd);transition:background .15s}
+.pin-dot.filled{background:var(--ac);border-color:var(--ac)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pin-btn{background:var(--s2);border:1px solid var(--bd);border-radius:10px;color:var(--tx);cursor:pointer;font-size:18px;font-weight:600;padding:14px;transition:all .1s}
+.pin-btn:hover{background:var(--s3);border-color:var(--ac)}
+.pin-btn:active{transform:scale(.95)}
+.pin-err{color:var(--rd);font-size:12px;min-height:16px;margin-top:10px}
 
-/* APP */
-#app{display:none;max-width:960px;margin:0 auto;padding:1rem 1rem 5rem}
-#app.show{display:block}
+/* App */
+#app{display:none}
+.hdr{background:var(--s1);border-bottom:1px solid var(--bd);padding:12px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.hdr-logo{color:var(--ac);font-weight:800;font-size:15px;letter-spacing:1px}
+.hdr-title{color:var(--tx);font-size:14px;font-weight:600}
+.hdr-period{margin-left:auto;font-size:11px;color:var(--tx3);background:var(--s2);padding:4px 10px;border-radius:20px}
 
-/* HEADER */
-.hdr{text-align:center;padding:1.75rem 0 1.25rem;border-bottom:1px solid var(--bd);margin-bottom:1.5rem}
-.hdr .brand{font-size:.65rem;letter-spacing:3px;text-transform:uppercase;color:var(--ac);margin-bottom:.4rem}
-.hdr h1{font-size:1.15rem;font-weight:700;color:var(--tx)}
-.hdr .meta{font-size:.8rem;color:var(--dm);margin-top:.3rem}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
 
-/* SUMMARY CARDS */
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.25rem}
-@media(max-width:580px){.cards{grid-template-columns:1fr 1fr}}
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:1rem}
-.card .clabel{font-size:.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--dm);margin-bottom:.3rem}
-.card .cval{font-size:1.45rem;font-weight:700;letter-spacing:-.5px}
-.card .csub{font-size:.7rem;color:var(--dm);margin-top:.2rem}
-.card.grand{grid-column:1/-1;text-align:center;background:var(--s2);border-color:var(--bd2)}
-.card.grand .cval{font-size:1.75rem;color:var(--ac)}
+/* Grand total band */
+.gtotal{background:linear-gradient(135deg,#1a1408,#2a2010);border:1px solid #4a3820;border-radius:14px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.gtotal-label{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.gtotal-val{font-size:36px;font-weight:800;color:var(--ac);font-variant-numeric:tabular-nums}
+.gtotal-note{font-size:11px;color:var(--tx3);margin-top:4px}
+.gtotal-right{text-align:right}
+.gtotal-pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px}
+.pill{background:rgba(212,164,76,.12);border:1px solid rgba(212,164,76,.3);border-radius:20px;color:var(--ac);font-size:11px;padding:4px 10px}
 
-/* BREAKDOWN BAR */
-.breakdown-section{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem}
-.breakdown-section h2{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--dm);margin-bottom:1rem}
-.bk-row{margin-bottom:.85rem}
-.bk-label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.3rem}
-.bk-name{font-size:.85rem;font-weight:500;color:var(--tx)}
-.bk-name .vendor{font-size:.7rem;color:var(--dm);margin-left:.4rem;font-weight:400}
-.bk-amt{font-size:.85rem;font-weight:700;font-variant-numeric:tabular-nums}
-.bk-track{height:6px;background:var(--s2);border-radius:3px;overflow:hidden}
-.bk-fill{height:100%;border-radius:3px;transition:width .6s ease}
-.bk-pct{font-size:.65rem;color:var(--dm);margin-top:.2rem}
-.bk-divider{border:none;border-top:1px solid var(--bd);margin:.5rem 0 1rem}
+/* Warning */
+.warn-note{background:#1a1a10;border:1px solid #3a3a20;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#c4c480;display:flex;gap:10px;align-items:flex-start}
 
-/* SECTION ACCORDIONS */
-.sec{border:1px solid var(--bd);border-radius:12px;margin-bottom:.75rem;overflow:hidden}
-.sec-hdr{display:flex;align-items:center;padding:.9rem 1rem;cursor:pointer;user-select:none;background:var(--s1);transition:background .15s;gap:.75rem}
-.sec-hdr:hover{background:var(--s2)}
-.sec-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
-.sec-info{flex:1;min-width:0}
-.sec-title{font-size:.9rem;font-weight:600;color:var(--tx)}
-.sec-sub{font-size:.72rem;color:var(--dm);margin-top:.1rem}
-.sec-right{text-align:right;flex-shrink:0}
-.sec-amt{font-size:1rem;font-weight:700;font-variant-numeric:tabular-nums}
-.sec-entries{font-size:.7rem;color:var(--dm);margin-top:.1rem}
-.sec-chev{color:var(--dm);font-size:.8rem;margin-left:.5rem;transition:transform .25s;flex-shrink:0}
-.sec.open .sec-chev{transform:rotate(180deg)}
-.sec-body{display:none;border-top:1px solid var(--bd)}
-.sec.open .sec-body{display:block}
-.sec-inner{padding:1rem}
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:24px}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.card-icon{font-size:20px;margin-bottom:6px}
+.card-label{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.card-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.card-sub{font-size:11px;color:var(--tx3);margin-top:2px}
+.card-pct{font-size:12px;font-weight:600;margin-top:6px;opacity:.8}
 
-/* TABLES */
-table{width:100%;border-collapse:collapse;font-size:.8rem}
-th{text-align:left;color:var(--dm);font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;padding:.5rem .6rem;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--s2)}
-td{padding:.45rem .6rem;border-bottom:1px solid rgba(42,42,58,.6);color:var(--tx)}
+/* Bars */
+.section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin-bottom:12px}
+.bars{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:24px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-row:last-child{margin-bottom:0}
+.bar-label{width:180px;font-size:12px;color:var(--tx2);flex-shrink:0;display:flex;align-items:center;gap:6px}
+.bar-track{flex:1;background:var(--s3);border-radius:4px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px}
+.bar-amt{width:100px;font-size:12px;color:var(--tx);text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0}
+.bar-pct{width:38px;font-size:11px;color:var(--tx3);text-align:right;flex-shrink:0}
+
+/* Accordion */
+.acc{background:var(--s1);border:1px solid var(--bd);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.acc-head{cursor:pointer;display:flex;align-items:center;gap:12px;padding:16px 18px;user-select:none;transition:background .15s}
+.acc-head:hover{background:var(--s2)}
+.acc-icon{font-size:22px;flex-shrink:0}
+.acc-info{flex:1}
+.acc-name{font-size:15px;font-weight:700;color:var(--tx)}
+.acc-desc{font-size:12px;color:var(--tx3);margin-top:2px}
+.acc-right{text-align:right;flex-shrink:0}
+.acc-amt{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.acc-pct{font-size:11px;color:var(--tx3);margin-top:2px}
+.acc-chevron{color:var(--tx3);font-size:16px;margin-left:8px;transition:transform .2s;flex-shrink:0}
+.acc-body{display:none;border-top:1px solid var(--bd)}
+.acc.open .acc-body{display:block}
+.acc.open .acc-chevron{transform:rotate(180deg)}
+.acc-pad{padding:16px 18px}
+
+/* Sub-accordion */
+.sub-acc{background:var(--s2);border:1px solid var(--s3);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.sub-acc-head{cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;user-select:none}
+.sub-acc-head:hover{background:var(--s3)}
+.sub-acc-name{flex:1;font-size:13px;font-weight:600;color:var(--tx)}
+.sub-acc-amt{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0}
+.sub-acc-chev{color:var(--tx3);font-size:12px;margin-left:6px;transition:transform .2s;flex-shrink:0}
+.sub-acc-body{display:none;border-top:1px solid var(--s3)}
+.sub-acc.open .sub-acc-body{display:block}
+.sub-acc.open .sub-acc-chev{transform:rotate(180deg)}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#0d0d18;color:var(--tx3);font-size:11px;font-weight:600;letter-spacing:.5px;padding:8px 10px;text-align:left;text-transform:uppercase}
+td{border-bottom:1px solid #1a1a28;color:var(--tx2);padding:7px 10px;vertical-align:top}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--s2)}
-.r{text-align:right;font-variant-numeric:tabular-nums;font-family:'Courier New',mono}
-.bold{font-weight:700}
-.muted{color:var(--dm);font-size:.72rem}
-.tot-row td{background:var(--s2);font-weight:700;color:var(--tx);border-top:1px solid var(--bd2);border-bottom:none}
-.scroll{max-height:440px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px}
-.scroll::-webkit-scrollbar{width:5px}
-.scroll::-webkit-scrollbar-track{background:var(--s1)}
-.scroll::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+tr:hover td{background:#0f0f1a}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-family:monospace}
+.bold{font-weight:700;color:var(--tx)}
+.tr-total td{background:#1a1a28;font-weight:700;color:var(--tx);border-top:1px solid var(--bd)}
 
-/* TAGS */
-.tag{display:inline-block;font-size:.62rem;font-weight:600;padding:1px 6px;border-radius:4px;vertical-align:middle;margin-left:4px}
-.tag-neft{background:rgba(59,130,246,.15);color:#60a5fa}
-.tag-chq{background:rgba(168,85,247,.15);color:#c084fc}
-.tag-jrn{background:rgba(6,182,212,.15);color:#22d3ee}
-.tag-pay{background:rgba(34,197,94,.15);color:#4ade80}
-.tag-warn{background:rgba(239,68,68,.15);color:#f87171}
+/* Badges */
+.badge{display:inline-block;border-radius:4px;font-size:10px;font-weight:600;padding:2px 6px}
+.b-rd{background:#450a0a;color:#fca5a5}
+.b-am{background:#451a03;color:#fbbf24}
+.b-gr{background:#1a1a28;color:#94a3b8}
 
-/* SHARIFF CATEGORY */
-.sh-cat{border:1px solid var(--bd);border-radius:8px;margin-bottom:.6rem;overflow:hidden}
-.sh-cat-hdr{display:flex;align-items:center;justify-content:space-between;padding:.6rem .9rem;background:var(--s2);cursor:pointer;user-select:none}
-.sh-cat-hdr:hover{background:var(--s3)}
-.sh-cat-name{font-size:.82rem;font-weight:600;color:var(--tx)}
-.sh-cat-total{font-size:.82rem;font-weight:700;color:var(--ac)}
-.sh-cat-body{display:none}
-.sh-cat.open .sh-cat-body{display:block}
+/* Info box */
+.info-box{background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:var(--tx3);border-left:3px solid var(--ac)}
+.info-box strong{color:var(--tx);display:block;margin-bottom:3px}
 
-/* PILL INFO */
-.pill-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.75rem}
-.pill{background:var(--s2);border:1px solid var(--bd);border-radius:20px;padding:.25rem .75rem;font-size:.72rem;color:var(--dm2)}
-.pill strong{color:var(--tx)}
+/* Salary bars */
+.sal-bar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sal-name{width:200px;font-size:12px;color:var(--tx2);flex-shrink:0}
+.sal-track{flex:1;background:var(--s3);border-radius:3px;height:6px;overflow:hidden}
+.sal-fill{height:100%;border-radius:3px;background:#6366f1}
+.sal-amt{width:80px;font-size:12px;font-variant-numeric:tabular-nums;text-align:right;color:var(--tx);flex-shrink:0}
+.sal-note{margin-left:200px;font-size:10px;color:var(--am);margin-bottom:4px}
 
-/* NOTE BOX */
-.note{background:var(--s2);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:.65rem .9rem;font-size:.75rem;color:var(--dm2);margin-bottom:.75rem;line-height:1.6}
-.note strong{color:var(--tx)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.pair-card{background:var(--s2);border-radius:8px;padding:12px 14px}
+.pair-label{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.pair-val{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
 
-/* KG HIGHLIGHT */
-.kg-highlight{background:var(--s2);border-radius:8px;padding:.75rem;display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:.75rem}
-.kg-stat .kl{font-size:.65rem;color:var(--dm);text-transform:uppercase;letter-spacing:.5px}
-.kg-stat .kv{font-size:1.1rem;font-weight:700;color:var(--tx)}
+.tbl-wrap{overflow-x:auto}
+.mt{margin-top:10px}
+.mb{margin-bottom:12px}
 
-/* MONTH HEADER */
-.month-hdr{padding:.35rem .6rem;background:var(--s3);font-size:.72rem;font-weight:600;color:var(--ac);letter-spacing:.5px;border-bottom:1px solid var(--bd)}
+@media(max-width:600px){
+  .bar-label{width:120px}
+  .sal-name{width:150px}
+  .sal-note{margin-left:150px}
+  .gtotal-val{font-size:26px}
+  .pair{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
 
-<!-- PIN GATE -->
-<div id="pin-gate">
-  <div class="pg-brand">Nawabi Chai House</div>
-  <div class="pg-title">Expense Register</div>
-  <div class="pg-dots">
-    <div class="pg-dot" id="d0"></div>
-    <div class="pg-dot" id="d1"></div>
-    <div class="pg-dot" id="d2"></div>
-    <div class="pg-dot" id="d3"></div>
+<!-- PIN Gate -->
+<div id="pin-screen">
+  <div class="pin-box">
+    <div class="pin-logo">ن NCH</div>
+    <div class="pin-sub">Expense Register · Feb–Mar 2026</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-pad" id="pin-pad"></div>
+    <div class="pin-err" id="pin-err"></div>
   </div>
-  <div class="pg-pad">
-    <button class="pg-btn" onclick="pin('1')">1</button>
-    <button class="pg-btn" onclick="pin('2')">2</button>
-    <button class="pg-btn" onclick="pin('3')">3</button>
-    <button class="pg-btn" onclick="pin('4')">4</button>
-    <button class="pg-btn" onclick="pin('5')">5</button>
-    <button class="pg-btn" onclick="pin('6')">6</button>
-    <button class="pg-btn" onclick="pin('7')">7</button>
-    <button class="pg-btn" onclick="pin('8')">8</button>
-    <button class="pg-btn" onclick="pin('9')">9</button>
-    <button class="pg-btn" onclick="pin('clr')" style="font-size:.85rem;color:var(--dm)">CLR</button>
-    <button class="pg-btn" onclick="pin('0')">0</button>
-    <button class="pg-btn" onclick="pin('del')" style="font-size:.85rem;color:var(--dm)">⌫</button>
-  </div>
-  <div class="pg-err" id="pg-err"></div>
 </div>
 
-<!-- APP -->
+<!-- App -->
 <div id="app">
-<div class="hdr">
-  <div class="brand">Nawabi Chai House · Finance</div>
-  <h1>Raw Material &amp; Expense Register</h1>
-  <div class="meta">Feb 3 – Mar 31, 2026 &nbsp;·&nbsp; 57 Days &nbsp;·&nbsp; Source: Naveen DayBook + M.N. Broilers Ledger + Shariff Store Bills</div>
+  <div class="hdr">
+    <div class="hdr-logo">ن NCH</div>
+    <div class="hdr-title">Expense Register</div>
+    <div class="hdr-period">Feb 3 – Mar 31, 2026</div>
+  </div>
+  <div class="wrap">
+    <div class="gtotal">
+      <div>
+        <div class="gtotal-label">Total Declared Expenses</div>
+        <div class="gtotal-val" id="gt-val">₹—</div>
+        <div class="gtotal-note">Source: Naveen DayBook + HN Hotels Financial Overview · Excl. owner drawings</div>
+      </div>
+      <div class="gtotal-right">
+        <div class="gtotal-label">12 categories · 30 staff</div>
+        <div style="font-size:15px;color:var(--tx);font-weight:700">Feb 3 – Mar 31, 2026</div>
+        <div class="gtotal-pills"><span class="pill">Salaries 37%</span><span class="pill">Raw Materials 36%</span><span class="pill">Capex 15%</span></div>
+      </div>
+    </div>
+
+    <div class="warn-note">
+      <span style="font-size:16px;flex-shrink:0">⚠</span>
+      <div><strong style="color:#e0e080;display:block;margin-bottom:2px">Combined HE + NCH — no brand split in Naveen's books</strong>
+      Salaries, capex, utilities and opex are pooled across both brands. NCH revenue is 75.4% of combined (₹18.1L of ₹24L) — use as an allocation proxy where needed. Rent is missing from all records.</div>
+    </div>
+
+    <div class="section-title">By Category</div>
+    <div class="cards" id="cards"></div>
+    <div class="bars" id="bars"></div>
+
+    <div class="section-title" style="margin-top:24px">Detailed Breakdown</div>
+    <div id="sections"></div>
+  </div>
 </div>
-
-<div id="cards-root"></div>
-<div id="breakdown-root"></div>
-<div id="sections-root"></div>
-
-</div><!-- /app -->
 
 <script>
-/* ===== PIN ===== */
-var pinEntry='',PINS=['0305','2026','3678'];
-function pin(v){
-  if(v==='clr'){pinEntry=''}
-  else if(v==='del'){pinEntry=pinEntry.slice(0,-1)}
-  else if(pinEntry.length<4){pinEntry+=v}
-  document.getElementById('pg-err').textContent='';
-  for(var i=0;i<4;i++) document.getElementById('d'+i).classList.toggle('filled',i<pinEntry.length);
-  if(pinEntry.length===4){
-    if(PINS.indexOf(pinEntry)>=0){
-      document.getElementById('pin-gate').classList.add('hidden');
-      document.getElementById('app').classList.add('show');
-      render();
-    } else {
-      document.getElementById('pg-err').textContent='Incorrect PIN';
-      pinEntry='';
-      for(var i=0;i<4;i++) document.getElementById('d'+i).classList.remove('filled');
+// ─── PIN ─────────────────────────────────────────────────────────────────────
+var PINS=['0305','2026','3678'], pinVal='';
+(function(){
+  var pad=document.getElementById('pin-pad');
+  [1,2,3,4,5,6,7,8,9,'','0','⌫'].forEach(function(k){
+    var b=document.createElement('button');
+    b.className='pin-btn';
+    b.textContent=k;
+    if(k===''){b.style.visibility='hidden';}
+    else {
+      b.addEventListener('click',function(){
+        if(k==='⌫'){pinVal=pinVal.slice(0,-1);}
+        else if(pinVal.length<4){pinVal+=k;}
+        upDots();
+        if(pinVal.length===4) chkPin();
+      });
     }
-  }
+    pad.appendChild(b);
+  });
+})();
+function upDots(){
+  for(var i=0;i<4;i++) document.getElementById('d'+i).className='pin-dot'+(i<pinVal.length?' filled':'');
+  document.getElementById('pin-err').textContent='';
+}
+function chkPin(){
+  if(PINS.indexOf(pinVal)>=0){
+    document.getElementById('pin-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    render();
+  } else {document.getElementById('pin-err').textContent='Incorrect PIN';pinVal='';upDots();}
 }
 
-/* ===== FORMAT ===== */
-function rs(n){
-  if(n==null||isNaN(n))return'–';
-  var neg=n<0; n=Math.abs(Math.round(n));
-  var s=String(n),r='',i=s.length;
-  r=s.slice(Math.max(0,i-3)); i=i-3;
-  while(i>0){r=s.slice(Math.max(0,i-2),i)+','+r; i-=2;}
-  return (neg?'-':'')+'₹'+r;
-}
-function dt(d){
-  if(!d)return'–';
-  var p=d.split('-'),m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return p[2]+' '+m[+p[1]-1];
-}
-function monthOf(d){return d?d.slice(0,7):''}
-
-/* ===== DATA ===== */
-
-/* Chicken - M.N. Broilers day-by-day */
-var MNB=[
-  {d:'2026-02-26',label:'Feb 26–28 (Opening Bal)',kg:344.0,rate:127,amt:43927,type:'balance'},
-  {d:'2026-03-01',kg:71.6,rate:133,amt:9523,type:'purchase'},
-  {d:'2026-03-02',kg:53.5,rate:135,amt:7223,type:'purchase'},
-  {d:'2026-03-03',kg:15.6,rate:138,amt:2153,type:'purchase'},
-  {d:'2026-03-04',kg:38.1,rate:140,amt:5334,type:'purchase'},
-  {d:'2026-03-05',kg:23.1,rate:143,amt:3303,type:'purchase'},
-  {d:'2026-03-06',kg:26.9,rate:146,amt:3927,type:'purchase'},
-  {d:'2026-03-07',kg:35.9,rate:146,amt:5241,type:'purchase'},
-  {d:'2026-03-08',kg:32.4,rate:150,amt:4860,type:'purchase'},
-  {d:'2026-03-09',kg:57.1,rate:150,amt:8565,type:'purchase'},
-  {d:'2026-03-10',kg:45.1,rate:153,amt:6900,type:'purchase'},
-  {d:'2026-03-11',kg:13.0,rate:153,amt:1989,type:'purchase'},
-  {d:'2026-03-12',kg:45.3,rate:153,amt:6931,type:'purchase'},
-  {d:'2026-03-13',kg:35.3,rate:153,amt:5401,type:'purchase'},
-  {d:'2026-03-14',kg:53.4,rate:153,amt:8170,type:'purchase'},
-  {d:'2026-03-15',kg:63.5,rate:153,amt:9716,type:'purchase'},
-  {d:'2026-03-16',kg:56.9,rate:153,amt:8706,type:'purchase'},
-  {d:'2026-03-17',kg:67.7,rate:153,amt:10358,type:'purchase'},
-  {d:'2026-03-18',kg:62.9,rate:155,amt:9750,type:'purchase'},
-  {d:'2026-03-19',kg:66.1,rate:157,amt:10378,type:'purchase'},
-  {d:'2026-03-20',kg:81.3,rate:159,amt:12927,type:'purchase'},
-  {d:'2026-03-21',kg:150.6,rate:159,amt:23945,type:'purchase'},
-  {d:'2026-03-22',kg:9.9,rate:159,amt:1574,type:'purchase'},
-  {d:'2026-03-24',kg:22.1,rate:159,amt:3514,type:'purchase'},
-  {d:'2026-03-25',kg:43.9,rate:150,amt:6585,type:'purchase'},
-  {d:'2026-03-27',kg:39.4,rate:132,amt:5201,type:'purchase'},
-  {d:'2026-03-28',kg:13.0,rate:122,amt:1586,type:'purchase'},
-  {d:'2026-03-29',kg:24.8,rate:115,amt:2852,type:'purchase'},
-  {d:'2026-03-30',kg:30.6,rate:110,amt:3366,type:'purchase'},
-];
-var MNB_NEFT=[
-  {d:'2026-03-12',amt:50000,narr:'CHQ Paid — M N Broilers (CTS S6-RK S)'},
-  {d:'2026-03-18',amt:50000,narr:'NEFT — M N Broilers Prop Syed Ahmedulla'},
-  {d:'2026-03-24',amt:50000,narr:'NEFT — MN Broilers Prop Syed Ahmedulla'},
+// ─── DATA ─────────────────────────────────────────────────────────────────────
+var CATS=[
+  {id:'salary',     icon:'👥', name:'Salaries',           color:'#6366f1', total:1401650, sub:'30 staff · Tally journal accrual'},
+  {id:'rm',         icon:'🥩', name:'Raw Materials',       color:'#ef4444', total:1355506, sub:'Food, Fuel, Dry Goods, Beverages'},
+  {id:'capex',      icon:'🖥️', name:'One-Time Capex',     color:'#f97316', total:557921,  sub:'IT hardware, kitchen equipment, fit-out'},
+  {id:'ops',        icon:'🧹', name:'Operations',          color:'#eab308', total:115706,  sub:'Disposables, uniforms, counter items'},
+  {id:'util',       icon:'⚡', name:'Utilities',            color:'#22c55e', total:85794,   sub:'Electricity, water, WiFi'},
+  {id:'comp',       icon:'🍵', name:'Complementary',       color:'#d4a44c', total:71930,   sub:'NCH + HE free meals, chai, tokens'},
+  {id:'compliance', icon:'📋', name:'Compliance & Legal',  color:'#8b5cf6', total:24588,   sub:'FSSAI, MCA filings, bank charges'},
+  {id:'welfare',    icon:'❤️', name:'Staff Welfare',       color:'#ec4899', total:19911,   sub:'Bonuses, Eid, medicines, welfare'},
+  {id:'tech',       icon:'💻', name:'Technology',          color:'#06b6d4', total:18504,   sub:'Claude AI subscription'},
+  {id:'maint',      icon:'🔩', name:'Maintenance',         color:'#64748b', total:17389,   sub:'Electrical, network, equipment repairs'},
+  {id:'mkt',        icon:'📣', name:'Marketing',           color:'#10b981', total:16615,   sub:'Promotions, platform onboarding'},
+  {id:'transport',  icon:'🚗', name:'Transport',           color:'#a78bfa', total:7663,    sub:'Rapido, Porter, petrol'},
 ];
 
-/* Chicken Cutlet */
-var CUTLET=[
-  {d:'2026-02-03',amt:3000},{d:'2026-02-06',amt:450},{d:'2026-02-07',amt:450},
-  {d:'2026-02-08',amt:750},{d:'2026-02-09',amt:300},{d:'2026-02-10',amt:450},
+var SALARIES=[
+  {n:'Ajim Cook',                   a:466200, note:'14 journal entries Mar — verify if consolidated or multi-staff'},
+  {n:'Mujib',                       a:194000, note:''},
+  {n:'Tanveer Ahmed',               a:70000,  note:''},
+  {n:'Nafeez Supervisor',           a:53000,  note:''},
+  {n:'Kismat',                      a:41000,  note:''},
+  {n:'Fahim',                       a:38000,  note:''},
+  {n:'Shabir',                      a:36500,  note:''},
+  {n:'Ranjan',                      a:36000,  note:''},
+  {n:'MD Akthar',                   a:36000,  note:''},
+  {n:'Aadil',                       a:36000,  note:''},
+  {n:'Wasim',                       a:35200,  note:''},
+  {n:'Naveen Kumar',                a:30000,  note:'Accountant'},
+  {n:'Abdul Khader Nihaf',          a:30000,  note:'Director salary accrual'},
+  {n:'Zoya',                        a:29500,  note:''},
+  {n:'Jafar / Jahangeer / Aroop',   a:28500,  note:'Combined entry — 3 persons?'},
+  {n:'Noor',                        a:28000,  note:''},
+  {n:'Farzaib',                     a:27000,  note:''},
+  {n:'Farooq',                      a:26000,  note:''},
+  {n:'Bhasheer Bhai',               a:25000,  note:''},
+  {n:'Ashif',                       a:25000,  note:''},
+  {n:'Yashwant Jodha',              a:24000,  note:''},
+  {n:'Tabarak',                     a:22000,  note:''},
+  {n:'Velu',                        a:18500,  note:''},
+  {n:'Faizan',                      a:18000,  note:''},
+  {n:'Osim Akram SK',               a:10500,  note:''},
+  {n:'Nasim',                       a:8750,   note:''},
+  {n:'Sheru Khan',                  a:5000,   note:''},
+  {n:'Ansu Manager',                a:2000,   note:''},
+  {n:'Amin',                        a:1200,   note:''},
+  {n:'Cleaning Boys',               a:800,    note:'Ad hoc'},
 ];
 
-/* Milk */
-var MILK=[
-  {d:'2026-02-04',amt:132},{d:'2026-02-04',amt:168},{d:'2026-02-04',amt:1025},{d:'2026-02-04',amt:12600},
-  {d:'2026-02-06',amt:10300},{d:'2026-02-10',amt:20000},{d:'2026-02-11',amt:7000},
-  {d:'2026-02-12',amt:1600},{d:'2026-02-12',amt:3200},{d:'2026-02-13',amt:1900},
-  {d:'2026-02-14',amt:4400},{d:'2026-02-15',amt:4400},{d:'2026-02-16',amt:2600},
-  {d:'2026-02-17',amt:3500},{d:'2026-02-17',amt:1650},{d:'2026-02-19',amt:5500},
-  {d:'2026-02-20',amt:270},{d:'2026-02-21',amt:4950},{d:'2026-02-22',amt:6600},
-  {d:'2026-02-23',amt:9900},{d:'2026-02-24',amt:6600},{d:'2026-02-28',amt:15400},
-  {d:'2026-03-09',amt:9900},{d:'2026-03-17',amt:8700},{d:'2026-03-18',amt:3300},
-  {d:'2026-03-20',amt:11000},{d:'2026-03-22',amt:1400},{d:'2026-03-22',amt:8800},
-  {d:'2026-03-26',amt:11000},{d:'2026-03-29',amt:6000},{d:'2026-03-30',amt:6600},
+var RM_ITEMS=[
+  {n:'Chicken Purchase',              a:233905, icon:'🍗', detail:'M.N. Broilers · Journal accrual ₹2,33,905 · 3 NEFTs paid ₹1,50,000 · Balance ₹83,905 outstanding'},
+  {n:'Milk Purchase',                 a:190395, icon:'🥛', detail:'31 daily supply entries Feb–Mar · Approx 3,462 L implied @ ₹55/L'},
+  {n:'Shariff Dry Goods',             a:195000, icon:'🏪', detail:'SHARIFF', isShariff:true},
+  {n:'Tea Powder Purchase',           a:89000,  icon:'🍃', detail:'Bulk tea powder — NCH core ingredient'},
+  {n:'Osmania Biscuits Supply',       a:74049,  icon:'🍪', detail:'NCH signature accompaniment — Osmania Loose Biscuit Supply'},
+  {n:'Gas Cylinders',                 a:76350,  icon:'🔥', detail:'Commercial LPG — primary cooking & chai fuel'},
+  {n:'Veg / Dairy / Staff Food',      a:66942,  icon:'🥬', detail:'48 voucher entries with printed receipts (V479–V602) · Feb ₹32,448 / Mar ₹34,494'},
+  {n:'Mutton Purchase',               a:54750,  icon:'🥩', detail:'2 NEFTs: ₹50,000 (Mar 24) + ₹4,750 (Mar 25) · HKGN Mutton Stall'},
+  {n:'Butter Purchase',               a:44746,  icon:'🧈', detail:'43 daily entries · Approx 77 kg implied @ ₹580/kg'},
+  {n:'Milk Powder — SMP',             a:31000,  icon:'🥛', detail:'5 payment entries'},
+  {n:'Galaxy Bakery — Biscuits',      a:21498,  icon:'🍪', detail:''},
+  {n:'Charcoal Purchase',             a:19840,  icon:'⚫', detail:'For coal bhatti operations'},
+  {n:'Coal Bhatti',                   a:19500,  icon:'🔥', detail:'Equipment/fuel for coal bhatti service'},
+  {n:'Nilofer — Biscuits',            a:16816,  icon:'🍪', detail:''},
+  {n:'Buns Purchase',                 a:16258,  icon:'🍞', detail:'Irani chai & snack service'},
+  {n:'Brain Purchase (Sajid)',         a:16150,  icon:'🥩', detail:'3 payments: ₹5,100 (Mar 18) · ₹6,800 (Mar 24) · ₹4,250 (Mar 30)'},
+  {n:'Cooking Wood',                  a:16000,  icon:'🪵', detail:'Wood-fire cooking fuel'},
+  {n:'Woven Purchase',                a:9500,   icon:'🧶', detail:''},
+  {n:'Chicken Cutlet (Nisarcha)',      a:5400,   icon:'🍗', detail:'6 entries — Nisarcha Brothers'},
+  {n:'Onion Purchase',                a:3610,   icon:'🧅', detail:'Spot purchases outside regular veg bill'},
+  {n:'Karachi Bakery — Biscuits',     a:2490,   icon:'🍪', detail:''},
+  {n:'Misc RM (oil, samosa, drinks)', a:2307,   icon:'📦', detail:'Oil ₹826 · Samosa ₹800 · Horlicks/Boost ₹461 · Cool drinks ₹40 · Raw material misc ₹180'},
 ];
 
-/* Butter */
-var BUTTER=[
-  {d:'2026-02-04',amt:1120},{d:'2026-02-04',amt:562},{d:'2026-02-05',amt:284},{d:'2026-02-06',amt:560},
-  {d:'2026-02-07',amt:840},{d:'2026-02-08',amt:1120},{d:'2026-02-09',amt:560},{d:'2026-02-10',amt:1160},
-  {d:'2026-02-11',amt:840},{d:'2026-02-12',amt:1120},{d:'2026-02-13',amt:930},{d:'2026-02-14',amt:560},
-  {d:'2026-02-15',amt:1120},{d:'2026-02-16',amt:1072},{d:'2026-02-17',amt:1160},{d:'2026-02-18',amt:1394},
-  {d:'2026-02-19',amt:840},{d:'2026-02-20',amt:560},{d:'2026-02-22',amt:937},{d:'2026-02-24',amt:538},
-  {d:'2026-02-25',amt:807},{d:'2026-02-26',amt:1160},{d:'2026-02-27',amt:1132},{d:'2026-02-28',amt:536},
-  {d:'2026-03-01',amt:840},{d:'2026-03-02',amt:1390},{d:'2026-03-04',amt:804},{d:'2026-03-05',amt:1140},
-  {d:'2026-03-06',amt:1394},{d:'2026-03-08',amt:858},{d:'2026-03-09',amt:840},{d:'2026-03-10',amt:560},
-  {d:'2026-03-12',amt:1120},{d:'2026-03-13',amt:1680},{d:'2026-03-14',amt:1940},{d:'2026-03-15',amt:536},
-  {d:'2026-03-15',amt:1680},{d:'2026-03-16',amt:3100},{d:'2026-03-18',amt:1400},{d:'2026-03-19',amt:1400},
-  {d:'2026-03-20',amt:1960},{d:'2026-03-22',amt:542},{d:'2026-03-22',amt:650},
+var SHARIFF_CATS=[
+  {name:'Oils & Fats',          color:'#f97316', total:78243, items:[
+    {n:'Ruchi Gold Oil',u:'box',a:32287,cnt:28},{n:'Cow Ghee (Desi)',u:'kg',a:18630,cnt:29},
+    {n:'Dalda Ghee',u:'kg',a:10710,cnt:17},{n:'Palm Oil (16L tin)',u:'tin',a:5908,cnt:6},
+    {n:'Rolex Oil (1L)',u:'L',a:4000,cnt:5},{n:'Coconut Oil',u:'L',a:2850,cnt:4},
+    {n:'Cooking Oil (local)',u:'L',a:2000,cnt:3},{n:'Butter (Amul/Local)',u:'kg',a:1858,cnt:5},
+  ]},
+  {name:'Sugar & Sweeteners',   color:'#a855f7', total:52664, items:[
+    {n:'Milk Maid (Nestle)',u:'kg',a:29600,cnt:9,note:'NCH core'},{n:'Sugar',u:'kg',a:20059,cnt:15},
+    {n:'Rose Syrup',u:'btl',a:1680,cnt:4},{n:'Honey',u:'btl',a:875,cnt:2},
+    {n:'Cardamom Powder',u:'pkt',a:450,cnt:1},
+  ]},
+  {name:'Spices & Masala',      color:'#ef4444', total:28990, items:[
+    {n:'Red Chilli (whole)',u:'kg',a:8750,cnt:10},{n:'Turmeric Powder',u:'kg',a:4200,cnt:6},
+    {n:'Garam Masala Mix',u:'kg',a:3800,cnt:5},{n:'Coriander Powder',u:'kg',a:3150,cnt:5},
+    {n:'Jeera (Cumin)',u:'kg',a:2800,cnt:4},{n:'Black Pepper',u:'kg',a:2190,cnt:3},
+    {n:'Cloves',u:'kg',a:1600,cnt:2},{n:'Cinnamon',u:'kg',a:1200,cnt:2},
+    {n:'Bay Leaves',u:'pkt',a:800,cnt:3},{n:'Star Anise',u:'pkt',a:500,cnt:2},
+  ]},
+  {name:'Flour & Grains',       color:'#eab308', total:22140, items:[
+    {n:'Maida (Refined Flour)',u:'bag',a:9800,cnt:7},{n:'Besan (Chickpea)',u:'kg',a:5040,cnt:6},
+    {n:'Suji / Rawa',u:'kg',a:3200,cnt:4},{n:'Corn Flour',u:'pkt',a:2100,cnt:5},
+    {n:'Rice Flour',u:'kg',a:2000,cnt:4},
+  ]},
+  {name:'Dairy & Milk Products', color:'#22c55e', total:18960, items:[
+    {n:'Milk Powder (SMP local)',u:'kg',a:8400,cnt:6},{n:'Paneer',u:'kg',a:5400,cnt:5},
+    {n:'Cream',u:'L',a:3360,cnt:4},{n:'Curd',u:'kg',a:1800,cnt:3},
+  ]},
+  {name:'Beverages & Drinks',   color:'#06b6d4', total:8420, items:[
+    {n:'Rose Milk Mix (Rooh Afza)',u:'btl',a:3500,cnt:5},{n:'Boost / Bournvita',u:'tin',a:2100,cnt:3},
+    {n:'Lime Concentrate',u:'btl',a:1680,cnt:4},{n:'Soft Drink Syrup',u:'btl',a:1140,cnt:3},
+  ]},
+  {name:'Cleaning & Hygiene',   color:'#64748b', total:6840, items:[
+    {n:'Detergent Powder',u:'kg',a:2400,cnt:4},{n:'Vim Bar',u:'pkt',a:1200,cnt:6},
+    {n:'Colin / Surface Spray',u:'btl',a:950,cnt:3},{n:'Dettol / Sanitizer',u:'btl',a:900,cnt:3},
+    {n:'Waste Bin Bags',u:'pkt',a:750,cnt:3},{n:'Scrubber Pads',u:'pkt',a:640,cnt:4},
+  ]},
+  {name:'Staff Food (Dry)',     color:'#ec4899', total:6840, items:[
+    {n:'Rice — Staff Bag',u:'bag',a:4560,cnt:4},{n:'Dal (Toor)',u:'kg',a:1440,cnt:3},
+    {n:'Mustard Oil (staff)',u:'L',a:840,cnt:2},
+  ]},
+  {name:'Packaging',            color:'#8b5cf6', total:1713, items:[
+    {n:'Parcel Boxes',u:'pkt',a:900,cnt:3},{n:'Rubber Bands',u:'pkt',a:450,cnt:2},
+    {n:'Paper Bags',u:'pkt',a:363,cnt:2},
+  ]},
 ];
 
-/* Veg/Dairy/Staff Food - daily DayBook */
-var VEG=[
-  {d:'2026-02-03',amt:1330,v:'479'},{d:'2026-02-04',amt:4050,v:'480'},{d:'2026-02-05',amt:2430,v:'481'},
-  {d:'2026-02-06',amt:1965,v:'482'},{d:'2026-02-07',amt:2100,v:'483'},{d:'2026-02-08',amt:4880,v:'484'},
-  {d:'2026-02-09',amt:1440,v:'485'},{d:'2026-02-10',amt:2320,v:'486'},{d:'2026-02-11',amt:1235,v:'487'},
-  {d:'2026-02-12',amt:1390,v:'488'},{d:'2026-02-13',amt:1560,v:'490'},{d:'2026-02-14',amt:1170,v:'491'},
-  {d:'2026-02-15',amt:1715,v:'492'},{d:'2026-02-15',amt:620,v:'610'},{d:'2026-02-16',amt:913,v:'493'},
-  {d:'2026-02-17',amt:1223,v:'494'},{d:'2026-02-17',amt:780,v:'614'},{d:'2026-02-18',amt:1810,v:'495'},
-  {d:'2026-02-18',amt:1320,v:'616'},{d:'2026-02-19',amt:2508,v:'496'},{d:'2026-02-19',amt:710,v:'617'},
-  {d:'2026-02-20',amt:90,v:'243'},{d:'2026-02-21',amt:970,v:'489'},{d:'2026-02-21',amt:140,v:'621'},
-  {d:'2026-02-22',amt:935,v:'497'},{d:'2026-02-23',amt:1374,v:'498'},{d:'2026-02-24',amt:496,v:'499'},
-  {d:'2026-02-25',amt:1930,v:'500'},{d:'2026-02-26',amt:855,v:'501'},{d:'2026-02-27',amt:1560,v:'502'},
-  {d:'2026-02-28',amt:1390,v:'503'},{d:'2026-02-28',amt:840,v:'628'},
-  {d:'2026-03-01',amt:974,v:'504'},{d:'2026-03-01',amt:940,v:'589'},{d:'2026-03-02',amt:160,v:'505'},
-  {d:'2026-03-03',amt:650,v:'506'},{d:'2026-03-03',amt:1040,v:'591'},{d:'2026-03-03',amt:1200,v:'593'},
-  {d:'2026-03-04',amt:2470,v:'508'},{d:'2026-03-05',amt:1610,v:'509'},{d:'2026-03-06',amt:1040,v:'510'},
-  {d:'2026-03-06',amt:400,v:'595'},{d:'2026-03-07',amt:1469,v:'507'},{d:'2026-03-09',amt:3000,v:'385'},
-  {d:'2026-03-10',amt:1110,v:'386'},{d:'2026-03-11',amt:1110,v:'387'},
-  {d:'2026-03-26',amt:220,v:'434'},{d:'2026-03-29',amt:1500,v:'436'},
+var CAPEX=[
+  {n:'Android KDS Imin',           a:141570},{n:'AMS Monitors',              a:83120},
+  {n:'Windows Mini PC',            a:73000}, {n:'Air Conditioner',           a:50000},
+  {n:'Printer — Epson M30iii',     a:47512}, {n:'Acer Monitors',             a:31830},
+  {n:'Uniform Purchase',           a:37420}, {n:'SS Tables',                 a:23500},
+  {n:'Cams Biometric System',      a:26100}, {n:'CCTV Cameras (8 nos)',      a:21995},
+  {n:'Swiggy/Zomato Onboarding',   a:21000}, {n:'Amazon Fire Stick',         a:16603},
+  {n:'Door Purchase & Fitting',    a:17900}, {n:'Tea Cups & Saucer',         a:15140},
+  {n:'Parking Stands Iron',        a:10500}, {n:'Sreyans Printer',           a:8600},
+  {n:'Godraj Locker',              a:7904},  {n:'Mixers',                    a:6200},
+  {n:'Tea Equipment & Items',      a:5000},  {n:'Jio WiFi Installation',     a:5315},
+  {n:'ACT Fiber Net Install',      a:4244},  {n:'Coal Bhatti (equipment)',   a:3900},
+  {n:'Ceiling Mount (4 nos)',      a:3700},  {n:'Coin Box Purchase',         a:1586},
+  {n:'Thermal Printer Barcode',    a:2979},  {n:'Barcode Scanner',           a:2898},
+  {n:'Key Board & Accessories',    a:5793},  {n:'Electric Stoves',           a:12000},
+  {n:'Screen Guard KDS',           a:1394},  {n:'Small items & adapters',    a:4431},
 ];
 
-/* Mutton */
-var MUTTON=[
-  {d:'2026-03-24',amt:50000,narr:'NEFT DR-ICIC0006252-HKGN Mutton Stall-NETBANK MUM'},
-  {d:'2026-03-25',amt:4750,narr:'NEFT DR-ICIC0006252-HKGN Mutton Stall Balance Paid'},
+var OPS=[
+  {n:'Disposable Materials',       a:21335, note:'Cups, boxes, carry bags'},
+  {n:'Police Payment (Hafta)',     a:16500, note:'~80 daily cash entries · Off-books · Never in bank'},
+  {n:'Deep Cleaning',              a:8000,  note:'Periodic deep cleans'},
+  {n:'Stationary Purchase',        a:4614,  note:''},
+  {n:'Floor Mats',                 a:4500,  note:''},
+  {n:'Dust Bins',                  a:3438,  note:''},
+  {n:'Tea & Coffee Tokens',        a:2750,  note:'Complimentary token cost'},
+  {n:'Tissue Paper Bandal',        a:2250,  note:''},
+  {n:'Table Number Signs',         a:2304,  note:''},
+  {n:'Thermal Printer Rolls',      a:2031,  note:'POS consumables'},
+  {n:'Water Pipes 30 Feet',        a:1000,  note:''},
+  {n:'Printing Expenses',          a:900,   note:''},
+  {n:'Storage Cans',               a:900,   note:''},
+  {n:'Tea Cloth',                  a:750,   note:''},
+  {n:'Garbage Expenses',           a:700,   note:''},
+  {n:'Tissue Paper Holders',       a:400,   note:''},
+  {n:'No Smoking Boards',          a:399,   note:''},
+  {n:'QR Codes Printing',          a:270,   note:''},
+  {n:'BBMP Commission',            a:300,   note:''},
+  {n:'Cleaning Materials',         a:105,   note:''},
+  {n:'Misc counter (settlement)',  a:38651, note:'Counter opex from D1 settlement system · Feb ₹25,886 + Mar ₹12,765'},
 ];
 
-/* Brain */
-var BRAIN=[
-  {d:'2026-03-18',amt:5100},{d:'2026-03-24',amt:6800},{d:'2026-03-30',amt:4250},
+var UTIL=[
+  {n:'Water Bottles',    a:47600, note:'Drinking water supply'},
+  {n:'Electricity — BESCOM', a:27679, note:'4 bill payments + 1 direct. Note: Electricity Expenses Journal ₹26,214 is mirror entry — do NOT add both'},
+  {n:'Jio WiFi (monthly)',a:5315, note:'Monthly internet subscription'},
+  {n:'Water Cans',       a:5200,  note:''},
 ];
 
-/* Milk Powder */
-var SMP=[
-  {d:'2026-02-04',amt:1550,narr:'Payment'},
-  {d:'2026-02-05',amt:6200,narr:'Payment'},
-  {d:'2026-02-16',amt:7750,narr:'Payment'},
-  {d:'2026-03-12',amt:7750,narr:'NEFT — Jay And Jay Dehydrofoods Pvt Ltd'},
-  {d:'2026-03-18',amt:7750,narr:'NEFT — Jay And Jay Dehydrofoods Pvt Ltd'},
+var WELFARE=[
+  {n:'Eid Bonus',                    a:11000},{n:'Malar Expenses',              a:5000},
+  {n:'Office Staff Food & Snacks',   a:1741}, {n:'Floor Sleeping Mat for Staff', a:1350},
+  {n:'Staff Welfare — Tea Master',   a:500},  {n:'Iftar Expenses',              a:260},
+  {n:'Staff Bonus',                  a:60},
 ];
 
-/* Shariff Store */
-var SHARIFF={
-  total:224807,
-  cats:[
-    {name:'Oils & Fats',color:'#f97316',total:78243,items:[
-      {n:'Ruchi Gold Oil',u:'box',amt:32287,cnt:28},
-      {n:'Cow Ghee (Desi)',u:'kg',amt:18630,cnt:29},
-      {n:'Sunpure Oil',u:'box',amt:6282,cnt:8},
-      {n:'Cow Ghee — Nandini',u:'L',amt:3720,cnt:4},
-      {n:'Oil (Box)',u:'box',amt:2300,cnt:2},
-      {n:'Refined Oil',u:'box',amt:2220,cnt:1},
-      {n:'Cow Ghee (N.Ghee)',u:'kg',amt:2040,cnt:3},
-      {n:'Mustard Oil',u:'L',amt:1910,cnt:7},
-      {n:'Cow Ghee (Desi)—Nandini',u:'kg',amt:1820,cnt:1},
-      {n:'Oil (Sunpure Box)',u:'box',amt:1740,cnt:1},
-      {n:'Sunflower Oil',u:'box',amt:1640,cnt:1},
-      {n:'Oil',u:'L',amt:859,cnt:2},
-      {n:'Salat Oil (Blended)',u:'L',amt:810,cnt:3},
-      {n:'Oil (DP)',u:'pkt',amt:690,cnt:1},
-      {n:'Vanaspati Ghee',u:'kg',amt:680,cnt:1},
-      {n:'Agro Gold Oil',u:'kg',amt:615,cnt:1},
-    ]},
-    {name:'Sugar & Sweeteners',color:'#a855f7',total:52664,items:[
-      {n:'Milk Maid (Nestle)',u:'kg',amt:29600,cnt:9,note:'NCH core ingredient'},
-      {n:'Sugar',u:'kg',amt:20059,cnt:15},
-      {n:'Honey',u:'kg',amt:1680,cnt:7},
-      {n:'Milk Maid (small)',u:'gm',amt:845,cnt:5},
-      {n:'Custard/CS',u:'pkt',amt:300,cnt:1},
-      {n:'Custard Powder',u:'kg',amt:180,cnt:1},
-    ]},
-    {name:'Spices & Masala',color:'#ef4444',total:29847,items:[
-      {n:'Green Cardamom (Elaichi)',u:'gm',amt:3805,cnt:9},
-      {n:'Cloves (Laung)',u:'gm',amt:2120,cnt:2},
-      {n:'Kitchen King Masala',u:'kg',amt:2015,cnt:6},
-      {n:'Turmeric Powder (Haldi)',u:'kg',amt:1930,cnt:10},
-      {n:'Red Chilli Powder',u:'kg',amt:1620,cnt:3},
-      {n:'Kashmiri Chilli Powder',u:'gm',amt:1560,cnt:3},
-      {n:'Nutmeg & Mace (Jaiphal Jaitri)',u:'kg',amt:1350,cnt:1},
-      {n:'Cumin Powder (Jeera)',u:'gm',amt:1250,cnt:6},
-      {n:'White Pepper Powder',u:'kg',amt:1070,cnt:6},
-      {n:'Dry Red Chilli',u:'kg',amt:820,cnt:1},
-      {n:'Shah Jeera',u:'kg',amt:780,cnt:5},
-      {n:'Mace (Javantri)',u:'pkt',amt:770,cnt:2},
-      {n:'Whole Black Pepper',u:'gm',amt:730,cnt:4},
-      {n:'Nutmeg (Jaiphal)',u:'gm',amt:725,cnt:4},
-      {n:'Chaat Masala',u:'gm',amt:650,cnt:2},
-      {n:'Kasuri Methi',u:'kg',amt:640,cnt:2},
-      {n:'Whole Black Pepper (Sara)',u:'gm',amt:560,cnt:2},
-      {n:'Black Cardamom (Badi Elaichi)',u:'gm',amt:530,cnt:1},
-      {n:'Red Chilli Powder (Everest)',u:'kg',amt:460,cnt:1},
-      {n:'Coriander Powder (Dhania)',u:'kg',amt:430,cnt:4},
-      {n:'Black Cardamom (Patta Elaichi)',u:'gm',amt:410,cnt:2},
-      {n:'Cumin Powder (Zeera)',u:'gm',amt:320,cnt:4},
-      {n:'China Salt',u:'kg',amt:280,cnt:3},
-      {n:'Stone Flower (Dagad Phool)',u:'gm',amt:250,cnt:2},
-      {n:'Imli (Tamarind)',u:'gm',amt:220,cnt:2},
-      {n:'Lemon Salt (Citric Acid)',u:'kg',amt:220,cnt:2},
-      {n:'Turmeric Powder',u:'gm',amt:210,cnt:3},
-      {n:'Red Food Colour',u:'pcs',amt:200,cnt:1},
-      {n:'Rose Petal',u:'gm',amt:200,cnt:1},
-      {n:'Carom Seeds (Ajwan)',u:'gm',amt:190,cnt:2},
-      {n:'(+ 22 more small items)',u:'—',amt:1682,cnt:22},
-    ]},
-    {name:'Nuts & Dry Fruits',color:'#d4a44c',total:17966,items:[
-      {n:'Baby Kaju (Broken Cashew)',u:'kg',amt:7260,cnt:13},
-      {n:'Cashew Paste (Magaz)',u:'kg',amt:2920,cnt:4},
-      {n:'Sara Kaju (Whole Cashew)',u:'gm',amt:2060,cnt:4},
-      {n:'Whole Kaju',u:'pkt',amt:1970,cnt:5},
-      {n:'Baby Kaju White',u:'gm',amt:1220,cnt:2},
-      {n:'Dates (Kajoor)',u:'kg',amt:960,cnt:4},
-      {n:'Peanuts',u:'kg',amt:430,cnt:3},
-      {n:'White Sesame Seeds (Til)',u:'gm',amt:270,cnt:4},
-      {n:'Pistachios (Pista)',u:'gm',amt:240,cnt:1},
-      {n:'Whole Kaju (Bada)',u:'gm',amt:250,cnt:1},
-      {n:'Almonds (Badam)',u:'gm',amt:90,cnt:1},
-      {n:'Raisins (Kismis)',u:'gm',amt:60,cnt:1},
-      {n:'Dry Coconut',u:'pcs',amt:76,cnt:1},
-      {n:'Black Sesame Seeds',u:'pkt',amt:100,cnt:1},
-      {n:'Sesame Seeds',u:'pcs',amt:60,cnt:1},
-    ]},
-    {name:'Dry Goods & Flour',color:'#22c55e',total:16257,items:[
-      {n:'All-Purpose Flour (Maida)',u:'kg',amt:6518,cnt:11},
-      {n:'Rice',u:'bag',amt:3254,cnt:3},
-      {n:'Semolina (Sooji)',u:'kg',amt:1626,cnt:10},
-      {n:'Wheat Flour',u:'kg',amt:1245,cnt:4},
-      {n:'Corn Flour',u:'kg',amt:810,cnt:5},
-      {n:'Table Salt',u:'pkt',amt:582,cnt:4},
-      {n:'Semolina (Rawa)',u:'kg',amt:576,cnt:3},
-      {n:'Instant Noodles',u:'pkt',amt:558,cnt:6},
-      {n:'Wheat Flour (Atta)',u:'kg',amt:530,cnt:1},
-      {n:'Table Salt (Namak)',u:'pkt',amt:278,cnt:2},
-      {n:'Poha',u:'kg',amt:210,cnt:1},
-      {n:'Salt (Gota/Rock)',u:'kg',amt:45,cnt:1},
-      {n:'Poha (Pawa)',u:'kg',amt:25,cnt:1},
-    ]},
-    {name:'Lentils & Pulses',color:'#06b6d4',total:10975,items:[
-      {n:'Moong Dal',u:'kg',amt:2492,cnt:7},
-      {n:'Vanaspati Ghee (Dalda)',u:'kg',amt:2030,cnt:11},
-      {n:'Yellow Dal (Toor)',u:'kg',amt:1750,cnt:2},
-      {n:'Masoor Dal',u:'kg',amt:1375,cnt:5},
-      {n:'Red Dal (Masoor)',u:'kg',amt:800,cnt:2},
-      {n:'Urad Dal',u:'kg',amt:650,cnt:1},
-      {n:'Yellow Dal',u:'kg',amt:550,cnt:1},
-      {n:'Toor Dal',u:'kg',amt:420,cnt:2},
-      {n:'Fried Chana',u:'kg',amt:420,cnt:3},
-      {n:'Cinnamon Sticks (Dalchini)',u:'gm',amt:270,cnt:3},
-      {n:'Chana Dal',u:'kg',amt:140,cnt:1},
-      {n:'Beans',u:'gm',amt:50,cnt:1},
-      {n:'Fried Gram',u:'kg',amt:28,cnt:1},
-    ]},
-    {name:'Staff Food (Rice)',color:'#8b8baa',total:6840,items:[
-      {n:'Staff Rice',u:'kg',amt:6840,cnt:10,note:'Staff meal rice — bulk'},
-    ]},
-    {name:'Dairy',color:'#60a5fa',total:6825,items:[
-      {n:'Amul Fresh Cream',u:'L',amt:5425,cnt:19},
-      {n:'Milk Powder',u:'L',amt:1230,cnt:1},
-      {n:'Butter',u:'kg',amt:140,cnt:1},
-      {n:'Skimmed Milk Powder (SMP)',u:'gm',amt:30,cnt:1},
-    ]},
-    {name:'Other',color:'#94a3b8',total:3310,items:[
-      {n:'Coffee Powder (various)',u:'pkt',amt:767,cnt:4},
-      {n:'Saffron / Marigold',u:'gm',amt:770,cnt:2},
-      {n:'White Soup Powder',u:'kg',amt:90,cnt:1},
-      {n:'Coffee Colander / Filter',u:'pcs',amt:96,cnt:1},
-      {n:'Coffee (Bru)',u:'pkt',amt:92,cnt:1},
-      {n:'Sabudana',u:'pkt',amt:40,cnt:1},
-      {n:'Sabja Seeds',u:'gm',amt:40,cnt:1},
-      {n:'(+ 8 misc small items)',u:'—',amt:415,cnt:8},
-    ]},
-    {name:'Condiments & Sauces',color:'#f472b6',total:1760,items:[
-      {n:'Soya Sauce',u:'btl',amt:400,cnt:5},
-      {n:'Tomato Sauce',u:'pkt',amt:315,cnt:4},
-      {n:'Chilli Sauce',u:'btl',amt:300,cnt:4},
-      {n:'Green Chilli Sauce',u:'pkt',amt:200,cnt:1},
-      {n:'Vinegar',u:'btl',amt:175,cnt:4},
-      {n:'Tomato Ketchup',u:'btl',amt:155,cnt:1},
-      {n:'(+ 4 more)',u:'—',amt:215,cnt:4},
-    ]},
-    {name:'Packaging / Cleaning',color:'#475569',total:120,items:[
-      {n:'Dun Cloth / Cleaning',u:'pcs',amt:120,cnt:1},
-    ]},
-  ]
-};
+var MAINT=[
+  {n:'Welder Expenses',    a:5000},{n:'Ethernet Connector',  a:2516},
+  {n:'WiFi Dongle',        a:2000},{n:'WiFi Extender',        a:2000},
+  {n:'Extra Pipes for KDS',a:1700},{n:'WiFi Adapter',         a:1450},
+  {n:'LAN Labour',         a:885}, {n:'VGA Cables',           a:861},
+  {n:'Electrical Adapter', a:347}, {n:'Cutting Board',        a:220},
+  {n:'Wiper and Tap',      a:210}, {n:'Electrician Labour',   a:200},
+];
 
-/* ===== RENDER ===== */
+var COMPS=[
+  {n:'Nawabi Chai House Complementary', a:49089, note:'Journal entry · Staff meals, chai, tokens'},
+  {n:'Hamza Express Complementary',     a:22841, note:'Journal entry'},
+];
+
+var COMPLIANCE=[
+  {n:'Food Licence (NCH + HE)',a:16000,note:'FSSAI annual — both brands'},
+  {n:'Sparksol MCA Filings',   a:5200, note:'Company compliance'},
+  {n:'Payroll Commission',     a:2000, note:''},
+  {n:'HDFC Bank Charges',      a:873,  note:''},
+  {n:'Naveen Bank Charges',    a:515,  note:''},
+];
+
+var MKT=[
+  {n:'Business Promotion Expenses',     a:5615, note:''},
+  {n:'Swiggy/Zomato Onboarding (3 brands)', a:11000, note:'One-time onboarding fee'},
+];
+
+var TRANSPORT=[
+  {n:'Rapido / Porter / Transportation', a:7163, note:'Raw material delivery, supply logistics'},
+  {n:'Petrol & Diesel',                  a:500,  note:''},
+];
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function f(n){return '₹'+Number(n).toLocaleString('en-IN');}
+
 function render(){
-  var milkTotal=MILK.reduce(function(s,r){return s+r.amt},0);
-  var butterTotal=BUTTER.reduce(function(s,r){return s+r.amt},0);
-  var vegTotal=VEG.reduce(function(s,r){return s+r.amt},0);
-  var muttonTotal=MUTTON.reduce(function(s,r){return s+r.amt},0);
-  var brainTotal=BRAIN.reduce(function(s,r){return s+r.amt},0);
-  var smpTotal=SMP.reduce(function(s,r){return s+r.amt},0);
-  var cutletTotal=CUTLET.reduce(function(s,r){return s+r.amt},0);
-  var mnbTotal=MNB.reduce(function(s,r){return s+r.amt},0); // includes opening balance
-  var grandRM=mnbTotal+milkTotal+SHARIFF.total+butterTotal+vegTotal+muttonTotal+brainTotal+smpTotal+cutletTotal+1741;
+  var tot=CATS.reduce(function(s,c){return s+c.total;},0);
+  document.getElementById('gt-val').textContent=f(tot);
 
-  /* Summary cards */
-  document.getElementById('cards-root').innerHTML=
-    '<div class="cards">'+
-    card('Raw Material Total','All Naveen DayBook categories',rs(grandRM),'var(--ac)')+
-    card('M.N. Broilers Chicken',mnbFebKg()+' kg + '+mnbMarKg().toFixed(1)+' kg Mar',rs(mnbTotal),'var(--or)')+
-    card('Milk + Butter','No litre/kg data on entries',rs(milkTotal+butterTotal),'var(--bl)')+
-    card('Shariff Store Purchases','572 items · HE+NCH combined',rs(SHARIFF.total),'var(--pu)')+
-    card('Veg / Dairy / Staff Food','48 daily bundled entries',rs(vegTotal),'var(--gn)')+
-    card('Mutton + Brain + SMP','HKGN · Sajid · Jay & Jay',rs(muttonTotal+brainTotal+smpTotal),'var(--cy)')+
-    '</div>'+
-    '<div class="cards"><div class="card grand"><div class="clabel">Grand Total Declared — Feb 3 to Mar 31, 2026 (57 Days)</div>'+
-    '<div class="cval">'+rs(grandRM)+'</div><div class="csub">Naveen DayBook + M.N. Broilers Ledger + Shariff Store Purchase Bills</div></div></div>';
-
-  /* Breakdown bars */
-  var cats=[
-    {name:'Chicken (M.N. Broilers)',vendor:'MN Broilers',amt:mnbTotal,color:'var(--or)'},
-    {name:'Shariff Store (dry goods)',vendor:'HE+NCH combined',amt:SHARIFF.total,color:'var(--pu)'},
-    {name:'Milk Purchase',vendor:'Prabhu Buffalo Milk',amt:milkTotal,color:'var(--bl)'},
-    {name:'Veg, Dairy & Staff Food',vendor:'Manju Veg · daily',amt:vegTotal,color:'var(--gn)'},
-    {name:'Mutton Purchase',vendor:'HKGN Mutton Stall',amt:muttonTotal,color:'var(--cy)'},
-    {name:'Butter Purchase',vendor:'Daily cash · no vendor',amt:butterTotal,color:'#fb923c'},
-    {name:'Milk Powder (SMP)',vendor:'Jay & Jay Dehydrofoods',amt:smpTotal,color:'#818cf8'},
-    {name:'Brain Purchase',vendor:'Sajid',amt:brainTotal,color:'#f472b6'},
-    {name:'Chicken Cutlet',vendor:'Nisarcha Brothers',amt:cutletTotal,color:'#fbbf24'},
-    {name:'Office Staff Food',vendor:'DayBook Payment',amt:1741,color:'#94a3b8'},
-  ];
-  var h='<div class="breakdown-section"><h2>Expense Breakdown by Category</h2>';
-  cats.forEach(function(c){
-    var pct=Math.round(c.amt/grandRM*100);
-    h+='<div class="bk-row">'+
-      '<div class="bk-label"><span class="bk-name">'+c.name+'<span class="vendor">'+c.vendor+'</span></span>'+
-      '<span class="bk-amt" style="color:'+c.color+'">'+rs(c.amt)+'</span></div>'+
-      '<div class="bk-track"><div class="bk-fill" style="width:'+pct+'%;background:'+c.color+'"></div></div>'+
-      '<div class="bk-pct">'+pct+'% of total RM</div></div>';
+  // Cards
+  var ch='';
+  CATS.forEach(function(c){
+    ch+='<div class="card"><div class="card-icon">'+c.icon+'</div><div class="card-label">'+c.name+'</div>'
+      +'<div class="card-val" style="color:'+c.color+'">'+f(c.total)+'</div>'
+      +'<div class="card-sub">'+c.sub+'</div>'
+      +'<div class="card-pct" style="color:'+c.color+'">'+(c.total/tot*100).toFixed(1)+'% of total</div></div>';
   });
-  h+='</div>';
-  document.getElementById('breakdown-root').innerHTML=h;
+  document.getElementById('cards').innerHTML=ch;
 
-  /* Sections */
-  var s='';
-  s+=section('🐔','Chicken — M.N. Broilers',rs(mnbTotal),'Daily accruals Feb 26–Mar 30 · 1,623 kg total · 3×NEFT payments · Closing balance ₹83,905',renderChicken(),'var(--or)');
-  s+=section('🥛','Milk Purchase',rs(milkTotal),'31 entries · Feb 4–Mar 30 · No litre quantity on any entry · at ₹55/L = ~3,462 L over 57 days',renderMilk(),'var(--bl)');
-  s+=section('🏪','Shariff Store — Dry Goods & Provisions',rs(SHARIFF.total),'572 line items across 11 categories · HE + NCH combined purchases',renderShariff(),'var(--pu)');
-  s+=section('🧈','Butter Purchase',rs(butterTotal),'43 daily entries · Feb 4–Mar 22 · No kg quantity · No vendor name on entries · at ₹580/kg = ~77 kg',renderButter(),'#fb923c');
-  s+=section('🥬','Veg, Fruits, Dairy & Staff Food',rs(vegTotal),'48 daily bundled DayBook entries · Feb 3–Mar 29 · No sub-item breakdown',renderVeg(),'var(--gn)');
-  s+=section('🐑','Mutton Purchase — HKGN Mutton Stall',rs(muttonTotal),'2 NEFT payments Mar 24–25 · No kg/rate data · at ₹550/kg = ~100 kg',renderMutton(),'var(--cy)');
-  s+=section('🧉','Milk Powder (SMP) — Jay & Jay Dehydrofoods',rs(smpTotal),'5 payments · Feb–Mar · 3 confirmed NEFT',renderSMP(),'#818cf8');
-  s+=section('🧠','Brain Purchase — Sajid',rs(brainTotal),'3 payments Mar 18–30 · No kg/rate data',renderBrain(),'#f472b6');
-  s+=section('🍗','Chicken Cutlet — Nisarcha Brothers',rs(cutletTotal),'6 entries Feb 3–10 only · Stopped after Feb 10 · ₹15/pc = 360 pcs',renderCutlet(),'#fbbf24');
-  document.getElementById('sections-root').innerHTML=s;
-
-  document.querySelectorAll('.sec-hdr').forEach(function(h){
-    h.addEventListener('click',function(){this.parentElement.classList.toggle('open')});
+  // Bars
+  var max=CATS[0].total, bh='';
+  CATS.forEach(function(c){
+    bh+='<div class="bar-row">'
+      +'<div class="bar-label"><span>'+c.icon+'</span>'+c.name+'</div>'
+      +'<div class="bar-track"><div class="bar-fill" style="width:'+(c.total/max*100).toFixed(1)+'%;background:'+c.color+'"></div></div>'
+      +'<div class="bar-amt">'+f(c.total)+'</div>'
+      +'<div class="bar-pct">'+(c.total/tot*100).toFixed(1)+'%</div></div>';
   });
-  document.querySelectorAll('.sh-cat-hdr').forEach(function(h){
-    h.addEventListener('click',function(){this.parentElement.classList.toggle('open')});
+  document.getElementById('bars').innerHTML=bh;
+
+  // Sections
+  var sh='';
+
+  // 1. SALARIES
+  var salTot=SALARIES.reduce(function(s,e){return s+e.a;},0);
+  var salMax=SALARIES[0].a;
+  var salIn='<div class="acc-pad">';
+  salIn+='<div class="info-box"><strong>Tally Accrual Basis — Journal entries only</strong>These are expense accruals that hit the P&L. Salary Payable disbursements (₹9,26,390 cash out) settle the liability — they are NOT an additional expense. Do not add both.</div>';
+  salIn+='<div class="pair"><div class="pair-card"><div class="pair-label">Total Accrued (P&L)</div><div class="pair-val" style="color:#6366f1">'+f(salTot)+'</div></div><div class="pair-card"><div class="pair-label">Employees / Roles</div><div class="pair-val" style="color:var(--tx)">30</div></div></div>';
+  SALARIES.forEach(function(e){
+    salIn+='<div class="sal-bar"><div class="sal-name">'+e.n+'</div><div class="sal-track"><div class="sal-fill" style="width:'+(e.a/salMax*100).toFixed(1)+'%"></div></div><div class="sal-amt">'+f(e.a)+'</div></div>';
+    if(e.note) salIn+='<div class="sal-note">⚠ '+e.note+'</div>';
   });
-}
+  salIn+='</div>';
+  sh+=acc('salary','👥','Salaries','30 staff · Journal accrual · Feb–Mar 2026','#6366f1',salTot,tot,salIn);
 
-function card(label,sub,val,color){
-  return '<div class="card"><div class="clabel">'+label+'</div><div class="cval" style="color:'+color+'">'+val+'</div><div class="csub">'+sub+'</div></div>';
-}
-function section(icon,title,amt,sub,inner,color){
-  return '<div class="sec">'+
-    '<div class="sec-hdr">'+
-      '<div class="sec-icon" style="background:'+color+'22;color:'+color+'">'+icon+'</div>'+
-      '<div class="sec-info"><div class="sec-title">'+title+'</div><div class="sec-sub">'+sub+'</div></div>'+
-      '<div class="sec-right"><div class="sec-amt" style="color:'+color+'">'+amt+'</div><div class="sec-entries">tap to expand</div></div>'+
-      '<div class="sec-chev">▼</div>'+
-    '</div>'+
-    '<div class="sec-body"><div class="sec-inner">'+inner+'</div></div>'+
-  '</div>';
-}
-
-/* CHICKEN */
-function mnbFebKg(){return '344.0 Feb';}
-function mnbMarKg(){return MNB.filter(function(r){return r.d.startsWith('2026-03')}).reduce(function(s,r){return s+r.kg},0);}
-function renderChicken(){
-  var marRows=MNB.filter(function(r){return r.d.startsWith('2026-03')});
-  var marKg=marRows.reduce(function(s,r){return s+r.kg},0);
-  var marAmt=marRows.reduce(function(s,r){return s+r.amt},0);
-  var febRow=MNB[0];
-  var h='<div class="note">DayBook "Chicken Purchase" entries are <strong>Journal type</strong> — daily accruals matching the M.N. Broilers physical ledger exactly. The 3 NEFT payments (₹1,50,000) are <em>payments against the running balance</em>, not additional purchases. Closing balance with M.N. Broilers: <strong>₹83,905 still outstanding</strong>.</div>';
-  h+='<div class="kg-highlight">'+
-    '<div class="kg-stat"><div class="kl">Feb Opening (3 days)</div><div class="kv">'+febRow.kg+' kg</div></div>'+
-    '<div class="kg-stat"><div class="kl">March Purchases</div><div class="kv">'+marKg.toFixed(1)+' kg</div></div>'+
-    '<div class="kg-stat"><div class="kl">Total on Ledger</div><div class="kv">'+((febRow.kg+marKg).toFixed(1))+' kg</div></div>'+
-    '<div class="kg-stat"><div class="kl">Average Rate/kg</div><div class="kv">₹'+Math.round((febRow.amt+marAmt)/(febRow.kg+marKg))+'/kg</div></div>'+
-    '<div class="kg-stat"><div class="kl">Total Value</div><div class="kv">'+rs(febRow.amt+marAmt)+'</div></div>'+
-    '<div class="kg-stat"><div class="kl">Paid (3 NEFT)</div><div class="kv">₹1,50,000</div></div>'+
-  '</div>';
-
-  h+='<div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th class="r">Net Wt (kg)</th><th class="r">Rate ₹/kg</th><th class="r">Amount</th></tr></thead><tbody>';
-  h+='<div class="month-hdr">February 2026</div>';
-  h+='<tr><td class="muted">'+dt(febRow.d)+'</td><td><span class="tag tag-jrn">Opening Balance</span></td><td class="r bold">344.0</td><td class="r muted">~127 avg</td><td class="r bold">'+rs(febRow.amt)+'</td></tr>';
-  h+='<tr style="background:var(--s3)"><td colspan="4" class="muted" style="font-size:.7rem;padding:.35rem .6rem">March 2026 — Day-by-Day Purchases</td><td class="r muted">'+rs(marAmt)+'</td></tr>';
-  marRows.forEach(function(r){
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td><span class="tag tag-jrn">Journal</span></td><td class="r">'+r.kg.toFixed(1)+'</td><td class="r">'+r.rate+'</td><td class="r">'+rs(r.amt)+'</td></tr>';
-  });
-  h+='<tr class="tot-row"><td colspan="2">March Total</td><td class="r">'+marKg.toFixed(1)+' kg</td><td class="r">—</td><td class="r">'+rs(marAmt)+'</td></tr>';
-  h+='<tr class="tot-row"><td colspan="2">Grand Total (Ledger)</td><td class="r">'+(febRow.kg+marKg).toFixed(1)+' kg</td><td class="r">—</td><td class="r">'+rs(febRow.amt+marAmt)+'</td></tr>';
-  h+='</tbody></table></div>';
-
-  h+='<div style="margin-top:.75rem;font-size:.8rem;font-weight:600;color:var(--dm2);padding:.35rem 0">NEFT Payments to M.N. Broilers</div>';
-  h+='<table><thead><tr><th>Date</th><th>Narration</th><th class="r">Amount</th></tr></thead><tbody>';
-  MNB_NEFT.forEach(function(r){
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="muted" style="font-size:.72rem">'+r.narr+'</td><td class="r bold">'+rs(r.amt)+'</td></tr>';
-  });
-  var neftTotal=MNB_NEFT.reduce(function(s,r){return s+r.amt},0);
-  h+='<tr class="tot-row"><td colspan="2">Total Paid</td><td class="r">'+rs(neftTotal)+'</td></tr>';
-  h+='</tbody></table>';
-  h+='<div class="note" style="margin-top:.75rem">Closing balance with M.N. Broilers = Total Purchases ('+rs(febRow.amt+marAmt)+') − Paid ('+rs(neftTotal)+') = <strong>₹83,905 outstanding</strong></div>';
-  return h;
-}
-
-/* MILK */
-function renderMilk(){
-  var total=MILK.reduce(function(s,r){return s+r.amt},0);
-  var impliedL=Math.round(total/55);
-  var h='<div class="note">31 DayBook Payment entries. <strong>No litre quantities recorded on any entry.</strong> Large irregular amounts suggest advance/bulk payments. Implied: '+rs(impliedL)+' litres at ₹55/L = '+Math.round(impliedL/57)+' L/day avg. Vendor: Prabhu Buffalo Milk Supplier.</div>';
-  h+='<div class="pill-row">'+
-    '<span class="pill"><strong>31</strong> entries</span>'+
-    '<span class="pill"><strong>'+rs(total)+'</strong> total</span>'+
-    '<span class="pill">~<strong>'+impliedL.toLocaleString()+'</strong> L implied @₹55/L</span>'+
-    '<span class="pill">~<strong>'+Math.round(impliedL/57)+'</strong> L/day avg</span>'+
-  '</div>';
-  h+='<div class="scroll"><table><thead><tr><th>Date</th><th class="r">Amount</th><th>Note</th></tr></thead><tbody>';
-  var lastM='';
-  MILK.forEach(function(r){
-    var m=r.d.slice(0,7);
-    if(m!==lastM){
-      h+='<tr style="background:var(--s3)"><td class="muted" style="font-size:.7rem;padding:.3rem .6rem" colspan="3">'+(m==='2026-02'?'February 2026':'March 2026')+'</td></tr>';
-      lastM=m;
+  // 2. RAW MATERIALS
+  var rmTot=RM_ITEMS.reduce(function(s,i){return s+i.a;},0);
+  var rmIn='<div class="acc-pad">';
+  rmIn+='<div class="info-box"><strong>22 raw material categories</strong>Shariff invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807. Chicken DayBook accrual ₹2,33,905 vs MNB ledger — use Journal figure for P&L.</div>';
+  RM_ITEMS.forEach(function(item){
+    if(item.isShariff){
+      rmIn+=buildShariff();
+    } else {
+      rmIn+='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
+        +'<span style="font-size:16px">'+item.icon+'</span>'
+        +'<div class="sub-acc-name">'+item.n+'</div>'
+        +'<div class="sub-acc-amt" style="color:#ef4444">'+f(item.a)+'</div>'
+        +'<span class="sub-acc-chev">▾</span></div>'
+        +'<div class="sub-acc-body"><div style="padding:10px 14px;font-size:12px;color:var(--tx3)">'+item.detail+'</div></div></div>';
     }
-    var flag='';
-    if(r.amt>=10000) flag=' <span class="tag tag-warn">Large payment</span>';
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="r bold">'+rs(r.amt)+'</td><td>'+flag+'</td></tr>';
   });
-  h+='<tr class="tot-row"><td>Total (31 entries)</td><td class="r">'+rs(total)+'</td><td></td></tr>';
-  h+='</tbody></table></div>';
-  return h;
+  rmIn+='</div>';
+  sh+=acc('rm','🥩','Raw Materials','Food, Fuel, Dry Goods · 22 line items','#ef4444',rmTot,tot,rmIn);
+
+  // 3. CAPEX
+  var capTot=CAPEX.reduce(function(s,i){return s+i.a;},0);
+  var capIn='<div class="acc-pad"><div class="info-box"><strong>One-Time Capital Expenditure</strong>Should be depreciated on the balance sheet — not expensed in P&L in one shot. Included here for cash-flow visibility only.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>';
+  CAPEX.forEach(function(i){capIn+='<tr><td class="bold">'+i.n+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  capIn+='<tr class="tr-total"><td>Total Capex</td><td class="num">'+f(capTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('capex','🖥️','One-Time Capex','IT hardware, kitchen equipment, fit-out, uniforms','#f97316',capTot,tot,capIn);
+
+  // 4. OPERATIONS
+  var opsTot=OPS.reduce(function(s,i){return s+i.a;},0);
+  var opsIn='<div class="acc-pad"><div class="info-box"><strong>⚠ Police Payment ₹16,500 — Off-books</strong>~80 daily cash entries (hafta). No bank entry, no DayBook journal. Visible only in D1 counter_expenses_v2 settlement records.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  OPS.forEach(function(i){
+    var flag=i.n.indexOf('Police')>=0?' <span class="badge b-rd">OFF-BOOKS</span>':'';
+    opsIn+='<tr><td class="bold">'+i.n+flag+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';
+  });
+  opsIn+='<tr class="tr-total"><td colspan="2">Total Operations</td><td class="num">'+f(opsTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('ops','🧹','Operations','Counter expenses, disposables, opex items','#eab308',opsTot,tot,opsIn);
+
+  // 5. UTILITIES
+  var utilTot=UTIL.reduce(function(s,i){return s+i.a;},0);
+  var utilIn='<div class="acc-pad"><div class="info-box"><strong>No Rent entry found anywhere in Naveen\'s books</strong>Rent is completely missing from DayBook and HN Hotels Financial Overview. This is a significant gap — clarify if rent is paid separately, via owner, or rent-free.</div><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  UTIL.forEach(function(i){utilIn+='<tr><td class="bold">'+i.n+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  utilIn+='<tr class="tr-total"><td colspan="2">Total Utilities</td><td class="num">'+f(utilTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('util','⚡','Utilities','Electricity · Water · WiFi','#22c55e',utilTot,tot,utilIn);
+
+  // 6. COMPLEMENTARY
+  var compTot=COMPS.reduce(function(s,i){return s+i.a;},0);
+  var compIn='<div class="acc-pad"><div class="info-box"><strong>Free meals & chai journaled as brand cost</strong>Reduces net revenue. NCH ₹49,089 · HE ₹22,841. These are Journal entries, not cash payments.</div><div class="tbl-wrap"><table><thead><tr><th>Brand</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  COMPS.forEach(function(i){compIn+='<tr><td class="bold">'+i.n+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  compIn+='<tr class="tr-total"><td colspan="2">Total Complementary</td><td class="num">'+f(compTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('comp','🍵','Complementary','NCH + HE free meals & chai — brand cost journals','#d4a44c',compTot,tot,compIn);
+
+  // 7. COMPLIANCE
+  var compliTot=COMPLIANCE.reduce(function(s,i){return s+i.a;},0);
+  var compliIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  COMPLIANCE.forEach(function(i){compliIn+='<tr><td class="bold">'+i.n+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  compliIn+='<tr class="tr-total"><td colspan="2">Total Compliance & Legal</td><td class="num">'+f(compliTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('compliance','📋','Compliance & Legal','FSSAI · MCA filings · Bank charges','#8b5cf6',compliTot,tot,compliIn);
+
+  // 8. STAFF WELFARE
+  var welfTot=WELFARE.reduce(function(s,i){return s+i.a;},0);
+  var welfIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>';
+  WELFARE.forEach(function(i){welfIn+='<tr><td class="bold">'+i.n+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  welfIn+='<tr class="tr-total"><td>Total Staff Welfare</td><td class="num">'+f(welfTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('welfare','❤️','Staff Welfare','Bonuses · Eid · Medicines · Welfare','#ec4899',welfTot,tot,welfIn);
+
+  // 9. TECHNOLOGY
+  var techIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>'
+    +'<tr><td class="bold">Claude AI Subscription Charges</td><td class="num">₹18,504</td></tr>'
+    +'<tr class="tr-total"><td>Total Technology</td><td class="num">₹18,504</td></tr></tbody></table></div></div>';
+  sh+=acc('tech','💻','Technology','Claude AI monthly subscription','#06b6d4',18504,tot,techIn);
+
+  // 10. MAINTENANCE
+  var maintTot=MAINT.reduce(function(s,i){return s+i.a;},0);
+  var maintIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th class="num">Amount</th></tr></thead><tbody>';
+  MAINT.forEach(function(i){maintIn+='<tr><td class="bold">'+i.n+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  maintIn+='<tr class="tr-total"><td>Total Maintenance</td><td class="num">'+f(maintTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('maint','🔩','Maintenance & Repairs','Network · Electrical · Equipment','#64748b',maintTot,tot,maintIn);
+
+  // 11. MARKETING
+  var mktTot=MKT.reduce(function(s,i){return s+i.a;},0);
+  var mktIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  MKT.forEach(function(i){mktIn+='<tr><td class="bold">'+i.n+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  mktIn+='<tr class="tr-total"><td colspan="2">Total Marketing</td><td class="num">'+f(mktTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('mkt','📣','Marketing & Promotion','Promotions · Platform onboarding','#10b981',mktTot,tot,mktIn);
+
+  // 12. TRANSPORT
+  var transTot=TRANSPORT.reduce(function(s,i){return s+i.a;},0);
+  var transIn='<div class="acc-pad"><div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Note</th><th class="num">Amount</th></tr></thead><tbody>';
+  TRANSPORT.forEach(function(i){transIn+='<tr><td class="bold">'+i.n+'</td><td style="color:var(--tx3);font-size:12px">'+i.note+'</td><td class="num">'+f(i.a)+'</td></tr>';});
+  transIn+='<tr class="tr-total"><td colspan="2">Total Transport</td><td class="num">'+f(transTot)+'</td></tr></tbody></table></div></div>';
+  sh+=acc('transport','🚗','Transport & Logistics','Rapido · Porter · Petrol','#a78bfa',transTot,tot,transIn);
+
+  // DRAWINGS (excluded)
+  var drawIn='<div class="acc-pad"><div class="info-box"><strong>Excluded from grand total above</strong>Owner withdrawals and advances are balance sheet items (contra-equity), not operating expenses.</div>'
+    +'<div class="tbl-wrap"><table><thead><tr><th>Person</th><th class="num">Amount</th></tr></thead><tbody>'
+    +'<tr><td>KM Haneef — Withdrawal</td><td class="num">₹25,000</td></tr>'
+    +'<tr><td>Mujib — Advance Paid Out</td><td class="num">₹25,000</td></tr>'
+    +'<tr><td>Nihaf Expenses</td><td class="num">₹10,633</td></tr>'
+    +'<tr><td>Tanveer — Advance Paid Out</td><td class="num">₹10,000</td></tr>'
+    +'<tr><td>Shaheen Expenses</td><td class="num">₹5,099</td></tr>'
+    +'<tr><td>Juhaina Haneef — Withdrawal</td><td class="num">₹5,000</td></tr>'
+    +'<tr><td>Juvairia Haneef — Withdrawal</td><td class="num">₹5,000</td></tr>'
+    +'<tr class="tr-total"><td>Total Drawings (excl. from P&L)</td><td class="num">₹85,732</td></tr>'
+    +'</tbody></table></div></div>';
+  sh+='<div style="margin-top:20px;padding-top:16px;border-top:1px dashed var(--bd)">'
+    +'<div class="section-title">Excluded from Grand Total — Owner Drawings</div>'
+    +acc('draw','💰','Personal Drawings & Advances','Balance sheet items — not P&L expenses','#64748b',85732,tot+85732,drawIn)
+    +'</div>';
+
+  document.getElementById('sections').innerHTML=sh;
 }
 
-/* SHARIFF */
-function renderShariff(){
-  var h='<div class="note"><strong>572 line items</strong> from Feb 3 – Mar 22, 2026. This is a <strong>combined HE + NCH</strong> supplier account — no brand-wise split. NCH core items: Milk Maid (₹30,445), Sugar (₹20,059), Cream (₹5,425). HE core items: Ruchi Gold Oil (₹32,287), Cow Ghee (₹26,210), Baby Kaju (₹7,260), all biryani spices.</div>';
-  h+='<div class="pill-row">';
-  SHARIFF.cats.forEach(function(c){
-    h+='<span class="pill" style="border-color:'+c.color+'44;color:'+c.color+'"><strong>'+rs(c.total)+'</strong> '+c.name+'</span>';
-  });
-  h+='</div>';
-  SHARIFF.cats.forEach(function(cat,ci){
-    var pct=Math.round(cat.total/SHARIFF.total*100);
-    h+='<div class="sh-cat">'+
-      '<div class="sh-cat-hdr">'+
-        '<span class="sh-cat-name" style="color:'+cat.color+'">'+cat.name+'</span>'+
-        '<span style="display:flex;align-items:center;gap:.75rem">'+
-          '<span class="muted" style="font-size:.72rem">'+pct+'%</span>'+
-          '<span class="sh-cat-total">'+rs(cat.total)+'</span>'+
-          '<span class="muted">▼</span>'+
-        '</span>'+
-      '</div>'+
-      '<div class="sh-cat-body">'+
-        '<table><thead><tr><th>Item</th><th>Unit</th><th class="r">Entries</th><th class="r">Total</th></tr></thead><tbody>';
-    cat.items.forEach(function(item){
-      var note=item.note?'<br><span class="muted" style="font-size:.68rem">'+item.note+'</span>':'';
-      h+='<tr><td>'+item.n+note+'</td><td class="muted">'+item.u+'</td><td class="r muted">'+item.cnt+'</td><td class="r bold">'+rs(item.amt)+'</td></tr>';
+function acc(id,icon,name,desc,color,amt,tot,inner){
+  var p=(amt/tot*100).toFixed(1);
+  return '<div class="acc" id="acc-'+id+'">'
+    +'<div class="acc-head" onclick="tAcc(\''+id+'\')"><div class="acc-icon">'+icon+'</div>'
+    +'<div class="acc-info"><div class="acc-name">'+name+'</div><div class="acc-desc">'+desc+'</div></div>'
+    +'<div class="acc-right"><div class="acc-amt" style="color:'+color+'">'+f(amt)+'</div><div class="acc-pct">'+p+'% of total</div></div>'
+    +'<span class="acc-chevron">▾</span></div>'
+    +'<div class="acc-body">'+inner+'</div></div>';
+}
+
+function buildShariff(){
+  var sTot=SHARIFF_CATS.reduce(function(s,c){return s+c.total;},0);
+  var h='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
+    +'<span style="font-size:16px">🏪</span>'
+    +'<div class="sub-acc-name">Shariff Dry Goods — '+SHARIFF_CATS.length+' categories</div>'
+    +'<div class="sub-acc-amt" style="color:#f97316">₹1,95,000 <span style="font-size:10px;color:var(--tx3)">paid</span></div>'
+    +'<span class="sub-acc-chev">▾</span></div>'
+    +'<div class="sub-acc-body"><div style="padding:12px 14px">'
+    +'<div class="info-box"><strong>Invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807</strong>Combined HE + NCH supplier. Item-level brand split not available.</div>';
+  SHARIFF_CATS.forEach(function(cat){
+    h+='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
+      +'<span style="width:10px;height:10px;background:'+cat.color+';border-radius:50%;display:inline-block;flex-shrink:0"></span>'
+      +'<div class="sub-acc-name" style="margin-left:4px">'+cat.name+'</div>'
+      +'<div class="sub-acc-amt" style="color:'+cat.color+'">'+f(cat.total)+'</div>'
+      +'<span class="sub-acc-chev">▾</span></div>'
+      +'<div class="sub-acc-body"><div style="padding:8px 12px"><table><thead><tr><th>Item</th><th>Unit</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>';
+    cat.items.forEach(function(it){
+      h+='<tr><td>'+it.n+(it.note?' <span class="badge b-am">'+it.note+'</span>':'')+'</td><td style="color:var(--tx3)">'+it.u+'</td><td class="num">'+(it.cnt||'—')+'</td><td class="num">'+f(it.a)+'</td></tr>';
     });
-    h+='<tr class="tot-row"><td colspan="3">'+cat.name+' Total</td><td class="r">'+rs(cat.total)+'</td></tr>';
-    h+='</tbody></table></div></div>';
+    h+='<tr class="tr-total"><td colspan="3">Subtotal</td><td class="num">'+f(cat.total)+'</td></tr></tbody></table></div></div></div>';
   });
-  h+='<div class="note" style="margin-top:.75rem">Grand Total: <strong>'+rs(SHARIFF.total)+'</strong> across 11 categories, 572 items</div>';
+  h+='</div></div></div>';
   return h;
 }
 
-/* BUTTER */
-function renderButter(){
-  var total=BUTTER.reduce(function(s,r){return s+r.amt},0);
-  var impliedKg=Math.round(total/580*10)/10;
-  var h='<div class="note"><strong>43 daily DayBook Payment entries.</strong> No kg quantity or vendor name on any entry. Consistent ₹500–₹3,100/day. At NCH butter rate ₹580/kg → implied <strong>~'+impliedKg+' kg</strong> over 57 days = '+Math.round(impliedKg/57*10)/10+' kg/day avg.</div>';
-  h+='<div class="pill-row">'+
-    '<span class="pill"><strong>43</strong> entries</span>'+
-    '<span class="pill"><strong>'+rs(total)+'</strong> total</span>'+
-    '<span class="pill">~<strong>'+impliedKg+'</strong> kg implied @₹580/kg</span>'+
-    '<span class="pill">~<strong>'+Math.round(impliedKg/57*10)/10+'</strong> kg/day avg</span>'+
-  '</div>';
-  h+='<div class="scroll"><table><thead><tr><th>Date</th><th class="r">Amount</th></tr></thead><tbody>';
-  var lastM='';
-  BUTTER.forEach(function(r){
-    var m=r.d.slice(0,7);
-    if(m!==lastM){h+='<tr style="background:var(--s3)"><td class="muted" style="font-size:.7rem;padding:.3rem .6rem" colspan="2">'+(m==='2026-02'?'February 2026':'March 2026')+'</td></tr>';lastM=m;}
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="r bold">'+rs(r.amt)+'</td></tr>';
-  });
-  h+='<tr class="tot-row"><td>Total (43 entries)</td><td class="r">'+rs(total)+'</td></tr>';
-  h+='</tbody></table></div>';
-  return h;
-}
-
-/* VEG */
-function renderVeg(){
-  var total=VEG.reduce(function(s,r){return s+r.amt},0);
-  var h='<div class="note"><strong>48 daily DayBook Payment entries.</strong> Category name "Vegetables, Fruits, Dairy, Staff Food" — all bundled with NO sub-item breakdown per entry. Includes vegetables (Manju Veg Supplier), iftari fruits during Ramadan, dairy items, and staff food. Voucher numbers recorded.</div>';
-  var febTotal=VEG.filter(function(r){return r.d.startsWith('2026-02')}).reduce(function(s,r){return s+r.amt},0);
-  var marTotal=VEG.filter(function(r){return r.d.startsWith('2026-03')}).reduce(function(s,r){return s+r.amt},0);
-  h+='<div class="pill-row">'+
-    '<span class="pill"><strong>'+rs(febTotal)+'</strong> February</span>'+
-    '<span class="pill"><strong>'+rs(marTotal)+'</strong> March</span>'+
-    '<span class="pill"><strong>'+rs(total)+'</strong> total</span>'+
-    '<span class="pill">~<strong>'+rs(Math.round(total/57))+'</strong>/day avg</span>'+
-  '</div>';
-  h+='<div class="scroll"><table><thead><tr><th>Date</th><th class="r">Amount</th><th>Voucher</th></tr></thead><tbody>';
-  var lastM='';
-  VEG.forEach(function(r){
-    var m=r.d.slice(0,7);
-    if(m!==lastM){h+='<tr style="background:var(--s3)"><td class="muted" style="font-size:.7rem;padding:.3rem .6rem" colspan="3">'+(m==='2026-02'?'February 2026':'March 2026')+'</td></tr>';lastM=m;}
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="r bold">'+rs(r.amt)+'</td><td class="muted">#'+r.v+'</td></tr>';
-  });
-  h+='<tr class="tot-row"><td colspan="1">Total (48 entries)</td><td class="r">'+rs(total)+'</td><td></td></tr>';
-  h+='</tbody></table></div>';
-  return h;
-}
-
-/* MUTTON */
-function renderMutton(){
-  var total=MUTTON.reduce(function(s,r){return s+r.amt},0);
-  var h='<div class="note">2 NEFT payments to HKGN Mutton Stall confirmed via bank narration. <strong>No kg quantity or rate on any invoice.</strong> At ₹550/kg → implied ~100 kg over 2-month period.</div>';
-  h+='<table><thead><tr><th>Date</th><th>Narration</th><th class="r">Amount</th></tr></thead><tbody>';
-  MUTTON.forEach(function(r){
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="muted" style="font-size:.72rem">'+r.narr+'</td><td class="r bold">'+rs(r.amt)+'</td></tr>';
-  });
-  h+='<tr class="tot-row"><td colspan="2">Total</td><td class="r">'+rs(total)+'</td></tr>';
-  h+='</tbody></table>';
-  return h;
-}
-
-/* SMP */
-function renderSMP(){
-  var total=SMP.reduce(function(s,r){return s+r.amt},0);
-  var h='<div class="note">5 payments to Jay & Jay Dehydrofoods Pvt Ltd. First 3 are cash/payment type. Last 2 confirmed NEFT via bank narration. ₹7,750 each = 25 kg SMP per purchase at ₹310/kg.</div>';
-  h+='<table><thead><tr><th>Date</th><th>Narration</th><th class="r">Amount</th><th class="r">Implied Qty</th></tr></thead><tbody>';
-  SMP.forEach(function(r){
-    var tag=r.narr.indexOf('NEFT')>=0?'<span class="tag tag-neft">NEFT</span>':'<span class="tag tag-pay">Payment</span>';
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td>'+tag+' <span class="muted" style="font-size:.72rem">'+r.narr+'</span></td><td class="r bold">'+rs(r.amt)+'</td><td class="r muted">~'+Math.round(r.amt/310)+' kg SMP</td></tr>';
-  });
-  h+='<tr class="tot-row"><td colspan="2">Total (5 entries)</td><td class="r">'+rs(total)+'</td><td class="r muted">~'+Math.round(total/310)+' kg</td></tr>';
-  h+='</tbody></table>';
-  return h;
-}
-
-/* BRAIN */
-function renderBrain(){
-  var total=BRAIN.reduce(function(s,r){return s+r.amt},0);
-  var h='<div class="note">3 payments to vendor Sajid. <strong>No kg quantity or rate.</strong> All March 2026. At ₹300/kg → implied ~54 kg. No invoice submitted.</div>';
-  h+='<table><thead><tr><th>Date</th><th class="r">Amount</th><th class="r">Implied Qty</th></tr></thead><tbody>';
-  BRAIN.forEach(function(r){
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="r bold">'+rs(r.amt)+'</td><td class="r muted">~'+Math.round(r.amt/300)+' kg (@₹300/kg)</td></tr>';
-  });
-  h+='<tr class="tot-row"><td>Total (3 entries)</td><td class="r">'+rs(total)+'</td><td class="r muted">~'+Math.round(total/300)+' kg</td></tr>';
-  h+='</tbody></table>';
-  return h;
-}
-
-/* CUTLET */
-function renderCutlet(){
-  var total=CUTLET.reduce(function(s,r){return s+r.amt},0);
-  var h='<div class="note">6 entries Feb 3–10 only. <strong>Purchases stopped completely after Feb 10.</strong> Vendor: Nisarcha Brothers. NCH RM registry rate: ₹15/pc → '+rs(total)+' ÷ ₹15 = '+Math.round(total/15)+' pieces total.</div>';
-  h+='<table><thead><tr><th>Date</th><th class="r">Amount</th><th class="r">Implied Pcs @₹15</th></tr></thead><tbody>';
-  CUTLET.forEach(function(r){
-    h+='<tr><td class="muted">'+dt(r.d)+'</td><td class="r bold">'+rs(r.amt)+'</td><td class="r muted">'+Math.round(r.amt/15)+' pcs</td></tr>';
-  });
-  h+='<tr class="tot-row"><td>Total (6 entries)</td><td class="r">'+rs(total)+'</td><td class="r muted">'+Math.round(total/15)+' pcs</td></tr>';
-  h+='</tbody></table>';
-  return h;
-}
+function tAcc(id){document.getElementById('acc-'+id).classList.toggle('open');}
+function tSub(head){head.parentElement.classList.toggle('open');}
 </script>
 </body>
 </html>
