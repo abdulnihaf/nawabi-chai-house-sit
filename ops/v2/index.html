@@ -271,6 +271,16 @@
     <div id="cashier-runner-grid" class="runner-grid">
       <div class="loading"><div class="spinner"></div><br>Loading runners…</div>
     </div>
+
+    <!-- HISTORY SECTION — collapsed by default -->
+    <div style="padding:4px 16px 12px">
+      <button onclick="toggleCashierHistory(this)"
+        style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--muted);padding:11px 16px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <span>📋 Shift History & Audit Trail</span><span id="cashier-hist-arrow">▾</span>
+      </button>
+      <div id="cashier-hist-panel" style="display:none;margin-top:8px"></div>
+    </div>
+
     <div style="height:8px"></div>
   </div>
   <div class="action-bar">
@@ -576,6 +586,7 @@ function routeByRole() {
 }
 
 // ─── SCREEN 3: RUNNER VIEW ───────────────────────────────
+// Mirrors ops/runner/index.html exactly — same API response shape
 async function loadRunnerView() {
   const runner = S.selectedRunner;
   if (!runner) return;
@@ -584,87 +595,181 @@ async function loadRunnerView() {
   try {
     const data = await api(`/api/settlement?action=runner-live&runner_id=${runner.partner_id}&barcode=${runner.code}`);
     if (!data.success) { el('runner-content').innerHTML = errBox(data.error || 'Failed'); return; }
-    renderRunnerView(data);
+    renderRunnerView(data, runner);
     el('runner-refresh-time').textContent = 'Updated ' + fmtTime(new Date());
   } catch(e) {
     el('runner-content').innerHTML = errBox('Network error: ' + e.message);
   }
 }
 
-function renderRunnerView(d) {
-  const cih = d.cashInHand || 0;
-  const amtClass = cih > 0 ? 'ok' : cih < 0 ? 'bad' : 'warn';
-  const hasPending = (d.pending_errors || 0) > 0;
+function maskVpa(vpa) {
+  if (!vpa) return '';
+  const atIdx = vpa.indexOf('@');
+  if (atIdx <= 3) return vpa;
+  return vpa.slice(0, 3) + '****' + vpa.slice(atIdx);
+}
+
+function renderRunnerView(d, runner) {
+  const cih = safeNum(d.cashInHand);
+  // upi is an object {total, count, payments[]} from the API
+  const upiObj   = d.upi && typeof d.upi === 'object' ? d.upi : {total: safeNum(d.upi_amount ?? d.upi), count: 0, payments: []};
+  const upiTotal = safeNum(upiObj.total);
+  const tokens   = safeNum(d.tokens);
+  const sales    = safeNum(d.sales);
+  const cross    = safeNum(d.crossPaymentCredit);
+  const pendingErrs = Array.isArray(d.pending_errors) ? d.pending_errors.length : safeNum(d.pending_errors);
+
+  // ── Formula line: "₹2,150 tokens + ₹0 sales - ₹60 UPI"
+  let formulaParts = [];
+  if (tokens > 0) formulaParts.push('₹' + fmt(tokens) + ' tokens');
+  if (sales  > 0) formulaParts.push('₹' + fmt(sales) + ' sales');
+  if (upiTotal > 0) formulaParts.push('−₹' + fmt(upiTotal) + ' UPI');
+  if (cross  > 0) formulaParts.push('−₹' + fmt(cross) + ' cross');
+
+  const amtClass = cih > 0 ? 'ok' : cih < 0 ? 'bad' : '';
+  const periodLabel = d.period?.startFormatted || fmtPeriod(d.period?.from || d.period_start);
 
   let html = `
     <div class="hero">
-      <div class="hero-label">Cash in hand</div>
-      <div class="hero-amount ${amtClass}">₹${fmt(cih)}</div>
-      <div class="hero-meta">
-        <div class="hero-meta-item"><span class="hero-meta-label">Tokens</span><span class="hero-meta-val">₹${fmt(d.tokens||0)}</span></div>
-        <div class="hero-meta-item"><span class="hero-meta-label">Sales</span><span class="hero-meta-val">₹${fmt(d.sales||0)}</span></div>
-        <div class="hero-meta-item"><span class="hero-meta-label">UPI paid</span><span class="hero-meta-val">−₹${fmt(d.upi||0)}</span></div>
-        <div class="hero-meta-item"><span class="hero-meta-label">Period</span><span class="hero-meta-val">${fmtPeriod(d.period?.from)}</span></div>
-      </div>
+      <div class="hero-label">Cash you should have</div>
+      <div class="hero-amount ${amtClass}" style="font-size:40px;font-family:'SF Mono',monospace">${cih < 0 ? '−' : ''}₹${fmt(Math.abs(cih))}</div>
+      <div style="font-size:12px;color:var(--muted);font-family:monospace;margin-top:8px">${formulaParts.join(' · ')}</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:6px">Since: ${periodLabel}</div>
     </div>`;
 
-  if (hasPending) {
+  // ── Pending errors banner
+  if (pendingErrs > 0) {
     html += `<div class="disc-banner"><div class="icon">⚠️</div><div class="msg">
-      <strong>${d.pending_errors} pending error${d.pending_errors>1?'s':''}</strong><br>
-      <span style="color:var(--muted);font-size:11px">Contact cashier to resolve before settling</span>
+      <strong>${pendingErrs} unresolved error${pendingErrs > 1 ? 's' : ''}</strong> — this will be deducted at settlement if not fixed.<br>
+      <span style="font-size:11px;color:var(--muted)">Ask cashier to fix.</span>
     </div></div>`;
   }
 
-  if (d.lastSettlement) {
-    const ls = d.lastSettlement;
-    html += `<div class="section-hdr"><span class="section-title">Last settlement</span></div>
-    <div style="padding:0 16px 8px">
-      <div class="card-sm" style="display:flex;justify-content:space-between;align-items:center">
-        <div><div class="row-title">₹${fmt(ls.cash_settled||0)} settled</div>
-          <div class="row-sub">${ls.variance && ls.variance !== 0 ? (ls.variance < 0 ? '▼ SHORT ' : '▲ OVER ') + '₹' + fmt(Math.abs(ls.variance)) : '✓ Exact'}</div></div>
-        <div class="row-time">${fmtDatetime(ls.settled_at)}</div>
-      </div>
+  // ── Token Issues section
+  const tokenBreakdown = d.tokenBreakdown || [];
+  const tokenOrders = safeNum(d.tokenOrders);
+  html += `<div style="margin:0 16px 8px">
+    <div class="card" style="padding:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600">Token Issues</span>
+        <span style="font-size:11px;color:var(--muted)">${tokenOrders} order${tokenOrders !== 1 ? 's' : ''}</span>
+      </div>`;
+  if (tokenBreakdown.length === 0) {
+    html += `<div style="padding:16px;color:var(--dim);font-size:13px;text-align:center">No token issues</div>`;
+  } else {
+    tokenBreakdown.forEach(item => {
+      const unitPrice = item.qty > 0 ? Math.round(safeNum(item.amount) / item.qty) : 0;
+      html += `<div class="row-item">
+        <div class="row-left"><div class="row-title">${item.name || item.product_name || 'Item'}</div>
+          <div class="row-sub">${item.qty} × ₹${fmt(unitPrice)}</div></div>
+        <div class="row-right"><div class="row-amount">₹${fmt(safeNum(item.amount ?? item.total))}</div></div>
+      </div>`;
+    });
+    html += `<div class="row-item" style="background:rgba(124,86,247,0.05)">
+      <div class="row-left"><div style="font-size:13px;font-weight:600">Token Total</div></div>
+      <div class="row-right"><div style="font-size:16px;font-weight:700">₹${fmt(tokens)}</div></div>
     </div>`;
   }
+  html += `</div></div>`;
 
-  // Token breakdown
-  const tokens = d.tokenBreakdown || [];
-  if (tokens.length > 0) {
-    html += `<div class="section-hdr"><span class="section-title">Token issues</span><span class="section-count">${tokens.length} items</span></div>
-    <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
-    tokens.forEach(t => {
-      html += `<div class="row-item">
-        <div class="row-left"><div class="row-title">${t.product_name || 'Item'}</div><div class="row-sub">${t.qty} × ₹${t.unit_price||0}</div></div>
-        <div class="row-right"><div class="row-amount">₹${fmt(t.total||0)}</div></div>
+  // ── Direct Sales section
+  const salesDetails = d.salesDetails || [];
+  const salesOrders = safeNum(d.salesOrders);
+  html += `<div style="margin:0 16px 8px">
+    <div class="card" style="padding:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600">Direct Sales</span>
+        <span style="font-size:11px;color:var(--muted)">${salesOrders} order${salesOrders !== 1 ? 's' : ''}</span>
+      </div>`;
+  if (salesDetails.length === 0) {
+    html += `<div style="padding:16px;color:var(--dim);font-size:13px;text-align:center">No direct sales</div>`;
+  } else {
+    salesDetails.forEach(order => {
+      const itemsStr = (order.items || []).map(it => it.qty + '× ' + it.name).join(', ');
+      html += `<div style="background:var(--card2);border-radius:8px;padding:10px 12px;margin:8px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;color:var(--muted);font-family:monospace">${order.name || ''}</span>
+          <span style="font-size:11px;color:var(--dim)">${fmtTime2(order.time || order.date_order)}</span>
+        </div>
+        ${itemsStr ? '<div style="font-size:12px;color:var(--muted);margin-bottom:4px">' + itemsStr + '</div>' : ''}
+        <div style="font-size:15px;font-weight:700;font-family:monospace;text-align:right">₹${fmt(safeNum(order.amount))}</div>
       </div>`;
     });
-    html += `</div></div>`;
+    html += `<div class="row-item" style="background:rgba(124,86,247,0.05)">
+      <div class="row-left"><div style="font-size:13px;font-weight:600">Sales Total</div></div>
+      <div class="row-right"><div style="font-size:16px;font-weight:700">₹${fmt(sales)}</div></div>
+    </div>`;
   }
+  html += `</div></div>`;
 
-  // Direct sales
-  const sales = d.salesDetails || [];
-  if (sales.length > 0) {
-    html += `<div class="section-hdr"><span class="section-title">Direct sales</span><span class="section-count">${sales.length} orders</span></div>
-    <div style="padding:0 16px 8px"><div class="card" style="padding:0">`;
-    sales.slice(0, 10).forEach(s => {
-      html += `<div class="row-item">
-        <div class="row-left"><div class="row-title">₹${fmt(s.amount||0)}</div><div class="row-sub">${fmtDatetime(s.date_order)}</div></div>
-        <div class="row-right"><div class="row-amount">${s.upi_credit ? '<span class="tag tag-blue">UPI</span>' : ''}</div></div>
+  // ── UPI Payments section
+  const upiPayments = upiObj.payments || [];
+  html += `<div style="margin:0 16px 8px">
+    <div class="card" style="padding:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:600">UPI Payments</span>
+        <span style="font-size:11px;color:var(--muted)">${upiObj.count || upiPayments.length} · −₹${fmt(upiTotal)}</span>
+      </div>`;
+  if (upiPayments.length === 0) {
+    html += `<div style="padding:16px;color:var(--dim);font-size:13px;text-align:center">No UPI payments</div>`;
+  } else {
+    upiPayments.forEach(p => {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:17px;font-weight:600;color:var(--green);font-family:monospace">₹${fmt(safeNum(p.amount))}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:monospace">${maskVpa(p.vpa)}</div>
+        </div>
+        <div style="font-size:11px;color:var(--dim)">${fmtTime2(p.time || p.created_at)}</div>
       </div>`;
     });
-    if (sales.length > 10) html += `<div class="row-item faded small">+${sales.length-10} more orders</div>`;
-    html += `</div></div>`;
   }
+  html += `</div></div>`;
 
-  // UPI payments
-  if ((d.upi || 0) > 0) {
-    html += `<div class="section-hdr"><span class="section-title">UPI received</span><span class="section-count">−₹${fmt(d.upi)} from cash</span></div>`;
-  }
+  // ── Past Settlements toggle (lazy loaded)
+  const runnerCode = runner?.code || S.selectedRunner?.code;
+  const partnerId = runner?.partner_id || S.selectedRunner?.partner_id;
+  html += `
+    <div style="margin:0 16px 16px">
+      <button onclick="toggleRunnerHistory('${runnerCode}', ${partnerId}, this)"
+        style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <span>Past Settlements</span><span id="hist-arrow-${runnerCode}">▾</span>
+      </button>
+      <div id="hist-${runnerCode}" style="display:none;margin-top:8px"></div>
+    </div>`;
 
   el('runner-content').innerHTML = html;
   const pendingBadge = el('runner-nav-badge');
-  if (hasPending) { pendingBadge.textContent = d.pending_errors; pendingBadge.style.display=''; }
-  else pendingBadge.style.display='none';
+  if (pendingErrs > 0) { pendingBadge.textContent = pendingErrs; pendingBadge.style.display = ''; }
+  else pendingBadge.style.display = 'none';
+}
+
+// Lazy-load settlement history for a runner
+const _histLoaded = {};
+async function toggleRunnerHistory(code, partnerId, btn) {
+  const panel = el('hist-' + code);
+  const arrow = el('hist-arrow-' + code);
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
+  if (isOpen || _histLoaded[code]) return;
+  panel.innerHTML = '<div class="loading" style="padding:16px">Loading…</div>';
+  try {
+    const data = await api(`/api/settlement?action=history&runner_id=${partnerId}&limit=15`);
+    const items = data.settlements || [];
+    if (!items.length) { panel.innerHTML = '<div class="loading" style="padding:12px;color:var(--dim)">No past settlements</div>'; return; }
+    panel.innerHTML = '<div class="card" style="padding:0">' + items.map(s => {
+      const variance = safeNum(s.variance ?? s.drawer_variance);
+      const varTag = Math.abs(variance) < 5 ? '<span class="tag tag-green">Exact</span>' :
+                     variance < 0 ? `<span class="tag tag-red">SHORT ₹${fmt(Math.abs(variance))}</span>` :
+                     `<span class="tag tag-amber">OVER ₹${fmt(variance)}</span>`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div><div style="font-size:14px;font-weight:600">₹${fmt(safeNum(s.cash_settled))}</div>
+          <div style="font-size:11px;color:var(--muted)">by ${s.settled_by || '—'} ${varTag}</div></div>
+        <div style="font-size:11px;color:var(--dim);text-align:right">${fmtDatetime(s.settled_at)}</div>
+      </div>`;
+    }).join('') + '</div>';
+    _histLoaded[code] = true;
+  } catch(e) { panel.innerHTML = errBox('Failed: ' + e.message); }
 }
 
 // ─── SCREEN 4: CASHIER HOME ──────────────────────────────
@@ -713,7 +818,7 @@ async function loadCashierHome() {
       <div class="runner-badge ${cls}">${runner.code.replace('RUN0','R')}</div>
       <div class="runner-info">
         <div class="runner-name">${runner.name} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
-        <div class="runner-detail">Tokens ₹${fmt(safeNum(d?.tokens))} · Sales ₹${fmt(safeNum(d?.sales))} · UPI −₹${fmt(safeNum(d?.upi ?? d?.upi_amount))}</div>
+        <div class="runner-detail">T ₹${fmt(safeNum(d?.tokens))} · S ₹${fmt(safeNum(d?.sales))} · UPI −₹${fmt(safeNum(d?.upi?.total ?? d?.upi_amount ?? d?.upi))}</div>
       </div>
       <div class="runner-cash ${cls}">₹${fmt(cih)}</div>
     </div>`;
@@ -1108,6 +1213,13 @@ async function submitCollectCash() {
 function el(id) { return document.getElementById(id); }
 function safeNum(n) { const v = parseFloat(n); return isNaN(v) ? 0 : v; }
 function fmt(n) { const v = Math.round(safeNum(n)); return v.toLocaleString('en-IN'); }
+// fmtTime2: timestamp → "3:45 PM" in IST
+function fmtTime2(s) {
+  if (!s) return '';
+  try {
+    return new Date(s).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'});
+  } catch { return ''; }
+}
 function fmtTime(d) { return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'}); }
 function fmtDatetime(s) {
   if (!s) return '';
@@ -1134,6 +1246,116 @@ async function api(path) {
 async function apiPost(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   return r.json();
+}
+
+// ─── CASHIER HISTORY / AUDIT TRAIL ──────────────────────
+let _cashierHistLoaded = false;
+async function toggleCashierHistory(btn) {
+  const panel = el('cashier-hist-panel');
+  const arrow = el('cashier-hist-arrow');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
+  if (isOpen || _cashierHistLoaded) return;
+
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading history…</div>';
+
+  try {
+    const [settlementsData, collectionsData, expensesData] = await Promise.all([
+      // All settlements — last 30 (no runner_id filter = all)
+      api('/api/settlement?action=history&limit=30').catch(() => ({settlements:[]})),
+      // Cash collections
+      api('/api/rectify?action=get-collections').catch(() => ({})),
+      // Expenses (from both tables)
+      api('/api/settlement?action=expense-history&limit=30').catch(() => ({expenses:[]})),
+      // Placeholder — only 3 parallel calls needed
+      Promise.resolve(null)
+    ]);
+
+    let html = '';
+
+    // ── Runner settlements
+    const settlements = settlementsData.settlements || [];
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Runner Settlements (last 30)</div>
+      <div class="card" style="padding:0">`;
+    if (!settlements.length) {
+      html += `<div style="padding:14px;color:var(--dim);font-size:13px;text-align:center">No settlements</div>`;
+    } else {
+      settlements.forEach(s => {
+        const variance = safeNum(s.variance);
+        const varTxt = Math.abs(variance) < 5 ? '✓' :
+          variance < 0 ? `▼ SHORT ₹${fmt(Math.abs(variance))}` : `▲ OVER ₹${fmt(variance)}`;
+        const varCls = Math.abs(variance) < 5 ? 'var(--green)' : variance < 0 ? 'var(--red)' : 'var(--amber)';
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600">${s.runner_name || s.runner_id || '—'} → ${s.settled_by || '—'}</div>
+            <div style="font-size:11px;color:${varCls};margin-top:1px">${varTxt}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:700">₹${fmt(safeNum(s.cash_settled))}</div>
+            <div style="font-size:10px;color:var(--dim)">${fmtDatetime(s.settled_at)}</div>
+          </div>
+        </div>`;
+      });
+    }
+    html += `</div></div>`;
+
+    // ── Cash collections
+    const inTransit = collectionsData.in_transit || [];
+    const collected = collectionsData.collected || [];
+    const allCollections = [...inTransit, ...collected].sort((a,b) => (b.collected_at||'').localeCompare(a.collected_at||''));
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Cash Collections (today)</div>
+      <div class="card" style="padding:0">`;
+    if (!allCollections.length) {
+      html += `<div style="padding:14px;color:var(--dim);font-size:13px;text-align:center">No collections today</div>`;
+    } else {
+      allCollections.forEach(c => {
+        const statusCls = c.status === 'collected' ? 'var(--green)' : 'var(--amber)';
+        const statusTxt = c.status === 'collected' ? '✓ Received' : '⏳ In transit';
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600">${c.collected_by || '—'} → Naveen</div>
+            <div style="font-size:11px;color:${statusCls}">${statusTxt}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:700">₹${fmt(safeNum(c.amount))}</div>
+            <div style="font-size:10px;color:var(--dim)">${fmtDatetime(c.collected_at)}</div>
+          </div>
+        </div>`;
+      });
+    }
+    html += `</div></div>`;
+
+    // ── Expenses
+    const expenses = expensesData.expenses || [];
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Expenses (last 30)</div>
+      <div class="card" style="padding:0">`;
+    if (!expenses.length) {
+      html += `<div style="padding:14px;color:var(--dim);font-size:13px;text-align:center">No expenses</div>`;
+    } else {
+      expenses.forEach(e => {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600">${e.category_name || e.category_code || '—'}</div>
+            <div style="font-size:11px;color:var(--muted)">${e.recorded_by || '—'}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:700;color:var(--red)">−₹${fmt(safeNum(e.amount))}</div>
+            <div style="font-size:10px;color:var(--dim)">${fmtDatetime(e.recorded_at)}</div>
+          </div>
+        </div>`;
+      });
+    }
+    html += `</div></div>`;
+
+    panel.innerHTML = html;
+    _cashierHistLoaded = true;
+  } catch(e) {
+    panel.innerHTML = errBox('Failed to load history: ' + e.message);
+  }
 }
 
 // ─── INIT ────────────────────────────────────────────────
