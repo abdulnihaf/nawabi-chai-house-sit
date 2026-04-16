@@ -264,7 +264,11 @@
     <div class="refresh-btn" onclick="loadCashierHome()" style="font-size:16px">↻</div>
   </div>
   <div class="scroll">
-    <div id="cashier-runner-grid" class="runner-grid" style="padding-top:12px">
+    <div id="cashier-counter-card" style="padding:12px 16px 0">
+      <div class="loading" style="padding:12px 0"><div class="spinner"></div></div>
+    </div>
+    <div class="section-hdr" style="padding-top:4px"><span class="section-title">Runners — cash in hand</span></div>
+    <div id="cashier-runner-grid" class="runner-grid">
       <div class="loading"><div class="spinner"></div><br>Loading runners…</div>
     </div>
     <div style="height:8px"></div>
@@ -666,45 +670,67 @@ function renderRunnerView(d) {
 // ─── SCREEN 4: CASHIER HOME ──────────────────────────────
 async function loadCashierHome() {
   el('cashier-runner-grid').innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading runners…</div>';
-  try {
-    const results = await Promise.allSettled(
-      RUNNERS.map(r => api(`/api/settlement?action=runner-live&runner_id=${r.partner_id}&barcode=${r.code}`))
-    );
-    let html = '';
-    RUNNERS.forEach((runner, i) => {
-      const res = results[i];
-      const d = res.status === 'fulfilled' ? res.value : null;
-      const cih = d?.cashInHand || 0;
-      const cls = cih > 500 ? 'warn' : cih > 0 ? 'ok' : cih < 0 ? 'bad' : 'ok';
-      const hasPending = (d?.pending_errors || 0) > 0;
-      html += `<div class="runner-row" onclick="openRunnerDetail('${runner.code}')">
-        <div class="runner-badge ${cls}">${runner.code.replace('RUN0','R')}</div>
-        <div class="runner-info">
-          <div class="runner-name">${runner.name} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
-          <div class="runner-detail">T:₹${fmt(d?.tokens||0)} S:₹${fmt(d?.sales||0)} U:−₹${fmt(d?.upi||0)}</div>
+  el('cashier-counter-card').innerHTML = '<div class="loading" style="padding:12px 0"><div class="spinner"></div></div>';
+
+  const [runnerResults, balData] = await Promise.all([
+    Promise.allSettled(RUNNERS.map(r => api(`/api/settlement?action=runner-live&runner_id=${r.partner_id}&barcode=${r.code}`))),
+    api('/api/settlement?action=counter-balance').catch(() => null)
+  ]);
+
+  // Counter balance card — balance.total, balance.runnerCash, balance.counterCash, balance.totalExpenses
+  if (balData?.success) {
+    const b = balData.balance || {};
+    const bal      = safeNum(b.total);
+    const runnerIn = safeNum(b.runnerCash);
+    const walkIn   = safeNum(b.counterCash);
+    const petty    = safeNum(b.pettyCash);
+    const exp      = safeNum(b.totalExpenses);
+    const cls      = bal > 1000 ? 'ok' : bal > 0 ? 'warn' : 'bad';
+    el('cashier-counter-card').innerHTML = `
+      <div class="hero" style="margin:0">
+        <div class="hero-label">Cash in drawer (since last collection)</div>
+        <div class="hero-amount ${cls}">₹${fmt(bal)}</div>
+        <div class="hero-meta">
+          <div class="hero-meta-item"><span class="hero-meta-label">Opening float</span><span class="hero-meta-val">₹${fmt(petty)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Runner cash in</span><span class="hero-meta-val">₹${fmt(runnerIn)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Counter sales</span><span class="hero-meta-val">₹${fmt(walkIn)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Expenses out</span><span class="hero-meta-val">−₹${fmt(exp)}</span></div>
         </div>
-        <div class="runner-cash ${cls}">₹${fmt(cih)}</div>
       </div>`;
-      if (d) S.runnerLiveData[runner.code] = d;
-    });
-    el('cashier-runner-grid').innerHTML = html;
-  } catch(e) {
-    el('cashier-runner-grid').innerHTML = errBox('Failed to load: ' + e.message);
+  } else {
+    el('cashier-counter-card').innerHTML = '';
   }
+
+  // Runner grid
+  let html = '';
+  RUNNERS.forEach((runner, i) => {
+    const res = runnerResults[i];
+    const d = res.status === 'fulfilled' && res.value?.success !== false ? res.value : null;
+    const cih = safeNum(d?.cashInHand ?? d?.cash_to_collect);
+    const cls = cih > 500 ? 'warn' : cih > 0 ? 'ok' : 'ok';
+    const hasPending = (d?.pending_errors || 0) > 0;
+    html += `<div class="runner-row" onclick="openRunnerDetail('${runner.code}')">
+      <div class="runner-badge ${cls}">${runner.code.replace('RUN0','R')}</div>
+      <div class="runner-info">
+        <div class="runner-name">${runner.name} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
+        <div class="runner-detail">Tokens ₹${fmt(safeNum(d?.tokens))} · Sales ₹${fmt(safeNum(d?.sales))} · UPI −₹${fmt(safeNum(d?.upi ?? d?.upi_amount))}</div>
+      </div>
+      <div class="runner-cash ${cls}">₹${fmt(cih)}</div>
+    </div>`;
+    if (d) S.runnerLiveData[runner.code] = d;
+  });
+  el('cashier-runner-grid').innerHTML = html || '<div class="loading" style="color:var(--dim)">No runner data</div>';
 }
 
 function openRunnerDetail(code) {
   const runner = RUNNERS.find(r => r.code === code);
   if (!runner) return;
   S.selectedRunner = runner;
-  const data = S.runnerLiveData[code];
-  if (data) {
-    el('runner-nav-title').textContent = code;
-    el('runner-nav-sub').textContent = runner.name;
-    show('s-runner');
-    renderRunnerView(data);
-    el('runner-refresh-time').textContent = 'Tap ↻ to refresh';
-  }
+  S.prevScreen = 's-cashier';
+  el('runner-nav-title').textContent = runner.name;
+  el('runner-nav-sub').textContent = code;
+  show('s-runner');
+  loadRunnerView();
 }
 
 // ─── SCREEN 5: SETTLE RUNNER ─────────────────────────────
@@ -1080,7 +1106,8 @@ async function submitCollectCash() {
 
 // ─── HELPERS ─────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
-function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+function safeNum(n) { const v = parseFloat(n); return isNaN(v) ? 0 : v; }
+function fmt(n) { const v = Math.round(safeNum(n)); return v.toLocaleString('en-IN'); }
 function fmtTime(d) { return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'}); }
 function fmtDatetime(s) {
   if (!s) return '';
