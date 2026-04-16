@@ -772,14 +772,22 @@ function buildShariff(){
     +'<span style="font-size:16px">🏪</span>'
     +'<div class="sub-acc-name">Shariff Dry Goods — '+SHARIFF_CATS.length+' categories</div>'
     +'<div class="sub-acc-amt" style="color:#f97316">₹1,95,000 <span style="font-size:10px;color:var(--tx3)">paid</span></div>'
+    +'<div class="dl-btns" onclick="event.stopPropagation()">'
+    +'<button class="dl-btn pdf" onclick="pShariffAll()">🖨 PDF</button>'
+    +'<button class="dl-btn xlsx" onclick="dlShariffAll()">📊 XLSX</button>'
+    +'</div>'
     +'<span class="sub-acc-chev">▾</span></div>'
     +'<div class="sub-acc-body"><div style="padding:12px 14px">'
     +'<div class="info-box"><strong>Invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807</strong>Combined HE + NCH supplier. Item-level brand split not available.</div>';
-  SHARIFF_CATS.forEach(function(cat){
+  SHARIFF_CATS.forEach(function(cat,ci){
     h+='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
       +'<span style="width:10px;height:10px;background:'+cat.color+';border-radius:50%;display:inline-block;flex-shrink:0"></span>'
       +'<div class="sub-acc-name" style="margin-left:4px">'+cat.name+'</div>'
       +'<div class="sub-acc-amt" style="color:'+cat.color+'">'+f(cat.total)+'</div>'
+      +'<div class="dl-btns" onclick="event.stopPropagation()">'
+      +'<button class="dl-btn pdf" onclick="pShariffCat('+ci+')">🖨 PDF</button>'
+      +'<button class="dl-btn xlsx" onclick="dlShariffCat('+ci+')">📊 XLSX</button>'
+      +'</div>'
       +'<span class="sub-acc-chev">▾</span></div>'
       +'<div class="sub-acc-body"><div style="padding:8px 12px"><table><thead><tr><th>Item</th><th>Unit</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>';
     cat.items.forEach(function(it){
@@ -789,6 +797,94 @@ function buildShariff(){
   });
   h+='</div></div></div>';
   return h;
+}
+
+// ─── Shariff category downloads ───────────────────────────────────────────────
+function dlShariffCat(ci){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded yet.');return;}
+  var cat=SHARIFF_CATS[ci];
+  var wb=XLSX.utils.book_new();
+  var aoa=[['NCH Expense Register — Shariff: '+cat.name],['Period: Feb 3 – Mar 31, 2026'],['Vendor: Shariff Departmental Stores'],[]];
+  aoa.push(['Item','Unit','Qty','Amount (₹)']);
+  cat.items.forEach(function(it){aoa.push([it.n,it.u,it.cnt||'',it.a]);});
+  aoa.push(['Subtotal','','',cat.total]);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:38},{wch:10},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,cat.name.substring(0,31));
+  XLSX.writeFile(wb,'NCH_Shariff_'+cat.name.replace(/[^a-zA-Z0-9]/g,'_')+'_Feb_Mar_2026.xlsx');
+}
+
+function dlShariffAll(){
+  if(typeof XLSX==='undefined'){alert('Excel library not loaded yet.');return;}
+  var wb=XLSX.utils.book_new();
+  // Summary sheet
+  var sumAoa=[['NCH Expense Register — Shariff Store Full'],['Period: Feb 3 – Mar 31, 2026'],['Invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807'],[]];
+  sumAoa.push(['Category','Items','Total Amount (₹)']);
+  SHARIFF_CATS.forEach(function(c){sumAoa.push([c.name,c.items.length,c.total]);});
+  sumAoa.push(['GRAND TOTAL','',SHARIFF_CATS.reduce(function(s,c){return s+c.total;},0)]);
+  var wsSumm=XLSX.utils.aoa_to_sheet(sumAoa);
+  wsSumm['!cols']=[{wch:28},{wch:8},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,wsSumm,'Summary');
+  // One sheet per category
+  SHARIFF_CATS.forEach(function(cat){
+    var aoa=[['Shariff: '+cat.name],['Period: Feb 3 – Mar 31, 2026'],[]];
+    aoa.push(['Item','Unit','Qty','Amount (₹)']);
+    cat.items.forEach(function(it){aoa.push([it.n,it.u,it.cnt||'',it.a]);});
+    aoa.push(['Subtotal','','',cat.total]);
+    var ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:38},{wch:10},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,cat.name.substring(0,31));
+  });
+  XLSX.writeFile(wb,'NCH_Shariff_Full_Feb_Mar_2026.xlsx');
+}
+
+function pShariffCat(ci){
+  var cat=SHARIFF_CATS[ci];
+  var rows=cat.items.map(function(it){
+    return'<tr><td>'+it.n+(it.note?' <em style="color:#888;font-size:10px"> — '+it.note+'</em>':'')+'</td>'
+      +'<td style="color:#888">'+it.u+'</td>'
+      +'<td class="num">'+(it.cnt||'—')+'</td>'
+      +'<td class="num">₹'+Number(it.a).toLocaleString('en-IN')+'</td></tr>';
+  }).join('');
+  openPrint('Shariff — '+cat.name,
+    '<h1>Shariff Departmental Stores — '+cat.name+'</h1>'
+    +'<h2>₹'+Number(cat.total).toLocaleString('en-IN')+' &nbsp;·&nbsp; Feb 3 – Mar 31, 2026</h2>'
+    +'<div class="meta">Vendor: Shariff Departmental Stores, Shivajinagar &nbsp;·&nbsp; Nawabi Chai House / Hamza Express</div>'
+    +'<table><thead><tr><th>Item</th><th>Unit</th><th class="num">Qty</th><th class="num">Amount (₹)</th></tr></thead>'
+    +'<tbody>'+rows
+    +'<tr class="total-row"><td colspan="3">Subtotal — '+cat.name+'</td><td class="num">₹'+Number(cat.total).toLocaleString('en-IN')+'</td></tr>'
+    +'</tbody></table>');
+}
+
+function pShariffAll(){
+  var body='<h1>Shariff Departmental Stores — Full Purchase Register</h1>'
+    +'<h2>Invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807 &nbsp;·&nbsp; Feb 3 – Mar 31, 2026</h2>'
+    +'<div class="meta">Vendor: Shariff Departmental Stores &nbsp;·&nbsp; Nawabi Chai House / Hamza Express · Item-level brand split not available</div>';
+  // Summary table
+  var sumRows=SHARIFF_CATS.map(function(c){
+    return'<tr><td>'+c.name+'</td><td class="num">'+c.items.length+' items</td><td class="num">₹'+Number(c.total).toLocaleString('en-IN')+'</td></tr>';
+  }).join('');
+  var grandTot=SHARIFF_CATS.reduce(function(s,c){return s+c.total;},0);
+  body+='<table><thead><tr><th>Category</th><th class="num">Items</th><th class="num">Amount (₹)</th></tr></thead>'
+    +'<tbody>'+sumRows
+    +'<tr class="total-row"><td>Grand Total</td><td class="num"></td><td class="num">₹'+Number(grandTot).toLocaleString('en-IN')+'</td></tr>'
+    +'</tbody></table>';
+  // Detail per category
+  SHARIFF_CATS.forEach(function(cat){
+    var rows=cat.items.map(function(it){
+      return'<tr><td>'+it.n+(it.note?' <em style="color:#888;font-size:10px"> — '+it.note+'</em>':'')+'</td>'
+        +'<td style="color:#888">'+it.u+'</td>'
+        +'<td class="num">'+(it.cnt||'—')+'</td>'
+        +'<td class="num">₹'+Number(it.a).toLocaleString('en-IN')+'</td></tr>';
+    }).join('');
+    body+='<div style="margin-top:20px;page-break-inside:avoid">'
+      +'<h2 style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px;border-bottom:1px solid #c8860a;padding-bottom:3px">'+cat.name+'</h2>'
+      +'<table><thead><tr><th>Item</th><th>Unit</th><th class="num">Qty</th><th class="num">Amount (₹)</th></tr></thead>'
+      +'<tbody>'+rows
+      +'<tr class="total-row"><td colspan="3">Subtotal</td><td class="num">₹'+Number(cat.total).toLocaleString('en-IN')+'</td></tr>'
+      +'</tbody></table></div>';
+  });
+  openPrint('Shariff Full Register',body);
 }
 
 function tAcc(id){document.getElementById('acc-'+id).classList.toggle('open');}
