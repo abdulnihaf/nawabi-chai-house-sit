@@ -242,7 +242,7 @@ function chkPin(){
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 var CATS=[
   {id:'salary',     icon:'👥', name:'Salaries',           color:'#6366f1', total:1401650, sub:'30 staff · Tally journal accrual'},
-  {id:'rm',         icon:'🥩', name:'Raw Materials',       color:'#ef4444', total:1355506, sub:'Food, Fuel, Dry Goods, Beverages'},
+  {id:'rm',         icon:'🥩', name:'Raw Materials',       color:'#ef4444', total:1593680, sub:'Food, Fuel, Dry Goods, Beverages'},
   {id:'capex',      icon:'🖥️', name:'One-Time Capex',     color:'#f97316', total:557921,  sub:'IT hardware, kitchen equipment, fit-out'},
   {id:'ops',        icon:'🧹', name:'Operations',          color:'#eab308', total:115706,  sub:'Disposables, uniforms, counter items'},
   {id:'util',       icon:'⚡', name:'Utilities',            color:'#22c55e', total:85794,   sub:'Electricity, water, WiFi'},
@@ -288,75 +288,213 @@ var SALARIES=[
   {n:'Cleaning Boys',               a:800,    note:'Ad hoc'},
 ];
 
+// RM_ITEMS: qty/unit/est fields added Feb–Mar 2026 (est=true = derived from market rate)
 var RM_ITEMS=[
-  {n:'Chicken Purchase',              a:233905, icon:'🍗', detail:'M.N. Broilers · Journal accrual ₹2,33,905 · 3 NEFTs paid ₹1,50,000 · Balance ₹83,905 outstanding'},
-  {n:'Milk Purchase',                 a:190395, icon:'🥛', detail:'31 daily supply entries Feb–Mar · Approx 3,462 L implied @ ₹55/L'},
+  {n:'Chicken Purchase',              a:233905, icon:'🍗',
+   qty:'~1,609 kg', unit:'kg', est:true,
+   detail:'Feb 27–28 ~330 kg (est) ₹43,927 · Mar 1–30 1,279 kg EXACT (M.N. Broilers ledger) ₹1,89,978 · Journal accrual ₹2,33,905 · 3 NEFTs paid ₹1,50,000 · Balance ₹83,905 outstanding',
+   rate:'~₹145/kg blended'},
+  {n:'Milk Purchase',                 a:254455, icon:'🥛',
+   qty:'4,626.5 L', unit:'L', est:false,
+   detail:'Buffalo Milk — daily supply Feb–Mar · 4,626.5 L @ market rate ₹55/L',
+   rate:'₹55/L'},
   {n:'Shariff Dry Goods',             a:195000, icon:'🏪', detail:'SHARIFF', isShariff:true},
-  {n:'Tea Powder Purchase',           a:89000,  icon:'🍃', detail:'Bulk tea powder — NCH core ingredient'},
-  {n:'Osmania Biscuits Supply',       a:74049,  icon:'🍪', detail:'NCH signature accompaniment — Osmania Loose Biscuit Supply'},
-  {n:'Gas Cylinders',                 a:76350,  icon:'🔥', detail:'Commercial LPG — primary cooking & chai fuel'},
-  {n:'Veg / Dairy / Staff Food',      a:66942,  icon:'🥬', detail:'48 voucher entries with printed receipts (V479–V602) · Feb ₹32,448 / Mar ₹34,494'},
-  {n:'Mutton Purchase',               a:54750,  icon:'🥩', detail:'2 NEFTs: ₹50,000 (Mar 24) + ₹4,750 (Mar 25) · HKGN Mutton Stall'},
-  {n:'Butter Purchase',               a:44746,  icon:'🧈', detail:'43 daily entries · Approx 77 kg implied @ ₹580/kg'},
-  {n:'Milk Powder — SMP',             a:31000,  icon:'🥛', detail:'5 payment entries'},
-  {n:'Galaxy Bakery — Biscuits',      a:21498,  icon:'🍪', detail:''},
-  {n:'Charcoal Purchase',             a:19840,  icon:'⚫', detail:'For coal bhatti operations'},
-  {n:'Coal Bhatti',                   a:19500,  icon:'🔥', detail:'Equipment/fuel for coal bhatti service'},
-  {n:'Nilofer — Biscuits',            a:16816,  icon:'🍪', detail:''},
-  {n:'Buns Purchase',                 a:16258,  icon:'🍞', detail:'Irani chai & snack service'},
-  {n:'Brain Purchase (Sajid)',         a:16150,  icon:'🥩', detail:'3 payments: ₹5,100 (Mar 18) · ₹6,800 (Mar 24) · ₹4,250 (Mar 30)'},
-  {n:'Cooking Wood',                  a:16000,  icon:'🪵', detail:'Wood-fire cooking fuel'},
-  {n:'Woven Purchase',                a:9500,   icon:'🧶', detail:''},
-  {n:'Chicken Cutlet (Nisarcha)',      a:5400,   icon:'🍗', detail:'6 entries — Nisarcha Brothers'},
-  {n:'Onion Purchase',                a:3610,   icon:'🧅', detail:'Spot purchases outside regular veg bill'},
-  {n:'Karachi Bakery — Biscuits',     a:2490,   icon:'🍪', detail:''},
-  {n:'Misc RM (oil, samosa, drinks)', a:2307,   icon:'📦', detail:'Oil ₹826 · Samosa ₹800 · Horlicks/Boost ₹461 · Cool drinks ₹40 · Raw material misc ₹180'},
+  {n:'Tea Powder Purchase',           a:116590, icon:'🍃',
+   qty:'259.1 kg', unit:'kg', est:false,
+   detail:'Bulk tea powder — NCH core ingredient · 259.1 kg @ ₹450/kg',
+   rate:'₹450/kg'},
+  {n:'Osmania Biscuits Supply',       a:114853, icon:'🍪',
+   qty:'~19,142 pcs', unit:'pcs', est:true,
+   detail:'NCH signature accompaniment — Osmania Loose Biscuit Supply · ~19,142 pcs @ blended rate ₹6/pc (ESTIMATED)',
+   rate:'~₹6/pc (est.)'},
+  {n:'Gas Cylinders',                 a:126950, icon:'🔥',
+   qty:'~71.7 cylinders', unit:'cyl', est:true,
+   detail:'Commercial LPG — primary cooking & chai fuel · ~71.7 cylinders @ ₹1,770/cylinder',
+   rate:'₹1,770/cyl'},
+  {n:'Veg / Dairy / Staff Food',      a:122695, icon:'🥬',
+   qty:'Partial data', unit:'—', est:true,
+   detail:'48 voucher entries V479–V602 · Only 6 dates of chit data available · Items: Coriander, Mint, Cabbage, Carrot, Capsicum, Beans, Green Chillies, Cucumber, Lemon, Gobi, Baji Mirchi, Tomato, Onion, Ginger, Garlic, Potato',
+   rate:'Varies'},
+  {n:'Mutton Purchase',               a:60525, icon:'🥩',
+   qty:'~77.6 kg', unit:'kg', est:true,
+   detail:'~77.6 kg @ ₹780/kg · 2 NEFTs: ₹50,000 (Mar 24) + ₹4,750 (Mar 25) · HKGN Mutton Stall',
+   rate:'₹780/kg'},
+  {n:'Butter Purchase',               a:61933, icon:'🧈',
+   qty:'105 kg', unit:'kg', est:false,
+   detail:'Amul Butter · 105 kg @ ₹590/kg · 43 daily entries',
+   rate:'₹590/kg'},
+  {n:'Milk Powder — SMP',             a:38950, icon:'🥛',
+   qty:'125.6 kg', unit:'kg', est:false,
+   detail:'Skimmed Milk Powder · 125.6 kg @ ₹310/kg · 5 payment entries',
+   rate:'₹310/kg'},
+  {n:'Galaxy Bakery — Biscuits',      a:21498, icon:'🍪',
+   qty:'—', unit:'—', est:false,
+   detail:'Part of combined Osmania biscuits supply'},
+  {n:'Charcoal Purchase',             a:25370, icon:'⚫',
+   qty:'~793 kg', unit:'kg', est:true,
+   detail:'For coal bhatti operations · ~793 kg @ ₹32/kg',
+   rate:'₹32/kg'},
+  {n:'Coal Bhatti (fuel/equipment)',  a:19500, icon:'🔥',
+   qty:'—', unit:'—', est:false,
+   detail:'Equipment/fuel for coal bhatti service'},
+  {n:'Cooking Wood',                  a:17000, icon:'🪵',
+   qty:'~1,545 kg', unit:'kg', est:true,
+   detail:'Wood-fire cooking fuel · ~1,545 kg @ ₹11/kg',
+   rate:'₹11/kg'},
+  {n:'Nilofer — Biscuits',            a:16816, icon:'🍪',
+   qty:'—', unit:'—', est:false,
+   detail:'Part of combined Osmania biscuits supply'},
+  {n:'Buns Purchase (Ganga Bakery)',  a:36383, icon:'🍞',
+   qty:'4,548 pcs', unit:'pcs', est:false,
+   detail:'Irani chai & snack service · Ganga Bakery · 4,548 pcs @ ₹8/pc',
+   rate:'₹8/pc'},
+  {n:'Brain Purchase (Sajid)',         a:29580, icon:'🥩',
+   qty:'~348 pcs', unit:'pcs', est:true,
+   detail:'~348 pcs @ ₹85/pc · 3 payments: ₹5,100 (Mar 18) · ₹6,800 (Mar 24) · ₹4,250 (Mar 30)',
+   rate:'₹85/pc'},
+  {n:'Water Supply',                  a:75850, icon:'💧',
+   qty:'~325 cans + ~3,143 btl', unit:'mixed', est:true,
+   detail:'Filter Water Cans ~325 × 20L @ ₹40/can ₹12,990 · Bisleri 500mL ~3,143 btl @ ₹20/btl ₹62,860',
+   rate:'₹40/can · ₹20/btl'},
+  {n:'Rumali Roti',                   a:6800, icon:'🫓',
+   qty:'680 pcs', unit:'pcs', est:false,
+   detail:'680 pcs @ ₹10/pc',
+   rate:'₹10/pc'},
+  {n:'Chicken Cutlet NCH (Nisarcha)', a:6050, icon:'🍗',
+   qty:'~403 pcs', unit:'pcs', est:true,
+   detail:'~403 pcs @ ₹15/pc · Nisarcha Brothers',
+   rate:'₹15/pc'},
+  {n:'Onion Purchase',                a:7220, icon:'🧅',
+   qty:'~401 kg', unit:'kg', est:true,
+   detail:'~401 kg @ ₹18/kg · Spot purchases outside regular veg bill',
+   rate:'₹18/kg'},
+  {n:'Samosa',                        a:960, icon:'🥟',
+   qty:'96 pcs', unit:'pcs', est:false,
+   detail:'96 pcs @ ₹10/pc',
+   rate:'₹10/pc'},
+  {n:'Karachi Bakery — Biscuits',     a:2490,  icon:'🍪',
+   qty:'—', unit:'—', est:false,
+   detail:'Part of combined biscuits supply'},
+  {n:'Misc RM (oil, samosa, drinks)', a:2307,  icon:'📦',
+   qty:'—', unit:'—', est:false,
+   detail:'Oil ₹826 · Samosa ₹800 · Horlicks/Boost ₹461 · Cool drinks ₹40 · Raw material misc ₹180'},
 ];
 
+// SHARIFF_CATS — verified item-level data Feb 3–Mar 31 2026 (Shariff Store invoices)
 var SHARIFF_CATS=[
-  {name:'Oils & Fats',          color:'#f97316', total:78243, items:[
-    {n:'Ruchi Gold Oil',u:'box',a:32287,cnt:28},{n:'Cow Ghee (Desi)',u:'kg',a:18630,cnt:29},
-    {n:'Dalda Ghee',u:'kg',a:10710,cnt:17},{n:'Palm Oil (16L tin)',u:'tin',a:5908,cnt:6},
-    {n:'Rolex Oil (1L)',u:'L',a:4000,cnt:5},{n:'Coconut Oil',u:'L',a:2850,cnt:4},
-    {n:'Cooking Oil (local)',u:'L',a:2000,cnt:3},{n:'Butter (Amul/Local)',u:'kg',a:1858,cnt:5},
+  {name:'Oils & Fats', color:'#f97316', total:69310, items:[
+    {n:'Ruchi Gold Oil',          u:'L',   cnt:'229',    a:26113},
+    {n:'Cow Ghee – Desi',         u:'kg',  cnt:'40.5',   a:17610},
+    {n:'Cow Ghee – Nandini',      u:'kg',  cnt:'10.25',  a:7580},
+    {n:'Sunpure Oil',             u:'L',   cnt:'75.6',   a:8022},
+    {n:'Refined Oil',             u:'L',   cnt:'30',     a:2220},
+    {n:'Oil Box (Generic)',       u:'L',   cnt:'30',     a:2300},
+    {n:'Vanaspati Ghee (Dalda)',  u:'kg',  cnt:'16',     a:2060},
+    {n:'Mustard Oil',             u:'L',   cnt:'10.5',   a:1720},
+    {n:'Sunflower Oil',           u:'L',   cnt:'15',     a:1640},
+    {n:'Salat Oil',               u:'L',   cnt:'3',      a:620},
+    {n:'Oil (DP)',                u:'L',   cnt:'5',      a:690},
+    {n:'Oil (Generic)',           u:'L',   cnt:'1',      a:115},
+    {n:'Oil (Agro Gold)',         u:'kg',  cnt:'3',      a:615},
   ]},
-  {name:'Sugar & Sweeteners',   color:'#a855f7', total:52664, items:[
-    {n:'Milk Maid (Nestle)',u:'kg',a:29600,cnt:9,note:'NCH core'},{n:'Sugar',u:'kg',a:20059,cnt:15},
-    {n:'Rose Syrup',u:'btl',a:1680,cnt:4},{n:'Honey',u:'btl',a:875,cnt:2},
-    {n:'Cardamom Powder',u:'pkt',a:450,cnt:1},
+  {name:'Sugar & Sweeteners', color:'#a855f7', total:44321, items:[
+    {n:'Condensed Milk (Milkmaid Nestle)', u:'kg', cnt:'81.2',  a:26910, note:'NCH core'},
+    {n:'Sugar',                           u:'kg', cnt:'365',   a:15671},
+    {n:'Honey',                           u:'kg', cnt:'6.5',   a:1440},
+    {n:'Custard Powder',                  u:'g',  cnt:'500',   a:300},
   ]},
-  {name:'Spices & Masala',      color:'#ef4444', total:28990, items:[
-    {n:'Red Chilli (whole)',u:'kg',a:8750,cnt:10},{n:'Turmeric Powder',u:'kg',a:4200,cnt:6},
-    {n:'Garam Masala Mix',u:'kg',a:3800,cnt:5},{n:'Coriander Powder',u:'kg',a:3150,cnt:5},
-    {n:'Jeera (Cumin)',u:'kg',a:2800,cnt:4},{n:'Black Pepper',u:'kg',a:2190,cnt:3},
-    {n:'Cloves',u:'kg',a:1600,cnt:2},{n:'Cinnamon',u:'kg',a:1200,cnt:2},
-    {n:'Bay Leaves',u:'pkt',a:800,cnt:3},{n:'Star Anise',u:'pkt',a:500,cnt:2},
+  {name:'Spices & Masala', color:'#ef4444', total:25885, items:[
+    {n:'Turmeric Powder',        u:'kg', cnt:'11.75',  a:1990},
+    {n:'Red Chilli Powder',      u:'kg', cnt:'6',      a:1640},
+    {n:'Kitchen King Masala',    u:'kg', cnt:'2.55',   a:2015},
+    {n:'Green Cardamom (Elaichi)',u:'kg',cnt:'1.925',  a:3995},
+    {n:'Cloves (Laung)',         u:'g',  cnt:'350',    a:2120},
+    {n:'White Pepper Powder',    u:'kg', cnt:'3.45',   a:1070},
+    {n:'Kashmiri Chilli Powder', u:'kg', cnt:'2.2',    a:1560},
+    {n:'Cumin Powder',           u:'kg', cnt:'4.55',   a:1170},
+    {n:'Kasuri Methi',           u:'kg', cnt:'2',      a:640},
+    {n:'Black Cardamom',         u:'g',  cnt:'750',    a:940},
+    {n:'Whole Black Pepper',     u:'kg', cnt:'2',      a:1035},
+    {n:'Coriander Powder',       u:'kg', cnt:'3',      a:340},
+    {n:'Shah Jeera',             u:'g',  cnt:'350',    a:420},
+    {n:'Dry Red Chilli',         u:'kg', cnt:'3',      a:820},
+    {n:'Chaat Masala',           u:'kg', cnt:'1',      a:330},
+    {n:'Nutmeg (Jaiphal)',       u:'g',  cnt:'529',    a:525},
+    {n:'Nutmeg & Mace (combined)',u:'g', cnt:'250',    a:1350},
+    {n:'Mace (Javantri)',        u:'g',  cnt:'25',     a:770},
+    {n:'Stone Flower (Dagad Phool)',u:'g',cnt:'400',   a:250},
+    {n:'Imli (Tamarind)',        u:'kg', cnt:'1',      a:110},
+    {n:'Cumin Seeds',            u:'kg', cnt:'1',      a:350},
+    {n:'Star Anise',             u:'g',  cnt:'125',    a:105},
+    {n:'Bay Leaves',             u:'g',  cnt:'225',    a:55},
+    {n:'Guntur Red Chilli',      u:'g',  cnt:'500',    a:170},
+    {n:'Lemon Salt (Citric Acid)',u:'kg',cnt:'1',      a:220},
+    {n:'Black Salt',             u:'kg', cnt:'1',      a:40},
+    {n:'Black Jeera',            u:'g',  cnt:'300',    a:40},
+    {n:'Rose Petal',             u:'g',  cnt:'400',    a:300},
+    {n:'Fennel Seeds',           u:'g',  cnt:'600',    a:100},
+    {n:'Carom Seeds (Ajwan)',    u:'g',  cnt:'100',    a:30},
+    {n:'Garam Masala',           u:'g',  cnt:'200',    a:310},
+    {n:'Green Food Colour',      u:'g',  cnt:'100',    a:90},
+    {n:'Red Food Colour',        u:'g',  cnt:'300',    a:120},
+    {n:'Yellow Food Colour',     u:'g',  cnt:'200',    a:120},
+    {n:'Amchur Powder',          u:'kg', cnt:'1',      a:140},
+    {n:'Baking Soda',            u:'g',  cnt:'100',    a:10},
+    {n:'Peri Peri Masala',       u:'g',  cnt:'500',    a:120},
+    {n:'China Salt (MSG variant)',u:'kg',cnt:'2.05',   a:280},
+    {n:'Cinnamon Sticks',        u:'g',  cnt:'750',    a:160},
+    {n:'Methi (Fenugreek leaves)',u:'g', cnt:'100',    a:15},
+    {n:'Aachi Masala',           u:'g',  cnt:'500',    a:120},
   ]},
-  {name:'Flour & Grains',       color:'#eab308', total:22140, items:[
-    {n:'Maida (Refined Flour)',u:'bag',a:9800,cnt:7},{n:'Besan (Chickpea)',u:'kg',a:5040,cnt:6},
-    {n:'Suji / Rawa',u:'kg',a:3200,cnt:4},{n:'Corn Flour',u:'pkt',a:2100,cnt:5},
-    {n:'Rice Flour',u:'kg',a:2000,cnt:4},
+  {name:'Nuts & Dry Fruits', color:'#eab308', total:15606, items:[
+    {n:'Baby Kaju (Broken Cashew)', u:'kg', cnt:'16.5',  a:7260},
+    {n:'Cashew Paste (Magaz)',      u:'kg', cnt:'5',     a:2320},
+    {n:'Sara Kaju (Whole Cashew)',  u:'kg', cnt:'3.95',  a:2920},
+    {n:'Baby Kaju White',           u:'kg', cnt:'6',     a:1160},
+    {n:'Whole Kaju (Bada)',         u:'kg', cnt:'2.25',  a:1410},
+    {n:'Dates (Kajoor)',            u:'kg', cnt:'4',     a:960},
+    {n:'Peanuts',                   u:'kg', cnt:'2',     a:380},
+    {n:'Dry Coconut',               u:'pcs',cnt:'2',     a:76},
+    {n:'Sesame Seeds',              u:'g',  cnt:'552',   a:180},
+    {n:'Raisins (Kismis)',          u:'g',  cnt:'100',   a:0, note:'Price missing'},
   ]},
-  {name:'Dairy & Milk Products', color:'#22c55e', total:18960, items:[
-    {n:'Milk Powder (SMP local)',u:'kg',a:8400,cnt:6},{n:'Paneer',u:'kg',a:5400,cnt:5},
-    {n:'Cream',u:'L',a:3360,cnt:4},{n:'Curd',u:'kg',a:1800,cnt:3},
+  {name:'Dry Goods / Flour', color:'#22c55e', total:13822, items:[
+    {n:'All-Purpose Flour (Maida)', u:'kg', cnt:'110',   a:4640},
+    {n:'Rice (Main)',               u:'kg', cnt:'79',    a:3254},
+    {n:'Semolina (Sooji/Rawa)',     u:'kg', cnt:'33.25', a:2150},
+    {n:'Wheat Flour',               u:'kg', cnt:'55',    a:1775},
+    {n:'Corn Flour',                u:'kg', cnt:'14',    a:660},
+    {n:'Table Salt',                u:'kg', cnt:'39.1',  a:860},
+    {n:'Rock Salt',                 u:'kg', cnt:'7',     a:105},
+    {n:'Instant Noodles',           u:'kg', cnt:'1.8',   a:438},
   ]},
-  {name:'Beverages & Drinks',   color:'#06b6d4', total:8420, items:[
-    {n:'Rose Milk Mix (Rooh Afza)',u:'btl',a:3500,cnt:5},{n:'Boost / Bournvita',u:'tin',a:2100,cnt:3},
-    {n:'Lime Concentrate',u:'btl',a:1680,cnt:4},{n:'Soft Drink Syrup',u:'btl',a:1140,cnt:3},
+  {name:'Lentils & Pulses', color:'#06b6d4', total:5617, items:[
+    {n:'Toor Dal',       u:'kg', cnt:'18',   a:1620},
+    {n:'Masoor Dal',     u:'kg', cnt:'27.1', a:975},
+    {n:'Moong Dal',      u:'kg', cnt:'12.6', a:1392},
+    {n:'Yellow Dal',     u:'kg', cnt:'10',   a:550},
+    {n:'Chana Dal',      u:'kg', cnt:'2',    a:140},
+    {n:'Fried Chana',    u:'kg', cnt:'2',    a:240},
+    {n:'Urad Dal',       u:'g',  cnt:'500',  a:650},
+    {n:'Beans',          u:'g',  cnt:'500',  a:50},
+    // Note: Vanaspati Ghee (Dalda) 16 kg ₹2,060 in source Lentils total was already captured in Oils & Fats — excluded here to avoid double-count
   ]},
-  {name:'Cleaning & Hygiene',   color:'#64748b', total:6840, items:[
-    {n:'Detergent Powder',u:'kg',a:2400,cnt:4},{n:'Vim Bar',u:'pkt',a:1200,cnt:6},
-    {n:'Colin / Surface Spray',u:'btl',a:950,cnt:3},{n:'Dettol / Sanitizer',u:'btl',a:900,cnt:3},
-    {n:'Waste Bin Bags',u:'pkt',a:750,cnt:3},{n:'Scrubber Pads',u:'pkt',a:640,cnt:4},
+  {name:'Dairy', color:'#ec4899', total:5900, items:[
+    {n:'Amul Fresh Cream',       u:'L',  cnt:'20.5', a:4500},
+    {n:'Butter (Shariff only)',  u:'kg', cnt:'1.5',  a:140},
+    {n:'Milk Powder (Shariff)',  u:'L',  cnt:'6',    a:1230},
+    {n:'Skimmed Milk Powder',    u:'g',  cnt:'200',  a:30},
   ]},
-  {name:'Staff Food (Dry)',     color:'#ec4899', total:6840, items:[
-    {n:'Rice — Staff Bag',u:'bag',a:4560,cnt:4},{n:'Dal (Toor)',u:'kg',a:1440,cnt:3},
-    {n:'Mustard Oil (staff)',u:'L',a:840,cnt:2},
+  {name:'Condiments & Sauces', color:'#8b5cf6', total:1275, items:[
+    {n:'Soya Sauce',        u:'L', cnt:'6.75', a:350},
+    {n:'Chilli Sauce',      u:'L', cnt:'2.5',  a:200},
+    {n:'Vinegar',           u:'L', cnt:'6.75', a:175},
+    {n:'Tomato Sauce',      u:'L', cnt:'4.5',  a:315},
+    {n:'Green Chilli Sauce',u:'L', cnt:'2',    a:200},
+    {n:'Ajinomoto (MSG)',   u:'g', cnt:'100',  a:35},
   ]},
-  {name:'Packaging',            color:'#8b5cf6', total:1713, items:[
-    {n:'Parcel Boxes',u:'pkt',a:900,cnt:3},{n:'Rubber Bands',u:'pkt',a:450,cnt:2},
-    {n:'Paper Bags',u:'pkt',a:363,cnt:2},
+  {name:'Staff Food', color:'#64748b', total:3640, items:[
+    {n:'Staff Rice', u:'kg', cnt:'125', a:3640},
   ]},
 ];
 
@@ -495,21 +633,32 @@ function render(){
   // 2. RAW MATERIALS
   var rmTot=RM_ITEMS.reduce(function(s,i){return s+i.a;},0);
   var rmIn='<div class="acc-pad">';
-  rmIn+='<div class="info-box"><strong>22 raw material categories</strong>Shariff invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807. Chicken DayBook accrual ₹2,33,905 vs MNB ledger — use Journal figure for P&L.</div>';
+  rmIn+='<div class="info-box"><strong>24 raw material categories — item × quantity × amount</strong>Shariff invoice ₹2,24,807 · Paid ₹1,95,000 · Outstanding ₹29,807. Chicken: Feb 27–28 estimated, Mar 1–30 exact (M.N. Broilers ledger). * = quantity derived from market rate.</div>';
   RM_ITEMS.forEach(function(item){
     if(item.isShariff){
       rmIn+=buildShariff();
     } else {
+      var qtyDisplay=item.qty||(item.unit&&item.unit!=='—'?'—':'—');
+      var estMark=(item.est&&item.qty&&item.qty!=='—')?' <span class="badge b-am">*est</span>':'';
+      var rateHtml=item.rate?'<div style="font-size:11px;color:var(--tx3);margin-top:4px">Rate: '+item.rate+'</div>':'';
+      var detailHtml=item.detail?'<div style="font-size:12px;color:var(--tx3);margin-top:6px">'+item.detail+'</div>':'';
       rmIn+='<div class="sub-acc"><div class="sub-acc-head" onclick="tSub(this)">'
         +'<span style="font-size:16px">'+item.icon+'</span>'
         +'<div class="sub-acc-name">'+item.n+'</div>'
         +'<div class="sub-acc-amt" style="color:#ef4444">'+f(item.a)+'</div>'
         +'<span class="sub-acc-chev">▾</span></div>'
-        +'<div class="sub-acc-body"><div style="padding:10px 14px;font-size:12px;color:var(--tx3)">'+item.detail+'</div></div></div>';
+        +'<div class="sub-acc-body"><div style="padding:10px 14px">'
+        +'<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th class="num">Amount (₹)</th></tr></thead><tbody>'
+        +'<tr><td class="bold">'+item.n+estMark+'</td><td>'+(item.qty||'—')+'</td><td style="color:var(--tx3)">'+item.unit+'</td><td class="num">'+f(item.a)+'</td></tr>'
+        +'<tr class="tr-total"><td colspan="3">Subtotal</td><td class="num">'+f(item.a)+'</td></tr>'
+        +'</tbody></table></div>'
+        +rateHtml+detailHtml
+        +'</div></div></div>';
     }
   });
+  rmIn+='<div style="font-size:11px;color:var(--tx3);margin-top:10px;padding:8px 10px;background:var(--s2);border-radius:6px">* Estimated quantity — derived from market rate and total payment. Exact chit/ledger data not available for these entries.</div>';
   rmIn+='</div>';
-  sh+=acc('rm','🥩','Raw Materials','Food, Fuel, Dry Goods · 22 line items','#ef4444',rmTot,tot,rmIn);
+  sh+=acc('rm','🥩','Raw Materials','Food, Fuel, Dry Goods, Beverages · 24 line items','#ef4444',rmTot,tot,rmIn);
 
   // 3. CAPEX
   var capTot=CAPEX.reduce(function(s,i){return s+i.a;},0);
@@ -652,9 +801,9 @@ function secData(id){
       cols:['Employee / Role','Amount (₹)','Note'],
       rows:SALARIES.map(function(e){return[e.n,e.a,e.note||''];}),
       totalLabel:'Total Salaries',totalAmt:SALARIES.reduce(function(s,e){return s+e.a;},0)},
-    rm:{title:'Raw Materials',note:'Shariff invoice ₹2,24,807 — only ₹1,95,000 posted in DayBook. See Shariff Detail sheet for item breakdown.',
-      cols:['Item','Amount (₹)','Detail / Note'],
-      rows:RM_ITEMS.map(function(i){return[i.n,i.a,i.isShariff?'Shariff Dry Goods — see Shariff Detail sheet':i.detail];}),
+    rm:{title:'Raw Materials',note:'Shariff invoice ₹2,24,807 — only ₹1,95,000 posted in DayBook. See Shariff Detail sheet for item breakdown. * = quantity estimated from market rate.',
+      cols:['Item','Qty','Unit','Rate','Amount (₹)','Detail / Note'],
+      rows:RM_ITEMS.map(function(i){return[i.n,i.isShariff?'(see Shariff Detail)':(i.qty||'—'),i.isShariff?'—':(i.unit||'—'),i.isShariff?'—':(i.rate||'—'),i.a,i.isShariff?'Shariff Dry Goods — see Shariff Detail sheet':(i.detail||'')];}),
       totalLabel:'Total Raw Materials',totalAmt:RM_ITEMS.reduce(function(s,i){return s+i.a;},0),
       extra:{name:'Shariff Detail',cols:['Category','Item','Unit','Qty','Amount (₹)'],rows:(function(){
         var r=[];SHARIFF_CATS.forEach(function(c){c.items.forEach(function(it){r.push([c.name,it.n,it.u,it.cnt||'',it.a]);});});return r;})(),
