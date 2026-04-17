@@ -1,8 +1,10 @@
 // Rectify API — fix validation errors, record counter expenses, check settlement readiness
 
 const STAFF_SLOTS = {
-  'CASH001': { role: 'cashier', person: 'Kesmat', pin: '7115' },
-  'CASH002': { role: 'cashier', person: 'Nafees', pin: '8241' },
+  'CASH001': { role: 'cashier', person: 'CASH001', pin: '7115' },
+  'CASH002': { role: 'cashier', person: 'CASH002', pin: '8241' },
+  'CASH003': { role: 'cashier', person: 'CASH003', pin: '2847' },
+  'CASH004': { role: 'cashier', person: 'CASH004', pin: '5190' },
   'RUN001':  { role: 'runner',  person: 'RUN001', pin: '3678', partner_id: 64 },
   'RUN002':  { role: 'runner',  person: 'RUN002', pin: '4421', partner_id: 65 },
   'RUN003':  { role: 'runner',  person: 'RUN003', pin: '5503', partner_id: 66 },

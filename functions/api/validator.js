@@ -38,8 +38,10 @@ const POS = { CASH_COUNTER: 27, RUNNER_COUNTER: 28 };
 // Maps slot_code → current assignment. Update here when staff changes.
 const STAFF_SLOTS = {
   // Cashiers
-  'CASH001': { role: 'cashier', person: 'Kesmat',   phone: '918637895699', pin: '7115' },
-  'CASH002': { role: 'cashier', person: 'Nafees',   phone: '919019627629', pin: '8241' },
+  'CASH001': { role: 'cashier', person: 'CASH001', phone: '918637895699', pin: '7115' },
+  'CASH002': { role: 'cashier', person: 'CASH002', phone: '919019627629', pin: '8241' },
+  'CASH003': { role: 'cashier', person: 'CASH003', phone: '', pin: '2847' },
+  'CASH004': { role: 'cashier', person: 'CASH004', phone: '', pin: '5190' },
   // Runners
   'RUN001':  { role: 'runner',  person: 'RUN001', phone: '919071116755', pin: '3678', partner_id: 64 },
   'RUN002':  { role: 'runner',  person: 'RUN002', phone: '919181204403', pin: '4421', partner_id: 65 },

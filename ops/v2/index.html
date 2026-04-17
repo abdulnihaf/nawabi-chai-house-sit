@@ -473,8 +473,10 @@
     <div class="input-group">
       <label class="input-label">Which cashier is on shift?</label>
       <div class="chip-row" id="boot-cashier-chips">
-        <div class="chip" onclick="selectBootCashier('CASH001','Kesmat',this)">CASH001 · Kesmat</div>
-        <div class="chip" onclick="selectBootCashier('CASH002','Nafees',this)">CASH002 · Nafees</div>
+        <div class="chip" onclick="selectBootCashier('CASH001','CASH001',this)">CASH001</div>
+        <div class="chip" onclick="selectBootCashier('CASH002','CASH002',this)">CASH002</div>
+        <div class="chip" onclick="selectBootCashier('CASH003','CASH003',this)">CASH003</div>
+        <div class="chip" onclick="selectBootCashier('CASH004','CASH004',this)">CASH004</div>
       </div>
     </div>
     <div class="input-group">
@@ -588,8 +590,10 @@ function isManager() { return ['admin','gm','manager'].includes(S.role); }
 // Returns display label for a runner barcode (e.g. 'RUN001'):
 // Cashiers → 'R01' | Managers → 'Farzaib (R01)'
 const HANDOVER_STAFF = [
-  {code:'CASH001', name:'Kesmat'},
-  {code:'CASH002', name:'Nafees'},
+  {code:'CASH001', name:'CASH001'},
+  {code:'CASH002', name:'CASH002'},
+  {code:'CASH003', name:'CASH003'},
+  {code:'CASH004', name:'CASH004'},
   {code:'GM001',   name:'Basheer'},
   {code:'MGR001',  name:'Tanveer'},
   {code:'ADMIN001',name:'Nihaf'},
