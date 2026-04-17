@@ -1204,9 +1204,10 @@ export async function onRequest(context) {
     if (action === 'bootstrap-drawer' && context.request.method === 'POST') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
       const body = await context.request.json();
-      const {code, amount, notes} = body;
+      const {code, amount, notes, set_by} = body;
       if (!code || amount == null) return new Response(JSON.stringify({success: false, error: 'code and amount required'}), {headers: corsHeaders});
       const now = new Date().toISOString();
+      const autoNotes = notes || `Bootstrap: ${code} on shift — set by ${set_by || 'manager'} at go-live`;
       await DB.prepare(`
         INSERT INTO cashier_shifts (
           cashier_name, settled_at, period_start, period_end,
@@ -1233,10 +1234,10 @@ export async function onRequest(context) {
         amount, amount, 0,
         0, 0,
         '[]', 0,
-        notes || 'Bootstrap: opening drawer balance at system go-live',
+        autoNotes,
         ''
       ).run();
-      return new Response(JSON.stringify({success: true, bootstrap_amount: amount, recorded_at: now}), {headers: corsHeaders});
+      return new Response(JSON.stringify({success: true, bootstrap_amount: amount, cashier: code, set_by: set_by || null, recorded_at: now}), {headers: corsHeaders});
     }
 
     // === SHIFT PREVIEW — compute expected drawer before handover ===

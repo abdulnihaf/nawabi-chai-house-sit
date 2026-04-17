@@ -304,7 +304,7 @@
   <div class="action-bar">
     <div class="btn-row">
       <button class="btn btn-secondary btn-sm" onclick="goto('s-expense')">💸 Expense</button>
-      <button class="btn btn-secondary btn-sm" onclick="goto('s-collect')">📥 Collect</button>
+      <button id="collect-btn" class="btn btn-secondary btn-sm hidden" onclick="goto('s-collect')">📥 Collect</button>
     </div>
     <button class="btn btn-primary" onclick="goto('s-settle-runner')">💰 Settle Runner</button>
     <button class="btn btn-secondary" onclick="goto('s-shift-handover')">🔄 End Shift</button>
@@ -460,7 +460,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
-     BOOTSTRAP SCREEN (admin/GM/cashier — one-time 4PM go-live)
+     BOOTSTRAP SCREEN (manager/GM/admin — one-time go-live)
 ═══════════════════════════════════════════════════════ -->
 <div id="s-bootstrap" class="screen">
   <div class="nav">
@@ -471,23 +471,30 @@
     <div style="height:16px"></div>
     <div class="card" style="background:var(--amber-dim);border-color:rgba(245,158,11,.3);margin-bottom:16px">
       <div style="font-size:13px;color:var(--amber);line-height:1.6">
-        <strong>Go-live bootstrap</strong><br>
-        Count the physical cash in the drawer right now and enter it below. This sets the opening balance for the new system. Do this once at 4 PM.
+        <strong>⚡ Go-live setup</strong><br>
+        All expenses and cash movements before this point have been manually accounted for. The amount you enter here is the physical cash in the drawer right now. From this point, the system tracks all new runner settlements and expenses automatically.
       </div>
     </div>
     <div class="input-group">
-      <label class="input-label">Physical cash in drawer right now (₹)</label>
+      <label class="input-label">Which cashier is on shift?</label>
+      <div class="chip-row" id="boot-cashier-chips">
+        <div class="chip" onclick="selectBootCashier('CASH001','Kesmat',this)">CASH001 · Kesmat</div>
+        <div class="chip" onclick="selectBootCashier('CASH002','Nafees',this)">CASH002 · Nafees</div>
+      </div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Physical cash in the drawer right now (₹)</label>
       <input id="boot-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
     </div>
     <div class="input-group">
       <label class="input-label">Notes (optional)</label>
-      <input id="boot-notes" class="input" type="text" placeholder="e.g. go-live 4 PM Apr 17">
+      <input id="boot-notes" class="input" type="text" placeholder="e.g. Go-live 4 PM Apr 17">
     </div>
     <div id="boot-error" class="error-box" style="display:none"></div>
     <div style="height:12px"></div>
   </div>
   <div class="action-bar">
-    <button id="boot-btn" class="btn btn-primary" onclick="submitBootstrap()">Set Opening Balance</button>
+    <button id="boot-btn" class="btn btn-primary" onclick="submitBootstrap()" disabled>Select cashier first</button>
   </div>
 </div>
 
@@ -590,7 +597,7 @@ function setupScreen(id) {
   else if (id === 's-expense') { initExpense(); }
   else if (id === 's-shift-handover') { initShiftHandover(); }
   else if (id === 's-collect') { initCollectScreen(); }
-  else if (id === 's-bootstrap') { /* static */ }
+  else if (id === 's-bootstrap') { initBootstrap(); }
 }
 
 // ─── SCREEN 1: PIN LOGIN ─────────────────────────────────
@@ -645,13 +652,16 @@ function routeByRole() {
   } else if (S.role === 'cashier') {
     el('cashier-nav-title').textContent = displayLabel;
     el('cashier-nav-sub').textContent = 'Cashier';
-    // Bootstrap button hidden for cashiers — only managers can set float
+    // Cashiers: no Collect, no Bootstrap — manager-only actions
+    el('collect-btn').classList.add('hidden');
+    el('boot-action-btn').classList.add('hidden');
     show('s-cashier');
     loadCashierHome();
   } else if (isManager()) {
     el('cashier-nav-title').textContent = displayLabel;
     el('cashier-nav-sub').textContent = S.role.toUpperCase();
-    // Show bootstrap button for managers
+    // Managers: show Collect + Bootstrap
+    el('collect-btn').classList.remove('hidden');
     el('boot-action-btn').classList.remove('hidden');
     show('s-cashier');
     loadCashierHome();
@@ -1394,32 +1404,62 @@ document.addEventListener('click', e => {
 });
 
 // ─── BOOTSTRAP ───────────────────────────────────────────
+let _bootCashier = null; // { code: 'CASH001', name: 'Kesmat' }
+
+function initBootstrap() {
+  // Reset state every time screen is entered
+  _bootCashier = null;
+  el('boot-amount').value = '';
+  el('boot-notes').value = '';
+  el('boot-error').style.display = 'none';
+  el('boot-btn').disabled = true;
+  el('boot-btn').textContent = 'Select cashier first';
+  el('boot-cashier-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+}
+
+function selectBootCashier(code, name, chip) {
+  _bootCashier = { code, name };
+  el('boot-cashier-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  const btn = el('boot-btn');
+  btn.disabled = false;
+  btn.textContent = `Set Opening Balance for ${name}`;
+}
+
 async function submitBootstrap() {
   const amount = parseFloat(el('boot-amount').value);
   const notes = el('boot-notes').value.trim();
   el('boot-error').style.display = 'none';
 
+  if (!_bootCashier) { el('boot-error').textContent = 'Select which cashier is on shift'; el('boot-error').style.display='block'; return; }
   if (isNaN(amount) || amount < 0) { el('boot-error').textContent = 'Enter valid amount (₹0 is allowed if drawer is empty)'; el('boot-error').style.display='block'; return; }
 
   showDialog(
     'Confirm Opening Float',
-    `<div class="dialog-row"><span class="dl">Cash in drawer now</span><span class="dv">₹${fmt(amount)}</span></div>
-     <div class="dialog-row"><span class="dl">Set by</span><span class="dv">${S.code}</span></div>
-     <div class="dialog-warn">This sets the baseline for all future counter balance calculations. Do this once at go-live.</div>`,
+    `<div class="dialog-row"><span class="dl">Cashier on shift</span><span class="dv">${_bootCashier.code} · ${_bootCashier.name}</span></div>
+     <div class="dialog-row"><span class="dl">Cash in drawer now</span><span class="dv">₹${fmt(amount)}</span></div>
+     <div class="dialog-row"><span class="dl">Set by</span><span class="dv">${S.code} (${S.person})</span></div>
+     <div class="dialog-warn">All expenses before this point have been manually included in this amount. New expenses and runner settlements will be tracked from now.</div>`,
     'Set Balance',
     async () => {
       el('boot-btn').disabled = true;
       el('boot-btn').textContent = 'Saving…';
       try {
-        const r = await apiPost('/api/settlement?action=bootstrap-drawer', {code: S.code, amount, notes});
+        const r = await apiPost('/api/settlement?action=bootstrap-drawer', {
+          code: _bootCashier.code,  // cashier who is on shift (not the admin setting it)
+          set_by: S.code,           // the manager/admin who pressed the button
+          amount,
+          notes: notes || `Go-live by ${S.code} — ${_bootCashier.code} on shift`
+        });
         if (r.success) {
-          toast(`Opening float set — ₹${fmt(amount)}`, 'ok');
+          toast(`Opening float set — ₹${fmt(amount)} for ${_bootCashier.name}`, 'ok');
+          _bootCashier = null;
           goBack();
         } else {
           el('boot-error').textContent = r.error || 'Failed';
           el('boot-error').style.display = 'block';
           el('boot-btn').disabled = false;
-          el('boot-btn').textContent = 'Set Opening Balance';
+          el('boot-btn').textContent = `Set Opening Balance for ${_bootCashier?.name || ''}`;
         }
       } catch(e) {
         el('boot-error').textContent = 'Network error: ' + e.message;
