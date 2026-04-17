@@ -596,10 +596,7 @@ const HANDOVER_STAFF = [
 ];
 function runnerDisplayLabel(barcode) {
   if (!barcode) return '—';
-  const runner = RUNNERS.find(r => r.code === barcode);
-  const shortCode = barcode.replace('RUN0','R');
-  if (!runner) return shortCode;
-  return isManager() ? `${runner.name} (${shortCode})` : shortCode;
+  return barcode.replace('RUN0','R');
 }
 
 function setupScreen(id) {
@@ -650,8 +647,7 @@ async function verifyStaff() {
   }
 }
 function routeByRole() {
-  // Display label: managers see "Name (CODE)", everyone else sees CODE only
-  const displayLabel = isManager() ? `${S.person} (${S.code})` : S.code;
+  const displayLabel = S.code;
 
   if (S.role === 'runner') {
     S.selectedRunner = RUNNERS.find(r => r.partner_id === S.partner_id) || null;
@@ -915,7 +911,7 @@ async function loadCashierHome() {
     const hasPending = (d?.pending_errors || 0) > 0;
     // Code-only for cashiers; name shown only for managers
     const shortCode = runner.code.replace('RUN0','R');
-    const label = isManager() ? `${runner.name} <span style="color:var(--dim);font-size:10px">${shortCode}</span>` : shortCode;
+    const label = shortCode;
     html += `<div class="runner-row" onclick="openRunnerDetail('${runner.code}')">
       <div class="runner-badge ${cls}">${shortCode}</div>
       <div class="runner-info">
@@ -934,9 +930,8 @@ function openRunnerDetail(code) {
   if (!runner) return;
   S.selectedRunner = runner;
   S.prevScreen = 's-cashier';
-  // Code only for cashiers, name for managers
   const shortCode = code.replace('RUN0','R');
-  el('runner-nav-title').textContent = isManager() ? `${runner.name} (${shortCode})` : shortCode;
+  el('runner-nav-title').textContent = shortCode;
   el('runner-nav-sub').textContent = 'Runner';
   show('s-runner');
   loadRunnerView();
@@ -950,8 +945,7 @@ function initSettleRunner() {
     const chip = document.createElement('div');
     chip.className = 'chip';
     const shortCode = r.code.replace('RUN0','R');
-    // Code only for cashiers, name for managers
-    chip.textContent = isManager() ? `${r.name} (${shortCode})` : shortCode;
+    chip.textContent = shortCode;
     chip.onclick = () => selectSettleRunner(r, chip);
     chipsEl.appendChild(chip);
   });
@@ -1037,7 +1031,7 @@ function submitSettleRunner() {
   const expected = safeNum(d.cashInHand);
   const variance = cashSettled - expected;
   const shortCode = runner.code.replace('RUN0','R');
-  const runnerLabel = isManager() ? `${runner.name} (${shortCode})` : shortCode;
+  const runnerLabel = shortCode;
   const varText = Math.abs(variance) < 5 ? 'Exact match ✓' :
     variance < 0 ? `▼ SHORT by ₹${fmt(Math.abs(variance))}` : `▲ OVER by ₹${fmt(variance)}`;
 
@@ -1170,7 +1164,7 @@ async function initShiftHandover() {
   HANDOVER_STAFF.forEach(person => {
     const chip = document.createElement('div');
     chip.className = 'chip';
-    chip.textContent = isManager() ? `${person.name} (${person.code})` : person.code;
+    chip.textContent = person.code;
     chip.onclick = function() { selectHandoverTo(person.code, person.name, this); };
     handoverEl.appendChild(chip);
   });
