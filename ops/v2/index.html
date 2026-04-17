@@ -1241,7 +1241,7 @@ async function submitShiftHandover() {
       expected_drawer: expected,
       drawer_cash_entered: cashEntered,
       drawer_variance: variance,
-      handover_to: S.handoverTo?.name || '',
+      handover_to: S.handoverTo?.code || '',
       notes: el('sh-notes').value.trim()
     });
     if (r.success) {
