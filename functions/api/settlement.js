@@ -15,25 +15,25 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
 
   // PIN verification — matches Odoo POS employee PINs
-  const PINS = {'6890': 'Tanveer', '7115': 'Kesmat', '3946': 'Jafar', '3678': 'Farzaib', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer', '4421': 'Ritiqu', '5503': 'Anshu', '6604': 'Shabeer', '7705': 'Dhanush'};
+  const PINS = {'6890': 'Tanveer', '7115': 'Kesmat', '3946': 'Jafar', '3678': 'RUN001', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer', '4421': 'RUN002', '5503': 'RUN003', '6604': 'RUN004', '7705': 'RUN005'};
   // Users who can collect cash from counter (owner/manager level)
   const COLLECTORS = ['Naveen', 'Nihaf', 'Tanveer', 'Basheer'];
   const RUNNERS = {
     'counter': {id: 'counter', name: 'Cash Counter', barcode: 'POS-27'},
-    64: {id: 64, name: 'Farzaib', barcode: 'RUN001'},
-    65: {id: 65, name: 'Ritiqu', barcode: 'RUN002'},
-    66: {id: 66, name: 'Anshu', barcode: 'RUN003'},
-    67: {id: 67, name: 'Shabeer', barcode: 'RUN004'},
-    68: {id: 68, name: 'Dhanush', barcode: 'RUN005'}
+    64: {id: 64, name: 'RUN001', barcode: 'RUN001'},
+    65: {id: 65, name: 'RUN002', barcode: 'RUN002'},
+    66: {id: 66, name: 'RUN003', barcode: 'RUN003'},
+    67: {id: 67, name: 'RUN004', barcode: 'RUN004'},
+    68: {id: 68, name: 'RUN005', barcode: 'RUN005'}
   };
 
   // Runner-specific PINs for Runner Live Dashboard (maps PIN → specific runner)
   const RUNNER_PINS = {
-    '3678': {runner_id: 64, name: 'Farzaib', barcode: 'RUN001'},
-    '4421': {runner_id: 65, name: 'Ritiqu', barcode: 'RUN002'},
-    '5503': {runner_id: 66, name: 'Anshu', barcode: 'RUN003'},
-    '6604': {runner_id: 67, name: 'Shabeer', barcode: 'RUN004'},
-    '7705': {runner_id: 68, name: 'Dhanush', barcode: 'RUN005'}
+    '3678': {runner_id: 64, name: 'RUN001', barcode: 'RUN001'},
+    '4421': {runner_id: 65, name: 'RUN002', barcode: 'RUN002'},
+    '5503': {runner_id: 66, name: 'RUN003', barcode: 'RUN003'},
+    '6604': {runner_id: 67, name: 'RUN004', barcode: 'RUN004'},
+    '7705': {runner_id: 68, name: 'RUN005', barcode: 'RUN005'}
   };
 
   // Runner QR codes for live UPI tracking (new QR IDs for RUN001/RUN002)

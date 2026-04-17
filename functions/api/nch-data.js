@@ -109,11 +109,11 @@ async function fetchAllRazorpayPayments(key, secret, since, until) {
 
   // All QR codes in the system
   const RUNNER_QRS = [
-    {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', name: 'FAROOQ'},
-    {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', name: 'AMIN'},
-    {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', name: 'NCH Runner 03'},
-    {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', name: 'NCH Runner 04'},
-    {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', name: 'NCH Runner 05'}
+    {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', name: 'RUN001'},
+    {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', name: 'RUN002'},
+    {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', name: 'RUN003'},
+    {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', name: 'RUN004'},
+    {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', name: 'RUN005'}
   ];
   const COUNTER_QR = {qr_id: 'qr_SBdtUCLSHVfRtT', label: 'COUNTER'};
   const RUNNER_COUNTER_QR = {qr_id: 'qr_SBuDBQDKrC8Bch', label: 'RUNNER_COUNTER'};
@@ -146,11 +146,11 @@ async function fetchAllRazorpayPayments(key, secret, since, until) {
 
 function processDashboardData(orders, payments, razorpayData) {
   const runners = {
-    64: {id: 64, name: 'FAROOQ', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0},
-    65: {id: 65, name: 'AMIN', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0},
-    66: {id: 66, name: 'NCH Runner 03', barcode: 'RUN003', tokens: 0, sales: 0, upi: 0},
-    67: {id: 67, name: 'NCH Runner 04', barcode: 'RUN004', tokens: 0, sales: 0, upi: 0},
-    68: {id: 68, name: 'NCH Runner 05', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0}
+    64: {id: 64, name: 'RUN001', barcode: 'RUN001', tokens: 0, sales: 0, upi: 0},
+    65: {id: 65, name: 'RUN002', barcode: 'RUN002', tokens: 0, sales: 0, upi: 0},
+    66: {id: 66, name: 'RUN003', barcode: 'RUN003', tokens: 0, sales: 0, upi: 0},
+    67: {id: 67, name: 'RUN004', barcode: 'RUN004', tokens: 0, sales: 0, upi: 0},
+    68: {id: 68, name: 'RUN005', barcode: 'RUN005', tokens: 0, sales: 0, upi: 0}
   };
   const barcodeToPartner = {'RUN001': 64, 'RUN002': 65, 'RUN003': 66, 'RUN004': 67, 'RUN005': 68};
   const PARTNER_ALIASES = { 90: 64, 37: 64 }; // Known duplicate partners → correct runner

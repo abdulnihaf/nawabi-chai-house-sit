@@ -120,7 +120,7 @@ function categorizeProduct(name) {
 }
 
 function processInsights(orders, orderLines, payments, paymentMethods) {
-  const RUNNERS = {64: 'FAROOQ', 65: 'AMIN', 66: 'NCH Runner 03', 67: 'NCH Runner 04', 68: 'NCH Runner 05'};
+  const RUNNERS = {64: 'RUN001', 65: 'RUN002', 66: 'RUN003', 67: 'RUN004', 68: 'RUN005'};
 
   // Payment method ID → group name
   const pmGroupMap = {};

@@ -857,8 +857,8 @@ function slotLabel(slot) {
   const labels = {
     'ADMIN002': 'Naveen', 'GM001': 'Basheer', 'MGR001': 'Tanveer',
     'CASH001': 'Kesmat', 'CASH002': 'Nafees',
-    'RUN001': 'Farzaib', 'RUN002': 'Ritiqu', 'RUN003': 'Anshu',
-    'RUN004': 'Shabeer', 'RUN005': 'Dhanush'
+    'RUN001': 'RUN001', 'RUN002': 'RUN002', 'RUN003': 'RUN003',
+    'RUN004': 'RUN004', 'RUN005': 'RUN005'
   };
   return labels[slot] || slot;
 }

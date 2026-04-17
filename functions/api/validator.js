@@ -15,11 +15,11 @@ const VALID_RUNNER_IDS = new Set([64, 65, 66, 67, 68]);
 
 // Razorpay QR codes — maps entity to QR ID
 const RUNNER_QRS = [
-  {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', partner_id: 64, name: 'FAROOQ'},
-  {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', partner_id: 65, name: 'AMIN'},
-  {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', partner_id: 66, name: 'NCH Runner 03'},
-  {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', partner_id: 67, name: 'NCH Runner 04'},
-  {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', partner_id: 68, name: 'NCH Runner 05'}
+  {qr_id: 'qr_SPTqwgC6ssVDDb', label: 'RUN001', partner_id: 64, name: 'RUN001'},
+  {qr_id: 'qr_SPTrTvvh9AKsW0', label: 'RUN002', partner_id: 65, name: 'RUN002'},
+  {qr_id: 'qr_SBgTo2a39kYmET', label: 'RUN003', partner_id: 66, name: 'RUN003'},
+  {qr_id: 'qr_SBgTtFrfddY4AW', label: 'RUN004', partner_id: 67, name: 'RUN004'},
+  {qr_id: 'qr_SBgTyFKUsdwLe1', label: 'RUN005', partner_id: 68, name: 'RUN005'}
 ];
 const COUNTER_QR = {qr_id: 'qr_SBdtUCLSHVfRtT', label: 'COUNTER'};
 const RUNNER_COUNTER_QR = {qr_id: 'qr_SBuDBQDKrC8Bch', label: 'RUNNER_COUNTER'};
@@ -41,11 +41,11 @@ const STAFF_SLOTS = {
   'CASH001': { role: 'cashier', person: 'Kesmat',   phone: '918637895699', pin: '7115' },
   'CASH002': { role: 'cashier', person: 'Nafees',   phone: '919019627629', pin: '8241' },
   // Runners
-  'RUN001':  { role: 'runner',  person: 'Farzaib',  phone: '919071116755', pin: '3678', partner_id: 64 },
-  'RUN002':  { role: 'runner',  person: 'Ritiqu',   phone: '919181204403', pin: '4421', partner_id: 65 },
-  'RUN003':  { role: 'runner',  person: 'Anshu',    phone: '918172058136', pin: '5503', partner_id: 66 },
-  'RUN004':  { role: 'runner',  person: 'Shabeer',  phone: '919100533128', pin: '6604', partner_id: 67 },
-  'RUN005':  { role: 'runner',  person: 'Dhanush',  phone: '918874730537', pin: '7705', partner_id: 68 },
+  'RUN001':  { role: 'runner',  person: 'RUN001', phone: '919071116755', pin: '3678', partner_id: 64 },
+  'RUN002':  { role: 'runner',  person: 'RUN002', phone: '919181204403', pin: '4421', partner_id: 65 },
+  'RUN003':  { role: 'runner',  person: 'RUN003', phone: '918172058136', pin: '5503', partner_id: 66 },
+  'RUN004':  { role: 'runner',  person: 'RUN004', phone: '919100533128', pin: '6604', partner_id: 67 },
+  'RUN005':  { role: 'runner',  person: 'RUN005', phone: '918874730537', pin: '7705', partner_id: 68 },
   // GM / Supervisor / Manager
   'GM001':   { role: 'gm',         person: 'Basheer',  phone: '919061906916', pin: '8523' },
   'SUP001':  { role: 'supervisor', person: 'Waseem',   phone: '919108414951', pin: '1234' },
