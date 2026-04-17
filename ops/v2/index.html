@@ -414,13 +414,7 @@
     <div id="sh-variance" class="var-indicator" style="display:none"></div>
     <div class="input-group">
       <label class="input-label">Handing over to</label>
-      <div class="chip-row" id="handover-to-chips">
-        <div class="chip" onclick="selectHandoverTo('CASH001','Kesmat', this)">Kesmat</div>
-        <div class="chip" onclick="selectHandoverTo('CASH002','Nafees', this)">Nafees</div>
-        <div class="chip" onclick="selectHandoverTo('GM001','Basheer', this)">Basheer</div>
-        <div class="chip" onclick="selectHandoverTo('MGR001','Tanveer', this)">Tanveer</div>
-        <div class="chip" onclick="selectHandoverTo('ADMIN001','Nihaf', this)">Nihaf</div>
-      </div>
+      <div class="chip-row" id="handover-to-chips"><!-- populated by initShiftHandover() --></div>
     </div>
     <div class="input-group">
       <label class="input-label">Notes</label>
@@ -589,6 +583,23 @@ function logout() {
 }
 
 function isManager() { return ['admin','gm','manager'].includes(S.role); }
+
+// Returns display label for a runner barcode (e.g. 'RUN001'):
+// Cashiers → 'R01' | Managers → 'Farzaib (R01)'
+const HANDOVER_STAFF = [
+  {code:'CASH001', name:'Kesmat'},
+  {code:'CASH002', name:'Nafees'},
+  {code:'GM001',   name:'Basheer'},
+  {code:'MGR001',  name:'Tanveer'},
+  {code:'ADMIN001',name:'Nihaf'},
+];
+function runnerDisplayLabel(barcode) {
+  if (!barcode) return '—';
+  const runner = RUNNERS.find(r => r.code === barcode);
+  const shortCode = barcode.replace('RUN0','R');
+  if (!runner) return shortCode;
+  return isManager() ? `${runner.name} (${shortCode})` : shortCode;
+}
 
 function setupScreen(id) {
   if (id === 's-runner') { loadRunnerView(); }
@@ -1096,7 +1107,7 @@ function setPool(pool) {
 async function loadTodayExpenses() {
   el('today-expenses').innerHTML = '<div class="loading" style="padding:16px">Loading…</div>';
   try {
-    const r = await api('/api/rectify?action=get-expenses&limit=20');
+    const r = await api(`/api/rectify?action=get-expenses&pin=${encodeURIComponent(S.pin)}&limit=20`);
     const items = r.expenses || [];
     if (items.length === 0) { el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--dim)">No expenses today</div>'; return; }
     el('today-expenses').innerHTML = '<div style="padding:0">' + items.map(e =>
@@ -1124,7 +1135,7 @@ async function submitExpense() {
       pin: S.pin,
       category_code: cat,
       amount,
-      notes,
+      description: notes,   // API reads 'description', not 'notes'
       pool: S.expensePool,
       transaction_type: 'expense'
     });
@@ -1151,7 +1162,17 @@ async function initShiftHandover() {
   el('sh-error').style.display = 'none';
   S.shiftPreview = null;
   S.handoverTo = null;
-  document.querySelectorAll('#handover-to-chips .chip').forEach(c => c.classList.remove('active'));
+
+  // Render handover chips — codes only for cashiers, Name (CODE) for managers
+  const handoverEl = el('handover-to-chips');
+  handoverEl.innerHTML = '';
+  HANDOVER_STAFF.forEach(person => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = isManager() ? `${person.name} (${person.code})` : person.code;
+    chip.onclick = function() { selectHandoverTo(person.code, person.name, this); };
+    handoverEl.appendChild(chip);
+  });
 
   try {
     const d = await api('/api/settlement?action=shift-preview');
@@ -1257,21 +1278,22 @@ async function initCollectScreen() {
   try {
     const [balData, collData] = await Promise.all([
       api('/api/settlement?action=counter-balance'),
-      api('/api/rectify?action=get-collections')
+      api(`/api/rectify?action=get-collections&pin=${encodeURIComponent(S.pin)}`)
     ]);
 
     let html = '';
 
     if (balData.success) {
-      const b = balData.balance || balData;
-      const bal = b.balance || b.counter_balance || 0;
+      const b = balData.balance || {};
+      const bal = safeNum(b.total);
       html += `<div class="hero" style="margin:12px 16px">
         <div class="hero-label">Counter drawer balance</div>
         <div class="hero-amount ${bal > 1000 ? 'ok' : bal > 0 ? 'warn' : 'bad'}">₹${fmt(bal)}</div>
         <div class="hero-meta">
-          <div class="hero-meta-item"><span class="hero-meta-label">Runner settled</span><span class="hero-meta-val">₹${fmt(b.runner_cash||0)}</span></div>
-          <div class="hero-meta-item"><span class="hero-meta-label">Walk-in cash</span><span class="hero-meta-val">₹${fmt(b.counter_cash||0)}</span></div>
-          <div class="hero-meta-item"><span class="hero-meta-label">Expenses</span><span class="hero-meta-val">−₹${fmt(b.expenses||0)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Runner settled</span><span class="hero-meta-val">₹${fmt(safeNum(b.runnerCash))}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Opening float</span><span class="hero-meta-val">₹${fmt(safeNum(b.pettyCash))}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Walk-in cash</span><span class="hero-meta-val">₹${fmt(safeNum(b.counterCash))}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Expenses</span><span class="hero-meta-val">−₹${fmt(safeNum(b.totalExpenses))}</span></div>
         </div>
       </div>`;
     }
@@ -1488,7 +1510,7 @@ async function toggleCashierHistory(btn) {
       // All settlements — last 30 (no runner_id filter = all)
       api('/api/settlement?action=history&limit=30').catch(() => ({settlements:[]})),
       // Cash collections
-      api('/api/rectify?action=get-collections').catch(() => ({})),
+      api(`/api/rectify?action=get-collections&pin=${encodeURIComponent(S.pin)}`).catch(() => ({})),
       // Expenses (from both tables)
       api('/api/settlement?action=expense-history&limit=30').catch(() => ({expenses:[]})),
       // Placeholder — only 3 parallel calls needed
@@ -1512,7 +1534,7 @@ async function toggleCashierHistory(btn) {
         const varCls = Math.abs(variance) < 5 ? 'var(--green)' : variance < 0 ? 'var(--red)' : 'var(--amber)';
         html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:13px;font-weight:600">${s.runner_name || s.runner_id || '—'} → ${s.settled_by || '—'}</div>
+            <div style="font-size:13px;font-weight:600">${runnerDisplayLabel(s.barcode)} → ${s.settled_by || '—'}</div>
             <div style="font-size:11px;color:${varCls};margin-top:1px">${varTxt}</div>
           </div>
           <div style="text-align:right">
