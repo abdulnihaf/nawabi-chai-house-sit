@@ -1289,11 +1289,12 @@ export async function onRequest(context) {
       }
 
       // 3. Expenses (counter + petty) since period_start
+      // counter_expenses_v2 uses 'recorded_at', petty_cash uses 'recorded_at'
       const counterExpRow = await DB.prepare(
-        'SELECT COALESCE(SUM(amount),0) as total FROM counter_expenses_v2 WHERE created_at > ?'
+        'SELECT COALESCE(SUM(amount),0) as total FROM counter_expenses_v2 WHERE recorded_at > ?'
       ).bind(periodStart).first();
       const pettyExpRow = await DB.prepare(
-        "SELECT COALESCE(SUM(amount),0) as total FROM petty_cash WHERE transaction_type='expense' AND created_at > ?"
+        "SELECT COALESCE(SUM(amount),0) as total FROM petty_cash WHERE transaction_type='expense' AND recorded_at > ?"
       ).bind(periodStart).first();
       const expensesTotal = Math.round((counterExpRow?.total || 0) + (pettyExpRow?.total || 0));
 
