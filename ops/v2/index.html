@@ -192,6 +192,24 @@
   .small { font-size: 11px; }
   .center { text-align: center; }
   .hidden { display: none !important; }
+
+  /* ── TOAST ── */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+  .toast.ok  { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+  .toast.err { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+  .toast.visible { opacity: 1; }
+
+  /* ── CONFIRM DIALOG ── */
+  .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 900; display: none; align-items: flex-end; justify-content: center; }
+  .dialog-overlay.open { display: flex; }
+  .dialog-box { background: var(--card); border: 1px solid var(--border); border-radius: 20px 20px 0 0; padding: 24px; width: 100%; max-width: 480px; }
+  .dialog-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+  .dialog-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .dialog-row:last-of-type { border: none; }
+  .dialog-row .dl { color: var(--muted); }
+  .dialog-row .dv { font-weight: 600; font-family: monospace; }
+  .dialog-warn { background: var(--amber-dim); border: 1px solid rgba(245,158,11,.3); border-radius: 8px; padding: 10px; font-size: 12px; color: var(--amber); margin: 10px 0; }
+  .dialog-btns { display: flex; gap: 8px; margin-top: 16px; }
 </style>
 </head>
 <body>
@@ -290,6 +308,7 @@
     </div>
     <button class="btn btn-primary" onclick="goto('s-settle-runner')">💰 Settle Runner</button>
     <button class="btn btn-secondary" onclick="goto('s-shift-handover')">🔄 End Shift</button>
+    <button id="boot-action-btn" class="btn btn-secondary hidden" onclick="goto('s-bootstrap')" style="border-color:rgba(245,158,11,.4);color:var(--amber)">⚡ Set Opening Float</button>
   </div>
 </div>
 
@@ -441,6 +460,53 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     BOOTSTRAP SCREEN (admin/GM/cashier — one-time 4PM go-live)
+═══════════════════════════════════════════════════════ -->
+<div id="s-bootstrap" class="screen">
+  <div class="nav">
+    <div class="nav-back" onclick="goto('s-cashier')">‹</div>
+    <div class="nav-title">Set Opening Float</div>
+  </div>
+  <div class="scroll pad">
+    <div style="height:16px"></div>
+    <div class="card" style="background:var(--amber-dim);border-color:rgba(245,158,11,.3);margin-bottom:16px">
+      <div style="font-size:13px;color:var(--amber);line-height:1.6">
+        <strong>Go-live bootstrap</strong><br>
+        Count the physical cash in the drawer right now and enter it below. This sets the opening balance for the new system. Do this once at 4 PM.
+      </div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Physical cash in drawer right now (₹)</label>
+      <input id="boot-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="input-group">
+      <label class="input-label">Notes (optional)</label>
+      <input id="boot-notes" class="input" type="text" placeholder="e.g. go-live 4 PM Apr 17">
+    </div>
+    <div id="boot-error" class="error-box" style="display:none"></div>
+    <div style="height:12px"></div>
+  </div>
+  <div class="action-bar">
+    <button id="boot-btn" class="btn btn-primary" onclick="submitBootstrap()">Set Opening Balance</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
+
+<!-- CONFIRM DIALOG -->
+<div id="confirm-overlay" class="dialog-overlay">
+  <div class="dialog-box">
+    <div class="dialog-title" id="dlg-title">Confirm Settlement</div>
+    <div id="dlg-body"></div>
+    <div class="dialog-btns">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeDialog()">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" id="dlg-confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      JAVASCRIPT
 ═══════════════════════════════════════════════════════ -->
 <script>
@@ -515,6 +581,8 @@ function logout() {
   show('s-pin');
 }
 
+function isManager() { return ['admin','gm','manager'].includes(S.role); }
+
 function setupScreen(id) {
   if (id === 's-runner') { loadRunnerView(); }
   else if (id === 's-cashier') { loadCashierHome(); }
@@ -522,6 +590,7 @@ function setupScreen(id) {
   else if (id === 's-expense') { initExpense(); }
   else if (id === 's-shift-handover') { initShiftHandover(); }
   else if (id === 's-collect') { initCollectScreen(); }
+  else if (id === 's-bootstrap') { /* static */ }
 }
 
 // ─── SCREEN 1: PIN LOGIN ─────────────────────────────────
@@ -562,20 +631,28 @@ async function verifyStaff() {
   }
 }
 function routeByRole() {
+  // Display label: managers see "Name (CODE)", everyone else sees CODE only
+  const displayLabel = isManager() ? `${S.person} (${S.code})` : S.code;
+
   if (S.role === 'runner') {
     S.selectedRunner = RUNNERS.find(r => r.partner_id === S.partner_id) || null;
-    el('runner-nav-title').textContent = S.person;
-    el('runner-nav-sub').textContent = S.code;
+    // Runner sees their code only (e.g. "R01"), not their name
+    const shortCode = S.code.replace('RUN0', 'R');
+    el('runner-nav-title').textContent = shortCode;
+    el('runner-nav-sub').textContent = 'Runner';
     show('s-runner');
     loadRunnerView();
   } else if (S.role === 'cashier') {
-    el('cashier-nav-title').textContent = S.person;
-    el('cashier-nav-sub').textContent = S.code;
+    el('cashier-nav-title').textContent = displayLabel;
+    el('cashier-nav-sub').textContent = 'Cashier';
+    // Bootstrap button hidden for cashiers — only managers can set float
     show('s-cashier');
     loadCashierHome();
-  } else if (['admin','gm','manager'].includes(S.role)) {
-    el('cashier-nav-title').textContent = S.person;
-    el('cashier-nav-sub').textContent = S.code;
+  } else if (isManager()) {
+    el('cashier-nav-title').textContent = displayLabel;
+    el('cashier-nav-sub').textContent = S.role.toUpperCase();
+    // Show bootstrap button for managers
+    el('boot-action-btn').classList.remove('hidden');
     show('s-cashier');
     loadCashierHome();
   } else {
@@ -814,10 +891,13 @@ async function loadCashierHome() {
     const cih = safeNum(d?.cashInHand ?? d?.cash_to_collect);
     const cls = cih > 500 ? 'warn' : cih > 0 ? 'ok' : 'ok';
     const hasPending = (d?.pending_errors || 0) > 0;
+    // Code-only for cashiers; name shown only for managers
+    const shortCode = runner.code.replace('RUN0','R');
+    const label = isManager() ? `${runner.name} <span style="color:var(--dim);font-size:10px">${shortCode}</span>` : shortCode;
     html += `<div class="runner-row" onclick="openRunnerDetail('${runner.code}')">
-      <div class="runner-badge ${cls}">${runner.code.replace('RUN0','R')}</div>
+      <div class="runner-badge ${cls}">${shortCode}</div>
       <div class="runner-info">
-        <div class="runner-name">${runner.name} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
+        <div class="runner-name">${label} ${hasPending ? '<span class="tag tag-red">ERR</span>' : ''}</div>
         <div class="runner-detail">T ₹${fmt(safeNum(d?.tokens))} · S ₹${fmt(safeNum(d?.sales))} · UPI −₹${fmt(safeNum(d?.upi?.total ?? d?.upi_amount ?? d?.upi))}</div>
       </div>
       <div class="runner-cash ${cls}">₹${fmt(cih)}</div>
@@ -832,8 +912,10 @@ function openRunnerDetail(code) {
   if (!runner) return;
   S.selectedRunner = runner;
   S.prevScreen = 's-cashier';
-  el('runner-nav-title').textContent = runner.name;
-  el('runner-nav-sub').textContent = code;
+  // Code only for cashiers, name for managers
+  const shortCode = code.replace('RUN0','R');
+  el('runner-nav-title').textContent = isManager() ? `${runner.name} (${shortCode})` : shortCode;
+  el('runner-nav-sub').textContent = 'Runner';
   show('s-runner');
   loadRunnerView();
 }
@@ -845,7 +927,9 @@ function initSettleRunner() {
   RUNNERS.forEach(r => {
     const chip = document.createElement('div');
     chip.className = 'chip';
-    chip.textContent = r.name;
+    const shortCode = r.code.replace('RUN0','R');
+    // Code only for cashiers, name for managers
+    chip.textContent = isManager() ? `${r.name} (${shortCode})` : shortCode;
     chip.onclick = () => selectSettleRunner(r, chip);
     chipsEl.appendChild(chip);
   });
@@ -873,10 +957,20 @@ async function selectSettleRunner(runner, chipEl) {
     const d = await api(`/api/settlement?action=runner-live&runner_id=${runner.partner_id}&barcode=${runner.code}`);
     if (!d.success) { showSettleError(d.error); return; }
     S.runnerLiveData[runner.code] = d;
-    const expected = d.cashInHand || 0;
-    el('sr-tokens').textContent = '₹' + fmt(d.tokens||0);
-    el('sr-sales').textContent  = '₹' + fmt(d.sales||0);
-    el('sr-upi').textContent    = '−₹' + fmt(d.upi||0);
+
+    // ── Error gate: block if pending errors exist
+    const pendingErrs = Array.isArray(d.pending_errors) ? d.pending_errors.length : safeNum(d.pending_errors);
+    if (pendingErrs > 0) {
+      showSettleError(`⚠️ ${pendingErrs} pending error${pendingErrs>1?'s':''} must be resolved before settling. Ask cashier to fix.`);
+      el('settle-runner-btn').disabled = true;
+      return;
+    }
+
+    const upiObj = d.upi && typeof d.upi === 'object' ? d.upi : {total: safeNum(d.upi_amount ?? d.upi)};
+    const expected = safeNum(d.cashInHand);
+    el('sr-tokens').textContent = '₹' + fmt(safeNum(d.tokens));
+    el('sr-sales').textContent  = '₹' + fmt(safeNum(d.sales));
+    el('sr-upi').textContent    = '−₹' + fmt(safeNum(upiObj.total));
     el('sr-expected').textContent = '₹' + fmt(expected);
     el('settle-runner-preview').style.display = 'block';
     el('settle-amount-wrap').style.display = 'block';
@@ -912,43 +1006,62 @@ function showSettleError(msg) {
   e.style.display = 'block';
 }
 
-async function submitSettleRunner() {
+function submitSettleRunner() {
   const runner = S.selectedRunner;
   if (!runner) return;
   const d = S.runnerLiveData[runner.code];
   if (!d) return;
   const cashSettled = parseFloat(el('sr-amount').value) || 0;
-  const expected = d.cashInHand || 0;
+  const expected = safeNum(d.cashInHand);
   const variance = cashSettled - expected;
+  const shortCode = runner.code.replace('RUN0','R');
+  const runnerLabel = isManager() ? `${runner.name} (${shortCode})` : shortCode;
+  const varText = Math.abs(variance) < 5 ? 'Exact match ✓' :
+    variance < 0 ? `▼ SHORT by ₹${fmt(Math.abs(variance))}` : `▲ OVER by ₹${fmt(variance)}`;
 
-  el('settle-runner-btn').disabled = true;
-  el('settle-runner-btn').textContent = 'Settling…';
-
-  try {
-    const r = await apiPost('/api/settlement?action=settle', {
-      runner_id: String(runner.partner_id),
-      barcode: runner.code,
-      settled_by: S.code,
-      cash_settled: cashSettled,
-      expected: expected,
-      variance,
-      period_start: d.period?.from,
-      period_end: new Date().toISOString()
-    });
-    if (r.success) {
-      delete S.runnerLiveData[runner.code];
-      goBack();
-      loadCashierHome();
-    } else {
-      el('settle-runner-btn').disabled = false;
-      el('settle-runner-btn').textContent = 'Confirm Settlement';
-      showSettleError(r.error || 'Failed');
+  showDialog(
+    `Settle ${runnerLabel}`,
+    `<div class="dialog-row"><span class="dl">Expected cash</span><span class="dv">₹${fmt(expected)}</span></div>
+     <div class="dialog-row"><span class="dl">Cash received</span><span class="dv">₹${fmt(cashSettled)}</span></div>
+     <div class="dialog-row"><span class="dl">Variance</span><span class="dv" style="color:${Math.abs(variance)<5?'var(--green)':variance<0?'var(--red)':'var(--amber)'}">₹${fmt(variance)}</span></div>
+     ${Math.abs(variance)>100?'<div class="dialog-warn">⚠️ Large variance — double check the count</div>':''}`,
+    'Confirm',
+    async () => {
+      el('settle-runner-btn').disabled = true;
+      el('settle-runner-btn').textContent = 'Settling…';
+      try {
+        const upiObj = d.upi && typeof d.upi === 'object' ? d.upi : {total: safeNum(d.upi_amount ?? d.upi)};
+        const r = await apiPost('/api/settlement?action=settle', {
+          runner_id: String(runner.partner_id),
+          barcode: runner.code,
+          settled_by: S.code,
+          cash_settled: cashSettled,
+          expected: expected,
+          variance,
+          tokens_amount: safeNum(d.tokens),
+          sales_amount: safeNum(d.sales),
+          upi_amount: safeNum(upiObj.total),
+          period_start: d.period?.from || d.period_start,
+          period_end: new Date().toISOString()
+        });
+        if (r.success) {
+          delete S.runnerLiveData[runner.code];
+          _cashierHistLoaded = false;
+          toast(`${runnerLabel} settled — ₹${fmt(cashSettled)}`, 'ok');
+          goBack();
+          loadCashierHome();
+        } else {
+          el('settle-runner-btn').disabled = false;
+          el('settle-runner-btn').textContent = 'Confirm Settlement';
+          showSettleError(r.error || 'Failed');
+        }
+      } catch(e) {
+        el('settle-runner-btn').disabled = false;
+        el('settle-runner-btn').textContent = 'Confirm Settlement';
+        showSettleError('Network error: ' + e.message);
+      }
     }
-  } catch(e) {
-    el('settle-runner-btn').disabled = false;
-    el('settle-runner-btn').textContent = 'Confirm Settlement';
-    showSettleError('Network error: ' + e.message);
-  }
+  );
 }
 
 // ─── SCREEN 6: EXPENSE ───────────────────────────────────
@@ -1008,6 +1121,7 @@ async function submitExpense() {
     if (r.success) {
       el('exp-amount').value = '';
       el('exp-notes').value = '';
+      toast(`Expense saved — ₹${fmt(amount)}`, 'ok');
       loadTodayExpenses();
     } else {
       showExpError(r.error || 'Failed to save');
@@ -1106,6 +1220,7 @@ async function submitShiftHandover() {
     });
     if (r.success) {
       S.shiftPreview = null;
+      toast('Shift handover recorded', 'ok');
       goBack();
     } else {
       el('sh-error').textContent = r.error || 'Failed';
@@ -1202,9 +1317,11 @@ async function submitCollectCash() {
     });
     if (r.success) {
       el('collect-amount').value = '';
+      _cashierHistLoaded = false;
+      toast(`₹${fmt(amount)} collected`, 'ok');
       initCollectScreen();
     } else {
-      alert(r.error || 'Failed');
+      toast(r.error || 'Failed', 'err');
     }
   } catch(e) { alert('Network error: ' + e.message); }
 }
@@ -1246,6 +1363,72 @@ async function api(path) {
 async function apiPost(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   return r.json();
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+let _toastTimer = null;
+function toast(msg, type = 'ok') {
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' visible';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('visible'), 3000);
+}
+
+// ─── CONFIRM DIALOG ──────────────────────────────────────
+let _dlgCallback = null;
+function showDialog(title, bodyHtml, confirmLabel, onConfirm) {
+  el('dlg-title').textContent = title;
+  el('dlg-body').innerHTML = bodyHtml;
+  el('dlg-confirm-btn').textContent = confirmLabel || 'Confirm';
+  _dlgCallback = onConfirm;
+  el('confirm-overlay').classList.add('open');
+}
+function closeDialog() {
+  el('confirm-overlay').classList.remove('open');
+  _dlgCallback = null;
+}
+document.addEventListener('click', e => {
+  if (e.target.id === 'dlg-confirm-btn') { closeDialog(); if (_dlgCallback) _dlgCallback(); }
+  if (e.target === el('confirm-overlay')) closeDialog();
+});
+
+// ─── BOOTSTRAP ───────────────────────────────────────────
+async function submitBootstrap() {
+  const amount = parseFloat(el('boot-amount').value);
+  const notes = el('boot-notes').value.trim();
+  el('boot-error').style.display = 'none';
+
+  if (isNaN(amount) || amount < 0) { el('boot-error').textContent = 'Enter valid amount (₹0 is allowed if drawer is empty)'; el('boot-error').style.display='block'; return; }
+
+  showDialog(
+    'Confirm Opening Float',
+    `<div class="dialog-row"><span class="dl">Cash in drawer now</span><span class="dv">₹${fmt(amount)}</span></div>
+     <div class="dialog-row"><span class="dl">Set by</span><span class="dv">${S.code}</span></div>
+     <div class="dialog-warn">This sets the baseline for all future counter balance calculations. Do this once at go-live.</div>`,
+    'Set Balance',
+    async () => {
+      el('boot-btn').disabled = true;
+      el('boot-btn').textContent = 'Saving…';
+      try {
+        const r = await apiPost('/api/settlement?action=bootstrap-drawer', {code: S.code, amount, notes});
+        if (r.success) {
+          toast(`Opening float set — ₹${fmt(amount)}`, 'ok');
+          goBack();
+        } else {
+          el('boot-error').textContent = r.error || 'Failed';
+          el('boot-error').style.display = 'block';
+          el('boot-btn').disabled = false;
+          el('boot-btn').textContent = 'Set Opening Balance';
+        }
+      } catch(e) {
+        el('boot-error').textContent = 'Network error: ' + e.message;
+        el('boot-error').style.display = 'block';
+        el('boot-btn').disabled = false;
+        el('boot-btn').textContent = 'Set Opening Balance';
+      }
+    }
+  );
 }
 
 // ─── CASHIER HISTORY / AUDIT TRAIL ──────────────────────

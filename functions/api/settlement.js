@@ -1200,6 +1200,45 @@ export async function onRequest(context) {
       }), {headers: corsHeaders});
     }
 
+    // === BOOTSTRAP DRAWER — one-time opening balance at system go-live ===
+    if (action === 'bootstrap-drawer' && context.request.method === 'POST') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
+      const body = await context.request.json();
+      const {code, amount, notes} = body;
+      if (!code || amount == null) return new Response(JSON.stringify({success: false, error: 'code and amount required'}), {headers: corsHeaders});
+      const now = new Date().toISOString();
+      await DB.prepare(`
+        INSERT INTO cashier_shifts (
+          cashier_name, settled_at, period_start, period_end,
+          petty_cash_start, runner_cash_settled, expenses_total,
+          expected_drawer, drawer_cash_entered, drawer_variance,
+          counter_cash_settled, unsettled_counter_cash,
+          counter_cash_expected, counter_cash_entered, counter_cash_variance,
+          counter_upi, counter_card, counter_token_issue, counter_complimentary,
+          counter_qr_odoo, counter_qr_razorpay, counter_qr_variance,
+          runner_counter_qr_odoo, runner_counter_qr_razorpay, runner_counter_qr_variance,
+          total_cash_physical, total_cash_expected, final_variance,
+          variance_resolved, variance_unresolved,
+          discrepancy_resolutions, runner_count, notes, handover_to
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        code, now, now, now,
+        amount, 0, 0,
+        amount, amount, 0,
+        0, 0,
+        0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        amount, amount, 0,
+        0, 0,
+        '[]', 0,
+        notes || 'Bootstrap: opening drawer balance at system go-live',
+        ''
+      ).run();
+      return new Response(JSON.stringify({success: true, bootstrap_amount: amount, recorded_at: now}), {headers: corsHeaders});
+    }
+
     // === SHIFT PREVIEW — compute expected drawer before handover ===
     if (action === 'shift-preview') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
