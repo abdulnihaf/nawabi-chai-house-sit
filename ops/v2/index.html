@@ -582,19 +582,43 @@ const PETTY_CATS = [
   {code:'MISC',       name:'Miscellaneous'},
 ];
 
-// ── NEW: Canonical HN expense categories (mirror of hnhotels.in/ops/expense/) ──
-// Every expense recorded here dual-writes to Odoo via hnhotels.in/api/spend
-// for centralised P&L, while keeping /api/rectify ledger for shift reconciliation.
+// ── Canonical HN expense categories (mirror of hnhotels.in/ops/expense/) ──
+// Every expense here dual-writes:
+//   1) /api/rectify  → NCH shift ledger (only when rect_code is set)
+//   2) hnhotels.in/api/spend → Odoo hr.expense / account.move (ALWAYS)
+//
+// Role-based filtering:
+//   cashier → cash-pool subset only (5,6,7,8,9)
+//   manager/gm/admin → all cats except RM-cart (1) and PO-match (15)
+//
+// rect_code=null → skip local rectify write (Odoo-only cats: owner drawings, direct vendor bill)
 const HN_SPEND_API = 'https://hnhotels.in/api/spend';
 const HN_CATS = [
-  { id: 5, emoji: '🏠', label: 'Rent',                rect_code: 'MISC',     rect_pool: 'petty'   },
-  { id: 6, emoji: '💡', label: 'Utility Bill',        rect_code: 'MISC',     rect_pool: 'petty'   },
-  { id: 7, emoji: '🚓', label: 'Police / Hafta',      rect_code: 'BEAT',     rect_pool: 'counter' },
-  { id: 8, emoji: '🧹', label: 'Petty / Operations',  rect_code: 'SUPPLIES', rect_pool: 'petty'   },
-  { id: 9, emoji: '🔧', label: 'Maintenance / Repair',rect_code: 'REPAIR',   rect_pool: 'petty'   },
+  { id: 2,  emoji: '🏗️',  label: 'Capex',                 rect_code: 'ASSET',       rect_pool: 'petty',   cashier: false },
+  { id: 3,  emoji: '👥', label: 'Salary',                 rect_code: 'SALARY',      rect_pool: 'counter', cashier: false },
+  { id: 4,  emoji: '💵', label: 'Employee Advance',       rect_code: 'ADVANCE',     rect_pool: 'counter', cashier: false },
+  { id: 5,  emoji: '🏠', label: 'Rent',                   rect_code: 'MISC',        rect_pool: 'petty',   cashier: true  },
+  { id: 6,  emoji: '💡', label: 'Utility Bill',           rect_code: 'MISC',        rect_pool: 'petty',   cashier: true  },
+  { id: 7,  emoji: '🚓', label: 'Police / Hafta',         rect_code: 'BEAT',        rect_pool: 'counter', cashier: true  },
+  { id: 8,  emoji: '🧹', label: 'Petty / Operations',     rect_code: 'SUPPLIES',    rect_pool: 'petty',   cashier: true  },
+  { id: 9,  emoji: '🔧', label: 'Maintenance / Repair',   rect_code: 'REPAIR',      rect_pool: 'petty',   cashier: true  },
+  { id: 10, emoji: '📢', label: 'Marketing',              rect_code: 'MARKETING',   rect_pool: 'petty',   cashier: false },
+  { id: 11, emoji: '🍚', label: 'Food Supplies',          rect_code: 'FOOD',        rect_pool: 'petty',   cashier: false },
+  { id: 12, emoji: '🧃', label: 'Disposables',            rect_code: 'DISPOSABLES', rect_pool: 'petty',   cashier: false },
+  { id: 13, emoji: '🧳', label: 'Owner Drawings',         rect_code: null,          rect_pool: 'counter', cashier: false }, // Odoo-only
+  { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null,          rect_pool: 'petty',   cashier: false }, // Odoo-only (account.move)
 ];
 // Cache: productId list per category (loaded lazily)
 const _hnProductCache = {};
+
+// Role-scoped cat list — derived per-session
+function visibleHnCats() {
+  if (!S.role) return [];
+  const managerRoles = ['admin', 'cfo', 'asstmgr', 'gm', 'manager'];
+  if (managerRoles.includes(S.role)) return HN_CATS;
+  // cashier (and runner if ever) → only the cash-pool 5 cats
+  return HN_CATS.filter(c => c.cashier);
+}
 
 // ─── ROUTING ─────────────────────────────────────────────
 function show(id) {
@@ -1139,7 +1163,8 @@ function initExpense() {
 }
 
 function renderExpenseCards() {
-  el('exp-cat-grid').innerHTML = HN_CATS.map(c => `
+  const cats = visibleHnCats();
+  el('exp-cat-grid').innerHTML = cats.map(c => `
     <button class="card" style="padding: 16px 8px; text-align: center; cursor: pointer; background: var(--card, #1a1d26); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;" onclick="openExpenseCat(${c.id})">
       <div style="font-size: 26px;">${c.emoji}</div>
       <div style="font-weight: 600; font-size: 13px; margin-top: 4px;">${c.label}</div>
@@ -1226,21 +1251,24 @@ async function submitExpense() {
     const payment_method = el('exp-payment').value;
     const notes = el('exp-notes').value.trim();
 
-    // 1) NCH shift-ledger write (keeps end-of-shift reconciliation intact)
-    const rectifyAction = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
-    const rectifyRes = await apiPost(`/api/rectify?action=${rectifyAction}`, {
-      code: S.code,
-      pin: S.pin,
-      category_code: cat.rect_code,
-      amount,
-      description: `${cat.label}${notes ? ' — ' + notes : ''}`,
-      pool: S.expensePool,
-      transaction_type: 'expense',
-    });
-    if (!rectifyRes.success) throw new Error(rectifyRes.error || 'Shift-ledger write failed');
+    // 1) NCH shift-ledger write — SKIP for Odoo-only cats (13 Owner Drawings, 14 Direct Vendor Bill)
+    //    These aren't cash-register events; they go straight to Odoo accounting.
+    if (cat.rect_code) {
+      const rectifyAction = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
+      const rectifyRes = await apiPost(`/api/rectify?action=${rectifyAction}`, {
+        code: S.code,
+        pin: S.pin,
+        category_code: cat.rect_code,
+        amount,
+        description: `${cat.label}${notes ? ' — ' + notes : ''}`,
+        pool: S.expensePool,
+        transaction_type: 'expense',
+      });
+      if (!rectifyRes.success) throw new Error(rectifyRes.error || 'Shift-ledger write failed');
+    }
 
-    // 2) Odoo hr.expense write via hnhotels.in/api/spend (central P&L)
-    //    Non-blocking on failure — we still saved to shift ledger; Naveen can retry
+    // 2) Odoo write via hnhotels.in/api/spend — brand=NCH locked, routes to company_id=3
+    //    Non-blocking on failure — shift ledger saved; manager can retry Odoo later.
     let odooOk = false;
     try {
       const odooRes = await fetch(`${HN_SPEND_API}?action=record`, {
