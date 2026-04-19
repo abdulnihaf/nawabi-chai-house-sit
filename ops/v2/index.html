@@ -399,9 +399,11 @@
         <label class="input-label">Notes (optional)</label>
         <input id="exp-notes" class="input" type="text" placeholder="short context">
       </div>
-      <div class="input-group hidden" id="exp-photo-wrap">
-        <label class="input-label">Receipt photo</label>
-        <input id="exp-photo" type="file" accept="image/*" class="input" style="padding: 8px;">
+      <div class="input-group" id="exp-photo-wrap">
+        <label class="input-label">Bill / receipt photo (optional)</label>
+        <input id="exp-photo" type="file" accept="image/*" capture="environment" class="input" style="padding: 8px;" onchange="previewExpPhoto(this)">
+        <div id="exp-photo-preview"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Snap the paper bill → attached to Odoo record + auto-filed in Drive</div>
       </div>
       <button class="btn btn-secondary btn-sm" onclick="expBackToCats()" style="margin-top: 4px;">← Pick different category</button>
     </div>
@@ -1256,6 +1258,43 @@ async function openExpenseCat(catId) {
   }
 }
 
+// Photo preview + compression (parity with hnhotels.in/ops/expense/)
+function previewExpPhoto(input) {
+  const file = input.files && input.files[0];
+  const el2 = el('exp-photo-preview');
+  if (!el2) return;
+  if (!file) { el2.innerHTML = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    el2.innerHTML = `<div style="margin-top:8px"><img src="${e.target.result}" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border);display:block"><div style="font-size:11px;color:var(--muted);margin-top:4px">${file.name} · ${(file.size/1024).toFixed(0)} KB</div></div>`;
+  };
+  reader.readAsDataURL(file);
+}
+async function readExpPhoto() {
+  const input = el('exp-photo');
+  const file = input?.files?.[0];
+  if (!file) return null;
+  try {
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file);
+    });
+    const img = await new Promise((res, rej) => {
+      const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = dataUrl;
+    });
+    const maxW = 1200;
+    const scale = Math.min(1, maxW / img.width);
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    const jpeg = c.toDataURL('image/jpeg', 0.85);
+    return {
+      name: file.name.replace(/\.[^.]+$/, '') + '.jpg',
+      mimetype: 'image/jpeg',
+      data_b64: jpeg.split(',')[1],
+    };
+  } catch (e) { return null; }
+}
+
 // Vendor dropdown — "+ Add new vendor" inline create
 async function onExpVendorChange(sel) {
   if (sel.value !== '__new__') return;
@@ -1393,6 +1432,9 @@ async function submitExpense() {
 
     // 2) Odoo write via hnhotels.in/api/spend — brand=NCH locked, routes to company_id=3
     //    Non-blocking on failure — shift ledger saved; manager can retry Odoo later.
+    // Compress photo (if any) before submit
+    const attachment = await readExpPhoto();
+
     let odooOk = false, odooMsg = '';
     try {
       const body = {
@@ -1406,6 +1448,7 @@ async function submitExpense() {
       if (product_id) body.product_id = parseInt(product_id, 10);
       if (vendor_id)  { body.vendor_id = parseInt(vendor_id, 10); body.vendor_name = vendor_name; }
       if (employee_id) body.employee_id = parseInt(employee_id, 10);
+      if (attachment)  body.attachment = attachment;   // Odoo ir.attachment + Drive webhook
 
       const odooRes = await fetch(`${HN_SPEND_API}?action=record`, {
         method: 'POST',
