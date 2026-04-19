@@ -1349,10 +1349,11 @@ export async function onRequest(context) {
       const periodStart = lastShift?.settled_at || floorIST;
       const pettyFloatStart = lastShift?.drawer_cash_entered || 0;
 
-      // IST→UTC for Odoo
-      const fromDate = new Date(periodStart);
-      const fromUTC = new Date(fromDate.getTime() - 5.5 * 3600 * 1000);
-      const fromOdoo = fromUTC.toISOString().slice(0, 19).replace('T', ' ');
+      // periodStart is already ISO UTC (e.g. "2026-04-19T15:30:50.583Z" = 9 PM IST).
+      // Odoo date_order is stored in UTC too, so compare directly. The previous −5.5h
+      // subtraction was a double-adjustment that pulled in ~5.5 hours of pre-bootstrap
+      // POS cash, inflating the expected drawer by whatever sold that afternoon.
+      const fromOdoo = new Date(periodStart).toISOString().slice(0, 19).replace('T', ' ');
 
       // 1. Runner cash settled to counter since period_start (D1)
       const runnerCashRow = await DB.prepare(
