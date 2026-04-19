@@ -369,9 +369,17 @@
       <div style="padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin:8px 0 12px;font-size:12px;color:var(--muted);text-align:center">
         💰 Deducted from <b style="color:var(--text)">Counter Till</b>
       </div>
-      <div class="input-group">
+      <div class="input-group" id="exp-product-wrap">
         <label class="input-label" id="exp-form-label">Item</label>
         <select id="exp-product" class="input" onchange="onExpProductChange(this)"><option value="">Loading…</option></select>
+      </div>
+      <div class="input-group" id="exp-vendor-wrap">
+        <label class="input-label">Vendor *</label>
+        <select id="exp-vendor" class="input" onchange="onExpVendorChange(this)"><option value="">Loading…</option></select>
+      </div>
+      <div class="input-group hidden" id="exp-employee-wrap">
+        <label class="input-label">Employee *</label>
+        <select id="exp-employee" class="input"><option value="">Loading…</option></select>
       </div>
       <div class="input-group">
         <label class="input-label">Amount (₹)</label>
@@ -601,8 +609,16 @@ const HN_CATS = [
   { id: 13, emoji: '🧳', label: 'Owner Drawings',         rect_code: null           }, // Odoo-only
   { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null           }, // Odoo-only
 ];
-// Cache: productId list per category (loaded lazily)
+// Cache: per-category product list, and global vendor / employee lists
 const _hnProductCache = {};
+let _hnVendorCache = null;
+let _hnEmployeeCache = null;
+
+// Vendor required on cats: 2 (Capex), 5-12, 14 (direct bill). Not on cat 13 (owner drawings).
+const VENDOR_REQUIRED_CATS = new Set([2, 5, 6, 7, 8, 9, 10, 11, 12, 14]);
+const EMPLOYEE_REQUIRED_CATS = new Set([3, 4]);  // salary, advance
+// Cats where /api/spend?action=products returns [] (not hr.expense backend) — skip product dropdown
+const NO_PRODUCT_CATS = new Set([14]);
 
 // All 13 cats visible to ANY role that hits this screen.
 // Backend (/api/rectify + hnhotels.in/api/spend) enforces PIN-level authorisation,
@@ -1174,8 +1190,7 @@ async function openExpenseCat(catId) {
   const cat = HN_CATS.find(c => c.id === catId);
   if (!cat) return;
   S.expenseCat = cat;
-  // Default the pool toggle to category's natural pool
-  // petty-pool retired — expenses always from counter till
+
   el('exp-form-label').textContent = `${cat.emoji} ${cat.label} — Item`;
   el('exp-amount').value = '';
   el('exp-notes').value = '';
@@ -1183,26 +1198,88 @@ async function openExpenseCat(catId) {
   el('exp-step-form').classList.remove('hidden');
   el('exp-submit-btn').style.display = '';
 
-  // Load products for this category from hnhotels.in/api/spend
-  const sel = el('exp-product');
-  sel.innerHTML = '<option value="">Loading…</option>';
-  if (!_hnProductCache[catId]) {
-    try {
-      const r = await fetch(`${HN_SPEND_API}?action=products&pin=${encodeURIComponent(S.pin)}&cat=${catId}`)
-        .then(x => x.json());
-      _hnProductCache[catId] = r.products || [];
-    } catch (e) {
-      _hnProductCache[catId] = [];
+  const showProducts  = !NO_PRODUCT_CATS.has(catId);
+  const showVendor    = VENDOR_REQUIRED_CATS.has(catId);
+  const showEmployee  = EMPLOYEE_REQUIRED_CATS.has(catId);
+  el('exp-product-wrap').classList.toggle('hidden', !showProducts);
+  el('exp-vendor-wrap').classList.toggle('hidden', !showVendor);
+  el('exp-employee-wrap').classList.toggle('hidden', !showEmployee);
+
+  // ── Products
+  if (showProducts) {
+    const sel = el('exp-product');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    if (!_hnProductCache[catId]) {
+      try {
+        const r = await fetch(`${HN_SPEND_API}?action=products&pin=${encodeURIComponent(S.pin)}&cat=${catId}`).then(x => x.json());
+        _hnProductCache[catId] = r.products || [];
+      } catch (e) { _hnProductCache[catId] = []; }
+    }
+    const products = _hnProductCache[catId];
+    const addNewOpt = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new item…</option>`;
+    if (!products.length) {
+      sel.innerHTML = '<option value="">— none configured — tap + Add new item —</option>' + addNewOpt;
+    } else {
+      sel.innerHTML = '<option value="">— Select —</option>' +
+        products.map(p => `<option value="${p.id}">${p.name}</option>`).join('') + addNewOpt;
     }
   }
-  const products = _hnProductCache[catId];
-  const addNewOpt = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new item…</option>`;
-  if (!products.length) {
-    sel.innerHTML = '<option value="">— none yet —</option>' + addNewOpt;
-  } else {
+
+  // ── Vendor (cached)
+  if (showVendor) {
+    const sel = el('exp-vendor');
+    sel.innerHTML = '<option value="">Loading vendors…</option>';
+    if (_hnVendorCache === null) {
+      try {
+        const r = await fetch(`${HN_SPEND_API}?action=vendors&pin=${encodeURIComponent(S.pin)}&brand=NCH`).then(x => x.json());
+        _hnVendorCache = r.vendors || [];
+      } catch (e) { _hnVendorCache = []; }
+    }
+    const addNewVend = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new vendor…</option>`;
+    sel.innerHTML = '<option value="">— Select vendor —</option>' +
+      _hnVendorCache.map(v => `<option value="${v.id}">${v.name}${v.phone ? ' · ' + v.phone : ''}</option>`).join('') + addNewVend;
+  }
+
+  // ── Employee (for salary / advance)
+  if (showEmployee) {
+    const sel = el('exp-employee');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    if (_hnEmployeeCache === null) {
+      try {
+        const r = await fetch(`${HN_SPEND_API}?action=employees&pin=${encodeURIComponent(S.pin)}`).then(x => x.json());
+        _hnEmployeeCache = r.employees || [];
+      } catch (e) { _hnEmployeeCache = []; }
+    }
+    const emps = _hnEmployeeCache.filter(e => e.brand_label === 'NCH' || e.brand_label === 'HQ');
     sel.innerHTML = '<option value="">— Select —</option>' +
-      products.map(p => `<option value="${p.id}">${p.name}</option>`).join('') +
-      addNewOpt;
+      emps.map(e => `<option value="${e.odoo_employee_id}">${e.name} [${e.brand_label}]</option>`).join('');
+  }
+}
+
+// Vendor dropdown — "+ Add new vendor" inline create
+async function onExpVendorChange(sel) {
+  if (sel.value !== '__new__') return;
+  sel.value = '';
+  const name = prompt('New vendor name (e.g. Sharma Provisions, BESCOM, Sabzi Mandi Vendor):');
+  if (!name || !name.trim()) return;
+  const phone = prompt('Vendor phone (optional, 10 digits):', '') || '';
+  try {
+    const r = await fetch(`${HN_SPEND_API}?action=create-vendor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: S.pin, name: name.trim(), phone: phone.trim() }),
+    }).then(x => x.json());
+    if (!r.success) throw new Error(r.error || 'Create failed');
+    _hnVendorCache = _hnVendorCache || [];
+    _hnVendorCache.push(r.vendor);
+    const opt = document.createElement('option');
+    opt.value = r.vendor.id;
+    opt.textContent = r.vendor.name + (r.vendor.phone ? ' · ' + r.vendor.phone : '');
+    opt.selected = true;
+    sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+    toast(`✓ Added vendor "${r.vendor.name}"`, 'ok');
+  } catch (e) {
+    toast('Could not add vendor: ' + e.message, 'err');
   }
 }
 
@@ -1269,8 +1346,30 @@ async function submitExpense() {
   try {
     const cat = S.expenseCat;
     if (!cat) throw new Error('Pick a category first');
-    const product_id = el('exp-product').value;
-    if (!product_id) throw new Error('Pick the item');
+
+    // Product required except for cat 14 (Direct Vendor Bill — vendor_name is the line item)
+    let product_id = null;
+    if (!NO_PRODUCT_CATS.has(cat.id)) {
+      product_id = el('exp-product').value;
+      if (!product_id) throw new Error('Pick the item');
+    }
+
+    // Vendor required on most cats (not on 3,4,13)
+    let vendor_id = null, vendor_name = null;
+    if (VENDOR_REQUIRED_CATS.has(cat.id)) {
+      const vSel = el('exp-vendor');
+      vendor_id = vSel.value;
+      if (!vendor_id || vendor_id === '__new__') throw new Error('Pick a vendor — every expense must tie to a vendor');
+      vendor_name = vSel.selectedOptions[0]?.text?.split(' · ')[0] || '';
+    }
+
+    // Employee required on cats 3, 4 (salary / advance)
+    let employee_id = null;
+    if (EMPLOYEE_REQUIRED_CATS.has(cat.id)) {
+      employee_id = el('exp-employee').value;
+      if (!employee_id) throw new Error('Pick an employee');
+    }
+
     const amount = parseFloat(el('exp-amount').value);
     if (!amount || amount <= 0) throw new Error('Enter a valid amount');
     const payment_method = el('exp-payment').value;
@@ -1294,25 +1393,30 @@ async function submitExpense() {
 
     // 2) Odoo write via hnhotels.in/api/spend — brand=NCH locked, routes to company_id=3
     //    Non-blocking on failure — shift ledger saved; manager can retry Odoo later.
-    let odooOk = false;
+    let odooOk = false, odooMsg = '';
     try {
+      const body = {
+        pin: S.pin,
+        category: cat.id,
+        brand: 'NCH',
+        amount,
+        payment_method,
+        notes,
+      };
+      if (product_id) body.product_id = parseInt(product_id, 10);
+      if (vendor_id)  { body.vendor_id = parseInt(vendor_id, 10); body.vendor_name = vendor_name; }
+      if (employee_id) body.employee_id = parseInt(employee_id, 10);
+
       const odooRes = await fetch(`${HN_SPEND_API}?action=record`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pin: S.pin,
-          category: cat.id,
-          brand: 'NCH',
-          amount,
-          payment_method,
-          product_id: parseInt(product_id, 10),
-          notes,
-        }),
+        body: JSON.stringify(body),
       }).then(x => x.json());
       odooOk = !!odooRes.success;
-    } catch (e) { odooOk = false; }
+      if (!odooOk) odooMsg = ' · ' + (odooRes.error || 'Odoo error');
+    } catch (e) { odooOk = false; odooMsg = ' · ' + e.message; }
 
-    toast(`Expense saved — ₹${fmt(amount)}${odooOk ? '' : ' (Odoo retry pending)'}`, 'ok');
+    toast(`Expense saved — ₹${fmt(amount)}${odooOk ? '' : ' (Odoo retry pending' + odooMsg + ')'}`, 'ok');
     el('exp-amount').value = '';
     el('exp-notes').value = '';
     expBackToCats();
