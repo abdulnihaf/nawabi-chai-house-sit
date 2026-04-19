@@ -359,7 +359,40 @@ export async function onRequest(context) {
         });
       }
 
-      const totalSettled = runnerCash + counterCash;
+      // ── LIVE PM37 walk-in cash from Odoo POS 27 since period anchor ──
+      // This makes counter cash visible in real-time instead of waiting for shift-preview.
+      let counterCashLive = 0;
+      const ODOO_API_KEY = context.env.ODOO_API_KEY;
+      if (ODOO_API_KEY) {
+        try {
+          const fromOdoo = new Date(sinceTime).toISOString().slice(0, 19).replace('T', ' ');
+          const ordersPayload = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+            args:['main', 2, ODOO_API_KEY, 'pos.order', 'search_read',
+              [[['config_id','=',27],['date_order','>=',fromOdoo],['state','in',['paid','done','invoiced','posted']]]],
+              {fields:['payment_ids']}]}, id: Date.now()};
+          const ordersRes = await fetch('https://ops.hamzahotel.com/jsonrpc',
+            {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ordersPayload)});
+          const ordersData = await ordersRes.json();
+          const paymentIds = (ordersData.result || []).flatMap(o => o.payment_ids || []);
+          if (paymentIds.length) {
+            const pmPayload = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+              args:['main', 2, ODOO_API_KEY, 'pos.payment', 'search_read',
+                [[['id','in',paymentIds],['payment_method_id','=',37]]],
+                {fields:['amount']}]}, id: Date.now()};
+            const pmRes = await fetch('https://ops.hamzahotel.com/jsonrpc',
+              {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pmPayload)});
+            const pmData = await pmRes.json();
+            counterCashLive = Math.round((pmData.result || []).reduce((s, p) => s + (p.amount || 0), 0));
+          }
+        } catch (e) { console.error('counter-balance pm37 fetch:', e.message); }
+      }
+
+      // If cashier has explicitly done a `settle-counter` action (writing to D1 settlements),
+      // counterCash > 0 — trust that number (audit trail). Otherwise fall back to live POS.
+      // This avoids double-counting when cashier has reconciled counter during shift.
+      const effectiveCounterCash = counterCash > 0 ? counterCash : counterCashLive;
+
+      const totalSettled = runnerCash + effectiveCounterCash;
       const pettyCash = lastCollection ? (lastCollection.petty_cash || 0) : 0;
       // Total at counter = petty cash + settlements - expenses
       const totalAtCounter = pettyCash + totalSettled - totalExpenses;
@@ -371,7 +404,9 @@ export async function onRequest(context) {
           totalSettled,
           pettyCash,
           runnerCash,
-          counterCash,
+          counterCash: effectiveCounterCash,
+          counterCashLive,            // PM37 from Odoo (informational)
+          counterCashSettled: counterCash, // D1 settlements.counter (audit)
           totalExpenses,
           expenses: expenseList,
           settlementCount: settlementList.length,
