@@ -348,7 +348,8 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
-     SCREEN 6: RECORD EXPENSE
+     SCREEN 6: RECORD EXPENSE  (category-card format, mirrors hnhotels.in/ops/expense/)
+     Dual-write: /api/rectify (NCH shift ledger) + hnhotels.in/api/spend (Odoo hr.expense)
 ═══════════════════════════════════════════════════════ -->
 <div id="s-expense" class="screen">
   <div class="nav">
@@ -356,34 +357,55 @@
     <div class="nav-title">Record Expense</div>
   </div>
   <div class="scroll pad">
-    <div style="height:12px"></div>
-    <div class="pool-toggle">
-      <div class="pool-opt active" id="pool-counter" onclick="setPool('counter')">Counter</div>
-      <div class="pool-opt" id="pool-petty" onclick="setPool('petty')">Petty Cash</div>
+
+    <!-- Step A: category picker (cards) -->
+    <div id="exp-step-cats" style="padding: 8px 0;">
+      <div style="color: var(--muted); font-size: 12px; margin-bottom: 8px;">What are you recording?</div>
+      <div id="exp-cat-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;"></div>
     </div>
-    <div class="input-group">
-      <label class="input-label">Category</label>
-      <select id="exp-cat" class="input"></select>
+
+    <!-- Step B: category-specific form (hidden until a card is tapped) -->
+    <div id="exp-step-form" class="hidden">
+      <div class="pool-toggle" style="margin: 8px 0 12px;">
+        <div class="pool-opt active" id="pool-counter" onclick="setPool('counter')">Counter Till</div>
+        <div class="pool-opt" id="pool-petty" onclick="setPool('petty')">Petty Cash</div>
+      </div>
+      <div class="input-group">
+        <label class="input-label" id="exp-form-label">Item</label>
+        <select id="exp-product" class="input"><option value="">Loading…</option></select>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Amount (₹)</label>
+        <input id="exp-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Payment method</label>
+        <select id="exp-payment" class="input">
+          <option value="cash">Cash</option>
+          <option value="hdfc_bank">HDFC</option>
+          <option value="federal_bank">Federal</option>
+          <option value="razorpay">Razorpay</option>
+          <option value="paytm">Paytm (UPI)</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Notes (optional)</label>
+        <input id="exp-notes" class="input" type="text" placeholder="short context">
+      </div>
+      <div class="input-group hidden" id="exp-photo-wrap">
+        <label class="input-label">Receipt photo</label>
+        <input id="exp-photo" type="file" accept="image/*" class="input" style="padding: 8px;">
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="expBackToCats()" style="margin-top: 4px;">← Pick different category</button>
     </div>
-    <div class="input-group">
-      <label class="input-label">Amount (₹)</label>
-      <input id="exp-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
-    </div>
-    <div class="input-group">
-      <label class="input-label">Notes (optional)</label>
-      <input id="exp-notes" class="input" type="text" placeholder="e.g. beat cop, gas refill…">
-    </div>
-    <div class="input-group hidden" id="exp-photo-wrap">
-      <label class="input-label">Receipt photo</label>
-      <input id="exp-photo" type="file" accept="image/*" class="input" style="padding:8px">
-    </div>
-    <div id="exp-error" class="error-box" style="display:none"></div>
-    <div style="height:12px"></div>
+
+    <div id="exp-error" class="error-box" style="display: none;"></div>
+    <div style="height: 12px;"></div>
     <div class="section-hdr"><span class="section-title">Today's expenses</span></div>
-    <div id="today-expenses" class="card"><div class="loading" style="padding:16px">—</div></div>
+    <div id="today-expenses" class="card"><div class="loading" style="padding: 16px;">—</div></div>
   </div>
   <div class="action-bar">
-    <button class="btn btn-primary" onclick="submitExpense()">Save Expense</button>
+    <button class="btn btn-primary" id="exp-submit-btn" onclick="submitExpense()" style="display: none;">Save Expense</button>
   </div>
 </div>
 
@@ -537,6 +559,7 @@ const RUNNERS = [
   {code:'RUN005', name:'Dhanush', partner_id:68},
 ];
 
+// ── Legacy NCH-only category codes (kept for /api/rectify shift reconciliation) ──
 const COUNTER_CATS = [
   {code:'BEAT',    name:'Beat Cop'},
   {code:'CHETA',   name:'Cheta'},
@@ -558,6 +581,20 @@ const PETTY_CATS = [
   {code:'EMERGENCY',  name:'Emergency'},
   {code:'MISC',       name:'Miscellaneous'},
 ];
+
+// ── NEW: Canonical HN expense categories (mirror of hnhotels.in/ops/expense/) ──
+// Every expense recorded here dual-writes to Odoo via hnhotels.in/api/spend
+// for centralised P&L, while keeping /api/rectify ledger for shift reconciliation.
+const HN_SPEND_API = 'https://hnhotels.in/api/spend';
+const HN_CATS = [
+  { id: 5, emoji: '🏠', label: 'Rent',                rect_code: 'MISC',     rect_pool: 'petty'   },
+  { id: 6, emoji: '💡', label: 'Utility Bill',        rect_code: 'MISC',     rect_pool: 'petty'   },
+  { id: 7, emoji: '🚓', label: 'Police / Hafta',      rect_code: 'BEAT',     rect_pool: 'counter' },
+  { id: 8, emoji: '🧹', label: 'Petty / Operations',  rect_code: 'SUPPLIES', rect_pool: 'petty'   },
+  { id: 9, emoji: '🔧', label: 'Maintenance / Repair',rect_code: 'REPAIR',   rect_pool: 'petty'   },
+];
+// Cache: productId list per category (loaded lazily)
+const _hnProductCache = {};
 
 // ─── ROUTING ─────────────────────────────────────────────
 function show(id) {
@@ -1084,22 +1121,78 @@ function submitSettleRunner() {
   );
 }
 
-// ─── SCREEN 6: EXPENSE ───────────────────────────────────
+// ─── SCREEN 6: EXPENSE (card format — mirror of hnhotels.in/ops/expense/) ─────
+//
+// Dual-write on submit:
+//   1) /api/rectify → NCH D1 cash ledger (keeps shift reconciliation working)
+//   2) hnhotels.in/api/spend → Odoo hr.expense (centralised P&L + Naveen's reports)
+//
 function initExpense() {
-  setPool('counter');
+  S.expensePool = 'counter';
+  S.expenseCat = null;
+  el('exp-step-cats').classList.remove('hidden');
+  el('exp-step-form').classList.add('hidden');
+  el('exp-submit-btn').style.display = 'none';
+  el('exp-error').style.display = 'none';
+  renderExpenseCards();
+  loadTodayExpenses();
+}
+
+function renderExpenseCards() {
+  el('exp-cat-grid').innerHTML = HN_CATS.map(c => `
+    <button class="card" style="padding: 16px 8px; text-align: center; cursor: pointer; background: var(--card, #1a1d26); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;" onclick="openExpenseCat(${c.id})">
+      <div style="font-size: 26px;">${c.emoji}</div>
+      <div style="font-weight: 600; font-size: 13px; margin-top: 4px;">${c.label}</div>
+    </button>
+  `).join('');
+}
+
+async function openExpenseCat(catId) {
+  const cat = HN_CATS.find(c => c.id === catId);
+  if (!cat) return;
+  S.expenseCat = cat;
+  // Default the pool toggle to category's natural pool
+  setPool(cat.rect_pool);
+  el('exp-form-label').textContent = `${cat.emoji} ${cat.label} — Item`;
   el('exp-amount').value = '';
   el('exp-notes').value = '';
+  el('exp-step-cats').classList.add('hidden');
+  el('exp-step-form').classList.remove('hidden');
+  el('exp-submit-btn').style.display = '';
+
+  // Load products for this category from hnhotels.in/api/spend
+  const sel = el('exp-product');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  if (!_hnProductCache[catId]) {
+    try {
+      const r = await fetch(`${HN_SPEND_API}?action=products&pin=${encodeURIComponent(S.pin)}&cat=${catId}`)
+        .then(x => x.json());
+      _hnProductCache[catId] = r.products || [];
+    } catch (e) {
+      _hnProductCache[catId] = [];
+    }
+  }
+  const products = _hnProductCache[catId];
+  if (!products.length) {
+    sel.innerHTML = '<option value="">— no products configured in Odoo —</option>';
+  } else {
+    sel.innerHTML = '<option value="">— Select —</option>' +
+      products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
+}
+
+function expBackToCats() {
+  el('exp-step-form').classList.add('hidden');
+  el('exp-step-cats').classList.remove('hidden');
+  el('exp-submit-btn').style.display = 'none';
   el('exp-error').style.display = 'none';
-  loadTodayExpenses();
+  S.expenseCat = null;
 }
 
 function setPool(pool) {
   S.expensePool = pool;
   el('pool-counter').classList.toggle('active', pool === 'counter');
   el('pool-petty').classList.toggle('active', pool === 'petty');
-  const cats = pool === 'counter' ? COUNTER_CATS : PETTY_CATS;
-  const sel = el('exp-cat');
-  sel.innerHTML = cats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
   el('exp-photo-wrap').classList.toggle('hidden', pool !== 'petty');
 }
 
@@ -1119,35 +1212,65 @@ async function loadTodayExpenses() {
 }
 
 async function submitExpense() {
-  const amount = parseFloat(el('exp-amount').value);
-  const cat = el('exp-cat').value;
-  const notes = el('exp-notes').value.trim();
   el('exp-error').style.display = 'none';
+  const btn = el('exp-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
 
-  if (!amount || amount <= 0) { showExpError('Enter a valid amount'); return; }
-  if (!cat) { showExpError('Select a category'); return; }
-
-  const action = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
   try {
-    const r = await apiPost(`/api/rectify?action=${action}`, {
+    const cat = S.expenseCat;
+    if (!cat) throw new Error('Pick a category first');
+    const product_id = el('exp-product').value;
+    if (!product_id) throw new Error('Pick the item');
+    const amount = parseFloat(el('exp-amount').value);
+    if (!amount || amount <= 0) throw new Error('Enter a valid amount');
+    const payment_method = el('exp-payment').value;
+    const notes = el('exp-notes').value.trim();
+
+    // 1) NCH shift-ledger write (keeps end-of-shift reconciliation intact)
+    const rectifyAction = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
+    const rectifyRes = await apiPost(`/api/rectify?action=${rectifyAction}`, {
       code: S.code,
       pin: S.pin,
-      category_code: cat,
+      category_code: cat.rect_code,
       amount,
-      description: notes,   // API reads 'description', not 'notes'
+      description: `${cat.label}${notes ? ' — ' + notes : ''}`,
       pool: S.expensePool,
-      transaction_type: 'expense'
+      transaction_type: 'expense',
     });
-    if (r.success) {
-      el('exp-amount').value = '';
-      el('exp-notes').value = '';
-      toast(`Expense saved — ₹${fmt(amount)}`, 'ok');
-      loadTodayExpenses();
-    } else {
-      showExpError(r.error || 'Failed to save');
-    }
-  } catch(e) { showExpError('Network error: ' + e.message); }
+    if (!rectifyRes.success) throw new Error(rectifyRes.error || 'Shift-ledger write failed');
+
+    // 2) Odoo hr.expense write via hnhotels.in/api/spend (central P&L)
+    //    Non-blocking on failure — we still saved to shift ledger; Naveen can retry
+    let odooOk = false;
+    try {
+      const odooRes = await fetch(`${HN_SPEND_API}?action=record`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pin: S.pin,
+          category: cat.id,
+          brand: 'NCH',
+          amount,
+          payment_method,
+          product_id: parseInt(product_id, 10),
+          notes,
+        }),
+      }).then(x => x.json());
+      odooOk = !!odooRes.success;
+    } catch (e) { odooOk = false; }
+
+    toast(`Expense saved — ₹${fmt(amount)}${odooOk ? '' : ' (Odoo retry pending)'}`, 'ok');
+    el('exp-amount').value = '';
+    el('exp-notes').value = '';
+    expBackToCats();
+    loadTodayExpenses();
+  } catch (e) {
+    showExpError(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Expense';
+  }
 }
+
 function showExpError(msg) { const e = el('exp-error'); e.textContent = msg; e.style.display = 'block'; }
 
 // ─── SCREEN 7: SHIFT HANDOVER ────────────────────────────
