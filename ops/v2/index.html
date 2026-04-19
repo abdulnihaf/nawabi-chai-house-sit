@@ -44,6 +44,41 @@
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
   .card-sm { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
 
+  /* Expense category cards — explicit color so old Android WebView / iOS Safari PWA
+     don't fall back to black text on our dark card background. */
+  .expense-card {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    background: #1a2234;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    padding: 18px 10px;
+    min-height: 110px;
+    text-align: center;
+    cursor: pointer;
+    color: #e8edf5;                 /* explicit white — fixes dark-on-dark */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background .12s ease, border-color .12s ease, transform .05s ease;
+    -webkit-tap-highlight-color: transparent;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .expense-card:active { transform: scale(0.97); background: #222c42; }
+  .expense-card:hover:not(:active) { border-color: rgba(124,86,247,0.4); }
+  .expense-card .ec-emoji { font-size: 28px; line-height: 1; }
+  .expense-card .ec-label {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.25;
+    color: #e8edf5;                 /* explicit — belt-and-braces */
+    letter-spacing: 0.1px;
+  }
+
   /* ── HERO CARD ── */
   .hero { background: linear-gradient(135deg, #1a1040 0%, #0f1e38 100%); border: 1px solid #2d1f60; border-radius: 16px; padding: 20px; margin: 12px 16px; }
   .hero-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
@@ -1182,9 +1217,9 @@ function initExpense() {
 function renderExpenseCards() {
   const cats = visibleHnCats();
   el('exp-cat-grid').innerHTML = cats.map(c => `
-    <button class="card" style="padding: 16px 8px; text-align: center; cursor: pointer; background: var(--card, #1a1d26); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;" onclick="openExpenseCat(${c.id})">
-      <div style="font-size: 26px;">${c.emoji}</div>
-      <div style="font-weight: 600; font-size: 13px; margin-top: 4px;">${c.label}</div>
+    <button type="button" class="expense-card" onclick="openExpenseCat(${c.id})">
+      <div class="ec-emoji">${c.emoji}</div>
+      <div class="ec-label">${c.label}</div>
     </button>
   `).join('');
 }
