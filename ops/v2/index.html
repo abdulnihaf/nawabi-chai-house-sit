@@ -366,13 +366,12 @@
 
     <!-- Step B: category-specific form (hidden until a card is tapped) -->
     <div id="exp-step-form" class="hidden">
-      <div class="pool-toggle" style="margin: 8px 0 12px;">
-        <div class="pool-opt active" id="pool-counter" onclick="setPool('counter')">Counter Till</div>
-        <div class="pool-opt" id="pool-petty" onclick="setPool('petty')">Petty Cash</div>
+      <div style="padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin:8px 0 12px;font-size:12px;color:var(--muted);text-align:center">
+        💰 Deducted from <b style="color:var(--text)">Counter Till</b>
       </div>
       <div class="input-group">
         <label class="input-label" id="exp-form-label">Item</label>
-        <select id="exp-product" class="input"><option value="">Loading…</option></select>
+        <select id="exp-product" class="input" onchange="onExpProductChange(this)"><option value="">Loading…</option></select>
       </div>
       <div class="input-group">
         <label class="input-label">Amount (₹)</label>
@@ -583,41 +582,33 @@ const PETTY_CATS = [
 ];
 
 // ── Canonical HN expense categories (mirror of hnhotels.in/ops/expense/) ──
-// Every expense here dual-writes:
-//   1) /api/rectify  → NCH shift ledger (only when rect_code is set)
-//   2) hnhotels.in/api/spend → Odoo hr.expense / account.move (ALWAYS)
-//
-// Role-based filtering:
-//   cashier → cash-pool subset only (5,6,7,8,9)
-//   manager/gm/admin → all cats except RM-cart (1) and PO-match (15)
-//
-// rect_code=null → skip local rectify write (Odoo-only cats: owner drawings, direct vendor bill)
+// All 13 cats visible to every role. Backend enforces PIN-level authorisation.
+// Every expense deducts from COUNTER cash (petty-pool concept retired at NCH).
+// rect_code=null → skip local shift-ledger write (Odoo-only: Owner Drawings, Direct Vendor Bill)
 const HN_SPEND_API = 'https://hnhotels.in/api/spend';
 const HN_CATS = [
-  { id: 2,  emoji: '🏗️',  label: 'Capex',                 rect_code: 'ASSET',       rect_pool: 'petty',   cashier: false },
-  { id: 3,  emoji: '👥', label: 'Salary',                 rect_code: 'SALARY',      rect_pool: 'counter', cashier: false },
-  { id: 4,  emoji: '💵', label: 'Employee Advance',       rect_code: 'ADVANCE',     rect_pool: 'counter', cashier: false },
-  { id: 5,  emoji: '🏠', label: 'Rent',                   rect_code: 'MISC',        rect_pool: 'petty',   cashier: true  },
-  { id: 6,  emoji: '💡', label: 'Utility Bill',           rect_code: 'MISC',        rect_pool: 'petty',   cashier: true  },
-  { id: 7,  emoji: '🚓', label: 'Police / Hafta',         rect_code: 'BEAT',        rect_pool: 'counter', cashier: true  },
-  { id: 8,  emoji: '🧹', label: 'Petty / Operations',     rect_code: 'SUPPLIES',    rect_pool: 'petty',   cashier: true  },
-  { id: 9,  emoji: '🔧', label: 'Maintenance / Repair',   rect_code: 'REPAIR',      rect_pool: 'petty',   cashier: true  },
-  { id: 10, emoji: '📢', label: 'Marketing',              rect_code: 'MARKETING',   rect_pool: 'petty',   cashier: false },
-  { id: 11, emoji: '🍚', label: 'Food Supplies',          rect_code: 'FOOD',        rect_pool: 'petty',   cashier: false },
-  { id: 12, emoji: '🧃', label: 'Disposables',            rect_code: 'DISPOSABLES', rect_pool: 'petty',   cashier: false },
-  { id: 13, emoji: '🧳', label: 'Owner Drawings',         rect_code: null,          rect_pool: 'counter', cashier: false }, // Odoo-only
-  { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null,          rect_pool: 'petty',   cashier: false }, // Odoo-only (account.move)
+  { id: 2,  emoji: '🏗️',  label: 'Capex',                 rect_code: 'ASSET'        },
+  { id: 3,  emoji: '👥', label: 'Salary',                 rect_code: 'SALARY'       },
+  { id: 4,  emoji: '💵', label: 'Employee Advance',       rect_code: 'ADVANCE'      },
+  { id: 5,  emoji: '🏠', label: 'Rent',                   rect_code: 'MISC'         },
+  { id: 6,  emoji: '💡', label: 'Utility Bill',           rect_code: 'MISC'         },
+  { id: 7,  emoji: '🚓', label: 'Police / Hafta',         rect_code: 'BEAT'         },
+  { id: 8,  emoji: '🧹', label: 'Petty / Operations',     rect_code: 'SUPPLIES'     },
+  { id: 9,  emoji: '🔧', label: 'Maintenance / Repair',   rect_code: 'REPAIR'       },
+  { id: 10, emoji: '📢', label: 'Marketing',              rect_code: 'MARKETING'    },
+  { id: 11, emoji: '🍚', label: 'Food / Raw Materials',   rect_code: 'FOOD'         },
+  { id: 12, emoji: '🧃', label: 'Disposables',            rect_code: 'DISPOSABLES'  },
+  { id: 13, emoji: '🧳', label: 'Owner Drawings',         rect_code: null           }, // Odoo-only
+  { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null           }, // Odoo-only
 ];
 // Cache: productId list per category (loaded lazily)
 const _hnProductCache = {};
 
-// Role-scoped cat list — derived per-session
+// All 13 cats visible to ANY role that hits this screen.
+// Backend (/api/rectify + hnhotels.in/api/spend) enforces PIN-level authorisation,
+// so if a role tries a cat outside its HN scope it'll be rejected with a clear toast.
 function visibleHnCats() {
-  if (!S.role) return [];
-  const managerRoles = ['admin', 'cfo', 'asstmgr', 'gm', 'manager'];
-  if (managerRoles.includes(S.role)) return HN_CATS;
-  // cashier (and runner if ever) → only the cash-pool 5 cats
-  return HN_CATS.filter(c => c.cashier);
+  return HN_CATS;
 }
 
 // ─── ROUTING ─────────────────────────────────────────────
@@ -733,9 +724,9 @@ function routeByRole() {
   } else if (isManager()) {
     el('cashier-nav-title').textContent = displayLabel;
     el('cashier-nav-sub').textContent = S.role.toUpperCase();
-    // Managers: show Collect + Bootstrap
+    // Managers: show Collect; Bootstrap appears only if today's opening float not yet set
     el('collect-btn').classList.remove('hidden');
-    el('boot-action-btn').classList.remove('hidden');
+    el('boot-action-btn').classList.add('hidden'); // loadCashierHome will un-hide if needed
     show('s-cashier');
     loadCashierHome();
   } else {
@@ -942,13 +933,13 @@ async function loadCashierHome() {
     api('/api/settlement?action=counter-balance').catch(() => null)
   ]);
 
-  // Counter balance card — balance.total, balance.runnerCash, balance.counterCash, balance.totalExpenses
+  // Counter balance card — single source: drawer cash since last collection
   if (balData?.success) {
     const b = balData.balance || {};
     const bal      = safeNum(b.total);
     const runnerIn = safeNum(b.runnerCash);
     const walkIn   = safeNum(b.counterCash);
-    const petty    = safeNum(b.pettyCash);
+    const opening  = safeNum(b.pettyCash);  // field name retained; semantically = opening float
     const exp      = safeNum(b.totalExpenses);
     const cls      = bal > 1000 ? 'ok' : bal > 0 ? 'warn' : 'bad';
     el('cashier-counter-card').innerHTML = `
@@ -956,12 +947,20 @@ async function loadCashierHome() {
         <div class="hero-label">Cash in drawer (since last collection)</div>
         <div class="hero-amount ${cls}">₹${fmt(bal)}</div>
         <div class="hero-meta">
-          <div class="hero-meta-item"><span class="hero-meta-label">Opening float</span><span class="hero-meta-val">₹${fmt(petty)}</span></div>
+          <div class="hero-meta-item"><span class="hero-meta-label">Opening float</span><span class="hero-meta-val">₹${fmt(opening)}</span></div>
           <div class="hero-meta-item"><span class="hero-meta-label">Runner cash in</span><span class="hero-meta-val">₹${fmt(runnerIn)}</span></div>
           <div class="hero-meta-item"><span class="hero-meta-label">Counter sales</span><span class="hero-meta-val">₹${fmt(walkIn)}</span></div>
           <div class="hero-meta-item"><span class="hero-meta-label">Expenses out</span><span class="hero-meta-val">−₹${fmt(exp)}</span></div>
         </div>
       </div>`;
+
+    // Opening-float button visibility: managers only, and only if today's float not yet set.
+    // opening === 0 means bootstrap still pending.
+    if (isManager() && opening <= 0) {
+      el('boot-action-btn').classList.remove('hidden');
+    } else {
+      el('boot-action-btn').classList.add('hidden');
+    }
   } else {
     el('cashier-counter-card').innerHTML = '';
   }
@@ -1152,7 +1151,6 @@ function submitSettleRunner() {
 //   2) hnhotels.in/api/spend → Odoo hr.expense (centralised P&L + Naveen's reports)
 //
 function initExpense() {
-  S.expensePool = 'counter';
   S.expenseCat = null;
   el('exp-step-cats').classList.remove('hidden');
   el('exp-step-form').classList.add('hidden');
@@ -1177,7 +1175,7 @@ async function openExpenseCat(catId) {
   if (!cat) return;
   S.expenseCat = cat;
   // Default the pool toggle to category's natural pool
-  setPool(cat.rect_pool);
+  // petty-pool retired — expenses always from counter till
   el('exp-form-label').textContent = `${cat.emoji} ${cat.label} — Item`;
   el('exp-amount').value = '';
   el('exp-notes').value = '';
@@ -1198,11 +1196,13 @@ async function openExpenseCat(catId) {
     }
   }
   const products = _hnProductCache[catId];
+  const addNewOpt = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new item…</option>`;
   if (!products.length) {
-    sel.innerHTML = '<option value="">— no products configured in Odoo —</option>';
+    sel.innerHTML = '<option value="">— none yet —</option>' + addNewOpt;
   } else {
     sel.innerHTML = '<option value="">— Select —</option>' +
-      products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      products.map(p => `<option value="${p.id}">${p.name}</option>`).join('') +
+      addNewOpt;
   }
 }
 
@@ -1214,11 +1214,36 @@ function expBackToCats() {
   S.expenseCat = null;
 }
 
-function setPool(pool) {
-  S.expensePool = pool;
-  el('pool-counter').classList.toggle('active', pool === 'counter');
-  el('pool-petty').classList.toggle('active', pool === 'petty');
-  el('exp-photo-wrap').classList.toggle('hidden', pool !== 'petty');
+// petty cash retired at NCH — everything from counter till.
+function setPool(/* ignored */) { S.expensePool = 'counter'; }
+
+// Handle "+ Add new item" option in product dropdown
+async function onExpProductChange(sel) {
+  if (sel.value !== '__new__') return;
+  sel.value = '';
+  const cat = S.expenseCat;
+  if (!cat) return;
+  const name = prompt(`New item name under "${cat.label}" (e.g. Milk, Sugar, Gas cylinder):`);
+  if (!name || !name.trim()) return;
+  try {
+    const r = await fetch(`${HN_SPEND_API}?action=create-expense-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: S.pin, cat_id: cat.id, name: name.trim() }),
+    }).then(x => x.json());
+    if (!r.success) throw new Error(r.error || 'Create failed');
+    // Append to cache + dropdown, auto-select
+    _hnProductCache[cat.id] = _hnProductCache[cat.id] || [];
+    _hnProductCache[cat.id].push(r.product);
+    const opt = document.createElement('option');
+    opt.value = r.product.id;
+    opt.textContent = r.product.name;
+    opt.selected = true;
+    sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+    toast(`✓ Added "${r.product.name}"`, 'ok');
+  } catch (e) {
+    toast('Could not add: ' + e.message, 'err');
+  }
 }
 
 async function loadTodayExpenses() {
@@ -1251,17 +1276,17 @@ async function submitExpense() {
     const payment_method = el('exp-payment').value;
     const notes = el('exp-notes').value.trim();
 
-    // 1) NCH shift-ledger write — SKIP for Odoo-only cats (13 Owner Drawings, 14 Direct Vendor Bill)
-    //    These aren't cash-register events; they go straight to Odoo accounting.
+    // 1) NCH shift-ledger write — always from COUNTER till (no petty pool).
+    //    SKIP for Odoo-only cats (13 Owner Drawings, 14 Direct Vendor Bill) — those
+    //    aren't cash-register events; they go straight to Odoo accounting.
     if (cat.rect_code) {
-      const rectifyAction = S.expensePool === 'counter' ? 'record-expense' : 'petty-expense';
-      const rectifyRes = await apiPost(`/api/rectify?action=${rectifyAction}`, {
+      const rectifyRes = await apiPost(`/api/rectify?action=record-expense`, {
         code: S.code,
         pin: S.pin,
         category_code: cat.rect_code,
         amount,
         description: `${cat.label}${notes ? ' — ' + notes : ''}`,
-        pool: S.expensePool,
+        pool: 'counter',
         transaction_type: 'expense',
       });
       if (!rectifyRes.success) throw new Error(rectifyRes.error || 'Shift-ledger write failed');
@@ -1669,28 +1694,82 @@ async function toggleCashierHistory(btn) {
 
     let html = '';
 
-    // ── Runner settlements
+    // ── VARIANCE SUMMARY (top of audit trail) ────────────────
     const settlements = settlementsData.settlements || [];
+    let totalShort = 0, totalOver = 0, exactCount = 0, shortCount = 0, overCount = 0;
+    settlements.forEach(s => {
+      const v = safeNum(s.variance);
+      if (Math.abs(v) < 5) exactCount++;
+      else if (v < 0) { totalShort += Math.abs(v); shortCount++; }
+      else { totalOver += v; overCount++; }
+    });
+    const totalExpenses = (expensesData.expenses || []).reduce((sum, e) => sum + safeNum(e.amount), 0);
+    const totalCollected = (collectionsData.collected || []).reduce((sum, c) => sum + safeNum(c.amount), 0);
+
+    html += `<div class="card" style="padding:12px;margin-bottom:10px;background:var(--card2);border-color:${totalShort > 0 ? 'rgba(239,83,80,.4)' : 'var(--border)'}">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Audit Trail Summary</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+        <div style="padding:10px;background:${totalShort > 0 ? 'var(--red-dim)' : 'rgba(255,255,255,.02)'};border-radius:8px;border:1px solid ${totalShort > 0 ? 'rgba(239,83,80,.3)' : 'var(--border)'}">
+          <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">MISSING CASH</div>
+          <div style="font-size:18px;font-weight:800;color:${totalShort > 0 ? 'var(--red)' : 'var(--green)'};margin-top:4px">₹${fmt(totalShort)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${shortCount} settlement${shortCount!==1?'s':''} short</div>
+        </div>
+        <div style="padding:10px;background:${totalOver > 0 ? 'var(--amber-dim)' : 'rgba(255,255,255,.02)'};border-radius:8px;border:1px solid ${totalOver > 0 ? 'rgba(245,158,11,.3)' : 'var(--border)'}">
+          <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">EXCESS CASH</div>
+          <div style="font-size:18px;font-weight:800;color:${totalOver > 0 ? 'var(--amber)' : 'var(--dim)'};margin-top:4px">₹${fmt(totalOver)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${overCount} settlement${overCount!==1?'s':''} over</div>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--border)">
+          <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">EXACT MATCHES</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green);margin-top:4px">${exactCount}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">of ${settlements.length} total</div>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--border)">
+          <div style="color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">NET VARIANCE</div>
+          <div style="font-size:18px;font-weight:800;color:${totalOver-totalShort>=0?'var(--green)':'var(--red)'};margin-top:4px">${totalOver-totalShort>=0?'+':'−'}₹${fmt(Math.abs(totalOver-totalShort))}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">over − short</div>
+        </div>
+      </div>
+    </div>`;
+
+    // ── Runner settlements (detailed)
     html += `<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Runner Settlements (last 30)</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Runner Settlements (last 30) — expected vs received</div>
       <div class="card" style="padding:0">`;
     if (!settlements.length) {
       html += `<div style="padding:14px;color:var(--dim);font-size:13px;text-align:center">No settlements</div>`;
     } else {
       settlements.forEach(s => {
         const variance = safeNum(s.variance);
-        const varTxt = Math.abs(variance) < 5 ? '✓' :
+        const expected = safeNum(s.expected_cash ?? s.expected ?? (safeNum(s.cash_settled) - variance));
+        const entered  = safeNum(s.cash_settled);
+        const varTxt = Math.abs(variance) < 5 ? '✓ EXACT' :
           variance < 0 ? `▼ SHORT ₹${fmt(Math.abs(variance))}` : `▲ OVER ₹${fmt(variance)}`;
         const varCls = Math.abs(variance) < 5 ? 'var(--green)' : variance < 0 ? 'var(--red)' : 'var(--amber)';
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="font-size:13px;font-weight:600">${runnerDisplayLabel(s.barcode)} → ${s.settled_by || '—'}</div>
-            <div style="font-size:11px;color:${varCls};margin-top:1px">${varTxt}</div>
+        const varBg  = Math.abs(variance) < 5 ? 'var(--green-dim)' : variance < 0 ? 'var(--red-dim)' : 'var(--amber-dim)';
+        html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <div>
+              <div style="font-size:13px;font-weight:700">${runnerDisplayLabel(s.barcode)} → ${s.settled_by || '—'}</div>
+              <div style="font-size:10px;color:var(--dim);margin-top:1px">${fmtDatetime(s.settled_at)}</div>
+            </div>
+            <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:${varBg};color:${varCls}">${varTxt}</span>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:14px;font-weight:700">₹${fmt(safeNum(s.cash_settled))}</div>
-            <div style="font-size:10px;color:var(--dim)">${fmtDatetime(s.settled_at)}</div>
+          <div style="display:flex;gap:8px;font-size:11px;margin-top:6px">
+            <div style="flex:1;padding:6px 8px;background:rgba(255,255,255,.02);border-radius:6px">
+              <div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.05em">EXPECTED</div>
+              <div style="color:var(--text);font-weight:700;margin-top:1px">₹${fmt(expected)}</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:rgba(255,255,255,.02);border-radius:6px">
+              <div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.05em">RECEIVED</div>
+              <div style="color:var(--text);font-weight:700;margin-top:1px">₹${fmt(entered)}</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:${varBg};border-radius:6px">
+              <div style="color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.05em">VARIANCE</div>
+              <div style="color:${varCls};font-weight:700;margin-top:1px">${variance >= 0 ? '+' : '−'}₹${fmt(Math.abs(variance))}</div>
+            </div>
           </div>
+          ${s.notes ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">📝 ${s.notes}</div>` : ''}
         </div>`;
       });
     }
