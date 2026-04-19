@@ -591,35 +591,36 @@ const PETTY_CATS = [
   {code:'MISC',       name:'Miscellaneous'},
 ];
 
-// ── Canonical HN expense categories (mirror of hnhotels.in/ops/expense/) ──
-// All 13 cats visible to every role. Backend enforces PIN-level authorisation.
-// Every expense deducts from COUNTER cash (petty-pool concept retired at NCH).
-// rect_code=null → skip local shift-ledger write (Odoo-only: Owner Drawings, Direct Vendor Bill)
+// ── Canonical HN expense categories — EXACT MIRROR of spend.js CATEGORIES ──
+// All 14 cats visible. Every expense deducts from COUNTER cash at NCH.
+// Cat 1 Raw Material Purchase: at outlet this is a direct cash expense (not a PO).
+// Cats 13 + 14 are Odoo-only (skip NCH shift ledger), everything else dual-writes.
 const HN_SPEND_API = 'https://hnhotels.in/api/spend';
 const HN_CATS = [
-  { id: 2,  emoji: '🏗️',  label: 'Capex',                 rect_code: 'ASSET'        },
-  { id: 3,  emoji: '👥', label: 'Salary',                 rect_code: 'SALARY'       },
-  { id: 4,  emoji: '💵', label: 'Employee Advance',       rect_code: 'ADVANCE'      },
-  { id: 5,  emoji: '🏠', label: 'Rent',                   rect_code: 'MISC'         },
-  { id: 6,  emoji: '💡', label: 'Utility Bill',           rect_code: 'MISC'         },
-  { id: 7,  emoji: '🚓', label: 'Police / Hafta',         rect_code: 'BEAT'         },
-  { id: 8,  emoji: '🧹', label: 'Petty / Operations',     rect_code: 'SUPPLIES'     },
-  { id: 9,  emoji: '🔧', label: 'Maintenance / Repair',   rect_code: 'REPAIR'       },
-  { id: 10, emoji: '📢', label: 'Marketing',              rect_code: 'MARKETING'    },
-  { id: 11, emoji: '🍚', label: 'Food / Raw Materials',   rect_code: 'FOOD'         },
-  { id: 12, emoji: '🧃', label: 'Disposables',            rect_code: 'DISPOSABLES'  },
-  { id: 13, emoji: '🧳', label: 'Owner Drawings',         rect_code: null           }, // Odoo-only
-  { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null           }, // Odoo-only
+  { id: 1,  emoji: '🥩', label: 'Raw Material Purchase',  rect_code: 'RM'            },
+  { id: 2,  emoji: '🏗️',  label: 'Capex / Equipment',      rect_code: 'ASSET'         },
+  { id: 3,  emoji: '💼', label: 'Salary Payment',         rect_code: 'SALARY'        },
+  { id: 4,  emoji: '💰', label: 'Salary Advance',         rect_code: 'ADVANCE'       },
+  { id: 5,  emoji: '🏠', label: 'Rent',                   rect_code: 'MISC'          },
+  { id: 6,  emoji: '💡', label: 'Utility Bill',           rect_code: 'MISC'          },
+  { id: 7,  emoji: '🚓', label: 'Police / Hafta',         rect_code: 'BEAT'          },
+  { id: 8,  emoji: '🧹', label: 'Petty / Operations',     rect_code: 'SUPPLIES'      },
+  { id: 9,  emoji: '🔧', label: 'Maintenance / Repair',   rect_code: 'REPAIR'        },
+  { id: 10, emoji: '📢', label: 'Marketing / Ads',        rect_code: 'MARKETING'     },
+  { id: 11, emoji: '💻', label: 'Tech / SaaS / Bank',     rect_code: 'TECH'          },
+  { id: 12, emoji: '📋', label: 'Audit / Legal',          rect_code: 'LEGAL'         },
+  { id: 13, emoji: '👨‍👩‍👧', label: 'Owner / Family Drawing', rect_code: null            }, // Odoo-only
+  { id: 14, emoji: '🧾', label: 'Direct Vendor Bill',     rect_code: null            }, // Odoo-only
 ];
 // Cache: per-category product list, and global vendor / employee lists
 const _hnProductCache = {};
 let _hnVendorCache = null;
 let _hnEmployeeCache = null;
 
-// Vendor required on cats: 2 (Capex), 5-12, 14 (direct bill). Not on cat 13 (owner drawings).
-const VENDOR_REQUIRED_CATS = new Set([2, 5, 6, 7, 8, 9, 10, 11, 12, 14]);
+// Vendor required on every cash-paid cat. Cat 3/4 use employee; cat 13 is internal (no vendor).
+const VENDOR_REQUIRED_CATS = new Set([1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 14]);
 const EMPLOYEE_REQUIRED_CATS = new Set([3, 4]);  // salary, advance
-// Cats where /api/spend?action=products returns [] (not hr.expense backend) — skip product dropdown
+// Cat 14 (Direct Vendor Bill): no product dropdown — vendor_name is the line item
 const NO_PRODUCT_CATS = new Set([14]);
 
 // All 13 cats visible to ANY role that hits this screen.
