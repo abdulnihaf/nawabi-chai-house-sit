@@ -68,6 +68,24 @@
     width: 100%;
     box-sizing: border-box;
   }
+  /* Searchable combobox (product + vendor) */
+  .searchable { position: relative; }
+  .searchable-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: #1a2234; border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; max-height: 260px; overflow-y: auto; z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .searchable-item {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: #e8edf5; font-size: 13px; line-height: 1.3;
+  }
+  .searchable-item:hover, .searchable-item.active {
+    background: rgba(124,86,247,0.18);
+  }
+  .searchable-item .meta { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .searchable-add { color: #a78bfa; font-weight: 700; border-bottom: none; }
+  .searchable-empty { padding: 14px; color: rgba(255,255,255,0.4); font-size: 12px; text-align: center; }
   .expense-card:active { transform: scale(0.97); background: #222c42; }
   .expense-card:hover:not(:active) { border-color: rgba(124,86,247,0.4); }
   .expense-card .ec-emoji { font-size: 28px; line-height: 1; }
@@ -404,31 +422,51 @@
       <div style="padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin:8px 0 12px;font-size:12px;color:var(--muted);text-align:center">
         💰 Deducted from <b style="color:var(--text)">Counter Till</b>
       </div>
+      <!-- Product: searchable combobox -->
       <div class="input-group" id="exp-product-wrap">
         <label class="input-label" id="exp-form-label">Item</label>
-        <select id="exp-product" class="input" onchange="onExpProductChange(this)"><option value="">Loading…</option></select>
+        <div class="searchable">
+          <input id="exp-product-search" class="input" type="text" autocomplete="off"
+                 placeholder="Search or + add new item…"
+                 oninput="sFilter('product', this.value)"
+                 onfocus="sOpen('product')"
+                 onblur="setTimeout(()=>sClose('product'), 200)">
+          <div id="exp-product-list" class="searchable-list hidden"></div>
+        </div>
+        <input type="hidden" id="exp-product">
       </div>
+
+      <!-- Vendor: searchable combobox -->
       <div class="input-group" id="exp-vendor-wrap">
         <label class="input-label">Vendor *</label>
-        <select id="exp-vendor" class="input" onchange="onExpVendorChange(this)"><option value="">Loading…</option></select>
+        <div class="searchable">
+          <input id="exp-vendor-search" class="input" type="text" autocomplete="off"
+                 placeholder="Search or + add new vendor…"
+                 oninput="sFilter('vendor', this.value)"
+                 onfocus="sOpen('vendor')"
+                 onblur="setTimeout(()=>sClose('vendor'), 200)">
+          <div id="exp-vendor-list" class="searchable-list hidden"></div>
+        </div>
+        <input type="hidden" id="exp-vendor">
       </div>
+
       <div class="input-group hidden" id="exp-employee-wrap">
         <label class="input-label">Employee *</label>
         <select id="exp-employee" class="input"><option value="">Loading…</option></select>
       </div>
+
       <div class="input-group">
         <label class="input-label">Amount (₹)</label>
         <input id="exp-amount" class="input input-amount" type="number" inputmode="decimal" placeholder="0">
       </div>
+
+      <!-- Payment method: LOCKED to Cash. Counter expenses are cash-only by rule. -->
+      <input type="hidden" id="exp-payment" value="cash">
       <div class="input-group">
         <label class="input-label">Payment method</label>
-        <select id="exp-payment" class="input">
-          <option value="cash">Cash</option>
-          <option value="hdfc_bank">HDFC</option>
-          <option value="federal_bank">Federal</option>
-          <option value="razorpay">Razorpay</option>
-          <option value="paytm">Paytm (UPI)</option>
-        </select>
+        <div style="padding:12px 14px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 10px; font-size: 13px; font-weight: 600; color: #34d399;">
+          💵 Cash — from counter till
+        </div>
       </div>
       <div class="input-group">
         <label class="input-label">Notes (optional)</label>
@@ -1242,39 +1280,30 @@ async function openExpenseCat(catId) {
   el('exp-vendor-wrap').classList.toggle('hidden', !showVendor);
   el('exp-employee-wrap').classList.toggle('hidden', !showEmployee);
 
-  // ── Products
+  // ── Products (searchable, brand-filtered to NCH)
   if (showProducts) {
-    const sel = el('exp-product');
-    sel.innerHTML = '<option value="">Loading…</option>';
+    el('exp-product-search').value = '';
+    el('exp-product').value = '';
     if (!_hnProductCache[catId]) {
       try {
-        const r = await fetch(`${HN_SPEND_API}?action=products&pin=${encodeURIComponent(S.pin)}&cat=${catId}`).then(x => x.json());
+        const r = await fetch(`${HN_SPEND_API}?action=products&pin=${encodeURIComponent(S.pin)}&cat=${catId}&brand=NCH`).then(x => x.json());
         _hnProductCache[catId] = r.products || [];
       } catch (e) { _hnProductCache[catId] = []; }
     }
-    const products = _hnProductCache[catId];
-    const addNewOpt = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new item…</option>`;
-    if (!products.length) {
-      sel.innerHTML = '<option value="">— none configured — tap + Add new item —</option>' + addNewOpt;
-    } else {
-      sel.innerHTML = '<option value="">— Select —</option>' +
-        products.map(p => `<option value="${p.id}">${p.name}</option>`).join('') + addNewOpt;
-    }
+    sRender('product', _hnProductCache[catId], '');
   }
 
-  // ── Vendor (cached)
+  // ── Vendor (cached, searchable, NCH-scoped)
   if (showVendor) {
-    const sel = el('exp-vendor');
-    sel.innerHTML = '<option value="">Loading vendors…</option>';
+    el('exp-vendor-search').value = '';
+    el('exp-vendor').value = '';
     if (_hnVendorCache === null) {
       try {
         const r = await fetch(`${HN_SPEND_API}?action=vendors&pin=${encodeURIComponent(S.pin)}&brand=NCH`).then(x => x.json());
         _hnVendorCache = r.vendors || [];
       } catch (e) { _hnVendorCache = []; }
     }
-    const addNewVend = `<option value="__new__" style="color:var(--purple);font-weight:600">+ Add new vendor…</option>`;
-    sel.innerHTML = '<option value="">— Select vendor —</option>' +
-      _hnVendorCache.map(v => `<option value="${v.id}">${v.name}${v.phone ? ' · ' + v.phone : ''}</option>`).join('') + addNewVend;
+    sRender('vendor', _hnVendorCache, '');
   }
 
   // ── Employee (for salary / advance)
@@ -1330,7 +1359,97 @@ async function readExpPhoto() {
   } catch (e) { return null; }
 }
 
-// Vendor dropdown — "+ Add new vendor" inline create
+// ─── SEARCHABLE COMBOBOX (product + vendor) ───────────────
+function sOpen(kind) {
+  const list = el(`exp-${kind}-list`);
+  const source = kind === 'product' ? _hnProductCache[S.expenseCat?.id] : _hnVendorCache;
+  if (!source) return;
+  const q = el(`exp-${kind}-search`).value || '';
+  sRender(kind, source, q);
+  list.classList.remove('hidden');
+}
+function sClose(kind) { el(`exp-${kind}-list`).classList.add('hidden'); }
+
+function sFilter(kind, q) {
+  const source = kind === 'product' ? _hnProductCache[S.expenseCat?.id] : _hnVendorCache;
+  if (!source) return;
+  sRender(kind, source, q);
+  el(`exp-${kind}-list`).classList.remove('hidden');
+}
+
+function sRender(kind, items, q) {
+  const needle = (q || '').toLowerCase().trim();
+  const filtered = needle
+    ? items.filter(x => (x.name || '').toLowerCase().includes(needle) ||
+                        (x.default_code || '').toLowerCase().includes(needle) ||
+                        (x.phone || '').includes(needle))
+    : items;
+
+  const rows = filtered.slice(0, 50).map(x => {
+    const label = esc(x.name);
+    const meta = kind === 'product'
+      ? (x.default_code ? `code ${esc(x.default_code)}` : '')
+      : (x.phone ? esc(x.phone) : '');
+    return `<div class="searchable-item" onmousedown="sPick('${kind}', ${x.id}, '${esc(x.name).replace(/'/g, "\\'")}')">
+      <div>${label}</div>
+      ${meta ? `<div class="meta">${meta}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const moreCount = filtered.length > 50 ? `<div class="searchable-empty">${filtered.length - 50} more · refine search</div>` : '';
+  const empty = filtered.length === 0 ? `<div class="searchable-empty">No match. Type and tap "+ Add" below to create new.</div>` : '';
+
+  const addLabel = kind === 'product' ? '+ Add new item' : '+ Add new vendor';
+  const addRow = needle
+    ? `<div class="searchable-item searchable-add" onmousedown="sAddNew('${kind}', '${esc(needle).replace(/'/g, "\\'")}')">${addLabel}: "${esc(q)}"</div>`
+    : `<div class="searchable-item searchable-add" onmousedown="sAddNew('${kind}', '')">${addLabel}…</div>`;
+
+  el(`exp-${kind}-list`).innerHTML = rows + empty + moreCount + addRow;
+}
+
+function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function sPick(kind, id, name) {
+  el(`exp-${kind}`).value = id;
+  el(`exp-${kind}-search`).value = name;
+  el(`exp-${kind}-list`).classList.add('hidden');
+}
+
+async function sAddNew(kind, prefilledName) {
+  const label = kind === 'product' ? 'item' : 'vendor';
+  const name = prompt(`New ${label} name${kind==='product' ? ' (e.g. Pomegranate, Kashmiri Chilli Powder)' : ' (e.g. Sharma Sabzi, BESCOM)'}:`, prefilledName);
+  if (!name || !name.trim()) return;
+
+  try {
+    let r;
+    if (kind === 'product') {
+      r = await fetch(`${HN_SPEND_API}?action=create-expense-product`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ pin: S.pin, cat_id: S.expenseCat?.id, name: name.trim() }),
+      }).then(x => x.json());
+      if (!r.success) throw new Error(r.error || 'Create failed');
+      const p = { id: r.product.id, name: r.product.name, default_code: null };
+      (_hnProductCache[S.expenseCat.id] || []).push(p);
+      sPick('product', p.id, p.name);
+    } else {
+      const phone = prompt(`Phone for ${name.trim()} (optional, 10 digits):`, '') || '';
+      r = await fetch(`${HN_SPEND_API}?action=create-vendor`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ pin: S.pin, name: name.trim(), phone: phone.trim() }),
+      }).then(x => x.json());
+      if (!r.success) throw new Error(r.error || 'Create failed');
+      _hnVendorCache = _hnVendorCache || [];
+      _hnVendorCache.push(r.vendor);
+      sPick('vendor', r.vendor.id, r.vendor.name);
+    }
+    toast(`✓ Added ${label} "${name.trim()}"`, 'ok');
+  } catch (e) {
+    toast(`Could not add ${label}: ${e.message}`, 'err');
+  }
+}
+
+// Keep old vendor/product handlers as no-ops so the HTML onchange attrs don't break legacy callers
+async function onExpProductChange(sel) {}
 async function onExpVendorChange(sel) {
   if (sel.value !== '__new__') return;
   sel.value = '';
@@ -1428,13 +1547,12 @@ async function submitExpense() {
       if (!product_id) throw new Error('Pick the item');
     }
 
-    // Vendor required on most cats (not on 3,4,13)
+    // Vendor required on most cats (not on 3,4,13) — combobox hidden input + search text
     let vendor_id = null, vendor_name = null;
     if (VENDOR_REQUIRED_CATS.has(cat.id)) {
-      const vSel = el('exp-vendor');
-      vendor_id = vSel.value;
-      if (!vendor_id || vendor_id === '__new__') throw new Error('Pick a vendor — every expense must tie to a vendor');
-      vendor_name = vSel.selectedOptions[0]?.text?.split(' · ')[0] || '';
+      vendor_id = el('exp-vendor').value;
+      if (!vendor_id) throw new Error('Pick a vendor — every expense must tie to a vendor');
+      vendor_name = el('exp-vendor-search').value || '';
     }
 
     // Employee required on cats 3, 4 (salary / advance)
