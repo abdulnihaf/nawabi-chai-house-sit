@@ -68,6 +68,45 @@
     width: 100%;
     box-sizing: border-box;
   }
+  /* Live shift badge — visible on EVERY screen */
+  .shift-badge {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(16,185,129,0.12);
+    border-bottom: 1px solid rgba(16,185,129,0.3);
+    padding: 8px 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #34d399;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .shift-badge .pulse {
+    width: 8px; height: 8px; border-radius: 50%; background: #34d399;
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.25);
+    animation: shiftPulse 2s infinite;
+  }
+  @keyframes shiftPulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  .shift-badge .lbl { color: rgba(255,255,255,0.5); font-size: 11px; margin-right: 4px; }
+  .shift-badge .name { font-weight: 800; color: #34d399; font-size: 13px; }
+  .shift-badge .since { color: rgba(255,255,255,0.55); margin-left: auto; font-size: 11px; }
+  .shift-badge .handover-link {
+    color: rgba(255,255,255,0.5); font-size: 10px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 999px;
+  }
+  .shift-badge.hidden-empty { display: none; }
+  body.has-shift-badge #app { padding-top: 36px; }
+
+  /* Historical shift trail panel */
+  .shift-trail-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 6px; font-size: 12px;
+  }
+  .shift-trail-row .t-time { color: rgba(255,255,255,0.4); min-width: 60px; font-size: 11px; }
+  .shift-trail-row .t-arrow { color: rgba(255,255,255,0.3); }
+  .shift-trail-row .t-name { font-weight: 700; color: var(--text); }
+  .shift-trail-row.t-current { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.05); }
+
   /* Searchable combobox (product + vendor) */
   .searchable { position: relative; }
   .searchable-list {
@@ -268,6 +307,14 @@
 </head>
 <body>
 
+<!-- Live shift badge — visible on ALL screens including pin login -->
+<div id="shift-badge" class="shift-badge hidden-empty">
+  <span class="pulse"></span>
+  <span class="lbl">CASHIER ON SHIFT:</span>
+  <span class="name" id="shift-name">—</span>
+  <span class="since" id="shift-since"></span>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════
      SCREEN 1: PIN LOGIN
 ═══════════════════════════════════════════════════════ -->
@@ -339,6 +386,10 @@
     <div id="cashier-counter-card" style="padding:12px 16px 0">
       <div class="loading" style="padding:12px 0"><div class="spinner"></div></div>
     </div>
+
+    <!-- Today's shift trail — chronological cashier handovers -->
+    <div id="cashier-shift-trail" style="padding:4px 16px 0"></div>
+
     <div class="section-hdr" style="padding-top:4px"><span class="section-title">Runners — cash in hand</span></div>
     <div id="cashier-runner-grid" class="runner-grid">
       <div class="loading"><div class="spinner"></div><br>Loading runners…</div>
@@ -703,6 +754,36 @@ function visibleHnCats() {
 }
 
 // ─── ROUTING ─────────────────────────────────────────────
+// ─── LIVE SHIFT BADGE (auto-refreshes, visible everywhere) ───
+let _shiftPoll = null;
+async function loadCurrentShift() {
+  try {
+    const r = await fetch('/api/settlement?action=current-shift').then(x => x.json());
+    const badge = document.getElementById('shift-badge');
+    if (!r.success || !r.current) {
+      badge.classList.add('hidden-empty');
+      document.body.classList.remove('has-shift-badge');
+      return null;
+    }
+    const c = r.current;
+    document.getElementById('shift-name').textContent = `${c.name} (${c.code})`;
+    const mins = c.shift_minutes;
+    const sinceText = mins < 60 ? `${mins}m` :
+      mins < 1440 ? `${Math.floor(mins/60)}h ${mins%60}m` :
+      `${Math.floor(mins/1440)}d`;
+    const startIST = new Date(c.shift_start_at).toLocaleTimeString('en-IN',
+      {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'});
+    document.getElementById('shift-since').textContent = `since ${startIST} · ${sinceText} ago`;
+    badge.classList.remove('hidden-empty');
+    document.body.classList.add('has-shift-badge');
+    S._currentShift = c;
+    return c;
+  } catch (e) { return null; }
+}
+// Start polling on page load — refresh every 60 seconds
+loadCurrentShift();
+_shiftPoll = setInterval(loadCurrentShift, 60000);
+
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById(id);
@@ -871,7 +952,20 @@ function renderRunnerView(d, runner) {
   const amtClass = cih > 0 ? 'ok' : cih < 0 ? 'bad' : '';
   const periodLabel = d.period?.startFormatted || fmtPeriod(d.period?.from || d.period_start);
 
-  let html = `
+  // "Settle to:" banner — makes it unambiguous who the runner hands cash to
+  const cur = S._currentShift;
+  const settleToBanner = cur
+    ? `<div style="margin:12px 16px 8px;padding:12px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);border-radius:12px;display:flex;align-items:center;gap:10px">
+         <div style="font-size:22px">💰</div>
+         <div style="flex:1">
+           <div style="font-size:10px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.5px">HAND CASH TO</div>
+           <div style="font-size:17px;font-weight:800;color:#34d399;margin-top:2px">${esc(cur.name)}</div>
+           <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px">on shift since ${new Date(cur.shift_start_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'})}</div>
+         </div>
+       </div>`
+    : '';
+
+  let html = settleToBanner + `
     <div class="hero">
       <div class="hero-label">Cash you should have</div>
       <div class="hero-amount ${amtClass}" style="font-size:40px;font-family:'SF Mono',monospace">${cih < 0 ? '−' : ''}₹${fmt(Math.abs(cih))}</div>
@@ -1019,10 +1113,34 @@ async function loadCashierHome() {
   el('cashier-runner-grid').innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading runners…</div>';
   el('cashier-counter-card').innerHTML = '<div class="loading" style="padding:12px 0"><div class="spinner"></div></div>';
 
-  const [runnerResults, balData] = await Promise.all([
+  const [runnerResults, balData, shiftData] = await Promise.all([
     Promise.allSettled(RUNNERS.map(r => api(`/api/settlement?action=runner-live&runner_id=${r.partner_id}&barcode=${r.code}`))),
-    api('/api/settlement?action=counter-balance').catch(() => null)
+    api('/api/settlement?action=counter-balance').catch(() => null),
+    api('/api/settlement?action=current-shift').catch(() => null),
   ]);
+
+  // Today's shift trail
+  if (shiftData?.success && (shiftData.trail_today || []).length) {
+    const cur = shiftData.current;
+    const rows = shiftData.trail_today.map((t, i, arr) => {
+      const isCurrent = i === arr.length - 1;
+      const timeIST = new Date(t.at).toLocaleTimeString('en-IN',
+        {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'});
+      const icon = t.type === 'bootstrap' ? '⚡' : '🔄';
+      const desc = t.type === 'bootstrap'
+        ? `<span class="t-name">${esc(t.to_name)}</span> opened drawer with ₹${fmt(t.opening_float)}`
+        : `<span class="t-name">${esc(t.from_name)}</span> <span class="t-arrow">→</span> <span class="t-name">${esc(t.to_name)}</span>${t.drawer_variance ? ` · variance ${t.drawer_variance > 0 ? '+' : ''}₹${fmt(Math.abs(t.drawer_variance))}` : ''}`;
+      return `<div class="shift-trail-row ${isCurrent ? 't-current' : ''}">
+        <div class="t-time">${timeIST}</div>
+        <div>${icon} ${desc}${isCurrent ? ' <span style="color:#34d399;font-size:10px;margin-left:6px">● LIVE</span>' : ''}</div>
+      </div>`;
+    }).join('');
+    el('cashier-shift-trail').innerHTML = `
+      <div class="section-hdr" style="padding:8px 0 4px"><span class="section-title">Today's shift trail</span></div>
+      ${rows}`;
+  } else {
+    el('cashier-shift-trail').innerHTML = '';
+  }
 
   // Counter balance card — single source: drawer cash since last collection
   if (balData?.success) {
@@ -1727,6 +1845,7 @@ async function submitShiftHandover() {
     if (r.success) {
       S.shiftPreview = null;
       toast('Shift handover recorded', 'ok');
+      loadCurrentShift();   // refresh sticky badge immediately
       goBack();
     } else {
       el('sh-error').textContent = r.error || 'Failed';

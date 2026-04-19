@@ -306,6 +306,76 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, message: 'Expense recorded: ₹' + amount + ' for ' + reason + attrMsg}), {headers: corsHeaders});
     }
 
+    // === CURRENT SHIFT — who is the live cashier right now ===
+    // Returns: current cashier (derived from latest cashier_shifts row),
+    //          shift_start_at, opening float, prior cashier (for timeline),
+    //          all shift changes today for the trail panel.
+    if (action === 'current-shift') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'DB not configured'}), {headers: corsHeaders});
+
+      // Map code → display name (mirrors HANDOVER_STAFF in ops/v2/index.html)
+      const NAME_BY_CODE = {
+        'CASH001': 'Kismat', 'CASH002': 'Nafeez', 'CASH003': 'Waseem', 'CASH004': 'CASH004',
+        'GM001': 'Basheer', 'MGR001': 'Tanveer', 'ADMIN001': 'Nihaf',
+      };
+
+      // Latest row = last shift event (either bootstrap or handover)
+      const latest = await DB.prepare(
+        'SELECT * FROM cashier_shifts ORDER BY settled_at DESC LIMIT 1'
+      ).first();
+      if (!latest) {
+        return new Response(JSON.stringify({success: true, current: null, reason: 'No shift on record'}), {headers: corsHeaders});
+      }
+
+      // If handover_to is set, this row ENDED the shift of cashier_name and STARTED handover_to's shift.
+      // If handover_to is empty/null, this is a bootstrap — cashier_name IS currently on shift.
+      const isHandover = !!(latest.handover_to && latest.handover_to.trim());
+      const currentCode = isHandover ? latest.handover_to : latest.cashier_name;
+      const priorCode = isHandover ? latest.cashier_name : null;
+      const shiftStartAt = latest.settled_at;
+
+      // Today's full shift trail (all rows since IST midnight)
+      const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+      const todayStart = new Date(todayIST + 'T00:00:00+05:30').toISOString();
+      const trailRows = await DB.prepare(
+        'SELECT settled_at, cashier_name, handover_to, drawer_cash_entered, drawer_variance, petty_cash_start FROM cashier_shifts WHERE settled_at >= ? ORDER BY settled_at ASC'
+      ).bind(todayStart).all();
+
+      // Build a human-readable trail: each row is a shift event
+      const trail = (trailRows.results || []).map(r => {
+        const handover = !!(r.handover_to && r.handover_to.trim());
+        return {
+          at: r.settled_at,
+          type: handover ? 'handover' : 'bootstrap',
+          from_code: handover ? r.cashier_name : null,
+          from_name: handover ? (NAME_BY_CODE[r.cashier_name] || r.cashier_name) : null,
+          to_code: handover ? r.handover_to : r.cashier_name,
+          to_name: NAME_BY_CODE[handover ? r.handover_to : r.cashier_name] || (handover ? r.handover_to : r.cashier_name),
+          drawer_counted: r.drawer_cash_entered || 0,
+          drawer_variance: r.drawer_variance || 0,
+          opening_float: r.petty_cash_start || 0,
+        };
+      });
+
+      const minsAgo = Math.round((Date.now() - new Date(shiftStartAt).getTime()) / 60000);
+
+      return new Response(JSON.stringify({
+        success: true,
+        current: {
+          code: currentCode,
+          name: NAME_BY_CODE[currentCode] || currentCode,
+          shift_start_at: shiftStartAt,
+          shift_minutes: minsAgo,
+          opening_float: latest.petty_cash_start || 0,
+          prior_code: priorCode,
+          prior_name: priorCode ? (NAME_BY_CODE[priorCode] || priorCode) : null,
+          is_bootstrap: !isHandover,
+        },
+        trail_today: trail,
+        trail_count: trail.length,
+      }), {headers: corsHeaders});
+    }
+
     // === CASH COLLECTION TIER (Naveen collects from counter) ===
 
     if (action === 'counter-balance') {
