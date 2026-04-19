@@ -190,7 +190,7 @@ export async function onRequest(context) {
       }
 
       const settledAt = new Date().toISOString();
-      await DB.prepare(`
+      const settleRes = await DB.prepare(`
         INSERT INTO settlements (runner_id, runner_name, settled_at, settled_by, period_start, period_end, tokens_amount, sales_amount, upi_amount, cash_settled, unsold_tokens, notes, handover_to)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
@@ -198,6 +198,32 @@ export async function onRequest(context) {
         period_start, period_end, tokens_amount || 0, sales_amount || 0, upi_amount || 0, cash_settled, unsold_tokens || 0, notes || '',
         handover_to || ''
       ).run();
+      const settleId = settleRes?.meta?.last_row_id || null;
+
+      // ── SHORTAGE ACCOUNTABILITY ──
+      // Expected cash = tokens_issued + direct_sales − upi_collected
+      // Shortage (runner's fault) = expected − actual  when positive ≥ ₹20
+      const expectedCash = (tokens_amount || 0) + (sales_amount || 0) - (upi_amount || 0);
+      const variance = (cash_settled || 0) - expectedCash;       // + = excess, − = short
+      if (variance < -20) {
+        const runnerCode = `RUN${String(runner_id - 63).padStart(3, '0')}`;  // 64→RUN001 etc.
+        context.waitUntil(
+          fetch('https://hnhotels.in/api/hr-deductions?action=record-shortage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              source: 'runner_settle',
+              giver_type: 'runner',
+              giver_code: runnerCode,
+              counterparty: settled_by,   // the cashier who received
+              amount: Math.abs(variance),
+              brand: 'NCH',
+              settlement_id: settleId,
+              notes: `Runner ${runner_name || runner.name} → ${settled_by} · expected ₹${Math.round(expectedCash)} / actual ₹${cash_settled}`,
+            }),
+          }).catch(e => console.error('shortage log fail:', e.message))
+        );
+      }
 
       // Trigger background audit — runs async, user gets immediate response
       if (WA_TOKEN) {
@@ -207,7 +233,12 @@ export async function onRequest(context) {
         context.waitUntil(fetch(auditUrl.toString()).catch(e => console.error('Audit trigger error:', e.message)));
       }
 
-      return new Response(JSON.stringify({success: true, message: 'Settlement recorded'}), {headers: corsHeaders});
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Settlement recorded',
+        variance: variance,
+        shortage_flagged: variance < -20,
+      }), {headers: corsHeaders});
     }
 
     if (action === 'history') {
@@ -420,7 +451,37 @@ export async function onRequest(context) {
         prevPettyCash, ids.join(','), notes || ''
       ).run();
 
-      // Immediate WhatsApp alert if discrepancy > ₹50
+      // ── SHORTAGE ACCOUNTABILITY ── cashier on shift is accountable when discrepancy > +20 (cash missing)
+      if (discrepancy > 20) {
+        // Find the active cashier code at time of collect (most recent shift start)
+        let currentCashierCode = null;
+        try {
+          const cashier = await DB.prepare(
+            "SELECT cashier_name FROM cashier_shifts ORDER BY settled_at DESC LIMIT 1"
+          ).first();
+          // cashier_name was written as CASH001/CASH002/etc. on bootstrap + handover
+          currentCashierCode = cashier?.cashier_name || null;
+        } catch (e) {}
+        if (currentCashierCode) {
+          context.waitUntil(
+            fetch('https://hnhotels.in/api/hr-deductions?action=record-shortage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                source: 'cashier_collect',
+                giver_type: 'cashier',
+                giver_code: currentCashierCode,
+                counterparty: collected_by,
+                amount: Math.abs(discrepancy),
+                brand: 'NCH',
+                notes: `Cashier collect · expected ₹${Math.round(expected)} / collected ₹${amount} + petty left ₹${petty_cash||0} · ${collected_by} took cash`,
+              }),
+            }).catch(e => console.error('shortage log fail:', e.message))
+          );
+        }
+      }
+
+      // Legacy WhatsApp alert (keep — fires on any direction >₹50)
       if (WA_TOKEN && Math.abs(discrepancy) > 50) {
         const direction = discrepancy > 0 ? 'short (cash missing)' : 'over (extra cash)';
         const alertMsg = `🔍 *NCH Audit Alert*\n\n🚨 Cash Collection Discrepancy\nExpected at counter: ₹${expected}\n(Settlements: ₹${runnerCash + counterCash} | Counter cash: ₹${liveCounter} | Petty: ₹${prevPettyCash} | Expenses: -₹${totalExpenses})\nCollected: ₹${amount} + Petty left: ₹${petty_cash || 0}\nDiscrepancy: ₹${Math.abs(discrepancy).toFixed(0)} ${direction}\nCollected by: ${collected_by}\nSettlements covered: ${ids.length}`;
@@ -1371,7 +1432,26 @@ export async function onRequest(context) {
         notes || '', handover_to || ''
       ).run();
 
-      // WABA alert if variance > ₹50
+      // ── SHORTAGE ACCOUNTABILITY ── outgoing cashier is accountable
+      if ((drawer_variance || 0) < -20) {
+        context.waitUntil(
+          fetch('https://hnhotels.in/api/hr-deductions?action=record-shortage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              source: 'shift_handover',
+              giver_type: 'cashier',
+              giver_code: cashier_code,
+              counterparty: handover_to || 'next cashier',
+              amount: Math.abs(drawer_variance),
+              brand: 'NCH',
+              notes: `Shift handover · expected ₹${Math.round(expected_drawer || 0)} / actual ₹${Math.round(drawer_cash_entered || 0)} · cashier ${cashier_person || cashier_code}`,
+            }),
+          }).catch(e => console.error('shortage log fail:', e.message))
+        );
+      }
+
+      // Legacy WABA alert (keep the existing notification pattern too)
       const absVariance = Math.abs(drawer_variance || 0);
       if (absVariance > 50 && WA_TOKEN) {
         const sign = (drawer_variance || 0) < 0 ? 'SHORT' : 'OVER';
@@ -1379,7 +1459,11 @@ export async function onRequest(context) {
         await sendWhatsAppAlert(WA_PHONE_ID_VAL, WA_TOKEN, '917010426808', msg).catch(() => {});
       }
 
-      return new Response(JSON.stringify({success: true, settled_at: settledAt}), {headers: corsHeaders});
+      return new Response(JSON.stringify({
+        success: true,
+        settled_at: settledAt,
+        shortage_flagged: (drawer_variance || 0) < -20,
+      }), {headers: corsHeaders});
     }
 
     return new Response(JSON.stringify({success: false, error: 'Invalid action'}), {headers: corsHeaders});
