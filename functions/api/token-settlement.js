@@ -282,11 +282,13 @@ export async function onRequest(context) {
         net_weight_g = (rawWeight !== undefined && rawWeight !== null) ? rawWeight : Math.round(mc * TOKEN_WEIGHT_G);
       } else {
         if (rawWeight === undefined || rawWeight === null) return new Response(JSON.stringify({success: false, error: 'Weight required (or provide manual_count)'}), {headers: corsHeaders});
-        // Auto-detect unit: values < 50 are kg (old frontend cache), convert to grams
-        net_weight_g = rawWeight < 50 ? Math.round(rawWeight * 1000) : rawWeight;
+        // Frontend always sends grams. Only auto-convert if clearly a fractional kg value (< 1).
+        // Previous threshold (<50) broke small-count periods where net weight < 50g is legitimate.
+        net_weight_g = rawWeight > 0 && rawWeight < 1 ? Math.round(rawWeight * 1000) : rawWeight;
         if (net_weight_g < MIN_NET_WEIGHT_G) return new Response(JSON.stringify({success: false, error: `Net weight ${net_weight_g}g invalid (min ${MIN_NET_WEIGHT_G}g)`}), {headers: corsHeaders});
-        // BOX_TARE_G=0 in weightless-cover flow; formula preserved for clarity/audit
-        tokenCount = Math.round((net_weight_g - BOX_TARE_G) / TOKEN_WEIGHT_G);
+        // Sanity cap: 10kg = ~9000 tokens in one settlement. If higher, likely a unit/typo error.
+        if (net_weight_g > 10000) return new Response(JSON.stringify({success: false, error: `Net weight ${net_weight_g}g exceeds 10kg — check unit or use manual count`}), {headers: corsHeaders});
+        tokenCount = Math.round(net_weight_g / TOKEN_WEIGHT_G);
       }
 
       // Duplicate prevention (5 min window) — use ISO timestamp to match stored format
