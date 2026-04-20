@@ -833,10 +833,23 @@ async function renderRazorpay(pane) {
     qrStats[q] = { count: rows.length, sum: rows.reduce((s,p)=>s+p.amount,0) };
   });
 
+  const WALKIN = new Set(['COUNTER','RUNNER_COUNTER']);
   const totalAmt = filtered.reduce((s,p)=>s+p.amount,0);
-  const matchedCount = filtered.filter(p=>p.match_status==='matched').length;
-  const unmatchedCount = filtered.filter(p=>p.match_status==='unmatched').length;
-  const naCount = filtered.filter(p=>p.match_status==='not_applicable').length;
+
+  // Walk-in stats (match-eligible): counter + runner_counter only
+  const walkin = filtered.filter(p => WALKIN.has(p.qr_label));
+  const walkinSum = walkin.reduce((s,p)=>s+p.amount, 0);
+  const walkinMatched = walkin.filter(p=>p.match_status==='matched').length;
+  const walkinUnmatched = walkin.filter(p=>p.match_status==='unmatched').length;
+
+  // Runner UPI (settlement credit): aggregated by runner code, NOT matched 1:1 to Odoo.
+  // Logic: tokens are sold in bulk at the counter. Runner consumes them piecewise
+  // in the field, customers pay the runner's QR. The total offsets the runner's
+  // tokens+sales balance at settlement time.
+  const runnerRows = filtered.filter(p => p.qr_label.startsWith('RUN'));
+  const runnerAgg = {};
+  runnerRows.forEach(p => { runnerAgg[p.qr_label] = (runnerAgg[p.qr_label]||{sum:0,count:0}); runnerAgg[p.qr_label].sum += p.amount; runnerAgg[p.qr_label].count++; });
+  const runnerUpiTotal = runnerRows.reduce((s,p)=>s+p.amount, 0);
 
   const filterStrip = `
     <div class="local-filters">
@@ -872,33 +885,56 @@ async function renderRazorpay(pane) {
   `;
 
   pane.innerHTML = filterStrip + `
+    <div class="card" style="margin-bottom:12px; border-left:3px solid var(--amber); padding:12px 14px;">
+      <div style="font-size:11px; color:var(--muted); line-height:1.6;">
+        <strong style="color:var(--amber);">Two different QR flows — don't confuse them:</strong><br>
+        <strong style="color:var(--text);">Counter / RunnerCounter QRs</strong> → Walk-in customer pays at the counter. Must match Odoo PM38 1:1 (amount + time). Mismatches = real discrepancy.<br>
+        <strong style="color:var(--text);">Runner QRs (RUN001–005)</strong> → Tokens are sold in bulk at counter (POS27 PM48). Runner consumes them piecewise in the field; customers pay the runner's QR. No 1:1 Odoo match expected — the <em>total</em> offsets the runner's tokens + ledger at settlement time (see Runners tab).
+      </div>
+    </div>
+
     <div class="grid grid-4" style="margin-bottom:12px;">
       <div class="card"><h3>Shown</h3><div class="big amber">${filtered.length}</div><div class="sub">${fmtMoney(totalAmt)} · of ${r.count} total</div></div>
-      <div class="card"><h3>Matched</h3><div class="big green">${matchedCount}</div><div class="sub">in filter</div></div>
-      <div class="card"><h3>Unmatched</h3><div class="big ${unmatchedCount>0?'red':''}">${unmatchedCount}</div><div class="sub">counter QRs only</div></div>
-      <div class="card"><h3>N/A (runner QR)</h3><div class="big">${naCount}</div><div class="sub">offsets runner ledger</div></div>
+      <div class="card"><h3>Walk-in Matched</h3><div class="big green">${walkinMatched}</div><div class="sub">Counter + RunCtr · ${fmtMoney(walkin.filter(p=>p.match_status==='matched').reduce((s,p)=>s+p.amount,0))}</div></div>
+      <div class="card"><h3>Walk-in Unmatched</h3><div class="big ${walkinUnmatched>0?'red':''}">${walkinUnmatched}</div><div class="sub">needs review · ${fmtMoney(walkin.filter(p=>p.match_status==='unmatched').reduce((s,p)=>s+p.amount,0))}</div></div>
+      <div class="card"><h3>Runner UPI (field)</h3><div class="big">${fmtMoney(runnerUpiTotal)}</div><div class="sub">${runnerRows.length} pmts · offsets runner settlement</div></div>
     </div>
-    <div style="margin-bottom:10px; font-size:11px; color:var(--muted);">
-      Runner-specific QRs (RUN001–RUN005) offset the runner's ledger — they're not expected to appear in Odoo as PM38 (shown <span class="pill pill-mute">N/A</span>).
-    </div>
+
+    ${Object.keys(runnerAgg).length > 0 ? `
+    <div class="card" style="margin-bottom:12px;">
+      <h3>Runner UPI · Per-Runner Aggregation (settlement credit)</h3>
+      <table class="matrix-table">
+        <tr><th>Runner</th><th class="num">Pmts</th><th class="num">UPI Collected</th><th></th></tr>
+        ${['RUN001','RUN002','RUN003','RUN004','RUN005'].map(c => {
+          const a = runnerAgg[c] || {sum:0, count:0};
+          return `<tr><td><strong>${c}</strong></td><td class="num">${a.count}</td><td class="num">${fmtMoney(a.sum)}</td><td class="code" style="color:var(--muted);">subtracted from cash-to-collect at settlement</td></tr>`;
+        }).join('')}
+      </table>
+    </div>` : ''}
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Captured (IST)</th><th>QR</th><th class="num">Amount</th><th>VPA</th><th>Odoo Match</th><th>Order</th><th>Δ min</th></tr></thead>
+        <thead><tr><th>Captured (IST)</th><th>QR</th><th class="num">Amount</th><th>VPA</th><th>Reconciliation</th><th>Detail</th><th>Δ min</th></tr></thead>
         <tbody>
           ${filtered.length === 0 ? '<tr><td colspan="7" class="empty">No Razorpay payments matching filters</td></tr>' :
             filtered.map(p => {
-              const pill = p.match_status === 'matched' ? '<span class="pill pill-ok">MATCHED</span>'
-                        : p.match_status === 'unmatched' ? '<span class="pill pill-crit">UNMATCHED</span>'
-                        : '<span class="pill pill-mute">N/A (runner QR)</span>';
+              const isWalkin = WALKIN.has(p.qr_label);
+              const pill = isWalkin
+                ? (p.match_status === 'matched' ? '<span class="pill pill-ok">MATCHED</span>' : '<span class="pill pill-crit">UNMATCHED</span>')
+                : `<span class="pill pill-info">→ ${p.qr_label} settlement</span>`;
+              const detail = isWalkin
+                ? `${escape(p.odoo_order_name || '—')} ${p.odoo_order_pos ? '· ' + p.odoo_order_pos : ''}`
+                : `<span style="color:var(--muted);">field collection · not mapped to single order</span>`;
+              const dMin = isWalkin ? (p.match_diff_min !== null ? p.match_diff_min + 'm' : '—') : '—';
               return `
-              <tr ${p.odoo_order_id ? `style="cursor:pointer;" onclick="openDrilldown(${p.odoo_order_id})"` : ''}>
+              <tr ${isWalkin && p.odoo_order_id ? `style="cursor:pointer;" onclick="openDrilldown(${p.odoo_order_id})"` : ''}>
                 <td class="code">${fmtTime(p.created_at)}</td>
                 <td><span class="pill ${p.qr_label === 'COUNTER' ? 'pill-info' : p.qr_label === 'RUNNER_COUNTER' ? 'pill-warn' : 'pill-mute'}">${p.qr_label}</span></td>
                 <td class="num">${fmtMoney(p.amount)}</td>
                 <td class="code">${escape(p.payer_vpa || '')}</td>
                 <td>${pill}</td>
-                <td class="code">${escape(p.odoo_order_name || '—')} ${p.odoo_order_pos ? '· ' + p.odoo_order_pos : ''}</td>
-                <td class="num code">${p.match_diff_min !== null ? p.match_diff_min + 'm' : '—'}</td>
+                <td class="code">${detail}</td>
+                <td class="num code">${dMin}</td>
               </tr>
             `;}).join('')}
         </tbody>
