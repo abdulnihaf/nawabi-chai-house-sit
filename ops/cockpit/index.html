@@ -275,12 +275,13 @@ function renderPinDots() {
     dots.appendChild(d);
   }
 }
+const COCKPIT_ALLOWED = new Set(['ADMIN001', 'GM001']);
 async function verifyPin() {
   try {
     const r = await fetch(`/api/rectify?action=verify-staff&pin=${encodeURIComponent(S.pin)}`).then(r => r.json());
     if (!r.success) { el('pin-err').textContent = r.error || 'Wrong PIN'; S.pin = ''; renderPinDots(); return; }
-    if (!['admin','gm','manager'].includes(r.role)) {
-      el('pin-err').textContent = 'Cockpit is for GM / Manager only';
+    if (!COCKPIT_ALLOWED.has(r.code)) {
+      el('pin-err').textContent = 'Access denied';
       S.pin = ''; renderPinDots(); return;
     }
     S.user = r.person; S.role = r.role; S.code = r.code;
