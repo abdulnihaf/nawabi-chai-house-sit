@@ -48,6 +48,25 @@
     .token-estimate{background:var(--bg2);border-radius:10px;padding:16px;text-align:center;min-width:140px}
     .token-estimate .count{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--orange)}
     .token-estimate .label{font-size:11px;color:var(--text2);margin-top:4px}
+    .how-to{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+    .how-to-title{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px}
+    .how-to-steps{margin:0 0 8px 18px;font-size:13px;line-height:1.7;color:var(--text)}
+    .how-to-steps li{padding:1px 0}
+    .how-to-note{font-size:11px;color:var(--text2);font-style:italic;line-height:1.5}
+    .mode-toggle{display:flex;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:16px}
+    .mode-btn{flex:1;background:transparent;border:none;color:var(--text2);padding:10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:all 0.15s}
+    .mode-btn.active{background:var(--orange);color:#fff}
+    .mode-btn:not(.active):hover{color:var(--text)}
+    .weighings-list{display:flex;flex-direction:column;gap:10px}
+    .weighing-row{gap:8px;align-items:flex-end}
+    .remove-weighing{background:transparent;border:1px solid var(--red);color:var(--red);width:36px;height:48px;border-radius:8px;cursor:pointer;font-size:20px;line-height:1;padding:0;flex-shrink:0}
+    .remove-weighing:hover{background:rgba(239,68,68,0.1)}
+    .add-weighing-btn{margin-top:10px;background:transparent;border:1px dashed var(--border);color:var(--text2);padding:10px;width:100%;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit}
+    .add-weighing-btn:hover{border-color:var(--orange);color:var(--orange)}
+    .weigh-summary{display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:var(--text2)}
+    .weigh-summary b,.weigh-summary .count{font-family:'JetBrains Mono',monospace;color:var(--text);font-weight:600}
+    .weigh-summary .count{color:var(--orange);font-size:18px}
+    .token-estimate-inline{display:flex;align-items:center;gap:6px}
     .runner-unsold{margin-top:20px}
     .runner-unsold h4{font-size:13px;color:var(--text2);margin-bottom:10px}
     .runner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
@@ -189,7 +208,7 @@
       <div class="bootstrap-card" id="bootstrapCard" style="display:none">
         <div class="icon">&#128230;</div>
         <h3>Start Token Tracking</h3>
-        <p>Empty the token box, then enter how many unsold tokens each runner currently has. The system will show Odoo data to help you verify.</p>
+        <p>Empty all tokens from the collection bowl into a cover and set them aside (this starting batch is cleared). Then enter how many unsold tokens each runner currently has. The system will show Odoo data to help you verify.</p>
         <div id="bootstrapRunnerSection" style="display:none">
           <div class="runner-unsold" style="margin-top:16px">
             <h4>Unsold tokens with runners right now</h4>
@@ -214,15 +233,50 @@
 
         <!-- Weight input -->
         <div class="section-card">
-          <h3>Weigh Token Box</h3>
-          <div class="weight-row">
-            <div class="weight-field">
-              <label>Gross weight (g)</label>
-              <input type="number" id="weightInput" step="1" min="339" placeholder="0" oninput="updateEstimate()">
+          <h3>Count Tokens</h3>
+
+          <!-- Step instructions -->
+          <div class="how-to">
+            <div class="how-to-title">How to weigh:</div>
+            <ol class="how-to-steps">
+              <li>Place empty cover/bag on the scale.</li>
+              <li>Press <b>TARE</b> on the scale — it should read <b>0 g</b>.</li>
+              <li>Pour ALL tokens from the collection bowl into the cover.</li>
+              <li>Enter the net weight shown.</li>
+            </ol>
+            <div class="how-to-note">If you forget to tare, the cover's own weight (~2–4 g) adds 2–4 extra tokens to the count — usually within the green ±2 tolerance.</div>
+          </div>
+
+          <!-- Mode toggle -->
+          <div class="mode-toggle">
+            <button type="button" class="mode-btn active" id="modeWeightBtn" onclick="setMode('weight')">Weigh (default)</button>
+            <button type="button" class="mode-btn" id="modeManualBtn" onclick="setMode('manual')">Hand count</button>
+          </div>
+
+          <!-- WEIGH MODE -->
+          <div id="weighMode">
+            <div class="weighings-list" id="weighingsList">
+              <div class="weight-row weighing-row" data-idx="0">
+                <div class="weight-field">
+                  <label>Net weight — cover 1 (g)</label>
+                  <input type="number" class="weight-input" data-idx="0" step="1" min="0" placeholder="0" oninput="updateEstimate()">
+                </div>
+                <button type="button" class="remove-weighing" data-idx="0" onclick="removeWeighing(0)" style="display:none">&times;</button>
+              </div>
             </div>
-            <div class="token-estimate">
-              <div class="count" id="estimateCount">-</div>
-              <div class="label">tokens (est.)</div>
+            <button type="button" class="add-weighing-btn" onclick="addWeighing()">+ Add another cover (overflow)</button>
+            <div class="weigh-summary">
+              <span>Total net weight: <b id="totalWeight">0</b> g</span>
+              <span class="token-estimate-inline">&rarr; <span class="count" id="estimateCount">0</span> tokens (est.)</span>
+            </div>
+          </div>
+
+          <!-- MANUAL MODE -->
+          <div id="manualMode" style="display:none">
+            <div class="weight-field">
+              <label>Hand count (exact number of tokens)</label>
+              <input type="number" id="manualCountInput" step="1" min="0" placeholder="e.g. 142" oninput="updateEstimate()">
+              <div class="how-to-note" style="margin-top:6px">Use this if tokens are wet/dirty (chai splash), if the scale is unreliable, or for very small counts where hand counting is faster.</div>
             </div>
           </div>
 
@@ -242,7 +296,7 @@
           <h3>Settlement Preview</h3>
           <div id="previewContent"></div>
           <textarea class="notes-field" id="notesInput" placeholder="Optional notes..."></textarea>
-          <button class="btn btn-settle" id="settleBtn" onclick="settle()">Settle &amp; Empty Box</button>
+          <button class="btn btn-settle" id="settleBtn" onclick="settle()">Settle &amp; Clear Tokens</button>
         </div>
 
         <!-- Settlement Report (shown after settle) -->
@@ -269,8 +323,9 @@
 <script>
 const API = '/api/token-settlement';
 const WA_PHONES = ['917010426808', '919591170162']; // Nihaf, Mujeeb
-const BOX_TARE = 339;    // grams (SF-400 scale)
-const TOKEN_WEIGHT = 1.1; // ~1.1 gram per token
+const TOKEN_WEIGHT = 1.1; // ~1.1 gram per token (physical constant of pink token)
+// Weightless-cover flow: staff TARES the scale with empty cover on it, then pours tokens in.
+// No container tare constant — tare is absorbed by the scale itself.
 const RUNNERS = [
   {id: 64, name: 'FAROOQ'},
   {id: 65, name: 'AMIN'},
@@ -285,6 +340,8 @@ let previewData = null;
 let lastSettleResult = null; // stored for PDF download after settlement
 let historyData = []; // stored for history PDF downloads
 let runnerContext = null; // per-runner token issuance context from Odoo
+let countMode = 'weight'; // 'weight' or 'manual'
+let weighingCount = 1; // number of cover weighings in the list
 
 // ── PIN ──
 const pinInputs = document.querySelectorAll('#pinInput input');
@@ -540,19 +597,89 @@ async function bootstrap() {
   }
 }
 
-// ── Weight estimate ──
+// ── Mode toggle (weight vs manual count) ──
+function setMode(mode) {
+  countMode = mode;
+  document.getElementById('modeWeightBtn').classList.toggle('active', mode === 'weight');
+  document.getElementById('modeManualBtn').classList.toggle('active', mode === 'manual');
+  document.getElementById('weighMode').style.display = mode === 'weight' ? 'block' : 'none';
+  document.getElementById('manualMode').style.display = mode === 'manual' ? 'block' : 'none';
+  updateEstimate();
+}
+
+// ── Multi-batch weighing ──
+function addWeighing() {
+  const list = document.getElementById('weighingsList');
+  const idx = weighingCount++;
+  const row = document.createElement('div');
+  row.className = 'weight-row weighing-row';
+  row.dataset.idx = idx;
+  row.innerHTML = `
+    <div class="weight-field">
+      <label>Net weight — cover ${idx + 1} (g)</label>
+      <input type="number" class="weight-input" data-idx="${idx}" step="1" min="0" placeholder="0" oninput="updateEstimate()">
+    </div>
+    <button type="button" class="remove-weighing" data-idx="${idx}" onclick="removeWeighing(${idx})">&times;</button>
+  `;
+  list.appendChild(row);
+  // Show remove button on first row if now multiple
+  refreshRemoveButtons();
+  row.querySelector('input').focus();
+}
+
+function removeWeighing(idx) {
+  const row = document.querySelector(`.weighing-row[data-idx="${idx}"]`);
+  if (row) row.remove();
+  refreshRemoveButtons();
+  updateEstimate();
+}
+
+function refreshRemoveButtons() {
+  const rows = document.querySelectorAll('.weighing-row');
+  rows.forEach((r, i) => {
+    const btn = r.querySelector('.remove-weighing');
+    if (btn) btn.style.display = rows.length > 1 ? 'block' : 'none';
+    // Relabel sequentially
+    const label = r.querySelector('label');
+    if (label) label.textContent = `Net weight — cover ${i + 1} (g)`;
+  });
+}
+
+function getTotalNetWeight() {
+  let total = 0;
+  document.querySelectorAll('.weight-input').forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v) && v > 0) total += v;
+  });
+  return total;
+}
+
+// ── Count estimate (both modes) ──
 function updateEstimate() {
-  const w = parseFloat(document.getElementById('weightInput').value);
   const btn = document.getElementById('previewBtn');
-  if (!w || w < BOX_TARE) {
-    document.getElementById('estimateCount').textContent = '-';
-    btn.disabled = true;
-    return;
+  const estEl = document.getElementById('estimateCount');
+  const totalEl = document.getElementById('totalWeight');
+
+  if (countMode === 'manual') {
+    const c = parseInt(document.getElementById('manualCountInput').value);
+    if (isNaN(c) || c < 0) {
+      btn.disabled = true;
+    } else {
+      btn.disabled = false;
+    }
+  } else {
+    const w = getTotalNetWeight();
+    if (totalEl) totalEl.textContent = w.toFixed(0);
+    if (w <= 0) {
+      if (estEl) estEl.textContent = '0';
+      btn.disabled = true;
+    } else {
+      const count = Math.round(w / TOKEN_WEIGHT);
+      if (estEl) estEl.textContent = count;
+      btn.disabled = false;
+    }
   }
-  const count = Math.round((w - BOX_TARE) / TOKEN_WEIGHT);
-  document.getElementById('estimateCount').textContent = '~' + count;
-  btn.disabled = false;
-  // Hide previous preview if weight changes
+  // Hide previous preview if input changes
   document.getElementById('previewCard').classList.remove('show');
   previewData = null;
 }
@@ -574,8 +701,14 @@ async function previewSettlement() {
     const data = await res.json();
     if (!data.success) { alert(data.error); return; }
 
-    const w = parseFloat(document.getElementById('weightInput').value);
-    const tokenCount = Math.round((w - BOX_TARE) / TOKEN_WEIGHT);
+    let tokenCount, netWeight;
+    if (countMode === 'manual') {
+      tokenCount = parseInt(document.getElementById('manualCountInput').value) || 0;
+      netWeight = Math.round(tokenCount * TOKEN_WEIGHT); // nominal weight for display
+    } else {
+      netWeight = getTotalNetWeight();
+      tokenCount = Math.round(netWeight / TOKEN_WEIGHT);
+    }
     const carryForward = lastSettlement.runner_unsold_qty || 0;
     const {total: unsoldTokens, detail: unsoldDetail} = getUnsoldTokens();
     const expected = carryForward + data.total - unsoldTokens;
@@ -585,14 +718,14 @@ async function previewSettlement() {
       odooTotal: data.total, chai: data.chai, coffee: data.coffee, lemonTea: data.lemon_tea,
       tokenIssueQty: data.tokenIssueQty, compQty: data.compQty || 0,
       carryForward, unsoldTokens, unsoldDetail,
-      expected, tokenCount, discrepancy, grossWeight: w
+      expected, tokenCount, discrepancy, grossWeight: netWeight, countMode
     };
     renderPreview(previewData);
     // Reset settle button for new preview
     const settleBtn = document.getElementById('settleBtn');
     settleBtn.disabled = false;
     settleBtn.classList.remove('loading','btn-done');
-    settleBtn.textContent = 'Settle & Empty Box';
+    settleBtn.textContent = 'Settle & Clear Tokens';
     document.getElementById('previewCard').classList.add('show');
     setTimeout(() => document.getElementById('previewCard').scrollIntoView({behavior:'smooth',block:'start'}), 100);
   } catch (e) {
@@ -628,10 +761,10 @@ function renderPreview(d) {
       <div class="formula-line"><span class="formula-label">Carry-forward (prev unsold)</span><span class="formula-val">${d.carryForward}</span></div>
       <div class="formula-line"><span class="formula-label">+ Pink token beverages</span><span class="formula-val">${d.odooTotal}</span></div>
       <div class="formula-line"><span class="formula-label">&minus; Unsold with runners now</span><span class="formula-val">${d.unsoldTokens}</span></div>
-      <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
+      <div class="formula-line total"><span class="formula-label">= Expected in cover</span><span class="formula-val">${d.expected}</span></div>
     </div>
-    <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
-    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight} g</span></div>
+    <div class="result-row"><span class="label">Tokens in Cover ${d.countMode === 'manual' ? '(hand count)' : '(by weight)'}</span><span class="value">${d.tokenCount}</span></div>
+    <div class="result-row" style="margin-top:4px"><span class="label">${d.countMode === 'manual' ? 'Nominal weight' : 'Net weight'}</span><span class="value">${d.grossWeight} g</span></div>
     <div class="discrepancy-box ${discClass}">
       <div class="disc-value">${discSign}${d.discrepancy}</div>
       <div class="disc-label">Discrepancy (physical &minus; expected)</div>
@@ -651,21 +784,42 @@ async function settle() {
 
   try {
     const notes = document.getElementById('notesInput').value.trim();
+    const payload = {
+      settled_by: currentUser,
+      gross_weight_kg: previewData.grossWeight,
+      count_mode: previewData.countMode,
+      unsold_tokens: previewData.unsoldTokens,
+      unsold_detail: previewData.unsoldDetail,
+      notes
+    };
+    if (previewData.countMode === 'manual') payload.manual_count = previewData.tokenCount;
     const res = await fetch(`${API}?action=settle`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        settled_by: currentUser,
-        gross_weight_kg: previewData.grossWeight,
-        unsold_tokens: previewData.unsoldTokens,
-        unsold_detail: previewData.unsoldDetail,
-        notes
-      })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (data.success) {
       document.getElementById('previewCard').classList.remove('show');
-      document.getElementById('weightInput').value = '';
-      document.getElementById('estimateCount').textContent = '-';
+      // Reset all weight inputs + manual count
+      document.querySelectorAll('.weight-input').forEach(inp => { inp.value = ''; });
+      const manualInput = document.getElementById('manualCountInput');
+      if (manualInput) manualInput.value = '';
+      // Collapse multi-weighings back to one row
+      const list = document.getElementById('weighingsList');
+      if (list) {
+        list.innerHTML = `
+          <div class="weight-row weighing-row" data-idx="0">
+            <div class="weight-field">
+              <label>Net weight — cover 1 (g)</label>
+              <input type="number" class="weight-input" data-idx="0" step="1" min="0" placeholder="0" oninput="updateEstimate()">
+            </div>
+            <button type="button" class="remove-weighing" data-idx="0" onclick="removeWeighing(0)" style="display:none">&times;</button>
+          </div>`;
+        weighingCount = 1;
+      }
+      const totalEl = document.getElementById('totalWeight');
+      if (totalEl) totalEl.textContent = '0';
+      document.getElementById('estimateCount').textContent = '0';
       document.getElementById('notesInput').value = '';
       document.getElementById('previewBtn').disabled = true;
 
@@ -674,7 +828,7 @@ async function settle() {
       lastSettleResult.settledBy = currentUser;
       showSettlementReport(data.result);
 
-      // Mark button as done (don't revert to "Settle & Empty Box")
+      // Mark button as done (don't revert to "Settle & Clear Tokens")
       btn.classList.remove('loading');
       btn.classList.add('btn-done');
       btn.innerHTML = '&#10003; Settlement Recorded';
@@ -693,13 +847,13 @@ async function settle() {
       alert(data.error);
       btn.disabled = false;
       btn.classList.remove('loading');
-      btn.textContent = 'Settle & Empty Box';
+      btn.textContent = 'Settle & Clear Tokens';
     }
   } catch (e) {
     alert('Error: ' + e.message);
     btn.disabled = false;
     btn.classList.remove('loading');
-    btn.textContent = 'Settle & Empty Box';
+    btn.textContent = 'Settle & Clear Tokens';
   } finally {
     settling = false;
   }
@@ -784,10 +938,10 @@ function showSettlementReport(d) {
       <div class="formula-line"><span class="formula-label">Carry-forward (prev unsold)</span><span class="formula-val">${d.carryForward}</span></div>
       <div class="formula-line"><span class="formula-label">+ Pink token beverages</span><span class="formula-val">${d.odooTotal}</span></div>
       <div class="formula-line"><span class="formula-label">− Unsold with runners now</span><span class="formula-val">${d.currentUnsold}</span></div>
-      <div class="formula-line total"><span class="formula-label">= Expected in box</span><span class="formula-val">${d.expected}</span></div>
+      <div class="formula-line total"><span class="formula-label">= Expected in cover</span><span class="formula-val">${d.expected}</span></div>
     </div>
-    <div class="result-row"><span class="label">Tokens in Box (by weight)</span><span class="value">${d.tokenCount}</span></div>
-    <div class="result-row" style="margin-top:4px"><span class="label">Weight</span><span class="value">${d.grossWeight} g</span></div>
+    <div class="result-row"><span class="label">Tokens in Cover ${d.countMode === 'manual' ? '(hand count)' : '(by weight)'}</span><span class="value">${d.tokenCount}</span></div>
+    <div class="result-row" style="margin-top:4px"><span class="label">${d.countMode === 'manual' ? 'Nominal weight' : 'Net weight'}</span><span class="value">${d.grossWeight} g</span></div>
     <div class="discrepancy-box ${discClass}">
       <div class="disc-value">${d.discrepancy > 0 ? '+' : ''}${d.discrepancy}</div>
       <div class="disc-label">${discText}</div>
@@ -817,7 +971,7 @@ function generateTeaMasterPDF(d) {
   doc.setFontSize(22); doc.setFont('helvetica', 'bold');
   doc.text('NAWABI CHAI HOUSE', W / 2, 18, {align: 'center'});
   doc.setFontSize(13); doc.setFont('helvetica', 'normal');
-  doc.text('Token Box Settlement Report', W / 2, 30, {align: 'center'});
+  doc.text('Token Settlement Report', W / 2, 30, {align: 'center'});
   doc.setFontSize(10);
   doc.text(`${fromIST}  →  ${toIST}`, W / 2, 38, {align: 'center'});
 
@@ -865,15 +1019,16 @@ function generateTeaMasterPDF(d) {
   doc.text(String(d.odooTotal), M + CW - 5, y + 6, {align: 'right'});
   y += 14;
 
-  // ── Token Box ──
+  // ── Tokens Collected ──
   doc.setDrawColor(200, 200, 200);
   doc.setFillColor(250, 250, 250);
   doc.roundedRect(M, y, CW, 28, 3, 3, 'FD');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-  doc.text('Tokens in Box', M + 5, y + 10);
+  doc.text(d.countMode === 'manual' ? 'Tokens Collected (hand count)' : 'Tokens Collected (by weight)', M + 5, y + 10);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Box Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}`, M + 5, y + 18);
+  const weightLabel = d.countMode === 'manual' ? 'Nominal' : 'Net';
+  doc.text(`${weightLabel} Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}`, M + 5, y + 18);
   doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
   doc.text(`${d.tokenCount} tokens`, M + CW - 5, y + 20, {align: 'right'});
   y += 38;
@@ -954,7 +1109,7 @@ function generateFullPDF(d) {
   y += 7; doc.setDrawColor(220, 220, 220); doc.line(M, y, M + CW, y);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Pink Token (in box)', M + 3, y + 5.5);
+  doc.text('Pink Token (collected)', M + 3, y + 5.5);
   doc.text(String(d.odooTotal), M + CW - 3, y + 5.5, {align: 'right'});
   y += 7; doc.line(M, y, M + CW, y);
 
@@ -980,7 +1135,7 @@ function generateFullPDF(d) {
   doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100); doc.text('− Unsold with runners now', M + 5, fy + 16);
   doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold'); doc.text(String(d.currentUnsold), M + CW - 5, fy + 16, {align: 'right'});
   doc.setDrawColor(180, 180, 180); doc.line(M + 5, fy + 19, M + CW - 5, fy + 19);
-  doc.setFontSize(13); doc.text('= Expected in box', M + 5, fy + 26);
+  doc.setFontSize(13); doc.text('= Expected in cover', M + 5, fy + 26);
   doc.text(String(d.expected), M + CW - 5, fy + 26, {align: 'right'});
   y += 44;
 
@@ -991,7 +1146,7 @@ function generateFullPDF(d) {
   doc.setFillColor(248, 248, 248);
   doc.roundedRect(M, y, CW, 18, 3, 3, 'F');
   doc.setFontSize(11); doc.setFont('helvetica', 'normal');
-  doc.text(`Box Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}`, M + 5, y + 7);
+  doc.text(`${d.countMode === 'manual' ? 'Nominal' : 'Net'} Weight: ${d.grossWeight < 50 ? d.grossWeight.toFixed(3)+' kg' : d.grossWeight+' g'}${d.countMode === 'manual' ? ' (hand count)' : ''}`, M + 5, y + 7);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
   doc.text(`${d.tokenCount} tokens`, M + CW - 5, y + 12, {align: 'right'});
   y += 26;
@@ -1026,6 +1181,8 @@ function downloadPDF(type) {
 function downloadHistoryPDF(s, type) {
   // Reconstruct data from D1 settlement record
   const allBev = (s.odoo_chai || 0) + (s.odoo_coffee || 0) + (s.odoo_lemon_tea || 0);
+  // Detect mode: manual if notes mention "Mode: manual"; box-legacy if box_tare_kg > 0
+  const isManual = typeof s.notes === 'string' && s.notes.includes('Mode: manual');
   const d = {
     periodStart: s.period_start, periodEnd: s.period_end,
     grossWeight: s.gross_weight_kg, tokenCount: s.token_count,
@@ -1033,7 +1190,8 @@ function downloadHistoryPDF(s, type) {
     tokenIssueQty: s.token_issue_qty, compQty: Math.max(0, allBev - s.odoo_total_beverages),
     carryForward: s.carry_forward_qty || 0, currentUnsold: s.runner_unsold_qty || 0,
     expected: s.expected_tokens, discrepancy: s.discrepancy,
-    settledBy: s.settled_by
+    settledBy: s.settled_by,
+    countMode: isManual ? 'manual' : 'weight'
   };
   const doc = type === 'simple' ? generateTeaMasterPDF(d) : generateFullPDF(d);
   const dateStr = new Date(s.settled_at).toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'}).replace(' ', '');
@@ -1055,7 +1213,7 @@ async function autoSendTeaMasterReport(d) {
     const toIST = fmtIST(d.periodEnd);
     const discSign = d.discrepancy > 0 ? '+' : '';
     const matchText = Math.abs(d.discrepancy) <= 2 ? 'Match' : `${discSign}${d.discrepancy}`;
-    const caption = `NCH Token Box Settlement\n${fromIST} → ${toIST}\n\nSold: ${d.odooTotal} | Tokens: ${d.tokenCount} | ${matchText}\n\nSee attached report.`;
+    const caption = `NCH Token Settlement\n${fromIST} → ${toIST}\n\nSold: ${d.odooTotal} | Tokens: ${d.tokenCount} | ${matchText}\n\nSee attached report.`;
 
     const res = await fetch(`${API}?action=send-report`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},

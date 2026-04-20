@@ -1,12 +1,16 @@
-// NCH Token Box Settlement — Cloudflare Worker
-// Weighs physical beverage tokens against Odoo POS sales to detect discrepancies
+// NCH Token Settlement — Cloudflare Worker
+// Weighs physical beverage tokens (poured into a tared cover/bag) against Odoo POS sales.
 //
 // Logic: ALL beverages sold at POS 27 (Cash Counter) only.
-// Pink tokens (in box): Cash (37), UPI (38), Card (39) → dropped immediately.
-//                        Token Issue (48) → runner delivers, customer drops later.
-// NOT in box: Complimentary (49) → uses different colored token, excluded from count.
-// Carry-forward: previous unsold tokens appear in box next period but aren't in Odoo for that period.
+// Pink tokens (counted): Cash (37), UPI (38), Card (39) → dropped immediately.
+//                         Token Issue (48) → runner delivers, customer drops later.
+// NOT counted: Complimentary (49) → uses different colored token, excluded.
+// Carry-forward: previous unsold tokens surface next period but aren't in Odoo for that period.
 // Formula: expected = carry_forward + (odoo_beverages - comp_beverages) - current_unsold
+//
+// Weighing: staff tares scale with empty cover on it, pours tokens in, enters NET weight.
+// No container tare constant — the scale's TARE button absorbs whatever cover is used.
+// Optional manual_count override bypasses weight math (for wet/dirty tokens or scale issues).
 
 export async function onRequest(context) {
   const corsHeaders = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json'};
@@ -23,8 +27,9 @@ export async function onRequest(context) {
 
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
 
-  const BOX_TARE_G = 339;    // grams (SF-400 scale)
-  const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token
+  const BOX_TARE_G = 0;       // weightless-cover flow: staff tares scale before pouring tokens
+  const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token (physical constant of pink token)
+  const MIN_NET_WEIGHT_G = 0; // 0 allowed for zero-activity periods
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
   const PM_TOKEN_ISSUE = 48;
@@ -260,14 +265,29 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, gross_weight_kg: rawWeight, unsold_tokens, unsold_detail, notes} = body;
+      const {settled_by, gross_weight_kg: rawWeight, manual_count, count_mode, unsold_tokens, unsold_detail, notes} = body;
 
       if (!settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
-      if (rawWeight === undefined || rawWeight === null) return new Response(JSON.stringify({success: false, error: 'Weight required'}), {headers: corsHeaders});
 
-      // Auto-detect unit: values < 50 are kg (old frontend cache), convert to grams
-      const gross_weight_kg = rawWeight < 50 ? Math.round(rawWeight * 1000) : rawWeight;
-      if (gross_weight_kg < BOX_TARE_G) return new Response(JSON.stringify({success: false, error: `Weight ${gross_weight_kg}g is less than empty box (${BOX_TARE_G}g)`}), {headers: corsHeaders});
+      // Two modes: "weight" (default, sum of net weights from tared cover) or "manual" (hand count override)
+      const useManual = count_mode === 'manual' || (manual_count !== undefined && manual_count !== null && (rawWeight === undefined || rawWeight === null));
+      let net_weight_g = 0;
+      let tokenCount = 0;
+
+      if (useManual) {
+        const mc = parseInt(manual_count);
+        if (isNaN(mc) || mc < 0) return new Response(JSON.stringify({success: false, error: 'manual_count must be >= 0'}), {headers: corsHeaders});
+        tokenCount = mc;
+        // If weight was also provided, keep it for the record; else derive nominal weight
+        net_weight_g = (rawWeight !== undefined && rawWeight !== null) ? rawWeight : Math.round(mc * TOKEN_WEIGHT_G);
+      } else {
+        if (rawWeight === undefined || rawWeight === null) return new Response(JSON.stringify({success: false, error: 'Weight required (or provide manual_count)'}), {headers: corsHeaders});
+        // Auto-detect unit: values < 50 are kg (old frontend cache), convert to grams
+        net_weight_g = rawWeight < 50 ? Math.round(rawWeight * 1000) : rawWeight;
+        if (net_weight_g < MIN_NET_WEIGHT_G) return new Response(JSON.stringify({success: false, error: `Net weight ${net_weight_g}g invalid (min ${MIN_NET_WEIGHT_G}g)`}), {headers: corsHeaders});
+        // BOX_TARE_G=0 in weightless-cover flow; formula preserved for clarity/audit
+        tokenCount = Math.round((net_weight_g - BOX_TARE_G) / TOKEN_WEIGHT_G);
+      }
 
       // Duplicate prevention (5 min window) — use ISO timestamp to match stored format
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -286,9 +306,6 @@ export async function onRequest(context) {
       const periodEnd = new Date().toISOString();
       const carryForward = last.runner_unsold_qty || 0;
 
-      // Token count from weight
-      const tokenCount = Math.round((gross_weight_kg - BOX_TARE_G) / TOKEN_WEIGHT_G);
-
       // Odoo beverage data
       const bev = await fetchBeverageData(periodStart, periodEnd);
 
@@ -297,11 +314,12 @@ export async function onRequest(context) {
       const expected = carryForward + bev.total - currentUnsold;
       const discrepancy = tokenCount - expected;
 
-      // Build notes: include per-runner unsold detail if provided
+      // Build notes: include per-runner unsold detail + mode
       let fullNotes = '';
+      if (useManual) fullNotes = `Mode: manual count (${tokenCount})`;
       if (unsold_detail && Object.keys(unsold_detail).length) {
         const parts = Object.entries(unsold_detail).filter(([, v]) => v > 0).map(([name, qty]) => `${name}=${qty}`);
-        if (parts.length) fullNotes = 'Unsold: ' + parts.join(', ');
+        if (parts.length) fullNotes = (fullNotes ? fullNotes + ' | ' : '') + 'Unsold: ' + parts.join(', ');
       }
       if (notes) fullNotes = fullNotes ? fullNotes + ' | ' + notes : notes;
 
@@ -315,7 +333,7 @@ export async function onRequest(context) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         periodEnd, settled_by, periodStart, periodEnd,
-        gross_weight_kg, BOX_TARE_G, TOKEN_WEIGHT_G, tokenCount,
+        net_weight_g, BOX_TARE_G, TOKEN_WEIGHT_G, tokenCount,
         bev.total, bev.chai, bev.coffee, bev.lemon_tea,
         bev.tokenIssueQty, currentUnsold, carryForward,
         expected, discrepancy, fullNotes
@@ -325,7 +343,7 @@ export async function onRequest(context) {
         success: true, message: 'Token settlement recorded',
         result: {
           periodStart, periodEnd,
-          grossWeight: gross_weight_kg, tokenCount,
+          grossWeight: net_weight_g, tokenCount, countMode: useManual ? 'manual' : 'weight',
           odooTotal: bev.total, chai: bev.chai, coffee: bev.coffee, lemonTea: bev.lemon_tea,
           tokenIssueQty: bev.tokenIssueQty, compQty: bev.compQty,
           carryForward, currentUnsold, expected, discrepancy
