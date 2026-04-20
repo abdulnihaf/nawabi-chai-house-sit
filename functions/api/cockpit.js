@@ -190,9 +190,14 @@ async function getSummary(env, from, to, posIds) {
   const rzpRunnerCounterSum = Math.round(rzp.runnerCounter.reduce((s, p) => s + p.amount/100, 0));
   const rzpRunnerSum = Object.fromEntries(Object.entries(rzp.runners).map(([k, v]) => [k, Math.round(v.reduce((s, p) => s + p.amount/100, 0))]));
 
-  // UPI cross-check (counter QR vs Odoo PM38 on POS27)
+  // Walk-in UPI cross-check — per authoritative NCH flow, walk-in UPI spans:
+  //   Odoo: PM38 on POS27 (primary) + PM38 on POS28 (rare, ~13/history)
+  //   Razorpay: COUNTER QR (primary) + RUNNER_COUNTER QR (barely used, 2/week)
   const odooPm38Pos27 = Math.round(posPmTotals['27:38'] || 0);
-  const upiVariance = rzpCounterSum - odooPm38Pos27;
+  const odooPm38Pos28 = Math.round(posPmTotals['28:38'] || 0);
+  const odooWalkinUpi = odooPm38Pos27 + odooPm38Pos28;
+  const rzpWalkinUpi = rzpCounterSum + rzpRunnerCounterSum;
+  const upiVariance = rzpWalkinUpi - odooWalkinUpi;
 
   return {
     totals: {
@@ -210,9 +215,15 @@ async function getSummary(env, from, to, posIds) {
     },
     upi_cross_check: {
       odoo_pm38_pos27: odooPm38Pos27,
+      odoo_pm38_pos28: odooPm38Pos28,
+      odoo_walkin_upi: odooWalkinUpi,
       rzp_counter: rzpCounterSum,
+      rzp_runner_counter: rzpRunnerCounterSum,
+      rzp_walkin_upi: rzpWalkinUpi,
       variance: upiVariance,
       flag: Math.abs(upiVariance) > 100,
+      interpretation: upiVariance > 100 ? 'RZP exceeds Odoo — UPI received but not recorded in POS' :
+                      upiVariance < -100 ? 'Odoo exceeds RZP — phantom PM38 entries (wrong PM?)' : 'OK',
     },
     d1: d1Data,
   };
@@ -438,19 +449,20 @@ async function getDiscrepancies(env, from, to, posIds) {
   const issues = [];
   const orderById = new Map(orders.map(o => [o.id, o]));
 
-  // ── Type 1: UPI mismatch — Razorpay counter QR payments with no Odoo PM38 match
-  const pm38Pos27 = payments.filter(p => {
+  // ── Type 1: UPI mismatch — walk-in UPI (COUNTER + RUNNER_COUNTER QR) vs PM38 on POS27 + POS28
+  const pm38Walkin = payments.filter(p => {
     const o = orderById.get(p.pos_order_id?.[0]);
-    return p.payment_method_id?.[0] === 38 && o?.config_id?.[0] === 27;
+    return p.payment_method_id?.[0] === 38 && (o?.config_id?.[0] === 27 || o?.config_id?.[0] === 28);
   });
   const pm38ByAmount = new Map();
-  for (const p of pm38Pos27) {
+  for (const p of pm38Walkin) {
     const amt = Math.round(p.amount * 100);
     if (!pm38ByAmount.has(amt)) pm38ByAmount.set(amt, []);
     pm38ByAmount.get(amt).push(p);
   }
   const unmatchedRzp = [];
-  for (const p of rzp.counter) {
+  const allWalkinRzp = [...rzp.counter.map(p => ({...p, qr: 'COUNTER'})), ...rzp.runnerCounter.map(p => ({...p, qr: 'RUNNER_COUNTER'}))];
+  for (const p of allWalkinRzp) {
     const candidates = pm38ByAmount.get(p.amount) || [];
     const rzpTime = new Date(p.created_at * 1000);
     const match = candidates.find(c => Math.abs(new Date(c.payment_date + 'Z') - rzpTime) <= 10 * 60000);
@@ -460,11 +472,12 @@ async function getDiscrepancies(env, from, to, posIds) {
     issues.push({
       type: 'upi_mismatch',
       severity: 'high',
-      title: `${unmatchedRzp.length} Razorpay UPI payments with no Odoo PM38 match`,
+      title: `${unmatchedRzp.length} walk-in Razorpay payments with no Odoo PM38 match (POS27+POS28)`,
       amount: Math.round(unmatchedRzp.reduce((s, p) => s + p.amount/100, 0)),
       count: unmatchedRzp.length,
       evidence: unmatchedRzp.map(p => ({
         rzp_id: p.id,
+        qr: p.qr,
         amount: p.amount/100,
         time: new Date(p.created_at * 1000).toISOString(),
         vpa: p.vpa || p.method,
@@ -473,6 +486,7 @@ async function getDiscrepancies(env, from, to, posIds) {
   }
 
   // ── Type 2: Silent gaps on POS27 (>10 min during 6AM-2AM IST)
+  // IST active window = 06:00 → 02:00 (next day). Computed in IST minutes-since-midnight.
   const pos27 = orders.filter(o => o.config_id?.[0] === 27).sort((a, b) => new Date(a.date_order) - new Date(b.date_order));
   const gaps = [];
   for (let i = 1; i < pos27.length; i++) {
@@ -480,9 +494,10 @@ async function getDiscrepancies(env, from, to, posIds) {
     const curr = new Date(pos27[i].date_order + 'Z');
     const gapMin = (curr - prev) / 60000;
     if (gapMin > 10) {
-      // Check if gap is during active hours (6AM-2AM IST = 00:30-20:30 UTC)
-      const istHour = (prev.getUTCHours() + 5.5) % 24;
-      if (istHour >= 6 || istHour < 2) {
+      // IST minute-of-day for prev: add 330 min (5:30h) offset, wrap mod 1440
+      const istMin = (prev.getUTCHours() * 60 + prev.getUTCMinutes() + 330) % 1440;
+      // Active = 06:00-23:59 IST (istMin >= 360) OR 00:00-01:59 IST (istMin < 120)
+      if (istMin >= 360 || istMin < 120) {
         gaps.push({
           from: prev.toISOString(),
           to: curr.toISOString(),
@@ -578,7 +593,7 @@ async function getDiscrepancies(env, from, to, posIds) {
     });
   }
 
-  // ── Type 6: Wrong PM (RZP UPI matched by amount+time but Odoo shows PM37 cash)
+  // ── Type 6: Wrong PM — walk-in RZP matched by amount+time but Odoo shows PM37 cash (not PM38 UPI)
   const pm37Pos27 = payments.filter(p => {
     const o = orderById.get(p.pos_order_id?.[0]);
     return p.payment_method_id?.[0] === 37 && o?.config_id?.[0] === 27;
@@ -590,7 +605,7 @@ async function getDiscrepancies(env, from, to, posIds) {
     pm37ByAmount.get(amt).push(p);
   }
   const wrongPm = [];
-  for (const p of rzp.counter) {
+  for (const p of allWalkinRzp) {
     const rzpTime = new Date(p.created_at * 1000);
     const cashMatches = pm37ByAmount.get(p.amount) || [];
     const upiMatches = pm38ByAmount.get(p.amount) || [];
@@ -600,6 +615,7 @@ async function getDiscrepancies(env, from, to, posIds) {
       const order = orderById.get(cashHit.pos_order_id?.[0]);
       wrongPm.push({
         rzp_id: p.id,
+        qr: p.qr,
         amount: p.amount/100,
         rzp_time: rzpTime.toISOString(),
         odoo_order: order?.name,

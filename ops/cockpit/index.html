@@ -462,10 +462,11 @@ async function renderSummary(pane) {
   pane.innerHTML = `
     <div class="grid grid-4" style="margin-bottom:12px;">
       <div class="card"><h3>Grand Sales</h3><div class="big amber">${fmtMoney(r.totals.grand_sales)}</div><div class="sub">${r.totals.order_count} orders · ${fmtTime(r.from)} → ${fmtTime(r.to)}</div></div>
-      <div class="card"><h3>Razorpay Counter</h3><div class="big">${fmtMoney(r.razorpay.counter)}</div><div class="sub">${r.razorpay.counter_count} payments</div></div>
-      <div class="card"><h3>UPI Cross-Check</h3>
+      <div class="card"><h3>Walk-in UPI (RZP)</h3><div class="big">${fmtMoney(u.rzp_walkin_upi)}</div><div class="sub">Counter ${fmtMoney(u.rzp_counter)} + RunCtr ${fmtMoney(u.rzp_runner_counter)}</div></div>
+      <div class="card"><h3>Walk-in UPI Cross-Check</h3>
         <div class="big ${u.flag ? 'red' : 'green'}">${u.variance >= 0 ? '+' : ''}${fmtMoney(u.variance)}</div>
-        <div class="sub">Odoo PM38 ${fmtMoney(u.odoo_pm38_pos27)} vs RZP ${fmtMoney(u.rzp_counter)} ${u.flag ? '· <span style="color:var(--red);">FLAG</span>' : '· OK'}</div>
+        <div class="sub">RZP ${fmtMoney(u.rzp_walkin_upi)} − Odoo PM38 ${fmtMoney(u.odoo_walkin_upi)} <span style="color:var(--muted);">(P27 ${fmtMoney(u.odoo_pm38_pos27)} + P28 ${fmtMoney(u.odoo_pm38_pos28)})</span></div>
+        ${u.flag ? `<div class="sub" style="color:var(--red); margin-top:4px;">${escape(u.interpretation)}</div>` : ''}
       </div>
       <div class="card"><h3>Critical Audits (D1)</h3><div class="big ${d1.critical_audits > 0 ? 'red' : ''}">${d1.critical_audits || 0}</div><div class="sub">${d1.shifts_ended || 0} shifts · ${d1.collections || 0} collections</div></div>
     </div>
