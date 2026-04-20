@@ -306,19 +306,25 @@ async function getRazorpay(env, from, to) {
     ...Object.entries(rzp.runners).flatMap(([code, pmts]) => pmts.map(p => ({...p, qr_label: code, qr_id: RUNNER_QRS.find(r => r.code === code)?.qr_id}))),
   ];
 
+  // Only COUNTER + RUNNER_COUNTER QRs are expected to match Odoo PM38.
+  // Runner-specific QRs (RUN001-005) offset runner ledger, not PM38 → match_status='not_applicable'.
+  const COUNTER_LABELS = new Set(['COUNTER', 'RUNNER_COUNTER']);
+
   const rows = allRzp.map(p => {
-    // Try to match to Odoo PM38 payment: same amount, within ±10 min
-    const candidates = pm38ByAmount.get(p.amount) || [];
     const rzpTime = new Date(p.created_at * 1000);
+    const isCounter = COUNTER_LABELS.has(p.qr_label);
+    let match_status = 'not_applicable';
     let matched = null;
     let closestDiff = Infinity;
-    for (const c of candidates) {
-      const odooTime = new Date(c.payment_date + 'Z');
-      const diffMin = Math.abs((odooTime - rzpTime) / 60000);
-      if (diffMin < closestDiff && diffMin <= 10) {
-        closestDiff = diffMin;
-        matched = c;
+
+    if (isCounter) {
+      const candidates = pm38ByAmount.get(p.amount) || [];
+      for (const c of candidates) {
+        const odooTime = new Date(c.payment_date + 'Z');
+        const diffMin = Math.abs((odooTime - rzpTime) / 60000);
+        if (diffMin < closestDiff && diffMin <= 10) { closestDiff = diffMin; matched = c; }
       }
+      match_status = matched ? 'matched' : 'unmatched';
     }
     const order = matched ? orderById.get(matched.pos_order_id?.[0]) : null;
 
@@ -329,7 +335,8 @@ async function getRazorpay(env, from, to) {
       amount: p.amount / 100,
       created_at: new Date(p.created_at * 1000).toISOString(),
       payer_vpa: p.vpa || p.method || '',
-      matched: !!matched,
+      match_status,
+      matched: match_status === 'matched',
       match_diff_min: matched ? Math.round(closestDiff) : null,
       odoo_payment_id: matched?.id || null,
       odoo_order_id: order?.id || null,
@@ -338,10 +345,17 @@ async function getRazorpay(env, from, to) {
     };
   }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const unmatchedCount = rows.filter(r => !r.matched).length;
-  const unmatchedSum = Math.round(rows.filter(r => !r.matched).reduce((s, r) => s + r.amount, 0));
+  const counterRows = rows.filter(r => COUNTER_LABELS.has(r.qr_label));
+  const unmatchedCount = counterRows.filter(r => r.match_status === 'unmatched').length;
+  const unmatchedSum = Math.round(counterRows.filter(r => r.match_status === 'unmatched').reduce((s, r) => s + r.amount, 0));
 
-  return {count: rows.length, unmatched: unmatchedCount, unmatched_sum: unmatchedSum, payments: rows};
+  return {
+    count: rows.length,
+    counter_count: counterRows.length,
+    unmatched: unmatchedCount,
+    unmatched_sum: unmatchedSum,
+    payments: rows,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════

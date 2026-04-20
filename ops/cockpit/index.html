@@ -639,27 +639,35 @@ async function renderRazorpay(pane) {
   if (!r.success) throw new Error(r.error);
 
   pane.innerHTML = `
-    <div class="grid grid-3" style="margin-bottom:12px;">
-      <div class="card"><h3>Total Payments</h3><div class="big amber">${r.count}</div></div>
-      <div class="card"><h3>Unmatched (no Odoo PM38)</h3><div class="big ${r.unmatched > 0 ? 'red' : 'green'}">${r.unmatched}</div><div class="sub">${fmtMoney(r.unmatched_sum)}</div></div>
-      <div class="card"><h3>Match Rate</h3><div class="big">${r.count ? (100 - Math.round(r.unmatched/r.count*100)) : 100}%</div></div>
+    <div class="grid grid-4" style="margin-bottom:12px;">
+      <div class="card"><h3>Total Payments</h3><div class="big amber">${r.count}</div><div class="sub">all QRs</div></div>
+      <div class="card"><h3>Counter + RunCtr</h3><div class="big">${r.counter_count}</div><div class="sub">these should match Odoo PM38</div></div>
+      <div class="card"><h3>Unmatched Counter</h3><div class="big ${r.unmatched > 0 ? 'red' : 'green'}">${r.unmatched}</div><div class="sub">${fmtMoney(r.unmatched_sum)}</div></div>
+      <div class="card"><h3>Match Rate</h3><div class="big">${r.counter_count ? (100 - Math.round(r.unmatched/r.counter_count*100)) : 100}%</div><div class="sub">counter QRs only</div></div>
+    </div>
+    <div style="margin-bottom:10px; font-size:11px; color:var(--muted);">
+      Runner-specific QRs (RUN001–RUN005) offset the runner's ledger — they're not expected to appear in Odoo as PM38, so they show <span class="pill pill-mute">N/A</span>.
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Captured (IST)</th><th>QR</th><th class="num">Amount</th><th>VPA</th><th>Odoo Match</th><th>Order</th><th>Δ min</th></tr></thead>
         <tbody>
           ${r.payments.length === 0 ? '<tr><td colspan="7" class="empty">No Razorpay payments</td></tr>' :
-            r.payments.map(p => `
+            r.payments.map(p => {
+              const pill = p.match_status === 'matched' ? '<span class="pill pill-ok">MATCHED</span>'
+                        : p.match_status === 'unmatched' ? '<span class="pill pill-crit">UNMATCHED</span>'
+                        : '<span class="pill pill-mute">N/A (runner QR)</span>';
+              return `
               <tr ${p.odoo_order_id ? `style="cursor:pointer;" onclick="openDrilldown(${p.odoo_order_id})"` : ''}>
                 <td class="code">${fmtTime(p.created_at)}</td>
                 <td><span class="pill ${p.qr_label === 'COUNTER' ? 'pill-info' : p.qr_label === 'RUNNER_COUNTER' ? 'pill-warn' : 'pill-mute'}">${p.qr_label}</span></td>
                 <td class="num">${fmtMoney(p.amount)}</td>
                 <td class="code">${escape(p.payer_vpa || '')}</td>
-                <td>${p.matched ? `<span class="pill pill-ok">MATCHED</span>` : `<span class="pill pill-crit">UNMATCHED</span>`}</td>
+                <td>${pill}</td>
                 <td class="code">${escape(p.odoo_order_name || '—')} ${p.odoo_order_pos ? '· ' + p.odoo_order_pos : ''}</td>
                 <td class="num code">${p.match_diff_min !== null ? p.match_diff_min + 'm' : '—'}</td>
               </tr>
-            `).join('')}
+            `;}).join('')}
         </tbody>
       </table>
     </div>
