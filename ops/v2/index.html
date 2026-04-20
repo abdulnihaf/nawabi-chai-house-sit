@@ -563,6 +563,8 @@
       <div class="sum-row total"><span class="sum-label">Expected in drawer</span><span class="sum-val" id="sp-expected">₹—</span></div>
     </div>
     <div id="shift-preview-error" class="error-box" style="display:none"></div>
+    <!-- UPI cross-check panel — populated by initShiftHandover() -->
+    <div id="shift-upi-check" style="display:none; margin:0 0 12px"></div>
     <div class="input-group">
       <label class="input-label">Actual cash counted (₹)</label>
       <input id="sh-cash" class="input input-amount" type="number" inputmode="decimal" placeholder="0" oninput="updateShiftVariance()">
@@ -1779,9 +1781,43 @@ async function initShiftHandover() {
     el('sp-expected').textContent = '₹' + fmt(d.expected_drawer||0);
     el('shift-preview-loading').style.display = 'none';
     el('shift-preview-card').style.display = 'block';
+
+    // UPI cross-check panel
+    const upiEl = el('shift-upi-check');
+    const us = d.upi_snapshot;
+    if (us) {
+      const gap = Math.abs(us.variance || 0);
+      const flag = us.flag;
+      upiEl.innerHTML = flag
+        ? `<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:12px 14px">
+            <div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px">⚠ UPI Mismatch Detected</div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
+              <span style="color:var(--muted)">Razorpay counter QR received</span><span style="font-weight:600">₹${fmt(us.rzp_counter)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
+              <span style="color:var(--muted)">Odoo PM38 entries</span><span style="font-weight:600">₹${fmt(us.odoo_pm38)}</span></div>
+            <div style="font-size:12px;font-weight:700;color:#ef4444;margin:8px 0 6px">Gap ₹${fmt(gap)} — UPI received but not entered in POS</div>
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;color:var(--text)">
+              <input type="checkbox" id="upi-ack-check" onchange="updateShiftSubmitState()" style="margin-top:2px;flex-shrink:0">
+              <span>I acknowledge this UPI discrepancy and confirm ₹${fmt(gap)} was not entered in POS by the outgoing cashier</span>
+            </label>
+          </div>`
+        : `<div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--muted)">UPI check (RZP ₹${fmt(us.rzp_counter)} vs Odoo ₹${fmt(us.odoo_pm38)})</span>
+            <span style="font-size:12px;font-weight:700;color:#34d399">✓ OK</span>
+          </div>`;
+      upiEl.style.display = 'block';
+    }
+    updateShiftSubmitState();
   } catch(e) {
     showShiftPreviewError('Network error: ' + e.message);
   }
+}
+
+function updateShiftSubmitState() {
+  const us = S.shiftPreview?.upi_snapshot;
+  const needsAck = us?.flag && !el('upi-ack-check')?.checked;
+  el('shift-submit-btn').disabled = !!needsAck;
+  el('shift-submit-btn').title = needsAck ? 'Acknowledge UPI mismatch above before proceeding' : '';
 }
 
 function showShiftPreviewError(msg) {
@@ -1819,6 +1855,10 @@ async function submitShiftHandover() {
   if (!S.shiftPreview) { el('sh-error').textContent = 'Shift data not loaded'; el('sh-error').style.display='block'; return; }
   const cashEntered = parseFloat(el('sh-cash').value);
   if (isNaN(cashEntered) || cashEntered < 0) { el('sh-error').textContent = 'Enter actual cash count'; el('sh-error').style.display='block'; return; }
+  if (S.shiftPreview.upi_snapshot?.flag && !el('upi-ack-check')?.checked) {
+    el('sh-error').textContent = 'Acknowledge the UPI mismatch above before proceeding';
+    el('sh-error').style.display = 'block'; return;
+  }
   const expected = S.shiftPreview.expected_drawer || 0;
   const variance = cashEntered - expected;
 
@@ -1840,7 +1880,8 @@ async function submitShiftHandover() {
       drawer_cash_entered: cashEntered,
       drawer_variance: variance,
       handover_to: S.handoverTo?.code || '',
-      notes: el('sh-notes').value.trim()
+      notes: el('sh-notes').value.trim(),
+      upi_snapshot: S.shiftPreview.upi_snapshot || null
     });
     if (r.success) {
       S.shiftPreview = null;
@@ -1893,7 +1934,7 @@ async function initCollectScreen() {
     }
 
     const inTransit = collData.in_transit || [];
-    const collected = collData.collected || [];
+    const collected = (collData.collections || []).filter(c => c.status === 'collected');
 
     if (inTransit.length > 0) {
       html += `<div class="section-hdr"><span class="section-title">In transit</span><span class="section-count">${inTransit.length}</span></div>

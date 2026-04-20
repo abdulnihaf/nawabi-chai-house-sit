@@ -1474,6 +1474,40 @@ export async function onRequest(context) {
       // Expected = float_start + runner_cash + walk_in_cash - expenses - collections
       const expectedDrawer = pettyFloatStart + runnerCashReceived + pm37WalkIn - expensesTotal - cashCollections;
 
+      // 5. UPI cross-check: Razorpay counter QR vs Odoo PM38 since period_start
+      let upi_snapshot = { odoo_pm38: 0, rzp_counter: 0, variance: 0, flag: false };
+      try {
+        const RZP_KEY = context.env.RAZORPAY_KEY;
+        const RZP_SECRET = context.env.RAZORPAY_SECRET;
+        if (ODOO_API_KEY && RZP_KEY && RZP_SECRET) {
+          const fromUnix = Math.floor(new Date(periodStart).getTime() / 1000);
+          const toUnix = Math.floor(Date.now() / 1000);
+          const [upiOrdersRes, rzpRes] = await Promise.all([
+            fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+              jsonrpc:'2.0', method:'call', id: Date.now(), params:{service:'object', method:'execute_kw',
+                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                  [[['config_id','=',27],['date_order','>=',fromOdoo],['state','in',['paid','done','invoiced','posted']]]],
+                  {fields:['id','payment_ids'], limit: 500}]}
+            })}).then(r => r.json()),
+            fetch(`https://api.razorpay.com/v1/payments/qr_codes/qr_SBdtUCLSHVfRtT/payments?count=100&from=${fromUnix}&to=${toUnix}`,
+              {headers:{'Authorization':'Basic ' + btoa(RZP_KEY + ':' + RZP_SECRET)}}).then(r => r.json())
+          ]);
+          const upiPaymentIds = (upiOrdersRes.result || []).flatMap(o => o.payment_ids || []);
+          if (upiPaymentIds.length > 0) {
+            const pm38Res = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+              jsonrpc:'2.0', method:'call', id: Date.now(), params:{service:'object', method:'execute_kw',
+                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+                  [[['id','in',upiPaymentIds],['payment_method_id','=',38]]],
+                  {fields:['amount'], limit: 500}]}
+            })}).then(r => r.json());
+            upi_snapshot.odoo_pm38 = Math.round((pm38Res.result || []).reduce((s, p) => s + (p.amount || 0), 0));
+          }
+          upi_snapshot.rzp_counter = Math.round((rzpRes.items || []).filter(p => p.status === 'captured').reduce((s, p) => s + (p.amount || 0) / 100, 0));
+          upi_snapshot.variance = upi_snapshot.rzp_counter - upi_snapshot.odoo_pm38;
+          upi_snapshot.flag = Math.abs(upi_snapshot.variance) > 100;
+        }
+      } catch (e) { console.error('shift-preview upi check error:', e.message); }
+
       return new Response(JSON.stringify({
         success: true,
         period_start: periodStart,
@@ -1482,7 +1516,8 @@ export async function onRequest(context) {
         pm37_walk_in: pm37WalkIn,
         expenses_total: expensesTotal,
         cash_collections: cashCollections,
-        expected_drawer: Math.round(expectedDrawer)
+        expected_drawer: Math.round(expectedDrawer),
+        upi_snapshot
       }), {headers: corsHeaders});
     }
 
@@ -1499,8 +1534,12 @@ export async function onRequest(context) {
         petty_float_start, runner_cash_received, pm37_walk_in,
         expenses_total, cash_collections, expected_drawer,
         drawer_cash_entered, drawer_variance,
-        handover_to, notes
+        handover_to, notes,
+        upi_snapshot
       } = body;
+      const cqOdoo = upi_snapshot?.odoo_pm38 || 0;
+      const cqRzp = upi_snapshot?.rzp_counter || 0;
+      const cqVar = upi_snapshot?.variance || 0;
 
       if (!cashier_code || !drawer_cash_entered && drawer_cash_entered !== 0) {
         return new Response(JSON.stringify({success: false, error: 'cashier_code and drawer_cash_entered required'}), {headers: corsHeaders});
@@ -1529,8 +1568,8 @@ export async function onRequest(context) {
         expected_drawer || 0, drawer_cash_entered || 0, drawer_variance || 0,
         0, 0, // counter_cash_settled, unsettled_counter_cash
         pm37_walk_in || 0, drawer_cash_entered || 0, drawer_variance || 0,
-        0, 0, 0, 0, // counter_upi, card, token_issue, complimentary
-        0, 0, 0,   // counter_qr_odoo/razorpay/variance
+        cqOdoo, 0, 0, 0, // counter_upi, card, token_issue, complimentary
+        cqOdoo, cqRzp, cqVar,   // counter_qr_odoo/razorpay/variance
         0, 0, 0,   // runner_counter_qr_odoo/razorpay/variance
         drawer_cash_entered || 0, expected_drawer || 0, drawer_variance || 0,
         0, Math.abs(drawer_variance || 0),
