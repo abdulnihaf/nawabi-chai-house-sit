@@ -26,6 +26,7 @@ export async function onRequest(context) {
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
   const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
+  const ADMIN_USERS = ['Nihaf']; // Only these users can perform destructive actions (reset)
 
   const BOX_TARE_G = 0;       // weightless-cover flow: staff tares scale before pouring tokens
   const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token (physical constant of pink token)
@@ -51,8 +52,35 @@ export async function onRequest(context) {
     return data.result || [];
   }
 
-  const RUNNER_IDS = [64, 65, 66, 67, 68];
-  const RUNNER_NAMES = {64: 'FAROOQ', 65: 'AMIN', 66: 'Runner 03', 67: 'Runner 04', 68: 'Runner 05'};
+  const RUNNER_IDS_FALLBACK = [64, 65, 66, 67, 68];
+  const RUNNER_CODE_MAP = {64: 'R01', 65: 'R02', 66: 'R03', 67: 'R04', 68: 'R05'}; // partner_id → display code (consistent with v2)
+
+  // Discover active runners from Token Issue orders in last 90 days; falls back to hardcoded list
+  async function discoverRunners() {
+    const cutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    const orders = await odooCall('pos.order', 'search_read',
+      [['config_id', '=', POS_CASH_COUNTER], ['date_order', '>=', cutoff],
+       ['state', 'in', ['paid', 'done', 'invoiced', 'posted']], ['partner_id', '!=', false]],
+      ['id', 'partner_id', 'payment_ids']
+    );
+    const allPayIds = orders.flatMap(o => o.payment_ids);
+    const tiOrderIds = new Set();
+    if (allPayIds.length) {
+      const pays = await odooCall('pos.payment', 'search_read', [['id', 'in', allPayIds]], ['id', 'pos_order_id', 'payment_method_id']);
+      for (const p of pays) { if (p.payment_method_id[0] === PM_TOKEN_ISSUE) tiOrderIds.add(p.pos_order_id[0]); }
+    }
+    const partnerIds = new Set();
+    for (const o of orders) { if (tiOrderIds.has(o.id) && o.partner_id) partnerIds.add(o.partner_id[0]); }
+    if (!partnerIds.size) return RUNNER_IDS_FALLBACK.map(id => ({id, name: RUNNER_CODE_MAP[id] || `R-${id}`}));
+    // Map known partner_ids to codes; fetch Odoo names only for unrecognised IDs
+    const known = [...partnerIds].filter(id => RUNNER_CODE_MAP[id]).map(id => ({id, name: RUNNER_CODE_MAP[id]}));
+    const unknownIds = [...partnerIds].filter(id => !RUNNER_CODE_MAP[id]);
+    if (unknownIds.length) {
+      const partners = await odooCall('res.partner', 'search_read', [['id', 'in', unknownIds]], ['id', 'name']);
+      known.push(...partners.map(p => ({id: p.id, name: p.name})));
+    }
+    return known.sort((a, b) => a.id - b.id);
+  }
 
   // ── Fetch beverage data for a period (POS 27 only) ──
   async function fetchBeverageData(periodStart, periodEnd) {
@@ -147,34 +175,47 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({success: true, ...data}), {headers: corsHeaders});
     }
 
+    // ── get-runners (dynamic runner list for frontend initialisation) ──
+    if (action === 'get-runners') {
+      const runners = await discoverRunners();
+      return new Response(JSON.stringify({success: true, runners}), {headers: corsHeaders});
+    }
+
     // ── get-runner-context (per-runner Token Issue data from Odoo + last settlement) ──
     if (action === 'get-runner-context') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
-      // 1. Get last runner settlement per runner from D1
+      // 1. Discover active runners dynamically
+      const activeRunners = await discoverRunners();
+      const activeRunnerIds = activeRunners.map(r => r.id);
+      const runnerCodeMap = Object.fromEntries(activeRunners.map(r => [r.id, r.name]));
+
+      // 2. Get last runner settlement per runner from D1 (best-effort; separate settlements table may not exist)
       const lastSettlements = {};
-      for (const rid of RUNNER_IDS) {
-        const row = await DB.prepare('SELECT settled_at, unsold_tokens FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1').bind(rid).first();
-        lastSettlements[rid] = row ? {settledAt: row.settled_at, unsold: Math.round(row.unsold_tokens || 0)} : null;
+      for (const rid of activeRunnerIds) {
+        try {
+          const row = await DB.prepare('SELECT settled_at, unsold_tokens FROM settlements WHERE runner_id = ? ORDER BY settled_at DESC LIMIT 1').bind(rid).first();
+          lastSettlements[rid] = row ? {settledAt: row.settled_at, unsold: Math.round(row.unsold_tokens || 0)} : null;
+        } catch { lastSettlements[rid] = null; }
       }
 
-      // 2. Find earliest settlement time across all runners
+      // 3. Find earliest settlement time across all runners
       let earliestTime = null;
-      for (const rid of RUNNER_IDS) {
-        if (lastSettlements[rid]) {
-          if (!earliestTime || lastSettlements[rid].settledAt < earliestTime) earliestTime = lastSettlements[rid].settledAt;
+      for (const rid of activeRunnerIds) {
+        if (lastSettlements[rid] && (!earliestTime || lastSettlements[rid].settledAt < earliestTime)) {
+          earliestTime = lastSettlements[rid].settledAt;
         }
       }
       if (!earliestTime) earliestTime = '2026-01-01T00:00:00.000Z';
 
-      // 3. Query Odoo: Token Issue orders at POS 27 since earliest time, with runner partner_id
+      // 4. Query Odoo: Token Issue orders at POS 27 since earliest time, filtered to active runner partner_ids
       const fromOdoo = new Date(earliestTime).toISOString().slice(0, 19).replace('T', ' ');
       const orders = await odooCall('pos.order', 'search_read',
-        [['config_id', '=', POS_CASH_COUNTER], ['date_order', '>=', fromOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']], ['partner_id', 'in', RUNNER_IDS]],
+        [['config_id', '=', POS_CASH_COUNTER], ['date_order', '>=', fromOdoo], ['state', 'in', ['paid', 'done', 'invoiced', 'posted']], ['partner_id', 'in', activeRunnerIds]],
         ['id', 'date_order', 'partner_id', 'payment_ids']
       );
 
-      // 4. Filter to Token Issue orders only
+      // 5. Filter to Token Issue orders only
       const allPaymentIds = orders.flatMap(o => o.payment_ids);
       const tokenIssueOrderIds = new Set();
       if (allPaymentIds.length) {
@@ -188,7 +229,7 @@ export async function onRequest(context) {
       }
       const tokenIssueOrders = orders.filter(o => tokenIssueOrderIds.has(o.id));
 
-      // 5. Get beverage lines for these orders
+      // 6. Get beverage lines for these orders
       const orderIds = tokenIssueOrders.map(o => o.id);
       let bevLines = [];
       if (orderIds.length) {
@@ -202,9 +243,9 @@ export async function onRequest(context) {
       const orderRunnerMap = {};
       for (const o of tokenIssueOrders) orderRunnerMap[o.id] = {runnerId: o.partner_id[0], dateOrder: o.date_order};
 
-      // 6. Calculate per-runner issued since their last settlement
-      const runners = {};
-      for (const rid of RUNNER_IDS) {
+      // 7. Calculate per-runner issued since their last settlement
+      const runnersOut = {};
+      for (const rid of activeRunnerIds) {
         const lastSett = lastSettlements[rid];
         const sinceOdoo = lastSett ? new Date(lastSett.settledAt).toISOString().slice(0, 19).replace('T', ' ') : fromOdoo;
         let issuedSince = 0;
@@ -213,8 +254,8 @@ export async function onRequest(context) {
           if (info && info.runnerId === rid && info.dateOrder >= sinceOdoo) issuedSince += Math.round(line.qty);
         }
         const lastUnsold = lastSett ? lastSett.unsold : 0;
-        runners[rid] = {
-          name: RUNNER_NAMES[rid],
+        runnersOut[rid] = {
+          name: runnerCodeMap[rid],
           lastSettledAt: lastSett ? lastSett.settledAt : null,
           lastUnsold,
           issuedSince,
@@ -222,14 +263,17 @@ export async function onRequest(context) {
         };
       }
 
-      return new Response(JSON.stringify({success: true, runners}), {headers: corsHeaders});
+      return new Response(JSON.stringify({success: true, runners: runnersOut}), {headers: corsHeaders});
     }
 
-    // ── reset (delete all token box settlements for fresh start) ──
+    // ── reset (delete all token box settlements — admin only, PIN re-verification required) ──
     if (action === 'reset' && context.request.method === 'POST') {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
       const body = await context.request.json();
-      if (!body.settled_by) return new Response(JSON.stringify({success: false, error: 'settled_by required'}), {headers: corsHeaders});
+      const {pin} = body;
+      if (!pin || !PINS[pin]) return new Response(JSON.stringify({success: false, error: 'Invalid PIN — re-enter your PIN to authorise reset'}), {headers: corsHeaders});
+      const resetUser = PINS[pin];
+      if (!ADMIN_USERS.includes(resetUser)) return new Response(JSON.stringify({success: false, error: `Reset requires admin access. Contact ${ADMIN_USERS.join(' or ')}.`}), {headers: corsHeaders});
       await DB.prepare('DELETE FROM token_box_settlements').run();
       return new Response(JSON.stringify({success: true, message: 'Token tracking reset. Bootstrap again to start fresh.'}), {headers: corsHeaders});
     }
@@ -393,6 +437,28 @@ export async function onRequest(context) {
       }
 
       return new Response(JSON.stringify({success: true, results}), {headers: corsHeaders});
+    }
+
+    // ── get-calibration (token weight drift analysis from historical weight-mode settlements) ──
+    if (action === 'get-calibration') {
+      if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
+      const rows = await DB.prepare(
+        "SELECT gross_weight_kg, token_count, notes FROM token_box_settlements WHERE is_bootstrap = 0 AND token_count > 0 AND gross_weight_kg > 0 AND (notes IS NULL OR notes NOT LIKE 'Mode: manual%') ORDER BY settled_at DESC LIMIT 20"
+      ).all();
+      const samples = (rows.results || []).filter(r => r.gross_weight_kg > 0 && r.token_count > 0);
+      if (!samples.length) return new Response(JSON.stringify({success: true, sampleCount: 0, avgWeightG: TOKEN_WEIGHT_G, baselineG: TOKEN_WEIGHT_G, driftG: 0, suggestRecalibrate: false}), {headers: corsHeaders});
+      // gross_weight_kg column stores NET weight in GRAMS (naming is a legacy artefact)
+      const weights = samples.map(r => r.gross_weight_kg / r.token_count);
+      const avg = weights.reduce((a, b) => a + b, 0) / weights.length;
+      const drift = Math.abs(avg - TOKEN_WEIGHT_G);
+      return new Response(JSON.stringify({
+        success: true,
+        sampleCount: samples.length,
+        avgWeightG: Math.round(avg * 1000) / 1000,
+        baselineG: TOKEN_WEIGHT_G,
+        driftG: Math.round(drift * 1000) / 1000,
+        suggestRecalibrate: drift > 0.05
+      }), {headers: corsHeaders});
     }
 
     // ── history ──

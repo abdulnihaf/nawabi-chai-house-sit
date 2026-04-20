@@ -326,13 +326,13 @@ const WA_PHONES = ['917010426808', '919591170162']; // Nihaf, Mujeeb
 const TOKEN_WEIGHT = 1.1; // ~1.1 gram per token (physical constant of pink token)
 // Weightless-cover flow: staff TARES the scale with empty cover on it, then pours tokens in.
 // No container tare constant — tare is absorbed by the scale itself.
-const RUNNERS = [
-  {id: 64, name: 'FAROOQ'},
-  {id: 65, name: 'AMIN'},
-  {id: 66, name: 'Runner 03'},
-  {id: 67, name: 'Runner 04'},
-  {id: 68, name: 'Runner 05'}
-];
+let RUNNERS = [
+  {id: 64, name: 'R01'},
+  {id: 65, name: 'R02'},
+  {id: 66, name: 'R03'},
+  {id: 67, name: 'R04'},
+  {id: 68, name: 'R05'}
+]; // populated from Odoo on login via get-runners; fallback to codes above
 
 let currentUser = null;
 let lastSettlement = null;
@@ -383,15 +383,18 @@ async function checkPin() {
     const data = await res.json();
     if (data.success) {
       currentUser = data.user;
+      sessionStorage.setItem('nch_pin', pin); // store for reset auth + hub auto-login
       document.getElementById('pinUser').textContent = data.user;
       document.getElementById('pinSuccess').classList.add('show');
       document.getElementById('pinError').style.display = 'none';
-      setTimeout(() => {
+      setTimeout(async () => {
         document.getElementById('pinScreen').classList.add('hidden');
         document.getElementById('dashboard').classList.add('show');
         document.getElementById('userName').textContent = data.user;
+        await loadRunners(); // fetch dynamic runner list before building grids
         initRunnerGrid();
         loadStatus();
+        loadCalibration();
       }, 600);
     } else {
       document.getElementById('pinError').style.display = 'block';
@@ -496,11 +499,13 @@ async function loadRunnerContext(target) {
 
 // ── Reset ──
 async function resetTokenTracking() {
-  if (!confirm('This will delete all token settlement records and let you re-bootstrap. Are you sure?')) return;
+  if (!confirm('This will delete ALL token settlement records. This cannot be undone. Only admins can do this.\n\nContinue?')) return;
+  const pin = sessionStorage.getItem('nch_pin');
+  if (!pin) { alert('Session PIN not found — log out and back in, then try again.'); return; }
   try {
     const res = await fetch(`${API}?action=reset`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({settled_by: currentUser})
+      body: JSON.stringify({settled_by: currentUser, pin})
     });
     const data = await res.json();
     if (data.success) {
@@ -1232,6 +1237,29 @@ async function autoSendTeaMasterReport(d) {
     statusEl.textContent = 'Send failed: ' + e.message;
     statusEl.className = 'wa-status fail';
   }
+}
+
+async function loadRunners() {
+  try {
+    const res = await fetch(`${API}?action=get-runners`);
+    const data = await res.json();
+    if (data.success && data.runners.length) RUNNERS = data.runners;
+  } catch (e) { /* silently keep fallback hardcoded list */ }
+}
+
+async function loadCalibration() {
+  try {
+    const res = await fetch(`${API}?action=get-calibration`);
+    const data = await res.json();
+    if (!data.success || data.sampleCount < 3) return;
+    const noteEl = document.querySelector('.how-to-note');
+    if (!noteEl) return;
+    if (data.suggestRecalibrate) {
+      noteEl.innerHTML = `<span style="color:var(--yellow)">&#9888; Weight drift detected: actual avg <b>${data.avgWeightG.toFixed(3)}g</b>/token vs 1.1g baseline (${data.sampleCount} sessions). Consider re-calibrating the constant.</span>`;
+    } else {
+      noteEl.textContent += ` Calibrated: ${data.avgWeightG.toFixed(3)}g avg over ${data.sampleCount} sessions ✓`;
+    }
+  } catch (e) { /* calibration is informational only */ }
 }
 
 function logout() {
