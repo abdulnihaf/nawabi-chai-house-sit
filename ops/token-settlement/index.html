@@ -572,7 +572,11 @@ function updatePeriodDisplay() {
   const carry = lastSettlement.runner_unsold_qty || 0;
   const carryEl = document.getElementById('carryInfo');
   if (carry > 0) {
-    carryEl.textContent = `Carry-forward: ${carry} unsold tokens from previous period`;
+    // Extract per-runner detail from notes e.g. "Unsold: R02=13, R01=2"
+    const notesStr = lastSettlement.notes || '';
+    const unsoldMatch = notesStr.match(/Unsold:\s*([^\|]+)/);
+    const detail = unsoldMatch ? ` (${unsoldMatch[1].trim()})` : '';
+    carryEl.textContent = `Carry-forward: ${carry} unsold tokens${detail}`;
     carryEl.style.display = 'block';
   } else {
     carryEl.style.display = 'none';
