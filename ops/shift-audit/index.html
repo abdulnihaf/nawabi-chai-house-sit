@@ -522,14 +522,101 @@
   </div>
 </div>
 
+<!-- UPI CROSS-VERIFICATION -->
+<div class="card">
+  <h2><span class="num">7</span> UPI Cross-Verification — Razorpay vs Odoo</h2>
+  <p style="color: var(--gray); font-size: 13px; margin-bottom: 12px;">
+    The cash counter QR (<strong>qr_SBdtUCLSHVfRtT</strong>) — the QR sticker on Nafees's counter — received
+    <strong>43 UPI payments (₹2,070)</strong> from customers during this shift.
+    Odoo PM38 only records <strong>26 payments (₹1,450)</strong>. Each Razorpay payment was matched to its Odoo order.
+  </p>
+
+  <table>
+    <tr><th></th><th style="text-align:right">Payments</th><th style="text-align:right">Amount</th></tr>
+    <tr><td>Total received on counter QR (Razorpay)</td><td class="num">43</td><td class="num">₹2,070</td></tr>
+    <tr><td>Correctly entered as PM38 UPI in Odoo</td><td class="num ok">26</td><td class="num ok">₹1,450</td></tr>
+    <tr style="background: var(--red-soft);"><td class="bad">Gap — not properly recorded</td><td class="num bad">17</td><td class="num bad">₹620</td></tr>
+  </table>
+
+  <p style="margin: 16px 0 8px; font-weight: 600; color: var(--ink);">The 17 missing payments fall into 3 buckets:</p>
+
+  <!-- Bucket 1 -->
+  <div style="border-left: 4px solid var(--red); background: var(--red-soft); padding: 12px 14px; border-radius: 6px; margin: 10px 0;">
+    <div style="font-weight: 700; color: var(--red); margin-bottom: 6px;">Bucket 1 — Never entered at all &nbsp;·&nbsp; 5 payments &nbsp;·&nbsp; ₹250</div>
+    <div style="font-size: 13px; color: var(--gray); margin-bottom: 8px;">Customer scanned QR, paid, got served. Zero POS entry, zero Odoo record.</div>
+    <table style="font-size: 12px;">
+      <tr><th>Razorpay ID</th><th>IST Time</th><th style="text-align:right">Amount</th></tr>
+      <tr><td>pay_SfQ4EalnuUcwmF</td><td>10:06 PM</td><td class="num">₹20</td></tr>
+      <tr><td>pay_SfQope599iSpqf</td><td>10:50 PM</td><td class="num">₹10</td></tr>
+      <tr><td>pay_SfRKBBdKiVqPHj</td><td>11:19 PM</td><td class="num">₹40</td></tr>
+      <tr><td>pay_SfSx1mVYzlX3lr</td><td>12:55 AM</td><td class="num">₹170</td></tr>
+      <tr><td>pay_SfTDpbFUqXZlrW</td><td>1:11 AM</td><td class="num">₹10</td></tr>
+      <tr style="background: var(--red-soft);"><td colspan="2" class="strong bad">TOTAL</td><td class="num bad strong">₹250</td></tr>
+    </table>
+  </div>
+
+  <!-- Bucket 2 -->
+  <div style="border-left: 4px solid #e67e22; background: #fef5e7; padding: 12px 14px; border-radius: 6px; margin: 10px 0;">
+    <div style="font-weight: 700; color: #e67e22; margin-bottom: 6px;">Bucket 2 — Entered 5 hours LATE as a batch at 3:17 AM &nbsp;·&nbsp; 5 payments &nbsp;·&nbsp; ₹220</div>
+    <div style="font-size: 13px; color: var(--gray);">
+      Orders 014489, 014490, 014493, 014495, 014496 — all share the exact same timestamp (3:17 AM IST),
+      entered in one sitting hours after the actual payments at 10:17–10:27 PM.
+      This shows awareness of the missed entries but deliberate delay in recording.
+    </div>
+  </div>
+
+  <!-- Bucket 3 -->
+  <div style="border-left: 4px solid #e67e22; background: #fef5e7; padding: 12px 14px; border-radius: 6px; margin: 10px 0;">
+    <div style="font-weight: 700; color: #e67e22; margin-bottom: 6px;">Bucket 3 — UPI received but entered as Cash (PM37) in Odoo &nbsp;·&nbsp; 4 payments &nbsp;·&nbsp; ₹180</div>
+    <div style="font-size: 13px; color: var(--gray);">
+      Customer paid via counter QR scan. Razorpay received the money.
+      But Odoo shows these 4 orders as <strong>PM37 Cash</strong> — not UPI.
+      Orders: 014499 (₹60), 014502 (₹40), 014518 (₹40), 014547 (₹40).
+    </div>
+  </div>
+</div>
+
+<!-- FULL TALLY -->
+<div class="card" style="border: 2px solid var(--red);">
+  <h2 style="color: var(--red); border-bottom-color: var(--red-soft);">Complete Leakage Tally — This Shift</h2>
+  <table>
+    <tr><th>Type</th><th>Description</th><th style="text-align:right">Amount</th></tr>
+    <tr>
+      <td class="bad">Unrecorded cash sales</td>
+      <td style="font-size:13px">Cash received at counter, sale never entered in POS</td>
+      <td class="num bad strong">₹2,756</td>
+    </tr>
+    <tr>
+      <td class="bad">Unrecorded UPI sales</td>
+      <td style="font-size:13px">5 customers paid via QR — no Odoo order created at all</td>
+      <td class="num bad strong">₹250</td>
+    </tr>
+    <tr>
+      <td style="color:#e67e22; font-weight:600">Retroactive batch entries</td>
+      <td style="font-size:13px">5 UPI orders entered 5 hours late (all at 3:17 AM)</td>
+      <td class="num" style="color:#e67e22; font-weight:700">₹220</td>
+    </tr>
+    <tr>
+      <td style="color:#e67e22; font-weight:600">UPI marked as Cash</td>
+      <td style="font-size:13px">4 orders where customer paid via QR but recorded as PM37</td>
+      <td class="num" style="color:#e67e22; font-weight:700">₹180</td>
+    </tr>
+    <tr style="background: #2a1e13;">
+      <td colspan="2" style="color: var(--amber); font-weight: 700; font-size: 15px;">TOTAL UNACCOUNTED REVENUE</td>
+      <td class="num" style="color: var(--amber); font-weight: 800; font-size: 18px;">₹3,406</td>
+    </tr>
+  </table>
+</div>
+
 <!-- VERDICT -->
 <div class="verdict">
   <h2>CONCLUSION</h2>
-  <p>Every payment stream has been verified against Odoo and Razorpay to the exact rupee.</p>
-  <p>The runners, the UPI payments, the tokens, the float — all clean.</p>
-  <p>The only mathematical explanation for the gap is:</p>
-  <div class="big-number">₹2,756</div>
-  <p><strong>in cash sales received at the POS27 counter,<br>but never entered into the system.</strong></p>
+  <p>Runners: verified to the rupee against Razorpay. Tokens: accounted for. Float: confirmed.</p>
+  <p>The counter QR received <strong style="color:var(--amber)">₹2,070 from 43 customers</strong> — only 26 orders entered in Odoo at the right time.</p>
+  <p style="margin-top: 10px;">Cash gap + missing UPI = total unrecorded sales in one shift:</p>
+  <div class="big-number">₹3,006</div>
+  <p style="font-size: 13px; opacity: 0.8;">(₹2,756 cash + ₹250 UPI never entered)</p>
+  <p style="margin-top: 12px;"><strong>The sale is not being entered in the POS at the time of transaction.</strong></p>
   <p style="font-size: 14px; margin-top: 16px; opacity: 0.8;">
     Cashier on POS27 for the entire window: <strong style="color: var(--amber);">NAFEES (CASH002)</strong>
   </p>
