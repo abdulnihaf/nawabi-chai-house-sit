@@ -208,7 +208,11 @@
       <div class="bootstrap-card" id="bootstrapCard" style="display:none">
         <div class="icon">&#128230;</div>
         <h3>Start Token Tracking</h3>
-        <p>Empty all tokens from the collection bowl into a cover and set them aside (this starting batch is cleared). Then enter how many unsold tokens each runner currently has. The system will show Odoo data to help you verify.</p>
+        <p>Empty all tokens from the collection bowl, set them aside. Enter the exact time you emptied the box, then fill in unsold tokens per runner.</p>
+        <div style="margin:16px 0;text-align:left">
+          <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">When did you empty the token box?</label>
+          <input type="datetime-local" id="emptiedAtInput" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;font-family:'JetBrains Mono',monospace">
+        </div>
         <div id="bootstrapRunnerSection" style="display:none">
           <div class="runner-unsold" style="margin-top:16px">
             <h4>Unsold tokens with runners right now</h4>
@@ -536,6 +540,11 @@ async function loadStatus() {
     if (!data.lastSettlement) {
       document.getElementById('bootstrapCard').style.display = 'block';
       document.getElementById('activeSection').style.display = 'none';
+      // Pre-fill emptied_at with current local time (device is IST)
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('emptiedAtInput').value =
+        `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     } else {
       lastSettlement = data.lastSettlement;
       document.getElementById('bootstrapCard').style.display = 'none';
@@ -573,6 +582,10 @@ function updatePeriodDisplay() {
 // ── Bootstrap ──
 async function bootstrap() {
   const {total, detail} = getUnsoldTokens('boot');
+  const emptiedAtVal = document.getElementById('emptiedAtInput').value;
+  if (!emptiedAtVal) { alert('Please enter the time you emptied the token box.'); return; }
+  // Convert local datetime-local value to UTC ISO string
+  const emptiedAt = new Date(emptiedAtVal).toISOString();
   const btn = document.getElementById('bootstrapBtn');
   btn.disabled = true;
   btn.classList.add('loading');
@@ -580,7 +593,7 @@ async function bootstrap() {
   try {
     const res = await fetch(`${API}?action=bootstrap`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({settled_by: currentUser, unsold_tokens: total, unsold_detail: detail})
+      body: JSON.stringify({settled_by: currentUser, unsold_tokens: total, unsold_detail: detail, emptied_at: emptiedAt})
     });
     const data = await res.json();
     if (data.success) {

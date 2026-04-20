@@ -25,7 +25,15 @@ export async function onRequest(context) {
   const ODOO_UID = 2;
   const ODOO_API_KEY = context.env.ODOO_API_KEY;
 
-  const PINS = {'6890': 'Tanveer', '7115': 'Md Kesmat', '3946': 'Jafar', '3678': 'Farooq', '0305': 'Nihaf', '2026': 'Zoya', '3697': 'Yashwant', '3754': 'Naveen', '8241': 'Nafees', '8523': 'Basheer'};
+  const PINS = {
+    // Runners — identified by code, consistent with v2
+    '3678': 'R01', '4421': 'R02', '5503': 'R03', '6604': 'R04', '7705': 'R05',
+    // Cashiers
+    '7115': 'CASH001', '8241': 'CASH002', '2847': 'CASH003', '5190': 'CASH004',
+    // Staff
+    '8523': 'Basheer', '6890': 'Tanveer', '2026': 'Zoya',
+    '3697': 'Yashwant', '3754': 'Naveen', '0305': 'Nihaf'
+  };
   const ADMIN_USERS = ['Nihaf']; // Only these users can perform destructive actions (reset)
 
   const BOX_TARE_G = 0;       // weightless-cover flow: staff tares scale before pouring tokens
@@ -283,7 +291,7 @@ export async function onRequest(context) {
       if (!DB) return new Response(JSON.stringify({success: false, error: 'Database not configured'}), {headers: corsHeaders});
 
       const body = await context.request.json();
-      const {settled_by, unsold_tokens, unsold_detail} = body;
+      const {settled_by, unsold_tokens, unsold_detail, emptied_at} = body;
 
       const existing = await DB.prepare('SELECT id FROM token_box_settlements LIMIT 1').first();
       if (existing) return new Response(JSON.stringify({success: false, error: 'Already bootstrapped. Use reset first, then bootstrap.'}), {headers: corsHeaders});
@@ -296,12 +304,14 @@ export async function onRequest(context) {
       }
 
       const now = new Date().toISOString();
+      // emptied_at: when the box was physically emptied (user-specified); defaults to now
+      const periodAnchor = emptied_at ? new Date(emptied_at).toISOString() : now;
       await DB.prepare(`
         INSERT INTO token_box_settlements (settled_at, settled_by, period_start, period_end, is_bootstrap, runner_unsold_qty, carry_forward_qty, notes)
         VALUES (?, ?, ?, ?, 1, ?, 0, ?)
-      `).bind(now, settled_by, now, now, runnerUnsold, notesStr).run();
+      `).bind(now, settled_by, periodAnchor, periodAnchor, runnerUnsold, notesStr).run();
 
-      return new Response(JSON.stringify({success: true, message: 'Token tracking started', settled_at: now, runnerUnsold}), {headers: corsHeaders});
+      return new Response(JSON.stringify({success: true, message: 'Token tracking started', settled_at: now, periodAnchor, runnerUnsold}), {headers: corsHeaders});
     }
 
     // ── settle ──
