@@ -261,8 +261,10 @@ async function recordExpense(context, DB, cors) {
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
   if (!CAN_RECORD_EXPENSE.has(staff.role)) return json({success: false, error: 'Only cashier or admin can record expenses'}, cors, 403);
 
+  // Pool filter retired — /ops/v2/ unified all HN cash expenses into the counter till.
+  // Petty-pool codes (SUPPLIES, REPAIR, etc.) now also valid counter expenses.
   const category = await DB.prepare(
-    `SELECT * FROM v_expense_categories WHERE code = ? AND pool = 'counter' AND active = 1`
+    `SELECT * FROM v_expense_categories WHERE code = ? AND active = 1`
   ).bind(category_code).first();
   if (!category) return json({success: false, error: `Invalid counter expense category: ${category_code}`}, cors, 400);
 

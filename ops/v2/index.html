@@ -489,7 +489,7 @@
 
       <!-- Vendor: searchable combobox -->
       <div class="input-group" id="exp-vendor-wrap">
-        <label class="input-label">Vendor *</label>
+        <label class="input-label" id="exp-vendor-label">Vendor *</label>
         <div class="searchable">
           <input id="exp-vendor-search" class="input" type="text" autocomplete="off"
                  placeholder="Search or + add new vendor…"
@@ -742,8 +742,12 @@ const _hnProductCache = {};
 let _hnVendorCache = null;
 let _hnEmployeeCache = null;
 
-// Vendor required on every cash-paid cat. Cat 3/4 use employee; cat 13 is internal (no vendor).
-const VENDOR_REQUIRED_CATS = new Set([1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 14]);
+// Vendor mandatory ONLY for raw material (needs audit-trail per supplier).
+// All other cash-paid cats: vendor picker shown but OPTIONAL — petty/staff food/cash tips
+// often have no stored vendor. Backend dual-write: NCH ledger doesn't care; Odoo leg
+// is already non-blocking, so a missing vendor just means manager tags later.
+const VENDOR_REQUIRED_CATS = new Set([1]);
+const VENDOR_OPTIONAL_CATS = new Set([2, 5, 6, 7, 8, 9, 10, 11, 12, 14]);
 const EMPLOYEE_REQUIRED_CATS = new Set([3, 4]);  // salary, advance
 // Cat 14 (Direct Vendor Bill): no product dropdown — vendor_name is the line item
 const NO_PRODUCT_CATS = new Set([14]);
@@ -1394,11 +1398,14 @@ async function openExpenseCat(catId) {
   el('exp-submit-btn').style.display = '';
 
   const showProducts  = !NO_PRODUCT_CATS.has(catId);
-  const showVendor    = VENDOR_REQUIRED_CATS.has(catId);
+  const showVendor    = VENDOR_REQUIRED_CATS.has(catId) || VENDOR_OPTIONAL_CATS.has(catId);
   const showEmployee  = EMPLOYEE_REQUIRED_CATS.has(catId);
   el('exp-product-wrap').classList.toggle('hidden', !showProducts);
   el('exp-vendor-wrap').classList.toggle('hidden', !showVendor);
   el('exp-employee-wrap').classList.toggle('hidden', !showEmployee);
+  if (showVendor) {
+    el('exp-vendor-label').textContent = VENDOR_REQUIRED_CATS.has(catId) ? 'Vendor *' : 'Vendor (optional)';
+  }
 
   // ── Products (searchable, brand-filtered to NCH)
   if (showProducts) {
@@ -1667,12 +1674,17 @@ async function submitExpense() {
       if (!product_id) throw new Error('Pick the item');
     }
 
-    // Vendor required on most cats (not on 3,4,13) — combobox hidden input + search text
+    // Vendor: mandatory on cat 1 (raw material, needs supplier audit trail).
+    // Optional on other cash cats — cashier CAN pick vendor if applicable, but won't
+    // be blocked for petty/staff-food/tips where no stored vendor exists.
     let vendor_id = null, vendor_name = null;
     if (VENDOR_REQUIRED_CATS.has(cat.id)) {
       vendor_id = el('exp-vendor').value;
-      if (!vendor_id) throw new Error('Pick a vendor — every expense must tie to a vendor');
+      if (!vendor_id) throw new Error('Pick a vendor — raw material must tie to a supplier');
       vendor_name = el('exp-vendor-search').value || '';
+    } else if (VENDOR_OPTIONAL_CATS.has(cat.id)) {
+      vendor_id = el('exp-vendor').value || null;
+      if (vendor_id) vendor_name = el('exp-vendor-search').value || '';
     }
 
     // Employee required on cats 3, 4 (salary / advance)

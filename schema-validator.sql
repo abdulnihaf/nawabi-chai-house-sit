@@ -670,15 +670,25 @@ INSERT OR REPLACE INTO v_error_types (code, source, category, description, detec
 -- SEED: EXPENSE CATEGORIES
 -- ============================================================
 
--- Counter cash expenses — ONLY police. Nothing else touches counter cash.
+-- Counter cash expenses — unified HN cats (was: police-only before /ops/v2/ launch).
+-- /api/rectify?action=record-expense accepts ALL active rows (pool filter retired).
 INSERT OR REPLACE INTO v_expense_categories (code, name, pool, requires_approval, max_amount, active) VALUES
+    -- Police hafta (original counter-pool rows)
     ('BEAT', 'Beat Police', 'counter', 0, 100, 1),
     ('CHETA', 'Cheta Police', 'counter', 0, 100, 1),
     ('HOYSALA', 'Hoysala', 'counter', 0, 100, 1),
     ('ASI', 'ASI', 'counter', 0, 100, 1),
     ('WEEKLY', 'Weekly Police', 'counter', 0, 100, 1),
     ('CIRCLE', 'Circle Police', 'counter', 0, 100, 1),
-    ('SI', 'Sub Inspector', 'counter', 0, 500, 1);
+    ('SI', 'Sub Inspector', 'counter', 0, 500, 1),
+    -- HN unified cats (mirror HN_CATS rect_codes in /ops/v2/index.html)
+    ('RM',        'Raw Material',       'counter', 0, NULL, 1),
+    ('ASSET',     'Capex / Equipment',  'counter', 0, NULL, 1),
+    ('ADVANCE',   'Salary Advance',     'counter', 0, NULL, 1),
+    ('MISC',      'Utility Bill',       'counter', 0, NULL, 1),
+    ('MARKETING', 'Marketing / Ads',    'counter', 0, NULL, 1),
+    ('TECH',      'Tech / SaaS / Bank', 'counter', 0, NULL, 1),
+    ('LEGAL',     'Audit / Legal',      'counter', 0, NULL, 1);
 
 -- Petty cash — completely separate fund, not linked to counter cash
 -- Managed by GM/admin, funded independently
