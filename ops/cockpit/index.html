@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Ops Cockpit — Live Discrepancy Hunter</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg:#0b0d10; --panel:#12161c; --panel2:#1a1f27; --border:#242b36;
+    --text:#e6e9ef; --muted:#8892a3; --amber:#D4A44C; --wheat:#E9D1A9; --brown:#AC7E54;
+    --green:#22c55e; --red:#ef4444; --orange:#f59e0b; --blue:#3b82f6;
+  }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:13px; line-height:1.45; }
+  a { color:var(--amber); text-decoration:none; }
+  button { cursor:pointer; font-family:inherit; }
+
+  /* PIN gate */
+  .pin-gate { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .pin-box { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:28px 32px; width:300px; text-align:center; }
+  .pin-box h1 { font-size:16px; color:var(--amber); margin-bottom:4px; }
+  .pin-box p { color:var(--muted); font-size:11px; margin-bottom:20px; }
+  .pin-dots { display:flex; gap:10px; justify-content:center; margin-bottom:18px; }
+  .pin-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--border); }
+  .pin-dot.filled { background:var(--amber); border-color:var(--amber); }
+  .pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .pin-pad button { background:var(--panel2); border:1px solid var(--border); color:var(--text); font-size:18px; padding:14px 0; border-radius:8px; }
+  .pin-pad button:hover { background:var(--border); }
+  .pin-err { color:var(--red); font-size:11px; min-height:14px; margin-top:10px; }
+
+  /* Header */
+  .header { background:var(--panel); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; position:sticky; top:0; z-index:10; }
+  .brand { font-weight:700; color:var(--amber); font-size:14px; }
+  .brand span { color:var(--muted); font-weight:400; margin-left:6px; }
+  .who { margin-left:auto; color:var(--muted); font-size:11px; }
+  .logout-btn { background:transparent; border:1px solid var(--border); color:var(--muted); padding:4px 10px; border-radius:6px; font-size:11px; }
+
+  /* Filter bar */
+  .filters { background:var(--panel); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .filter-group { display:flex; gap:4px; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:4px 8px; }
+  .filter-group label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; }
+  .filter-group input, .filter-group select { background:transparent; border:none; color:var(--text); font-size:12px; padding:4px; outline:none; font-family:inherit; }
+  .filter-group input[type="datetime-local"] { color-scheme:dark; width:165px; }
+  .preset-btn { background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; font-size:11px; }
+  .preset-btn.active { background:var(--amber); color:#000; border-color:var(--amber); }
+  .chk-group { display:flex; gap:4px; flex-wrap:wrap; }
+  .chk-btn { background:var(--panel2); border:1px solid var(--border); color:var(--muted); padding:3px 7px; border-radius:4px; font-size:10px; }
+  .chk-btn.on { background:var(--amber); color:#000; border-color:var(--amber); }
+  .apply-btn { background:var(--amber); border:none; color:#000; padding:7px 14px; border-radius:6px; font-weight:600; font-size:12px; }
+  .refresh-btn { background:var(--blue); border:none; color:#fff; padding:7px 10px; border-radius:6px; font-size:11px; }
+  .auto-refresh { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; }
+
+  /* Tabs */
+  .tabs { background:var(--panel); border-bottom:1px solid var(--border); padding:0 16px; display:flex; gap:0; overflow-x:auto; }
+  .tab { background:transparent; border:none; color:var(--muted); padding:10px 16px; font-size:12px; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--amber); border-bottom-color:var(--amber); }
+  .tab-badge { background:var(--red); color:#fff; font-size:9px; padding:1px 5px; border-radius:8px; margin-left:5px; }
+
+  /* Content */
+  .content { padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .grid-4 { grid-template-columns:repeat(4,1fr); }
+  .grid-3 { grid-template-columns:repeat(3,1fr); }
+  .grid-2 { grid-template-columns:repeat(2,1fr); }
+  @media (max-width:900px) { .grid-4 { grid-template-columns:repeat(2,1fr); } .grid-3 { grid-template-columns:1fr; } }
+
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .card h3 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; font-weight:500; }
+  .card .big { font-size:22px; font-weight:700; color:var(--text); }
+  .card .big.amber { color:var(--amber); }
+  .card .big.red { color:var(--red); }
+  .card .big.green { color:var(--green); }
+  .card .sub { font-size:10px; color:var(--muted); margin-top:4px; }
+
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { background:var(--panel2); color:var(--muted); text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:500; border-bottom:1px solid var(--border); position:sticky; top:0; }
+  td { padding:7px 10px; border-bottom:1px solid var(--border); }
+  tr:hover td { background:var(--panel2); }
+  .table-wrap { background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; max-height:70vh; overflow-y:auto; }
+
+  /* Badges */
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; }
+  .pill-ok { background:rgba(34,197,94,0.15); color:var(--green); }
+  .pill-warn { background:rgba(245,158,11,0.15); color:var(--orange); }
+  .pill-crit { background:rgba(239,68,68,0.18); color:var(--red); }
+  .pill-info { background:rgba(59,130,246,0.15); color:var(--blue); }
+  .pill-mute { background:var(--panel2); color:var(--muted); }
+
+  /* Issues */
+  .issue { background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--blue); border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+  .issue.critical { border-left-color:var(--red); }
+  .issue.high { border-left-color:var(--orange); }
+  .issue.warning { border-left-color:var(--amber); }
+  .issue.info { border-left-color:var(--blue); }
+  .issue-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .issue-title { font-size:13px; font-weight:600; }
+  .issue-expand { background:transparent; border:none; color:var(--amber); font-size:11px; }
+  .issue-evidence { background:var(--panel2); border-radius:6px; padding:10px; margin-top:8px; font-family:'SF Mono',Consolas,monospace; font-size:10px; max-height:260px; overflow:auto; display:none; }
+  .issue-evidence.show { display:block; }
+  .issue-evidence pre { color:var(--muted); white-space:pre-wrap; word-break:break-word; }
+
+  /* Modal */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:50; padding:20px; }
+  .modal.show { display:flex; }
+  .modal-body { background:var(--panel); border:1px solid var(--border); border-radius:12px; max-width:800px; width:100%; max-height:90vh; overflow:auto; padding:20px; }
+  .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+  .modal-close { background:transparent; border:none; color:var(--muted); font-size:18px; }
+
+  .empty { padding:40px; text-align:center; color:var(--muted); font-size:12px; }
+  .loading { padding:20px; text-align:center; color:var(--muted); }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .code { font-family:'SF Mono',Consolas,monospace; font-size:10px; color:var(--muted); }
+  .hidden { display:none !important; }
+
+  /* Timeline bars */
+  .timeline { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .tl-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:11px; }
+  .tl-label { width:110px; color:var(--muted); font-size:10px; }
+  .tl-bar { flex:1; background:var(--panel2); height:16px; border-radius:3px; overflow:hidden; position:relative; }
+  .tl-fill { height:100%; transition:width 0.3s; }
+  .tl-val { width:80px; text-align:right; font-variant-numeric:tabular-nums; }
+
+  .matrix-table td, .matrix-table th { padding:6px 10px; font-size:11px; }
+  .matrix-table td.num { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+
+<!-- PIN Gate -->
+<div class="pin-gate" id="pin-gate">
+  <div class="pin-box">
+    <h1>NCH Ops Cockpit</h1>
+    <p>Live discrepancy dashboard · GM / Manager access only</p>
+    <div class="pin-dots" id="pin-dots"></div>
+    <div class="pin-pad" id="pin-pad"></div>
+    <div class="pin-err" id="pin-err"></div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app" class="hidden">
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">NCH Cockpit <span>Live · Odoo + Razorpay + D1</span></div>
+    <div class="who" id="who-label"></div>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filters">
+    <div class="filter-group">
+      <label>Period</label>
+      <button class="preset-btn" data-preset="last-shift">Last Shift</button>
+      <button class="preset-btn" data-preset="today">Today</button>
+      <button class="preset-btn" data-preset="yesterday">Yesterday</button>
+      <button class="preset-btn" data-preset="7d">7D</button>
+      <button class="preset-btn" data-preset="custom">Custom</button>
+    </div>
+    <div class="filter-group" id="custom-range" style="display:none;">
+      <label>From</label><input type="datetime-local" id="from-input">
+      <label>To</label><input type="datetime-local" id="to-input">
+    </div>
+    <div class="filter-group">
+      <label>POS</label>
+      <div class="chk-group" id="pos-chks">
+        <button class="chk-btn on" data-pos="27">27 CashCounter</button>
+        <button class="chk-btn on" data-pos="28">28 RunnerCounter</button>
+        <button class="chk-btn" data-pos="29">29 Delivery</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>PM</label>
+      <div class="chk-group" id="pm-chks">
+        <button class="chk-btn on" data-pm="37">37 Cash</button>
+        <button class="chk-btn on" data-pm="38">38 UPI</button>
+        <button class="chk-btn on" data-pm="39">39 Card</button>
+        <button class="chk-btn on" data-pm="40">40 RunLedger</button>
+        <button class="chk-btn on" data-pm="48">48 Token</button>
+        <button class="chk-btn on" data-pm="49">49 Comp</button>
+      </div>
+    </div>
+    <button class="apply-btn" onclick="applyFilters()">Apply</button>
+    <button class="refresh-btn" onclick="refreshTab()">↻ Refresh</button>
+    <div class="auto-refresh">
+      <input type="checkbox" id="auto-refresh" checked>
+      <label for="auto-refresh">Auto 30s (Summary)</label>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="summary">Summary</button>
+    <button class="tab" data-tab="timeline">Timeline</button>
+    <button class="tab" data-tab="orders">Orders</button>
+    <button class="tab" data-tab="razorpay">Razorpay</button>
+    <button class="tab" data-tab="runners">Runners</button>
+    <button class="tab" data-tab="discrepancies">Discrepancies <span class="tab-badge hidden" id="disc-badge">0</span></button>
+  </div>
+
+  <!-- Content panes -->
+  <div class="content">
+    <div id="pane-summary" class="pane"></div>
+    <div id="pane-timeline" class="pane hidden"></div>
+    <div id="pane-orders" class="pane hidden"></div>
+    <div id="pane-razorpay" class="pane hidden"></div>
+    <div id="pane-runners" class="pane hidden"></div>
+    <div id="pane-discrepancies" class="pane hidden"></div>
+  </div>
+</div>
+
+<!-- Drilldown modal -->
+<div class="modal" id="modal">
+  <div class="modal-body">
+    <div class="modal-head">
+      <div id="modal-title" style="font-size:14px; font-weight:600;">Order drilldown</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────────
+const S = {
+  pin: '', user: null, role: null, code: null,
+  from: null, to: null, preset: 'today',
+  pos_ids: [27, 28], pm_ids: [37, 38, 39, 40, 48, 49],
+  tab: 'summary',
+  autoTimer: null,
+  cache: {},
+};
+
+const PM_NAMES = {37:'Cash', 38:'UPI', 39:'Card', 40:'RunLedger', 46:'Swiggy', 47:'Zomato', 48:'Token', 49:'Comp', 50:'WABA-COD', 51:'WABA-UPI'};
+const POS_NAMES = {27:'CashCtr', 28:'RunCtr', 29:'Delivery'};
+const RUNNERS = {64:'RUN001',65:'RUN002',66:'RUN003',67:'RUN004',68:'RUN005'};
+
+const el = id => document.getElementById(id);
+const fmtMoney = n => '₹' + (n||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+const fmtTime = iso => { const d = new Date(iso); return d.toLocaleString('en-IN',{hour12:false,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); };
+const fmtTimeOnly = iso => new Date(iso).toLocaleTimeString('en-IN',{hour12:false,hour:'2-digit',minute:'2-digit'});
+const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ────────────────────────────────────────────────
+// PIN gate
+// ────────────────────────────────────────────────
+function buildPinPad() {
+  const pad = el('pin-pad');
+  pad.innerHTML = '';
+  ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].forEach(k => {
+    const b = document.createElement('button');
+    b.textContent = k;
+    b.onclick = () => pinKey(k);
+    pad.appendChild(b);
+  });
+  renderPinDots();
+}
+function pinKey(k) {
+  if (k === '⌫') { S.pin = S.pin.slice(0, -1); renderPinDots(); el('pin-err').textContent = ''; return; }
+  if (k === '✓') return;
+  if (S.pin.length >= 4) return;
+  S.pin += k;
+  renderPinDots();
+  if (S.pin.length === 4) verifyPin();
+}
+function renderPinDots() {
+  const dots = el('pin-dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement('div');
+    d.className = 'pin-dot' + (i < S.pin.length ? ' filled' : '');
+    dots.appendChild(d);
+  }
+}
+async function verifyPin() {
+  try {
+    const r = await fetch(`/api/rectify?action=verify-staff&pin=${encodeURIComponent(S.pin)}`).then(r => r.json());
+    if (!r.success) { el('pin-err').textContent = r.error || 'Wrong PIN'; S.pin = ''; renderPinDots(); return; }
+    if (!['admin','gm','manager'].includes(r.role)) {
+      el('pin-err').textContent = 'Cockpit is for GM / Manager only';
+      S.pin = ''; renderPinDots(); return;
+    }
+    S.user = r.person; S.role = r.role; S.code = r.code;
+    el('who-label').textContent = `${r.person} · ${r.code}`;
+    el('pin-gate').classList.add('hidden');
+    el('app').classList.remove('hidden');
+    setPreset('today');
+  } catch (e) {
+    el('pin-err').textContent = 'Network error';
+    S.pin = ''; renderPinDots();
+  }
+}
+function logout() {
+  clearAutoRefresh();
+  S.pin = ''; S.user = null; S.role = null;
+  el('app').classList.add('hidden');
+  el('pin-gate').classList.remove('hidden');
+  renderPinDots();
+  el('pin-err').textContent = '';
+}
+
+// ────────────────────────────────────────────────
+// Time presets
+// ────────────────────────────────────────────────
+function setPreset(preset) {
+  S.preset = preset;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+  el('custom-range').style.display = preset === 'custom' ? 'flex' : 'none';
+  const now = new Date();
+  if (preset === 'last-shift') {
+    // Last shift = rolling 24h back from now
+    S.from = new Date(now.getTime() - 24*3600*1000);
+    S.to = now;
+  } else if (preset === 'today') {
+    // IST midnight today → now
+    const istOffset = 5.5*3600*1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    const istMid = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+    S.from = new Date(istMid.getTime() - istOffset);
+    S.to = now;
+  } else if (preset === 'yesterday') {
+    const istOffset = 5.5*3600*1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    const istMidToday = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+    const istMidYest = new Date(istMidToday.getTime() - 24*3600*1000);
+    S.from = new Date(istMidYest.getTime() - istOffset);
+    S.to = new Date(istMidToday.getTime() - istOffset);
+  } else if (preset === '7d') {
+    S.from = new Date(now.getTime() - 7*24*3600*1000);
+    S.to = now;
+  } else if (preset === 'custom') {
+    if (!el('from-input').value) {
+      el('from-input').value = toLocalInput(S.from || new Date(now.getTime()-24*3600*1000));
+      el('to-input').value = toLocalInput(S.to || now);
+    }
+    return;
+  }
+  applyFilters();
+}
+function toLocalInput(d) {
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d - off).toISOString().slice(0, 16);
+}
+
+document.querySelectorAll('.preset-btn').forEach(b => b.onclick = () => setPreset(b.dataset.preset));
+document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+document.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+function applyFilters() {
+  if (S.preset === 'custom') {
+    S.from = new Date(el('from-input').value);
+    S.to = new Date(el('to-input').value);
+  }
+  S.pos_ids = Array.from(document.querySelectorAll('[data-pos].on')).map(b => +b.dataset.pos);
+  S.pm_ids = Array.from(document.querySelectorAll('[data-pm].on')).map(b => +b.dataset.pm);
+  S.cache = {}; // invalidate
+  loadTab(S.tab);
+  loadDiscrepancyBadge();
+}
+
+function switchTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.pane').forEach(p => p.classList.add('hidden'));
+  el('pane-' + tab).classList.remove('hidden');
+  loadTab(tab);
+  scheduleAutoRefresh();
+}
+
+function refreshTab() { S.cache = {}; loadTab(S.tab); loadDiscrepancyBadge(); }
+
+function clearAutoRefresh() { if (S.autoTimer) { clearInterval(S.autoTimer); S.autoTimer = null; } }
+function scheduleAutoRefresh() {
+  clearAutoRefresh();
+  if (el('auto-refresh')?.checked && S.tab === 'summary') {
+    S.autoTimer = setInterval(() => { S.cache = {}; loadTab('summary'); loadDiscrepancyBadge(); }, 30000);
+  }
+}
+el('auto-refresh').addEventListener('change', scheduleAutoRefresh);
+
+// ────────────────────────────────────────────────
+// API
+// ────────────────────────────────────────────────
+async function api(action, extra = {}) {
+  const cacheKey = action + JSON.stringify(extra);
+  if (S.cache[cacheKey]) return S.cache[cacheKey];
+  const params = new URLSearchParams({
+    action,
+    from: S.from.toISOString(),
+    to: S.to.toISOString(),
+    pos_ids: S.pos_ids.join(','),
+    pm_ids: S.pm_ids.join(','),
+    ...extra,
+  });
+  const r = await fetch(`/api/cockpit?${params}`).then(r => r.json());
+  if (r.success) S.cache[cacheKey] = r;
+  return r;
+}
+
+// ────────────────────────────────────────────────
+// Tab loaders
+// ────────────────────────────────────────────────
+async function loadTab(tab) {
+  const pane = el('pane-' + tab);
+  pane.innerHTML = '<div class="loading">Loading live data from Odoo + Razorpay…</div>';
+  try {
+    if (tab === 'summary') await renderSummary(pane);
+    else if (tab === 'timeline') await renderTimeline(pane);
+    else if (tab === 'orders') await renderOrders(pane);
+    else if (tab === 'razorpay') await renderRazorpay(pane);
+    else if (tab === 'runners') await renderRunners(pane);
+    else if (tab === 'discrepancies') await renderDiscrepancies(pane);
+  } catch (e) {
+    pane.innerHTML = `<div class="card" style="border-color:var(--red);"><strong style="color:var(--red);">Error:</strong> ${escape(e.message)}</div>`;
+  }
+}
+
+async function loadDiscrepancyBadge() {
+  try {
+    const r = await api('discrepancies');
+    const badge = el('disc-badge');
+    const criticalHigh = (r.issues || []).filter(i => ['critical','high'].includes(i.severity)).length;
+    if (criticalHigh > 0) { badge.textContent = criticalHigh; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+  } catch {}
+}
+
+// ────────────────────────────────────────────────
+// SUMMARY
+// ────────────────────────────────────────────────
+async function renderSummary(pane) {
+  const r = await api('summary');
+  if (!r.success) throw new Error(r.error);
+
+  const pm = r.totals.pm_breakdown;
+  const posPm = r.totals.pos_pm_matrix;
+  const u = r.upi_cross_check;
+  const d1 = r.d1 || {};
+
+  const cashTotal = pm[37] || 0;
+  const upiTotal = pm[38] || 0;
+  const cardTotal = pm[39] || 0;
+  const ledgerTotal = pm[40] || 0;
+  const tokenTotal = pm[48] || 0;
+  const compTotal = pm[49] || 0;
+
+  pane.innerHTML = `
+    <div class="grid grid-4" style="margin-bottom:12px;">
+      <div class="card"><h3>Grand Sales</h3><div class="big amber">${fmtMoney(r.totals.grand_sales)}</div><div class="sub">${r.totals.order_count} orders · ${fmtTime(r.from)} → ${fmtTime(r.to)}</div></div>
+      <div class="card"><h3>Razorpay Counter</h3><div class="big">${fmtMoney(r.razorpay.counter)}</div><div class="sub">${r.razorpay.counter_count} payments</div></div>
+      <div class="card"><h3>UPI Cross-Check</h3>
+        <div class="big ${u.flag ? 'red' : 'green'}">${u.variance >= 0 ? '+' : ''}${fmtMoney(u.variance)}</div>
+        <div class="sub">Odoo PM38 ${fmtMoney(u.odoo_pm38_pos27)} vs RZP ${fmtMoney(u.rzp_counter)} ${u.flag ? '· <span style="color:var(--red);">FLAG</span>' : '· OK'}</div>
+      </div>
+      <div class="card"><h3>Critical Audits (D1)</h3><div class="big ${d1.critical_audits > 0 ? 'red' : ''}">${d1.critical_audits || 0}</div><div class="sub">${d1.shifts_ended || 0} shifts · ${d1.collections || 0} collections</div></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:12px;">
+      <div class="card">
+        <h3>Payment Method Breakdown</h3>
+        <table class="matrix-table">
+          <tr><td>Cash (37)</td><td class="num">${fmtMoney(cashTotal)}</td></tr>
+          <tr><td>UPI (38)</td><td class="num">${fmtMoney(upiTotal)}</td></tr>
+          <tr><td>Card (39)</td><td class="num">${fmtMoney(cardTotal)}</td></tr>
+          <tr><td>Runner Ledger (40)</td><td class="num">${fmtMoney(ledgerTotal)}</td></tr>
+          <tr><td>Token Issue (48)</td><td class="num">${fmtMoney(tokenTotal)}</td></tr>
+          <tr><td>Complimentary (49)</td><td class="num">${fmtMoney(compTotal)}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Razorpay QR Split</h3>
+        <table class="matrix-table">
+          <tr><td>Counter QR</td><td class="num">${fmtMoney(r.razorpay.counter)}</td><td class="num code">${r.razorpay.counter_count}×</td></tr>
+          <tr><td>Runner Counter QR</td><td class="num">${fmtMoney(r.razorpay.runner_counter)}</td><td class="num code">${r.razorpay.runner_counter_count}×</td></tr>
+          ${Object.entries(r.razorpay.runners).map(([k,v]) => `<tr><td>${k}</td><td class="num">${fmtMoney(v)}</td><td></td></tr>`).join('')}
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>POS × Payment Matrix</h3>
+      <table class="matrix-table" style="margin-top:4px;">
+        <tr><th>POS</th><th class="num">Cash</th><th class="num">UPI</th><th class="num">Card</th><th class="num">Ledger</th><th class="num">Token</th><th class="num">Comp</th></tr>
+        ${[27,28,29].map(pos => `<tr>
+          <td><strong>${pos}</strong> ${POS_NAMES[pos] || ''}</td>
+          ${[37,38,39,40,48,49].map(pmId => `<td class="num">${fmtMoney(posPm[pos+':'+pmId] || 0)}</td>`).join('')}
+        </tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+
+// ────────────────────────────────────────────────
+// TIMELINE
+// ────────────────────────────────────────────────
+async function renderTimeline(pane) {
+  const r = await api('orders');
+  if (!r.success) throw new Error(r.error);
+  const orders = r.orders;
+
+  // Bucket by hour IST, split by PM
+  const buckets = {}; // hour-key → {pm: amount}
+  for (const o of orders) {
+    const istHour = new Date(new Date(o.date_order + 'Z').getTime() + 5.5*3600*1000);
+    const key = istHour.toISOString().slice(0,13); // YYYY-MM-DDTHH
+    if (!buckets[key]) buckets[key] = {37:0,38:0,39:0,40:0,48:0,49:0};
+    for (const p of o.payments) {
+      buckets[key][p.pm_id] = (buckets[key][p.pm_id] || 0) + p.amount;
+    }
+  }
+  const keys = Object.keys(buckets).sort();
+  let maxVal = 0;
+  keys.forEach(k => { Object.values(buckets[k]).forEach(v => { if (v > maxVal) maxVal = v; }); });
+
+  const PM_COLORS = {37:'#22c55e',38:'#3b82f6',39:'#D4A44C',40:'#a855f7',48:'#f59e0b',49:'#8892a3'};
+
+  pane.innerHTML = `
+    <div class="timeline">
+      <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; font-size:11px;">
+        ${Object.entries(PM_COLORS).map(([pm,c]) => `<div><span style="display:inline-block; width:10px; height:10px; background:${c}; border-radius:2px; margin-right:4px;"></span>${PM_NAMES[pm]}</div>`).join('')}
+      </div>
+      ${keys.length === 0 ? '<div class="empty">No orders in this window</div>' : keys.map(k => {
+        const hourLabel = new Date(k + ':00:00Z').toLocaleString('en-IN', {timeZone:'UTC', hour12:false, day:'2-digit', month:'short', hour:'2-digit'}) + ':00';
+        const total = Object.values(buckets[k]).reduce((s,v) => s+v, 0);
+        return `<div class="tl-row">
+          <div class="tl-label">${hourLabel}</div>
+          <div class="tl-bar" style="display:flex;">
+            ${[37,38,39,40,48,49].map(pm => {
+              const v = buckets[k][pm] || 0;
+              if (!v) return '';
+              const pct = (v / maxVal) * 100;
+              return `<div class="tl-fill" style="width:${pct}%; background:${PM_COLORS[pm]};" title="${PM_NAMES[pm]} ${fmtMoney(v)}"></div>`;
+            }).join('')}
+          </div>
+          <div class="tl-val">${fmtMoney(total)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ────────────────────────────────────────────────
+// ORDERS
+// ────────────────────────────────────────────────
+async function renderOrders(pane) {
+  const r = await api('orders');
+  if (!r.success) throw new Error(r.error);
+
+  pane.innerHTML = `
+    <div style="margin-bottom:10px; color:var(--muted); font-size:11px;">
+      ${r.count} orders · click any row for full drilldown
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Time (IST)</th><th>Name</th><th>POS</th><th>Customer / Runner</th><th>Cashier</th>
+          <th class="num">Amount</th><th>Payments</th>
+        </tr></thead>
+        <tbody>
+          ${r.orders.length === 0 ? '<tr><td colspan="7" class="empty">No orders</td></tr>' :
+            r.orders.map(o => `
+              <tr style="cursor:pointer;" onclick="openDrilldown(${o.id})">
+                <td class="code">${fmtTime(o.date_order + 'Z')}</td>
+                <td><strong>${escape(o.name)}</strong></td>
+                <td><span class="pill pill-info">${POS_NAMES[o.pos_id] || o.pos_id}</span></td>
+                <td>${escape(o.partner_name || '—')}</td>
+                <td class="code">${escape(o.cashier || '')}</td>
+                <td class="num">${fmtMoney(o.amount_total)}</td>
+                <td>${(o.payments||[]).map(p => `<span class="pill pill-mute" style="margin-right:3px;">${p.pm_name} ${fmtMoney(p.amount)}</span>`).join('') || '<span class="pill pill-crit">NO PAYMENT</span>'}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function openDrilldown(orderId) {
+  el('modal').classList.add('show');
+  el('modal-title').textContent = 'Order #' + orderId + ' · loading…';
+  el('modal-content').innerHTML = '<div class="loading">Fetching…</div>';
+  try {
+    const r = await api('drilldown', {order_id: orderId});
+    if (!r.success) throw new Error(r.error);
+    const o = r.order;
+    el('modal-title').textContent = o.name + ' · ' + fmtTime(o.date_order + 'Z');
+    el('modal-content').innerHTML = `
+      <div class="grid grid-3" style="margin-bottom:14px;">
+        <div class="card"><h3>Total</h3><div class="big amber">${fmtMoney(o.amount_total)}</div><div class="sub">tax ${fmtMoney(o.amount_tax || 0)}</div></div>
+        <div class="card"><h3>POS / Session</h3><div style="font-size:14px;">${o.pos}</div><div class="sub">Session #${o.session_id || '—'} · State: ${o.state}</div></div>
+        <div class="card"><h3>Customer</h3><div style="font-size:13px;">${escape(o.partner_name || '—')}</div><div class="sub">Cashier: ${escape(o.cashier || '—')}</div></div>
+      </div>
+      <h3 style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Line items (${r.lines.length})</h3>
+      <div class="table-wrap" style="margin-bottom:14px; max-height:300px;">
+        <table>
+          <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Subtotal</th><th class="num">Incl Tax</th><th>Note</th></tr></thead>
+          <tbody>${r.lines.map(l => `
+            <tr><td>${escape(l.product)}</td><td class="num">${l.qty}</td><td class="num">${fmtMoney(l.price_unit)}</td><td class="num">${fmtMoney(l.subtotal)}</td><td class="num">${fmtMoney(l.subtotal_incl_tax)}</td><td class="code">${escape(l.note||'')}</td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+      <h3 style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Payments (${r.payments.length})</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>PM</th><th class="num">Amount</th><th>Payment Date (IST)</th><th>Txn</th></tr></thead>
+          <tbody>${r.payments.map(p => `
+            <tr><td><span class="pill pill-info">${p.pm_name}</span></td><td class="num">${fmtMoney(p.amount)}</td><td class="code">${fmtTime(p.payment_date + 'Z')}</td><td class="code">${escape(p.transaction_id||'')}</td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+      ${o.note ? `<div class="card" style="margin-top:14px;"><h3>Order Note</h3><div>${escape(o.note)}</div></div>` : ''}
+    `;
+  } catch (e) {
+    el('modal-content').innerHTML = `<div style="color:var(--red); padding:20px;">Error: ${escape(e.message)}</div>`;
+  }
+}
+function closeModal() { el('modal').classList.remove('show'); }
+
+// ────────────────────────────────────────────────
+// RAZORPAY
+// ────────────────────────────────────────────────
+async function renderRazorpay(pane) {
+  const r = await api('razorpay');
+  if (!r.success) throw new Error(r.error);
+
+  pane.innerHTML = `
+    <div class="grid grid-3" style="margin-bottom:12px;">
+      <div class="card"><h3>Total Payments</h3><div class="big amber">${r.count}</div></div>
+      <div class="card"><h3>Unmatched (no Odoo PM38)</h3><div class="big ${r.unmatched > 0 ? 'red' : 'green'}">${r.unmatched}</div><div class="sub">${fmtMoney(r.unmatched_sum)}</div></div>
+      <div class="card"><h3>Match Rate</h3><div class="big">${r.count ? (100 - Math.round(r.unmatched/r.count*100)) : 100}%</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Captured (IST)</th><th>QR</th><th class="num">Amount</th><th>VPA</th><th>Odoo Match</th><th>Order</th><th>Δ min</th></tr></thead>
+        <tbody>
+          ${r.payments.length === 0 ? '<tr><td colspan="7" class="empty">No Razorpay payments</td></tr>' :
+            r.payments.map(p => `
+              <tr ${p.odoo_order_id ? `style="cursor:pointer;" onclick="openDrilldown(${p.odoo_order_id})"` : ''}>
+                <td class="code">${fmtTime(p.created_at)}</td>
+                <td><span class="pill ${p.qr_label === 'COUNTER' ? 'pill-info' : p.qr_label === 'RUNNER_COUNTER' ? 'pill-warn' : 'pill-mute'}">${p.qr_label}</span></td>
+                <td class="num">${fmtMoney(p.amount)}</td>
+                <td class="code">${escape(p.payer_vpa || '')}</td>
+                <td>${p.matched ? `<span class="pill pill-ok">MATCHED</span>` : `<span class="pill pill-crit">UNMATCHED</span>`}</td>
+                <td class="code">${escape(p.odoo_order_name || '—')} ${p.odoo_order_pos ? '· ' + p.odoo_order_pos : ''}</td>
+                <td class="num code">${p.match_diff_min !== null ? p.match_diff_min + 'm' : '—'}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ────────────────────────────────────────────────
+// RUNNERS
+// ────────────────────────────────────────────────
+async function renderRunners(pane) {
+  const r = await api('runners');
+  if (!r.success) throw new Error(r.error);
+
+  pane.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runner</th><th class="num">Tokens (PM48)</th><th class="num">Ledger (PM40)</th><th class="num">RZP UPI</th><th class="num">Expected Cash</th><th class="num">Settled (D1)</th><th class="num">Variance</th><th class="num">Settlements</th></tr></thead>
+        <tbody>
+          ${r.runners.map(x => `
+            <tr>
+              <td><strong>${x.code}</strong> <span class="code">#${x.partner_id}</span></td>
+              <td class="num">${fmtMoney(x.tokens)}</td>
+              <td class="num">${fmtMoney(x.sales)}</td>
+              <td class="num">${fmtMoney(x.upi)} <span class="code">(${x.upi_count})</span></td>
+              <td class="num"><strong>${fmtMoney(x.expected_cash)}</strong></td>
+              <td class="num">${fmtMoney(x.actual_settled)}</td>
+              <td class="num ${Math.abs(x.variance) > 50 ? 'red' : ''}" style="${Math.abs(x.variance) > 50 ? 'color:var(--red); font-weight:600;' : ''}">${x.variance >= 0 ? '+' : ''}${fmtMoney(x.variance)}</td>
+              <td class="num">${x.settlement_count}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px; font-size:11px; color:var(--muted);">
+      Expected cash = Tokens + Ledger − RZP UPI. Variance > ±₹50 needs review.
+    </div>
+  `;
+}
+
+// ────────────────────────────────────────────────
+// DISCREPANCIES
+// ────────────────────────────────────────────────
+async function renderDiscrepancies(pane) {
+  const r = await api('discrepancies');
+  if (!r.success) throw new Error(r.error);
+
+  if (r.issues.length === 0) {
+    pane.innerHTML = `<div class="card" style="text-align:center; padding:40px;">
+      <div style="font-size:40px; color:var(--green); margin-bottom:8px;">✓</div>
+      <div style="font-size:14px; font-weight:600; color:var(--green);">No discrepancies detected</div>
+      <div style="color:var(--muted); font-size:11px; margin-top:6px;">Window checked: ${fmtTime(r.from)} → ${fmtTime(r.to)}</div>
+    </div>`;
+    return;
+  }
+
+  pane.innerHTML = `
+    <div style="margin-bottom:12px; color:var(--muted); font-size:11px;">
+      ${r.issues.length} issue type(s) detected. Click any row to expand evidence.
+    </div>
+    ${r.issues.map((issue, i) => `
+      <div class="issue ${issue.severity}">
+        <div class="issue-head">
+          <div class="issue-title">
+            <span class="pill pill-${issue.severity === 'critical' ? 'crit' : issue.severity === 'high' ? 'crit' : issue.severity === 'warning' ? 'warn' : 'info'}">${issue.severity.toUpperCase()}</span>
+            ${escape(issue.title)}
+          </div>
+          <button class="issue-expand" onclick="toggleEvidence(${i})">Show evidence (${issue.count})</button>
+        </div>
+        ${issue.amount ? `<div style="font-size:11px; color:var(--muted);">Impact: <strong style="color:var(--text);">${fmtMoney(issue.amount)}</strong></div>` : ''}
+        <div class="issue-evidence" id="ev-${i}"><pre>${escape(JSON.stringify(issue.evidence, null, 2))}</pre></div>
+      </div>
+    `).join('')}
+  `;
+}
+function toggleEvidence(i) { el('ev-'+i).classList.toggle('show'); }
+
+// ────────────────────────────────────────────────
+// Keyboard shortcuts
+// ────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (el('pin-gate').classList.contains('hidden') === false) {
+    if (/^[0-9]$/.test(e.key)) pinKey(e.key);
+    else if (e.key === 'Backspace') pinKey('⌫');
+    return;
+  }
+  if (e.key === 'Escape') closeModal();
+});
+
+// Init
+buildPinPad();
+</script>
+
+</body>
+</html>
