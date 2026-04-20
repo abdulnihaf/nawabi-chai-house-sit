@@ -124,6 +124,17 @@
 
   .matrix-table td, .matrix-table th { padding:6px 10px; font-size:11px; }
   .matrix-table td.num { font-variant-numeric:tabular-nums; }
+
+  /* Local per-tab filter strip */
+  .local-filters { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .local-filters .lf-group { display:flex; gap:4px; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:3px 8px; }
+  .local-filters .lf-group label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; }
+  .local-filters input[type="text"], .local-filters input[type="number"] { background:transparent; border:none; color:var(--text); font-size:11px; padding:3px; outline:none; font-family:inherit; width:90px; }
+  .local-filters input[type="text"].wide { width:140px; }
+  .lf-btn { background:var(--panel2); border:1px solid var(--border); color:var(--muted); padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; font-family:inherit; }
+  .lf-btn.on { background:var(--amber); color:#000; border-color:var(--amber); }
+  .lf-clear { background:transparent; border:1px solid var(--border); color:var(--muted); padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; margin-left:auto; font-family:inherit; }
+  .lf-count { font-size:10px; color:var(--muted); padding:3px 6px; }
 </style>
 </head>
 <body>
@@ -148,7 +159,7 @@
     <button class="logout-btn" onclick="logout()">Logout</button>
   </div>
 
-  <!-- Filter bar -->
+  <!-- Global filter bar: TIME WINDOW ONLY (everything else is tab-local) -->
   <div class="filters">
     <div class="filter-group">
       <label>Quick</label>
@@ -164,41 +175,23 @@
       <label>From</label><input type="datetime-local" id="from-input">
       <label>To</label><input type="datetime-local" id="to-input">
     </div>
-    <div class="filter-group">
-      <label>POS</label>
-      <div class="chk-group" id="pos-chks">
-        <button class="chk-btn on" data-pos="27">27 CashCounter</button>
-        <button class="chk-btn on" data-pos="28">28 RunnerCounter</button>
-        <button class="chk-btn" data-pos="29">29 Delivery</button>
-      </div>
-    </div>
-    <div class="filter-group">
-      <label>PM</label>
-      <div class="chk-group" id="pm-chks">
-        <button class="chk-btn on" data-pm="37">37 Cash</button>
-        <button class="chk-btn on" data-pm="38">38 UPI</button>
-        <button class="chk-btn on" data-pm="39">39 Card</button>
-        <button class="chk-btn on" data-pm="40">40 RunLedger</button>
-        <button class="chk-btn on" data-pm="48">48 Token</button>
-        <button class="chk-btn on" data-pm="49">49 Comp</button>
-      </div>
-    </div>
     <button class="apply-btn" onclick="applyFilters()">Apply</button>
     <button class="refresh-btn" onclick="refreshTab()">↻ Refresh</button>
     <div class="auto-refresh">
       <input type="checkbox" id="auto-refresh" checked>
       <label for="auto-refresh">Auto 30s (Summary)</label>
     </div>
+    <div style="color:var(--muted); font-size:10px; margin-left:auto;">Tab-local filters below each pane</div>
   </div>
 
   <!-- Tabs -->
   <div class="tabs" id="tabs">
-    <button class="tab active" data-tab="summary">Summary</button>
-    <button class="tab" data-tab="timeline">Timeline</button>
-    <button class="tab" data-tab="orders">Orders</button>
-    <button class="tab" data-tab="razorpay">Razorpay</button>
-    <button class="tab" data-tab="runners">Runners</button>
-    <button class="tab" data-tab="discrepancies">Discrepancies <span class="tab-badge hidden" id="disc-badge">0</span></button>
+    <button class="tab active" data-tab="summary">Summary <span class="tab-badge hidden" id="tc-summary">0</span></button>
+    <button class="tab" data-tab="timeline">Timeline <span class="tab-badge hidden" id="tc-timeline">0</span></button>
+    <button class="tab" data-tab="orders">Orders <span class="tab-badge hidden" id="tc-orders">0</span></button>
+    <button class="tab" data-tab="razorpay">Razorpay <span class="tab-badge hidden" id="tc-razorpay">0</span></button>
+    <button class="tab" data-tab="runners">Runners <span class="tab-badge hidden" id="tc-runners">0</span></button>
+    <button class="tab" data-tab="discrepancies">Discrepancies <span class="tab-badge hidden" id="disc-badge">0</span> <span class="tab-badge hidden" id="tc-disc">0</span></button>
   </div>
 
   <!-- Content panes -->
@@ -230,10 +223,28 @@
 const S = {
   pin: '', user: null, role: null, code: null,
   from: null, to: null, preset: 'today',
-  pos_ids: [27, 28], pm_ids: [37, 38, 39, 40, 48, 49],
+  // API always fetches ALL POS/PM — filtering happens client-side per tab.
+  pos_ids: [27, 28, 29], pm_ids: [37, 38, 39, 40, 48, 49],
   tab: 'summary',
   autoTimer: null,
   cache: {},
+  // Per-tab local filters (client-side, no refetch)
+  sum: { view: 'all' }, // all | pos | pm | qr | runner
+  tl:  { pos: [27,28,29], pms: [37,38,39,40,48,49], bucket: '1h' }, // bucket: 15m|30m|1h|4h
+  ord: { pos: [27,28,29], pms: [37,38,39,40,48,49], search: '', minAmt: '', maxAmt: '', orphanOnly: false },
+  rzp: { qrs: ['COUNTER','RUNNER_COUNTER','RUN001','RUN002','RUN003','RUN004','RUN005'], match: 'all', minAmt: '', maxAmt: '', vpa: '', order: '' },
+  run: { codes: ['RUN001','RUN002','RUN003','RUN004','RUN005'], variance: 'all' },
+  disc: { severity: ['critical','high','warning','info'], types: [] },
+};
+
+// Defaults (for reset & filter-count comparison)
+const DEF = {
+  sum: { view: 'all' },
+  tl:  { pos: [27,28,29], pms: [37,38,39,40,48,49], bucket: '1h' },
+  ord: { pos: [27,28,29], pms: [37,38,39,40,48,49], search: '', minAmt: '', maxAmt: '', orphanOnly: false },
+  rzp: { qrs: ['COUNTER','RUNNER_COUNTER','RUN001','RUN002','RUN003','RUN004','RUN005'], match: 'all', minAmt: '', maxAmt: '', vpa: '', order: '' },
+  run: { codes: ['RUN001','RUN002','RUN003','RUN004','RUN005'], variance: 'all' },
+  disc: { severity: ['critical','high','warning','info'], types: [] },
 };
 
 const PM_NAMES = {37:'Cash', 38:'UPI', 39:'Card', 40:'RunLedger', 46:'Swiggy', 47:'Zomato', 48:'Token', 49:'Comp', 50:'WABA-COD', 51:'WABA-UPI'};
@@ -358,20 +369,53 @@ function toLocalInput(d) {
 }
 
 document.querySelectorAll('.preset-btn').forEach(b => b.onclick = () => setPreset(b.dataset.preset));
-document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => b.classList.toggle('on'));
-document.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => b.classList.toggle('on'));
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
 function applyFilters() {
-  // Inputs are always source of truth (presets pre-fill them)
+  // Global = time window only; POS/PM always fetch-all, filtering is tab-local.
   if (el('from-input').value) S.from = new Date(el('from-input').value);
   if (el('to-input').value) S.to = new Date(el('to-input').value);
-  S.pos_ids = Array.from(document.querySelectorAll('[data-pos].on')).map(b => +b.dataset.pos);
-  S.pm_ids = Array.from(document.querySelectorAll('[data-pm].on')).map(b => +b.dataset.pm);
-  S.cache = {}; // invalidate
+  S.cache = {}; // invalidate fetch cache
   loadTab(S.tab);
   loadDiscrepancyBadge();
 }
+
+// ────────────────────────────────────────────────
+// Filter helpers (per-tab)
+// ────────────────────────────────────────────────
+function arrEq(a, b) { return a.length === b.length && a.every(x => b.includes(x)); }
+function countLocalFilters(tab) {
+  const f = S[tab], d = DEF[tab];
+  if (!f || !d) return 0;
+  let n = 0;
+  for (const k in d) {
+    if (Array.isArray(d[k])) { if (!arrEq(f[k], d[k])) n++; }
+    else if (f[k] !== d[k] && f[k] !== '' && f[k] !== false) n++;
+  }
+  return n;
+}
+function updateTabBadge(tab) {
+  const map = {sum:'tc-summary', tl:'tc-timeline', ord:'tc-orders', rzp:'tc-razorpay', run:'tc-runners', disc:'tc-disc'};
+  const badge = el(map[tab]);
+  if (!badge) return;
+  const n = countLocalFilters(tab);
+  if (n > 0) { badge.textContent = n; badge.classList.remove('hidden'); badge.style.background = 'var(--amber)'; badge.style.color = '#000'; }
+  else badge.classList.add('hidden');
+}
+function resetLocalFilters(tab) {
+  S[tab] = JSON.parse(JSON.stringify(DEF[tab]));
+  updateTabBadge(tab);
+  loadTab(S.tab);
+}
+function toggleChip(arr, val) {
+  const i = arr.indexOf(val);
+  if (i >= 0) arr.splice(i, 1); else arr.push(val);
+}
+function onLocalChange(tab) { updateTabBadge(tab); loadTab(S.tab); }
+// Expose for inline onclick handlers
+window.toggleChip = toggleChip; window.onLocalChange = onLocalChange; window.resetLocalFilters = resetLocalFilters;
+window.setLocal = (tab, key, val) => { S[tab][key] = val; onLocalChange(tab); };
+window.setLocalArr = (tab, key, val) => { toggleChip(S[tab][key], val); onLocalChange(tab); };
 
 function switchTab(tab) {
   S.tab = tab;
@@ -451,15 +495,9 @@ async function renderSummary(pane) {
   const posPm = r.totals.pos_pm_matrix;
   const u = r.upi_cross_check;
   const d1 = r.d1 || {};
+  const view = S.sum.view;
 
-  const cashTotal = pm[37] || 0;
-  const upiTotal = pm[38] || 0;
-  const cardTotal = pm[39] || 0;
-  const ledgerTotal = pm[40] || 0;
-  const tokenTotal = pm[48] || 0;
-  const compTotal = pm[49] || 0;
-
-  pane.innerHTML = `
+  const topCards = `
     <div class="grid grid-4" style="margin-bottom:12px;">
       <div class="card"><h3>Grand Sales</h3><div class="big amber">${fmtMoney(r.totals.grand_sales)}</div><div class="sub">${r.totals.order_count} orders · ${fmtTime(r.from)} → ${fmtTime(r.to)}</div></div>
       <div class="card"><h3>Walk-in UPI (RZP)</h3><div class="big">${fmtMoney(u.rzp_walkin_upi)}</div><div class="sub">Counter ${fmtMoney(u.rzp_counter)} + RunCtr ${fmtMoney(u.rzp_runner_counter)}</div></div>
@@ -470,40 +508,92 @@ async function renderSummary(pane) {
       </div>
       <div class="card"><h3>Critical Audits (D1)</h3><div class="big ${d1.critical_audits > 0 ? 'red' : ''}">${d1.critical_audits || 0}</div><div class="sub">${d1.shifts_ended || 0} shifts · ${d1.collections || 0} collections</div></div>
     </div>
+  `;
 
-    <div class="grid grid-2" style="margin-bottom:12px;">
-      <div class="card">
-        <h3>Payment Method Breakdown</h3>
-        <table class="matrix-table">
-          <tr><td>Cash (37)</td><td class="num">${fmtMoney(cashTotal)}</td></tr>
-          <tr><td>UPI (38)</td><td class="num">${fmtMoney(upiTotal)}</td></tr>
-          <tr><td>Card (39)</td><td class="num">${fmtMoney(cardTotal)}</td></tr>
-          <tr><td>Runner Ledger (40)</td><td class="num">${fmtMoney(ledgerTotal)}</td></tr>
-          <tr><td>Token Issue (48)</td><td class="num">${fmtMoney(tokenTotal)}</td></tr>
-          <tr><td>Complimentary (49)</td><td class="num">${fmtMoney(compTotal)}</td></tr>
-        </table>
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>View</label>
+        ${[['all','All'],['pos','By POS'],['pm','By PM'],['qr','By QR'],['runner','By Runner']].map(([k,lbl]) =>
+          `<button class="lf-btn ${view===k?'on':''}" onclick="setLocal('sum','view','${k}')">${lbl}</button>`).join('')}
       </div>
-      <div class="card">
-        <h3>Razorpay QR Split</h3>
-        <table class="matrix-table">
-          <tr><td>Counter QR</td><td class="num">${fmtMoney(r.razorpay.counter)}</td><td class="num code">${r.razorpay.counter_count}×</td></tr>
-          <tr><td>Runner Counter QR</td><td class="num">${fmtMoney(r.razorpay.runner_counter)}</td><td class="num code">${r.razorpay.runner_counter_count}×</td></tr>
-          ${Object.entries(r.razorpay.runners).map(([k,v]) => `<tr><td>${k}</td><td class="num">${fmtMoney(v)}</td><td></td></tr>`).join('')}
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>POS × Payment Matrix</h3>
-      <table class="matrix-table" style="margin-top:4px;">
-        <tr><th>POS</th><th class="num">Cash</th><th class="num">UPI</th><th class="num">Card</th><th class="num">Ledger</th><th class="num">Token</th><th class="num">Comp</th></tr>
-        ${[27,28,29].map(pos => `<tr>
-          <td><strong>${pos}</strong> ${POS_NAMES[pos] || ''}</td>
-          ${[37,38,39,40,48,49].map(pmId => `<td class="num">${fmtMoney(posPm[pos+':'+pmId] || 0)}</td>`).join('')}
-        </tr>`).join('')}
-      </table>
+      <button class="lf-clear" onclick="resetLocalFilters('sum')">Clear</button>
     </div>
   `;
+
+  let body = '';
+  if (view === 'all') {
+    body = `
+      <div class="grid grid-2" style="margin-bottom:12px;">
+        <div class="card">
+          <h3>Payment Method Breakdown</h3>
+          <table class="matrix-table">
+            ${[[37,'Cash'],[38,'UPI'],[39,'Card'],[40,'Runner Ledger'],[48,'Token Issue'],[49,'Complimentary']].map(([id,n]) =>
+              `<tr><td>${n} (${id})</td><td class="num">${fmtMoney(pm[id]||0)}</td></tr>`).join('')}
+          </table>
+        </div>
+        <div class="card">
+          <h3>Razorpay QR Split</h3>
+          <table class="matrix-table">
+            <tr><td>Counter QR</td><td class="num">${fmtMoney(r.razorpay.counter)}</td><td class="num code">${r.razorpay.counter_count}×</td></tr>
+            <tr><td>Runner Counter QR</td><td class="num">${fmtMoney(r.razorpay.runner_counter)}</td><td class="num code">${r.razorpay.runner_counter_count}×</td></tr>
+            ${Object.entries(r.razorpay.runners).map(([k,v]) => `<tr><td>${k}</td><td class="num">${fmtMoney(v)}</td><td></td></tr>`).join('')}
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>POS × Payment Matrix</h3>
+        <table class="matrix-table" style="margin-top:4px;">
+          <tr><th>POS</th><th class="num">Cash</th><th class="num">UPI</th><th class="num">Card</th><th class="num">Ledger</th><th class="num">Token</th><th class="num">Comp</th><th class="num">Total</th></tr>
+          ${[27,28,29].map(pos => {
+            const row = [37,38,39,40,48,49].map(pmId => posPm[pos+':'+pmId]||0);
+            const tot = row.reduce((s,v)=>s+v,0);
+            return `<tr><td><strong>${pos}</strong> ${POS_NAMES[pos]||''}</td>${row.map(v=>`<td class="num">${fmtMoney(v)}</td>`).join('')}<td class="num" style="color:var(--amber); font-weight:600;">${fmtMoney(tot)}</td></tr>`;
+          }).join('')}
+        </table>
+      </div>
+    `;
+  } else if (view === 'pos') {
+    body = `<div class="grid grid-3">${[27,28,29].map(pos => {
+      const row = [37,38,39,40,48,49].map(pmId => posPm[pos+':'+pmId]||0);
+      const tot = row.reduce((s,v)=>s+v,0);
+      return `<div class="card"><h3>POS ${pos} · ${POS_NAMES[pos]||''}</h3><div class="big amber">${fmtMoney(tot)}</div>
+        <table class="matrix-table" style="margin-top:8px;">
+          ${[[37,'Cash'],[38,'UPI'],[39,'Card'],[40,'Ledger'],[48,'Token'],[49,'Comp']].map(([id,n],i) =>
+            `<tr><td>${n}</td><td class="num">${fmtMoney(row[i])}</td></tr>`).join('')}
+        </table></div>`;
+    }).join('')}</div>`;
+  } else if (view === 'pm') {
+    body = `<div class="grid grid-3">${[[37,'Cash'],[38,'UPI'],[39,'Card'],[40,'Runner Ledger'],[48,'Token'],[49,'Comp']].map(([pmId,name]) => {
+      const byPos = [27,28,29].map(pos => posPm[pos+':'+pmId]||0);
+      const tot = byPos.reduce((s,v)=>s+v,0);
+      return `<div class="card"><h3>${name} (PM${pmId})</h3><div class="big amber">${fmtMoney(tot)}</div>
+        <table class="matrix-table" style="margin-top:8px;">
+          ${[27,28,29].map((p,i) => `<tr><td>POS${p}</td><td class="num">${fmtMoney(byPos[i])}</td></tr>`).join('')}
+        </table></div>`;
+    }).join('')}</div>`;
+  } else if (view === 'qr') {
+    const allQrs = [['Counter QR', r.razorpay.counter, r.razorpay.counter_count], ['Runner Counter QR', r.razorpay.runner_counter, r.razorpay.runner_counter_count], ...Object.entries(r.razorpay.runners).map(([k,v]) => [k, v, null])];
+    body = `<div class="grid grid-4">${allQrs.map(([n,v,c]) =>
+      `<div class="card"><h3>${n}</h3><div class="big amber">${fmtMoney(v)}</div><div class="sub">${c!==null?c+' payments':'runner ledger offset'}</div></div>`
+    ).join('')}</div>`;
+  } else if (view === 'runner') {
+    const runR = await api('runners');
+    body = `<div class="grid grid-3">${runR.runners.map(x =>
+      `<div class="card"><h3>${x.code} · #${x.partner_id}</h3>
+        <div class="big ${Math.abs(x.variance)>50?'red':'amber'}">${fmtMoney(x.expected_cash)}</div>
+        <table class="matrix-table" style="margin-top:8px;">
+          <tr><td>Tokens (PM48)</td><td class="num">${fmtMoney(x.tokens)}</td></tr>
+          <tr><td>Ledger (PM40)</td><td class="num">${fmtMoney(x.sales)}</td></tr>
+          <tr><td>RZP UPI</td><td class="num">${fmtMoney(x.upi)}</td></tr>
+          <tr><td>Settled</td><td class="num">${fmtMoney(x.actual_settled)}</td></tr>
+          <tr><td>Variance</td><td class="num ${Math.abs(x.variance)>50?'red':''}">${x.variance>=0?'+':''}${fmtMoney(x.variance)}</td></tr>
+        </table></div>`
+    ).join('')}</div>`;
+  }
+
+  pane.innerHTML = topCards + filterStrip + body;
+  updateTabBadge('sum');
 }
 
 // ────────────────────────────────────────────────
@@ -512,39 +602,68 @@ async function renderSummary(pane) {
 async function renderTimeline(pane) {
   const r = await api('orders');
   if (!r.success) throw new Error(r.error);
-  const orders = r.orders;
+  const f = S.tl;
 
-  // Bucket by hour IST, split by PM
-  const buckets = {}; // hour-key → {pm: amount}
-  for (const o of orders) {
-    const istHour = new Date(new Date(o.date_order + 'Z').getTime() + 5.5*3600*1000);
-    const key = istHour.toISOString().slice(0,13); // YYYY-MM-DDTHH
+  // Client-filter orders by POS, keep only matching PM payments
+  const filtered = r.orders
+    .filter(o => f.pos.includes(o.pos_id))
+    .map(o => ({...o, payments: (o.payments||[]).filter(p => f.pms.includes(p.pm_id))}));
+
+  // Bucket size in minutes
+  const bucketMin = f.bucket === '15m' ? 15 : f.bucket === '30m' ? 30 : f.bucket === '4h' ? 240 : 60;
+
+  // Bucket key: floor IST timestamp to bucketMin
+  const buckets = {};
+  for (const o of filtered) {
+    const istTs = new Date(o.date_order + 'Z').getTime() + 5.5*3600*1000;
+    const bucketTs = Math.floor(istTs / (bucketMin*60*1000)) * (bucketMin*60*1000);
+    const key = new Date(bucketTs).toISOString(); // representative IST instant
     if (!buckets[key]) buckets[key] = {37:0,38:0,39:0,40:0,48:0,49:0};
-    for (const p of o.payments) {
-      buckets[key][p.pm_id] = (buckets[key][p.pm_id] || 0) + p.amount;
-    }
+    for (const p of o.payments) buckets[key][p.pm_id] = (buckets[key][p.pm_id]||0) + p.amount;
   }
   const keys = Object.keys(buckets).sort();
   let maxVal = 0;
-  keys.forEach(k => { Object.values(buckets[k]).forEach(v => { if (v > maxVal) maxVal = v; }); });
+  keys.forEach(k => { const sum = Object.values(buckets[k]).reduce((s,v)=>s+v,0); if (sum>maxVal) maxVal=sum; });
 
   const PM_COLORS = {37:'#22c55e',38:'#3b82f6',39:'#D4A44C',40:'#a855f7',48:'#f59e0b',49:'#8892a3'};
+  const totalAmt = keys.reduce((s,k)=>s + Object.values(buckets[k]).reduce((a,b)=>a+b,0), 0);
 
-  pane.innerHTML = `
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>POS</label>
+        ${[27,28,29].map(p => `<button class="lf-btn ${f.pos.includes(p)?'on':''}" onclick="setLocalArr('tl','pos',${p})">${p} ${POS_NAMES[p]}</button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>PM</label>
+        ${[37,38,39,40,48,49].map(p => `<button class="lf-btn ${f.pms.includes(p)?'on':''}" onclick="setLocalArr('tl','pms',${p})">${p} ${PM_NAMES[p]}</button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>Bucket</label>
+        ${['15m','30m','1h','4h'].map(b => `<button class="lf-btn ${f.bucket===b?'on':''}" onclick="setLocal('tl','bucket','${b}')">${b}</button>`).join('')}
+      </div>
+      <span class="lf-count">${filtered.length} orders · ${fmtMoney(totalAmt)} · ${keys.length} buckets</span>
+      <button class="lf-clear" onclick="resetLocalFilters('tl')">Clear</button>
+    </div>
+  `;
+
+  pane.innerHTML = filterStrip + `
     <div class="timeline">
       <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; font-size:11px;">
-        ${Object.entries(PM_COLORS).map(([pm,c]) => `<div><span style="display:inline-block; width:10px; height:10px; background:${c}; border-radius:2px; margin-right:4px;"></span>${PM_NAMES[pm]}</div>`).join('')}
+        ${f.pms.map(pm => `<div><span style="display:inline-block; width:10px; height:10px; background:${PM_COLORS[pm]}; border-radius:2px; margin-right:4px;"></span>${PM_NAMES[pm]}</div>`).join('')}
       </div>
-      ${keys.length === 0 ? '<div class="empty">No orders in this window</div>' : keys.map(k => {
-        const hourLabel = new Date(k + ':00:00Z').toLocaleString('en-IN', {timeZone:'UTC', hour12:false, day:'2-digit', month:'short', hour:'2-digit'}) + ':00';
+      ${keys.length === 0 ? '<div class="empty">No data matching filters</div>' : keys.map(k => {
+        const istDate = new Date(k);
+        const label = `${String(istDate.getUTCDate()).padStart(2,'0')}/${String(istDate.getUTCMonth()+1).padStart(2,'0')} ${String(istDate.getUTCHours()).padStart(2,'0')}:${String(istDate.getUTCMinutes()).padStart(2,'0')}`;
         const total = Object.values(buckets[k]).reduce((s,v) => s+v, 0);
+        const rowPct = (total / maxVal) * 100;
         return `<div class="tl-row">
-          <div class="tl-label">${hourLabel}</div>
-          <div class="tl-bar" style="display:flex;">
-            ${[37,38,39,40,48,49].map(pm => {
+          <div class="tl-label">${label}</div>
+          <div class="tl-bar" style="display:flex; width:${rowPct}%;">
+            ${f.pms.map(pm => {
               const v = buckets[k][pm] || 0;
               if (!v) return '';
-              const pct = (v / maxVal) * 100;
+              const pct = (v / total) * 100;
               return `<div class="tl-fill" style="width:${pct}%; background:${PM_COLORS[pm]};" title="${PM_NAMES[pm]} ${fmtMoney(v)}"></div>`;
             }).join('')}
           </div>
@@ -553,6 +672,7 @@ async function renderTimeline(pane) {
       }).join('')}
     </div>
   `;
+  updateTabBadge('tl');
 }
 
 // ────────────────────────────────────────────────
@@ -561,11 +681,59 @@ async function renderTimeline(pane) {
 async function renderOrders(pane) {
   const r = await api('orders');
   if (!r.success) throw new Error(r.error);
+  const f = S.ord;
 
-  pane.innerHTML = `
-    <div style="margin-bottom:10px; color:var(--muted); font-size:11px;">
-      ${r.count} orders · click any row for full drilldown
+  const q = (f.search || '').toLowerCase();
+  const min = f.minAmt === '' ? -Infinity : +f.minAmt;
+  const max = f.maxAmt === '' ? Infinity : +f.maxAmt;
+
+  const filtered = r.orders.filter(o => {
+    if (!f.pos.includes(o.pos_id)) return false;
+    const pms = (o.payments||[]).map(p => p.pm_id);
+    if (pms.length && !pms.some(p => f.pms.includes(p))) return false;
+    if (f.orphanOnly && pms.length > 0) return false;
+    if (o.amount_total < min || o.amount_total > max) return false;
+    if (q) {
+      const hay = `${o.name} ${o.pos_reference||''} ${o.partner_name||''} ${o.cashier||''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalAmt = filtered.reduce((s,o)=>s+o.amount_total, 0);
+
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>POS</label>
+        ${[27,28,29].map(p => `<button class="lf-btn ${f.pos.includes(p)?'on':''}" onclick="setLocalArr('ord','pos',${p})">${p} ${POS_NAMES[p]}</button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>PM</label>
+        ${[37,38,39,40,48,49].map(p => `<button class="lf-btn ${f.pms.includes(p)?'on':''}" onclick="setLocalArr('ord','pms',${p})">${p} ${PM_NAMES[p]}</button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>Search</label>
+        <input type="text" class="wide" id="ord-search" placeholder="name/ref/customer/cashier" value="${escape(f.search)}" oninput="setLocal('ord','search',this.value)">
+      </div>
+      <div class="lf-group">
+        <label>₹ Min</label>
+        <input type="number" id="ord-min" value="${f.minAmt}" placeholder="0" oninput="setLocal('ord','minAmt',this.value)">
+      </div>
+      <div class="lf-group">
+        <label>₹ Max</label>
+        <input type="number" id="ord-max" value="${f.maxAmt}" placeholder="∞" oninput="setLocal('ord','maxAmt',this.value)">
+      </div>
+      <div class="lf-group">
+        <button class="lf-btn ${f.orphanOnly?'on':''}" onclick="setLocal('ord','orphanOnly',${!f.orphanOnly})">Orphans only</button>
+      </div>
+      <span class="lf-count">${filtered.length} / ${r.count} · ${fmtMoney(totalAmt)}</span>
+      <button class="lf-clear" onclick="resetLocalFilters('ord')">Clear</button>
     </div>
+  `;
+
+  pane.innerHTML = filterStrip + `
+    <div style="margin-bottom:10px; color:var(--muted); font-size:11px;">Click any row for drilldown.</div>
     <div class="table-wrap">
       <table>
         <thead><tr>
@@ -573,8 +741,8 @@ async function renderOrders(pane) {
           <th class="num">Amount</th><th>Payments</th>
         </tr></thead>
         <tbody>
-          ${r.orders.length === 0 ? '<tr><td colspan="7" class="empty">No orders</td></tr>' :
-            r.orders.map(o => `
+          ${filtered.length === 0 ? '<tr><td colspan="7" class="empty">No orders matching filters</td></tr>' :
+            filtered.map(o => `
               <tr style="cursor:pointer;" onclick="openDrilldown(${o.id})">
                 <td class="code">${fmtTime(o.date_order + 'Z')}</td>
                 <td><strong>${escape(o.name)}</strong></td>
@@ -589,6 +757,10 @@ async function renderOrders(pane) {
       </table>
     </div>
   `;
+  updateTabBadge('ord');
+  // Restore focus if user was typing in search
+  const focused = document.activeElement?.id;
+  if (focused === 'ord-search') { const inp = el('ord-search'); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
 }
 
 async function openDrilldown(orderId) {
@@ -638,23 +810,83 @@ function closeModal() { el('modal').classList.remove('show'); }
 async function renderRazorpay(pane) {
   const r = await api('razorpay');
   if (!r.success) throw new Error(r.error);
+  const f = S.rzp;
 
-  pane.innerHTML = `
+  const min = f.minAmt === '' ? -Infinity : +f.minAmt;
+  const max = f.maxAmt === '' ? Infinity : +f.maxAmt;
+  const vpa = (f.vpa||'').toLowerCase();
+  const ord = (f.order||'').toLowerCase();
+
+  const filtered = r.payments.filter(p => {
+    if (!f.qrs.includes(p.qr_label)) return false;
+    if (f.match !== 'all' && p.match_status !== f.match) return false;
+    if (p.amount < min || p.amount > max) return false;
+    if (vpa && !(p.payer_vpa||'').toLowerCase().includes(vpa)) return false;
+    if (ord && !(p.odoo_order_name||'').toLowerCase().includes(ord)) return false;
+    return true;
+  });
+
+  // Per-QR totals (from full dataset so user sees what they're filtering from)
+  const qrStats = {};
+  ['COUNTER','RUNNER_COUNTER','RUN001','RUN002','RUN003','RUN004','RUN005'].forEach(q => {
+    const rows = r.payments.filter(p => p.qr_label === q);
+    qrStats[q] = { count: rows.length, sum: rows.reduce((s,p)=>s+p.amount,0) };
+  });
+
+  const totalAmt = filtered.reduce((s,p)=>s+p.amount,0);
+  const matchedCount = filtered.filter(p=>p.match_status==='matched').length;
+  const unmatchedCount = filtered.filter(p=>p.match_status==='unmatched').length;
+  const naCount = filtered.filter(p=>p.match_status==='not_applicable').length;
+
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>QR</label>
+        ${['COUNTER','RUNNER_COUNTER','RUN001','RUN002','RUN003','RUN004','RUN005'].map(q =>
+          `<button class="lf-btn ${f.qrs.includes(q)?'on':''}" onclick="setLocalArr('rzp','qrs','${q}')" title="${qrStats[q].count} pmts · ${fmtMoney(qrStats[q].sum)}">${q} <span style="opacity:0.6;">${qrStats[q].count}</span></button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>Match</label>
+        ${[['all','All'],['matched','Matched'],['unmatched','Unmatched'],['not_applicable','N/A']].map(([k,lbl]) =>
+          `<button class="lf-btn ${f.match===k?'on':''}" onclick="setLocal('rzp','match','${k}')">${lbl}</button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>₹ Min</label>
+        <input type="number" value="${f.minAmt}" placeholder="0" oninput="setLocal('rzp','minAmt',this.value)">
+      </div>
+      <div class="lf-group">
+        <label>₹ Max</label>
+        <input type="number" value="${f.maxAmt}" placeholder="∞" oninput="setLocal('rzp','maxAmt',this.value)">
+      </div>
+      <div class="lf-group">
+        <label>VPA</label>
+        <input type="text" id="rzp-vpa" value="${escape(f.vpa)}" placeholder="e.g. @ybl" oninput="setLocal('rzp','vpa',this.value)">
+      </div>
+      <div class="lf-group">
+        <label>Order</label>
+        <input type="text" id="rzp-order" value="${escape(f.order)}" placeholder="Odoo name" oninput="setLocal('rzp','order',this.value)">
+      </div>
+      <span class="lf-count">${filtered.length} / ${r.count} · ${fmtMoney(totalAmt)}</span>
+      <button class="lf-clear" onclick="resetLocalFilters('rzp')">Clear</button>
+    </div>
+  `;
+
+  pane.innerHTML = filterStrip + `
     <div class="grid grid-4" style="margin-bottom:12px;">
-      <div class="card"><h3>Total Payments</h3><div class="big amber">${r.count}</div><div class="sub">all QRs</div></div>
-      <div class="card"><h3>Counter + RunCtr</h3><div class="big">${r.counter_count}</div><div class="sub">these should match Odoo PM38</div></div>
-      <div class="card"><h3>Unmatched Counter</h3><div class="big ${r.unmatched > 0 ? 'red' : 'green'}">${r.unmatched}</div><div class="sub">${fmtMoney(r.unmatched_sum)}</div></div>
-      <div class="card"><h3>Match Rate</h3><div class="big">${r.counter_count ? (100 - Math.round(r.unmatched/r.counter_count*100)) : 100}%</div><div class="sub">counter QRs only</div></div>
+      <div class="card"><h3>Shown</h3><div class="big amber">${filtered.length}</div><div class="sub">${fmtMoney(totalAmt)} · of ${r.count} total</div></div>
+      <div class="card"><h3>Matched</h3><div class="big green">${matchedCount}</div><div class="sub">in filter</div></div>
+      <div class="card"><h3>Unmatched</h3><div class="big ${unmatchedCount>0?'red':''}">${unmatchedCount}</div><div class="sub">counter QRs only</div></div>
+      <div class="card"><h3>N/A (runner QR)</h3><div class="big">${naCount}</div><div class="sub">offsets runner ledger</div></div>
     </div>
     <div style="margin-bottom:10px; font-size:11px; color:var(--muted);">
-      Runner-specific QRs (RUN001–RUN005) offset the runner's ledger — they're not expected to appear in Odoo as PM38, so they show <span class="pill pill-mute">N/A</span>.
+      Runner-specific QRs (RUN001–RUN005) offset the runner's ledger — they're not expected to appear in Odoo as PM38 (shown <span class="pill pill-mute">N/A</span>).
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Captured (IST)</th><th>QR</th><th class="num">Amount</th><th>VPA</th><th>Odoo Match</th><th>Order</th><th>Δ min</th></tr></thead>
         <tbody>
-          ${r.payments.length === 0 ? '<tr><td colspan="7" class="empty">No Razorpay payments</td></tr>' :
-            r.payments.map(p => {
+          ${filtered.length === 0 ? '<tr><td colspan="7" class="empty">No Razorpay payments matching filters</td></tr>' :
+            filtered.map(p => {
               const pill = p.match_status === 'matched' ? '<span class="pill pill-ok">MATCHED</span>'
                         : p.match_status === 'unmatched' ? '<span class="pill pill-crit">UNMATCHED</span>'
                         : '<span class="pill pill-mute">N/A (runner QR)</span>';
@@ -673,6 +905,9 @@ async function renderRazorpay(pane) {
       </table>
     </div>
   `;
+  updateTabBadge('rzp');
+  const focused = document.activeElement?.id;
+  if (focused === 'rzp-vpa' || focused === 'rzp-order') { const inp = el(focused); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
 }
 
 // ────────────────────────────────────────────────
@@ -681,13 +916,47 @@ async function renderRazorpay(pane) {
 async function renderRunners(pane) {
   const r = await api('runners');
   if (!r.success) throw new Error(r.error);
+  const f = S.run;
 
-  pane.innerHTML = `
+  const filtered = r.runners.filter(x => {
+    if (!f.codes.includes(x.code)) return false;
+    if (f.variance === 'over' && x.variance <= 50) return false;
+    if (f.variance === 'under' && x.variance >= -50) return false;
+    if (f.variance === 'exact' && Math.abs(x.variance) > 50) return false;
+    return true;
+  });
+
+  const totals = filtered.reduce((acc, x) => ({
+    tokens: acc.tokens + x.tokens, sales: acc.sales + x.sales, upi: acc.upi + x.upi,
+    expected: acc.expected + x.expected_cash, settled: acc.settled + x.actual_settled, variance: acc.variance + x.variance,
+  }), {tokens:0, sales:0, upi:0, expected:0, settled:0, variance:0});
+
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>Runner</label>
+        ${['RUN001','RUN002','RUN003','RUN004','RUN005'].map(c => {
+          const row = r.runners.find(x => x.code === c);
+          return `<button class="lf-btn ${f.codes.includes(c)?'on':''}" onclick="setLocalArr('run','codes','${c}')" title="${row ? 'Exp ' + fmtMoney(row.expected_cash) + ' · Var ' + fmtMoney(row.variance) : ''}">${c}</button>`;
+        }).join('')}
+      </div>
+      <div class="lf-group">
+        <label>Variance</label>
+        ${[['all','All'],['over','Over +50'],['exact','Exact ±50'],['under','Under −50']].map(([k,lbl]) =>
+          `<button class="lf-btn ${f.variance===k?'on':''}" onclick="setLocal('run','variance','${k}')">${lbl}</button>`).join('')}
+      </div>
+      <span class="lf-count">${filtered.length} / ${r.runners.length} · Exp ${fmtMoney(totals.expected)} · Var ${totals.variance>=0?'+':''}${fmtMoney(totals.variance)}</span>
+      <button class="lf-clear" onclick="resetLocalFilters('run')">Clear</button>
+    </div>
+  `;
+
+  pane.innerHTML = filterStrip + `
     <div class="table-wrap">
       <table>
         <thead><tr><th>Runner</th><th class="num">Tokens (PM48)</th><th class="num">Ledger (PM40)</th><th class="num">RZP UPI</th><th class="num">Expected Cash</th><th class="num">Settled (D1)</th><th class="num">Variance</th><th class="num">Settlements</th></tr></thead>
         <tbody>
-          ${r.runners.map(x => `
+          ${filtered.length === 0 ? '<tr><td colspan="8" class="empty">No runners matching filters</td></tr>' :
+            filtered.map(x => `
             <tr>
               <td><strong>${x.code}</strong> <span class="code">#${x.partner_id}</span></td>
               <td class="num">${fmtMoney(x.tokens)}</td>
@@ -699,6 +968,16 @@ async function renderRunners(pane) {
               <td class="num">${x.settlement_count}</td>
             </tr>
           `).join('')}
+          ${filtered.length > 0 ? `<tr style="background:var(--panel2); font-weight:600;">
+            <td>Total (${filtered.length})</td>
+            <td class="num">${fmtMoney(totals.tokens)}</td>
+            <td class="num">${fmtMoney(totals.sales)}</td>
+            <td class="num">${fmtMoney(totals.upi)}</td>
+            <td class="num amber">${fmtMoney(totals.expected)}</td>
+            <td class="num">${fmtMoney(totals.settled)}</td>
+            <td class="num ${Math.abs(totals.variance) > 50 ? 'red' : ''}">${totals.variance>=0?'+':''}${fmtMoney(totals.variance)}</td>
+            <td></td>
+          </tr>` : ''}
         </tbody>
       </table>
     </div>
@@ -706,33 +985,72 @@ async function renderRunners(pane) {
       Expected cash = Tokens + Ledger − RZP UPI. Variance > ±₹50 needs review.
     </div>
   `;
+  updateTabBadge('run');
 }
 
 // ────────────────────────────────────────────────
 // DISCREPANCIES
 // ────────────────────────────────────────────────
+const DISC_TYPES = [
+  ['upi_mismatch', 'UPI Mismatch'],
+  ['silent_gaps', 'Silent Gaps'],
+  ['late_batch', 'Late Batch'],
+  ['invalid_mwr', 'Invalid MWR'],
+  ['orphan_orders', 'Orphan Orders'],
+  ['wrong_pm', 'Wrong PM'],
+  ['d1_audits', 'D1 Audits'],
+];
 async function renderDiscrepancies(pane) {
   const r = await api('discrepancies');
   if (!r.success) throw new Error(r.error);
+  const f = S.disc;
+
+  // Defaults: if types empty, show all
+  const allowedTypes = f.types.length === 0 ? DISC_TYPES.map(t=>t[0]) : f.types;
+  const filtered = r.issues.filter(i => f.severity.includes(i.severity) && allowedTypes.includes(i.type));
+
+  const typeCounts = {};
+  r.issues.forEach(i => { typeCounts[i.type] = (typeCounts[i.type]||0) + 1; });
+  const sevCounts = {critical:0, high:0, warning:0, info:0};
+  r.issues.forEach(i => { sevCounts[i.severity] = (sevCounts[i.severity]||0) + 1; });
+
+  const filterStrip = `
+    <div class="local-filters">
+      <div class="lf-group">
+        <label>Severity</label>
+        ${['critical','high','warning','info'].map(s =>
+          `<button class="lf-btn ${f.severity.includes(s)?'on':''}" onclick="setLocalArr('disc','severity','${s}')">${s.toUpperCase()} <span style="opacity:0.6;">${sevCounts[s]||0}</span></button>`).join('')}
+      </div>
+      <div class="lf-group">
+        <label>Type</label>
+        ${DISC_TYPES.map(([k,lbl]) =>
+          `<button class="lf-btn ${(f.types.length===0 || f.types.includes(k))?'on':''}" onclick="toggleDiscType('${k}')">${lbl} <span style="opacity:0.6;">${typeCounts[k]||0}</span></button>`).join('')}
+      </div>
+      <span class="lf-count">${filtered.length} / ${r.issues.length}</span>
+      <button class="lf-clear" onclick="resetLocalFilters('disc')">Clear</button>
+    </div>
+  `;
 
   if (r.issues.length === 0) {
-    pane.innerHTML = `<div class="card" style="text-align:center; padding:40px;">
+    pane.innerHTML = filterStrip + `<div class="card" style="text-align:center; padding:40px;">
       <div style="font-size:40px; color:var(--green); margin-bottom:8px;">✓</div>
       <div style="font-size:14px; font-weight:600; color:var(--green);">No discrepancies detected</div>
       <div style="color:var(--muted); font-size:11px; margin-top:6px;">Window checked: ${fmtTime(r.from)} → ${fmtTime(r.to)}</div>
     </div>`;
+    updateTabBadge('disc');
     return;
   }
 
-  pane.innerHTML = `
+  pane.innerHTML = filterStrip + `
     <div style="margin-bottom:12px; color:var(--muted); font-size:11px;">
-      ${r.issues.length} issue type(s) detected. Click any row to expand evidence.
+      Showing ${filtered.length} of ${r.issues.length} issue type(s). Click any row to expand evidence.
     </div>
-    ${r.issues.map((issue, i) => `
+    ${filtered.length === 0 ? '<div class="empty">No issues match filters</div>' : filtered.map((issue, i) => `
       <div class="issue ${issue.severity}">
         <div class="issue-head">
           <div class="issue-title">
             <span class="pill pill-${issue.severity === 'critical' ? 'crit' : issue.severity === 'high' ? 'crit' : issue.severity === 'warning' ? 'warn' : 'info'}">${issue.severity.toUpperCase()}</span>
+            <span class="pill pill-mute" style="margin-right:4px;">${issue.type}</span>
             ${escape(issue.title)}
           </div>
           <button class="issue-expand" onclick="toggleEvidence(${i})">Show evidence (${issue.count})</button>
@@ -742,8 +1060,23 @@ async function renderDiscrepancies(pane) {
       </div>
     `).join('')}
   `;
+  updateTabBadge('disc');
 }
 function toggleEvidence(i) { el('ev-'+i).classList.toggle('show'); }
+function toggleDiscType(k) {
+  // If types is empty (meaning "all"), selecting one switches to explicit list minus that toggle off
+  if (S.disc.types.length === 0) {
+    S.disc.types = DISC_TYPES.map(t=>t[0]).filter(x => x !== k);
+  } else if (S.disc.types.includes(k)) {
+    S.disc.types = S.disc.types.filter(x => x !== k);
+    if (S.disc.types.length === DISC_TYPES.length) S.disc.types = []; // back to "all"
+  } else {
+    S.disc.types.push(k);
+    if (S.disc.types.length === DISC_TYPES.length) S.disc.types = [];
+  }
+  onLocalChange('disc');
+}
+window.toggleDiscType = toggleDiscType;
 
 // ────────────────────────────────────────────────
 // Keyboard shortcuts
