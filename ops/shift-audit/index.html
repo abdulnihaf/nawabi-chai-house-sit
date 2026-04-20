@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift Audit — 19 Apr 2026 Night Shift</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --chamoisee: #AC7E54;
+    --wheat: #E9D1A9;
+    --amber: #D4A44C;
+    --ink: #2a1e13;
+    --bg: #FAF5EC;
+    --card: #FFFFFF;
+    --gray: #6b5a4a;
+    --light: #F0E6D2;
+    --green: #2f7a3c;
+    --red: #c0392b;
+    --red-soft: #f9e4e0;
+    --green-soft: #e4f0e6;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 16px;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  .brand {
+    text-align: center;
+    padding: 20px 0 12px;
+    border-bottom: 3px solid var(--chamoisee);
+    margin-bottom: 24px;
+  }
+  .brand h1 {
+    font-size: 22px;
+    color: var(--chamoisee);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .brand .subtitle {
+    font-size: 13px;
+    color: var(--gray);
+    letter-spacing: 1px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(172, 126, 84, 0.08);
+    border: 1px solid var(--light);
+  }
+  .card h2 {
+    font-size: 18px;
+    color: var(--chamoisee);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--wheat);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card h2 .num {
+    background: var(--chamoisee);
+    color: white;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .fact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .fact {
+    background: var(--light);
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .fact .label {
+    font-size: 11px;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .fact .value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .fact .sub {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 2px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--light);
+  }
+  th {
+    background: var(--wheat);
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  td.strong {
+    font-weight: 700;
+  }
+  .ok {
+    color: var(--green);
+    font-weight: 600;
+  }
+  .bad {
+    color: var(--red);
+    font-weight: 700;
+  }
+  .equation {
+    background: #FFFBF3;
+    border: 2px dashed var(--amber);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 12px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 14px;
+  }
+  .equation .line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px dotted var(--wheat);
+  }
+  .equation .line:last-child { border: none; }
+  .equation .plus { color: var(--green); font-weight: bold; }
+  .equation .total {
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 2px solid var(--chamoisee);
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .gap-banner {
+    background: linear-gradient(135deg, #c0392b, #8b2818);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin: 16px 0;
+  }
+  .gap-banner .label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.9;
+    margin-bottom: 6px;
+  }
+  .gap-banner .big {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+  .gap-banner .sub {
+    font-size: 13px;
+    margin-top: 6px;
+    opacity: 0.95;
+  }
+  .runner-card {
+    background: var(--green-soft);
+    border-left: 4px solid var(--green);
+    padding: 12px 14px;
+    margin: 10px 0;
+    border-radius: 6px;
+  }
+  .runner-card .name {
+    font-weight: 700;
+    color: var(--green);
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+  .runner-card .formula {
+    font-family: "SF Mono", monospace;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .runner-card .check {
+    color: var(--green);
+    font-weight: 700;
+    float: right;
+  }
+  .elim {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .elim-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    background: var(--green-soft);
+    border-radius: 8px;
+    border-left: 4px solid var(--green);
+  }
+  .elim-item.last {
+    background: var(--red-soft);
+    border-left-color: var(--red);
+  }
+  .elim-mark {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .elim-body .title {
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .elim-body .detail {
+    font-size: 13px;
+    color: var(--gray);
+  }
+  .elim-item.last .elim-body .title { color: var(--red); }
+  .gaps-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .gap-chip {
+    background: var(--red-soft);
+    color: var(--red);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: center;
+    font-weight: 600;
+    border: 1px solid #e6a89e;
+  }
+  .verdict {
+    background: #2a1e13;
+    color: var(--wheat);
+    padding: 24px;
+    border-radius: 12px;
+    text-align: center;
+    margin-top: 20px;
+  }
+  .verdict h2 {
+    color: var(--amber);
+    margin-bottom: 12px;
+    border: none;
+    justify-content: center;
+  }
+  .verdict .big-number {
+    font-size: 38px;
+    font-weight: 800;
+    color: var(--amber);
+    margin: 10px 0;
+  }
+  .verdict p { margin: 8px 0; }
+  .note {
+    font-size: 12px;
+    color: var(--gray);
+    font-style: italic;
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--light);
+    border-radius: 6px;
+  }
+  @media print {
+    body { background: white; }
+    .card { box-shadow: none; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="brand">
+  <h1>NAWABI CHAI HOUSE</h1>
+  <div class="subtitle">SHIFT CASH AUDIT — 19 APRIL 2026 NIGHT</div>
+</div>
+
+<!-- THE FACTS -->
+<div class="card">
+  <h2><span class="num">1</span> The Facts (confirmed)</h2>
+  <div class="fact-grid">
+    <div class="fact">
+      <div class="label">Shift Window</div>
+      <div class="value">9:00 PM</div>
+      <div class="sub">19 Apr → 1:20 AM 20 Apr IST</div>
+    </div>
+    <div class="fact">
+      <div class="label">Opening Float</div>
+      <div class="value">₹70</div>
+      <div class="sub">in drawer at 9 PM</div>
+    </div>
+    <div class="fact">
+      <div class="label">Collected by Basheer</div>
+      <div class="value">₹10,500</div>
+      <div class="sub">physically counted at 1:20 AM</div>
+    </div>
+    <div class="fact">
+      <div class="label">Cashier on POS27</div>
+      <div class="value">NAFEES</div>
+      <div class="sub">entire 4h 20min window</div>
+    </div>
+  </div>
+</div>
+
+<!-- RUNNER SETTLEMENTS -->
+<div class="card">
+  <h2><span class="num">2</span> Runner Settlements — All 3 Verified</h2>
+  <p style="color: var(--gray); font-size: 13px; margin-bottom: 10px;">
+    Formula: <strong>Cash to Settle = Tokens Issued + Ledger Sales − UPI Received</strong><br>
+    UPI verified directly from Razorpay at exact settlement timestamps.
+  </p>
+
+  <div class="runner-card">
+    <div class="name">RUN001 — Farzaib <span class="check">✓ EXACT</span></div>
+    <div class="formula">₹3,080 (tokens) + ₹1,190 (sales) − ₹2,510 (UPI) = <strong>₹1,760 cash</strong></div>
+    <div style="font-size: 12px; color: var(--gray); margin-top: 4px;">UPI: 36 payments matched to the rupee — 6:28 AM → 1:11 AM</div>
+  </div>
+
+  <div class="runner-card">
+    <div class="name">RUN004 — Shabeer <span class="check">✓ EXACT</span></div>
+    <div class="formula">₹2,850 (tokens) + ₹474 (sales) − ₹1,050 (UPI) = <strong>₹2,274 cash</strong></div>
+    <div style="font-size: 12px; color: var(--gray); margin-top: 4px;">UPI: 22 payments matched to the rupee — 1:45 PM → 1:17 AM</div>
+  </div>
+
+  <div class="runner-card">
+    <div class="name">RUN005 — Dhanush <span class="check">✓ EXACT</span></div>
+    <div class="formula">₹6,180 (tokens) + ₹2,154 (sales) − ₹6,029 (UPI) = <strong>₹2,305 cash</strong></div>
+    <div style="font-size: 12px; color: var(--gray); margin-top: 4px;">UPI: 92 payments matched to the rupee — 1:18 AM Apr 19 → 1:19 AM Apr 20</div>
+  </div>
+
+  <table>
+    <tr><th>Runner</th><th style="text-align:right">Cash Settled</th></tr>
+    <tr><td>RUN001</td><td class="num">₹1,760</td></tr>
+    <tr><td>RUN004</td><td class="num">₹2,274</td></tr>
+    <tr><td>RUN005</td><td class="num">₹2,305</td></tr>
+    <tr style="background: var(--wheat);"><td class="strong">TOTAL RUNNER CASH → COUNTER</td><td class="num strong">₹6,339</td></tr>
+  </table>
+</div>
+
+<!-- POS27 CASH SALES -->
+<div class="card">
+  <h2><span class="num">3</span> POS27 Walk-in Cash Sales (9 PM → 1:20 AM)</h2>
+  <p style="color: var(--gray); font-size: 13px; margin-bottom: 10px;">
+    Every cash transaction entered by Nafees into the POS system during this window:
+  </p>
+
+  <table>
+    <tr><th>Hour (IST)</th><th style="text-align:right">Cash Txns</th><th style="text-align:right">Cash ₹</th><th style="text-align:right">UPI Txns</th><th style="text-align:right">UPI ₹</th></tr>
+    <tr><td>9 PM – 10 PM</td><td class="num">4</td><td class="num">200</td><td class="num">6</td><td class="num">390</td></tr>
+    <tr><td>10 PM – 11 PM</td><td class="num">9</td><td class="num">385</td><td class="num">8</td><td class="num">330</td></tr>
+    <tr><td>11 PM – 12 AM</td><td class="num">2</td><td class="num">130</td><td class="num">5</td><td class="num">260</td></tr>
+    <tr><td>12 AM – 1 AM</td><td class="num">7</td><td class="num">350</td><td class="num">6</td><td class="num">380</td></tr>
+    <tr><td>1 AM – 1:20 AM</td><td class="num">3</td><td class="num">270</td><td class="num">6</td><td class="num">310</td></tr>
+    <tr style="background: var(--wheat);">
+      <td class="strong">TOTAL</td>
+      <td class="num strong">25</td>
+      <td class="num strong">₹1,335</td>
+      <td class="num strong">31</td>
+      <td class="num strong">₹1,670</td>
+    </tr>
+  </table>
+
+  <div class="note">
+    Only <strong>25 cash transactions in 4 hours 20 min</strong> — that's 1 cash sale every ~10 minutes on a busy night at the counter.
+  </div>
+</div>
+
+<!-- THE DRAWER EQUATION -->
+<div class="card">
+  <h2><span class="num">4</span> What the Drawer SHOULD Have</h2>
+  <div class="equation">
+    <div class="line">
+      <span>Opening float at 9 PM</span>
+      <span>₹70</span>
+    </div>
+    <div class="line">
+      <span class="plus">+ Walk-in cash (PM37) — 25 orders</span>
+      <span>₹1,335</span>
+    </div>
+    <div class="line">
+      <span class="plus">+ Runner RUN001 cash settled</span>
+      <span>₹1,760</span>
+    </div>
+    <div class="line">
+      <span class="plus">+ Runner RUN004 cash settled</span>
+      <span>₹2,274</span>
+    </div>
+    <div class="line">
+      <span class="plus">+ Runner RUN005 cash settled</span>
+      <span>₹2,305</span>
+    </div>
+    <div class="total line">
+      <span>SYSTEM SAYS DRAWER = </span>
+      <span>₹7,744</span>
+    </div>
+  </div>
+
+  <div class="equation" style="border-color: var(--chamoisee); background: #FDF6E8;">
+    <div class="line">
+      <span>Basheer physically counted</span>
+      <span><strong>₹10,500</strong></span>
+    </div>
+    <div class="line">
+      <span>System says drawer should be</span>
+      <span>₹7,744</span>
+    </div>
+    <div class="total line" style="color: var(--red); border-top-color: var(--red);">
+      <span>UNACCOUNTED GAP</span>
+      <span>₹2,756</span>
+    </div>
+  </div>
+</div>
+
+<!-- THE GAP -->
+<div class="gap-banner">
+  <div class="label">Missing from the system</div>
+  <div class="big">₹2,756</div>
+  <div class="sub">Cash in the drawer with no matching POS entry</div>
+</div>
+
+<!-- ELIMINATION LOGIC -->
+<div class="card">
+  <h2><span class="num">5</span> Where Can This ₹2,756 Come From?</h2>
+  <p style="color: var(--gray); font-size: 13px; margin-bottom: 14px;">
+    Every possible source of cash has been checked:
+  </p>
+
+  <div class="elim">
+    <div class="elim-item">
+      <div class="elim-mark">✓</div>
+      <div class="elim-body">
+        <div class="title">Runners — CLEARED</div>
+        <div class="detail">All 3 runners' UPI verified from Razorpay to the exact rupee. Their cash settled matches the formula exactly.</div>
+      </div>
+    </div>
+    <div class="elim-item">
+      <div class="elim-mark">✓</div>
+      <div class="elim-body">
+        <div class="title">Walk-in UPI (PM38) — CLEARED</div>
+        <div class="detail">UPI goes directly to Razorpay bank account. Never touches the physical drawer.</div>
+      </div>
+    </div>
+    <div class="elim-item">
+      <div class="elim-mark">✓</div>
+      <div class="elim-body">
+        <div class="title">Token Issues (PM48) — CLEARED</div>
+        <div class="detail">Tokens issued to runners — that cash is already inside the runner settlement total above. Cannot double-count.</div>
+      </div>
+    </div>
+    <div class="elim-item">
+      <div class="elim-mark">✓</div>
+      <div class="elim-body">
+        <div class="title">Float — CLEARED</div>
+        <div class="detail">Opening float of ₹70 is confirmed.</div>
+      </div>
+    </div>
+    <div class="elim-item">
+      <div class="elim-mark">✓</div>
+      <div class="elim-body">
+        <div class="title">HE mixed in — RULED OUT</div>
+        <div class="detail">Confirmed: ₹10,500 was collected from NCH counter only. No HE cash in this pickup.</div>
+      </div>
+    </div>
+    <div class="elim-item last">
+      <div class="elim-mark">⚠</div>
+      <div class="elim-body">
+        <div class="title">ONLY REMAINING POSSIBILITY</div>
+        <div class="detail"><strong>Cash received at the counter from customers, but the sale was NOT entered into POS27.</strong> This is the only mathematical explanation for the ₹2,756 gap.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EVIDENCE -->
+<div class="card">
+  <h2><span class="num">6</span> Evidence — Silent Periods at POS27</h2>
+  <p style="color: var(--gray); font-size: 13px; margin-bottom: 10px;">
+    During the 4h 20min window, POS27 had <strong>9 silent periods (≥8 minutes each)</strong> where zero orders were entered — despite it being peak chai-house hours:
+  </p>
+
+  <div class="gaps-list">
+    <div class="gap-chip">9:10 → 9:29 PM<br><small>18 min silent</small></div>
+    <div class="gap-chip">9:48 → 9:57 PM<br><small>9 min silent</small></div>
+    <div class="gap-chip">9:57 → 10:05 PM<br><small>8 min silent</small></div>
+    <div class="gap-chip">10:05 → 10:18 PM<br><small>13 min silent</small></div>
+    <div class="gap-chip">11:20 → 11:31 PM<br><small>12 min silent</small></div>
+    <div class="gap-chip">11:32 → 11:49 PM<br><small>17 min silent</small></div>
+    <div class="gap-chip">11:49 PM → 12:04 AM<br><small>15 min silent</small></div>
+    <div class="gap-chip">12:13 → 12:23 AM<br><small>9 min silent</small></div>
+    <div class="gap-chip">12:27 → 12:40 AM<br><small>14 min silent</small></div>
+  </div>
+
+  <div class="note" style="background: var(--red-soft); color: var(--red); margin-top: 14px;">
+    <strong>Total silent time: 115 minutes — 44% of the entire shift.</strong><br>
+    At an avg ₹53/cash order, this gap represents approximately <strong>52 unrecorded cash transactions</strong>.
+  </div>
+</div>
+
+<!-- VERDICT -->
+<div class="verdict">
+  <h2>CONCLUSION</h2>
+  <p>Every payment stream has been verified against Odoo and Razorpay to the exact rupee.</p>
+  <p>The runners, the UPI payments, the tokens, the float — all clean.</p>
+  <p>The only mathematical explanation for the gap is:</p>
+  <div class="big-number">₹2,756</div>
+  <p><strong>in cash sales received at the POS27 counter,<br>but never entered into the system.</strong></p>
+  <p style="font-size: 14px; margin-top: 16px; opacity: 0.8;">
+    Cashier on POS27 for the entire window: <strong style="color: var(--amber);">NAFEES (CASH002)</strong>
+  </p>
+</div>
+
+<div class="note" style="margin-top: 20px; text-align: center;">
+  Report generated from Odoo POS live data + Razorpay QR payment logs.<br>
+  Date of audit: 20 Apr 2026 · Shift: 19 Apr 9:00 PM → 20 Apr 1:20 AM IST
+</div>
+
+</body>
+</html>
