@@ -151,14 +151,16 @@
   <!-- Filter bar -->
   <div class="filters">
     <div class="filter-group">
-      <label>Period</label>
-      <button class="preset-btn" data-preset="last-shift">Last Shift</button>
+      <label>Quick</label>
+      <button class="preset-btn" data-preset="last-1h">1h</button>
+      <button class="preset-btn" data-preset="last-3h">3h</button>
+      <button class="preset-btn" data-preset="morning-shift">Morning (6–14)</button>
+      <button class="preset-btn" data-preset="evening-shift">Evening (14–23)</button>
       <button class="preset-btn" data-preset="today">Today</button>
       <button class="preset-btn" data-preset="yesterday">Yesterday</button>
       <button class="preset-btn" data-preset="7d">7D</button>
-      <button class="preset-btn" data-preset="custom">Custom</button>
     </div>
-    <div class="filter-group" id="custom-range" style="display:none;">
+    <div class="filter-group" id="custom-range">
       <label>From</label><input type="datetime-local" id="from-input">
       <label>To</label><input type="datetime-local" id="to-input">
     </div>
@@ -306,41 +308,50 @@ function logout() {
 // ────────────────────────────────────────────────
 // Time presets
 // ────────────────────────────────────────────────
+function istMidnight(date) {
+  const istOffset = 5.5*3600*1000;
+  const ist = new Date(date.getTime() + istOffset);
+  const mid = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+  return new Date(mid.getTime() - istOffset); // UTC instant of IST midnight
+}
 function setPreset(preset) {
   S.preset = preset;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
-  el('custom-range').style.display = preset === 'custom' ? 'flex' : 'none';
   const now = new Date();
-  if (preset === 'last-shift') {
-    // Last shift = rolling 24h back from now
-    S.from = new Date(now.getTime() - 24*3600*1000);
-    S.to = now;
+  const todayMid = istMidnight(now);
+  if (preset === 'last-1h') {
+    S.from = new Date(now.getTime() - 3600*1000); S.to = now;
+  } else if (preset === 'last-3h') {
+    S.from = new Date(now.getTime() - 3*3600*1000); S.to = now;
+  } else if (preset === 'morning-shift') {
+    // Morning shift 6AM-2PM IST of today (or current if ongoing)
+    S.from = new Date(todayMid.getTime() + 6*3600*1000);
+    S.to = new Date(todayMid.getTime() + 14*3600*1000);
+  } else if (preset === 'evening-shift') {
+    // Evening shift 2PM-11PM IST of today
+    S.from = new Date(todayMid.getTime() + 14*3600*1000);
+    S.to = new Date(todayMid.getTime() + 23*3600*1000);
   } else if (preset === 'today') {
-    // IST midnight today → now
-    const istOffset = 5.5*3600*1000;
-    const istNow = new Date(now.getTime() + istOffset);
-    const istMid = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
-    S.from = new Date(istMid.getTime() - istOffset);
-    S.to = now;
+    S.from = todayMid; S.to = now;
   } else if (preset === 'yesterday') {
-    const istOffset = 5.5*3600*1000;
-    const istNow = new Date(now.getTime() + istOffset);
-    const istMidToday = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
-    const istMidYest = new Date(istMidToday.getTime() - 24*3600*1000);
-    S.from = new Date(istMidYest.getTime() - istOffset);
-    S.to = new Date(istMidToday.getTime() - istOffset);
+    S.from = new Date(todayMid.getTime() - 24*3600*1000);
+    S.to = todayMid;
   } else if (preset === '7d') {
-    S.from = new Date(now.getTime() - 7*24*3600*1000);
-    S.to = now;
-  } else if (preset === 'custom') {
-    if (!el('from-input').value) {
-      el('from-input').value = toLocalInput(S.from || new Date(now.getTime()-24*3600*1000));
-      el('to-input').value = toLocalInput(S.to || now);
-    }
-    return;
+    S.from = new Date(now.getTime() - 7*24*3600*1000); S.to = now;
   }
+  // Always sync inputs so user can see and tweak
+  el('from-input').value = toLocalInput(S.from);
+  el('to-input').value = toLocalInput(S.to);
   applyFilters();
 }
+
+// Typing in datetime inputs = custom override
+['from-input','to-input'].forEach(id => {
+  el(id).addEventListener('change', () => {
+    S.preset = 'custom';
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  });
+});
 function toLocalInput(d) {
   const off = d.getTimezoneOffset() * 60000;
   return new Date(d - off).toISOString().slice(0, 16);
@@ -352,10 +363,9 @@ document.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => b.classLis
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
 function applyFilters() {
-  if (S.preset === 'custom') {
-    S.from = new Date(el('from-input').value);
-    S.to = new Date(el('to-input').value);
-  }
+  // Inputs are always source of truth (presets pre-fill them)
+  if (el('from-input').value) S.from = new Date(el('from-input').value);
+  if (el('to-input').value) S.to = new Date(el('to-input').value);
   S.pos_ids = Array.from(document.querySelectorAll('[data-pos].on')).map(b => +b.dataset.pos);
   S.pm_ids = Array.from(document.querySelectorAll('[data-pm].on')).map(b => +b.dataset.pm);
   S.cache = {}; // invalidate
