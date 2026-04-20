@@ -485,15 +485,16 @@ async function getDiscrepancies(env, from, to, posIds) {
     });
   }
 
-  // ── Type 2: Silent gaps on POS27 (>10 min during 6AM-2AM IST)
-  // IST active window = 06:00 → 02:00 (next day). Computed in IST minutes-since-midnight.
+  // ── Type 2: Silent gaps on POS27 (>15 min during 6AM-2AM IST)
+  // Threshold 15 min avoids alert fatigue during natural lulls (2-5 PM).
+  // Severity: gap > 30 min = high, else warning.
   const pos27 = orders.filter(o => o.config_id?.[0] === 27).sort((a, b) => new Date(a.date_order) - new Date(b.date_order));
   const gaps = [];
   for (let i = 1; i < pos27.length; i++) {
     const prev = new Date(pos27[i-1].date_order + 'Z');
     const curr = new Date(pos27[i].date_order + 'Z');
     const gapMin = (curr - prev) / 60000;
-    if (gapMin > 10) {
+    if (gapMin > 15) {
       // IST minute-of-day for prev: add 330 min (5:30h) offset, wrap mod 1440
       const istMin = (prev.getUTCHours() * 60 + prev.getUTCMinutes() + 330) % 1440;
       // Active = 06:00-23:59 IST (istMin >= 360) OR 00:00-01:59 IST (istMin < 120)
@@ -512,7 +513,7 @@ async function getDiscrepancies(env, from, to, posIds) {
     issues.push({
       type: 'silent_gaps',
       severity: gaps.some(g => g.minutes > 30) ? 'high' : 'warning',
-      title: `${gaps.length} silent gaps on POS27 (> 10 min with no orders)`,
+      title: `${gaps.length} silent gaps on POS27 (> 15 min with no orders)`,
       total_minutes: gaps.reduce((s, g) => s + g.minutes, 0),
       count: gaps.length,
       evidence: gaps.slice(0, 20),
