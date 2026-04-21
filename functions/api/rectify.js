@@ -270,9 +270,9 @@ async function recordExpense(context, DB, cors) {
 
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return json({success: false, error: 'Invalid amount'}, cors, 400);
-  if (category.max_amount && amt > category.max_amount) {
-    return json({success: false, error: `Amount exceeds max ${category.max_amount} for ${category.name}`}, cors, 400);
-  }
+  // Per-category hard caps retired 2026-04-21 (e.g. police payments at
+  // checkpoints legitimately exceed ₹100 for ASI/SI grade officers).
+  // v_expense_categories.max_amount is kept in schema for future reuse.
 
   const now = new Date().toISOString();
   const result = await DB.prepare(
@@ -379,9 +379,7 @@ async function pettyExpense(context, DB, cors) {
 
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return json({success: false, error: 'Invalid amount'}, cors, 400);
-  if (category.max_amount && amt > category.max_amount) {
-    return json({success: false, error: `Amount exceeds max ₹${category.max_amount} for ${category.name}`}, cors, 400);
-  }
+  // Per-category hard caps retired 2026-04-21 — same as counter flow above.
 
   // Check balance — warn but allow negative (Naveen reimburses)
   const bal = await DB.prepare('SELECT current_balance FROM petty_cash_balance WHERE id = 1').first();
