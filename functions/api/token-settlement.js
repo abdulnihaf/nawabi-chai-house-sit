@@ -37,7 +37,7 @@ export async function onRequest(context) {
   const ADMIN_USERS = ['Nihaf']; // Only these users can perform destructive actions (reset)
 
   const BOX_TARE_G = 0;       // weightless-cover flow: staff tares scale before pouring tokens
-  const TOKEN_WEIGHT_G = 1.1; // ~1.1 gram per token (physical constant of pink token)
+  const TOKEN_WEIGHT_G = 1.113; // calibrated Apr 21 2026 from 3 samples (100→113g, 200→218g, 300→336g; weighted avg 667/600)
   const MIN_NET_WEIGHT_G = 0; // 0 allowed for zero-activity periods
   const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
   const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
