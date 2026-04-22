@@ -39,8 +39,14 @@ export async function onRequest(context) {
   const BOX_TARE_G = 0;       // weightless-cover flow: staff tares scale before pouring tokens
   const TOKEN_WEIGHT_G = 1.113; // calibrated Apr 21 2026 from 3 samples (100→113g, 200→218g, 300→336g; weighted avg 667/600)
   const MIN_NET_WEIGHT_G = 0; // 0 allowed for zero-activity periods
-  const BEVERAGE_IDS = [1028, 1102, 1103]; // Irani Chai, Coffee, Lemon Tea
-  const BEVERAGE_NAMES = {1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea'};
+  // Added 2026-04-22: 11 new NCH beverages (product IDs 1650-1660) via scripts/add-nch-pos-items-2026-04-22.js
+  const BEVERAGE_IDS = [1028, 1102, 1103, 1650, 1651, 1652, 1653, 1654, 1655, 1656, 1657, 1658, 1659, 1660];
+  const BEVERAGE_NAMES = {
+    1028: 'chai', 1102: 'coffee', 1103: 'lemon_tea',
+    1650: 'kadak_chai', 1651: 'zafrani_chai', 1652: 'irani_ginger_tea', 1653: 'irani_black_tea',
+    1654: 'irani_chocolate_tea', 1655: 'irani_horlicks', 1656: 'irani_boost', 1657: 'black_coffee',
+    1658: 'irani_badam_milk', 1659: 'irani_milk', 1660: 'zafrani_coffee'
+  };
   const PM_TOKEN_ISSUE = 48;
   const PM_COMP = 49;
   const POS_CASH_COUNTER = 27;
