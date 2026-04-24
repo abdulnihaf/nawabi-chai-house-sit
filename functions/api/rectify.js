@@ -768,9 +768,18 @@ function verifyPin(pin) {
   return STAFF_BY_PIN[pin];
 }
 
+// IST midnight of today, returned as the equivalent UTC ISO string so it
+// compares correctly against `recorded_at` (stored as `new Date().toISOString()`
+// — UTC with Z suffix). Old version returned an IST-clock string with no TZ
+// suffix, which broke string comparison: a row recorded at IST 03:00 (= UTC
+// previous-day 21:30) would be excluded from "today's" filter. That's the
+// bug that caused Basheer to re-enter expenses he thought weren't saved.
+//   getTodayIST() // → '2026-04-23T18:30:00.000Z' (when IST date is Apr 24)
 function getTodayIST() {
-  const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-  return now.toISOString().slice(0, 10) + 'T00:00:00';
+  const ist = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const ymd = ist.toISOString().slice(0, 10);
+  const istMidUtcMs = Date.parse(`${ymd}T00:00:00.000Z`) - 5.5 * 3600 * 1000;
+  return new Date(istMidUtcMs).toISOString();
 }
 
 function json(data, cors, status = 200) {
