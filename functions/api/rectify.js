@@ -877,9 +877,13 @@ async function listOpenPOs(url, cors) {
     const qs = `?action=purchase-ledger&pin=${encodeURIComponent(pin)}&brand=NCH&from=2026-01-01&to=2030-12-31`;
     const r = await fetch(`${HN_SPEND_URL}${qs}`).then(x => x.json());
     if (!r?.success) return json({success: false, error: r?.error || 'ledger fetch failed'}, cors);
-    // Filter to PO kind with open state (not yet received + billed)
+    // Filter to PO kind with open state. purchase-ledger returns RAW Odoo
+    // states: 'draft' | 'sent' | 'purchase' (confirmed) | 'done' (received) |
+    // 'cancel'. 'purchase' is the typical "needs billing/payment" state;
+    // 'done' can also still need payment if bill was created via UI but not
+    // paid. settle-po's idempotency check handles the already-paid case.
     const openPOs = (r.rows || [])
-      .filter(row => row.kind === 'PO' && ['open-po', 'po-draft'].includes(row.state))
+      .filter(row => row.kind === 'PO' && ['purchase', 'done'].includes(row.state))
       .sort((a, b) => String(b.date).localeCompare(String(a.date)))
       .map(p => ({
         po_id: p.odoo_id, po_name: p.odoo_name,
