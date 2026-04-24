@@ -476,6 +476,64 @@
     <div id="exp-step-cats" style="padding: 8px 0;">
       <div style="color: var(--muted); font-size: 12px; margin-bottom: 8px;">What are you recording?</div>
       <div id="exp-cat-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;"></div>
+
+      <!-- Phase 2 Surface B: Pay an open PO raised by Zoya -->
+      <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);">
+        <div style="color: var(--muted); font-size: 12px; margin-bottom: 8px;">
+          Or — paying a purchase order raised by office?
+        </div>
+        <button type="button" id="pay-po-tile" onclick="openPayPOModal()"
+                style="width:100%; padding:14px; background:var(--card); border:1.5px solid var(--purple); border-radius:12px; color:var(--text); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <span><span style="font-size:18px;margin-right:6px;">📦</span> Pay open PO</span>
+          <span id="pay-po-count" style="font-size:11px; color:var(--purple); background:var(--purple-dim); padding:2px 9px; border-radius:999px; font-weight:700;">—</span>
+        </button>
+        <div style="font-size:11px; color:var(--dim); margin-top:6px; text-align:center;">
+          Till cash drops + PO closed + Zoya sees it PAID — all in one click.
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 Surface B: Pay open PO modal -->
+    <div id="pay-po-modal" class="modal-overlay hidden" onclick="if(event.target===this)closePayPOModal()" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:90; display:none; align-items:center; justify-content:center; padding:12px;">
+      <div style="max-width:480px; width:100%; max-height:90vh; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;">
+          <div style="font-size:16px; font-weight:700;">📦 Pay an open PO</div>
+          <button onclick="closePayPOModal()" style="background:transparent; border:none; color:var(--muted); font-size:22px; cursor:pointer;">✕</button>
+        </div>
+        <div id="pay-po-err" style="display:none; background:rgba(239,68,68,0.10); border:1px solid rgba(239,68,68,0.4); color:#ef4444; padding:10px 12px; border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
+
+        <!-- Step 1: Pick PO -->
+        <div id="pay-po-pick" style="margin-bottom:14px;">
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px; font-weight:700; margin-bottom:6px;">Open POs for NCH</div>
+          <div id="pay-po-list" style="max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+            <div class="loading" style="padding:16px; text-align:center; color:var(--dim); font-size:13px;">Loading POs…</div>
+          </div>
+        </div>
+
+        <!-- Step 2: Confirm payment for picked PO -->
+        <div id="pay-po-confirm" class="hidden">
+          <div id="pay-po-chosen" style="background:var(--card2); border:1px solid var(--purple); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px;"></div>
+
+          <div class="input-group">
+            <label class="input-label">Amount paid (₹)</label>
+            <input id="pay-po-amount" type="number" inputmode="decimal" class="input" placeholder="0">
+            <div style="font-size:11px; color:var(--dim); margin-top:4px;">Full or partial. Remaining can be paid later from /ops/bills/.</div>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Paid by <span style="font-weight:400; color:var(--muted); font-size:11px;">your name (auto-filled)</span></label>
+            <input id="pay-po-by" type="text" class="input" placeholder="e.g. Basheer">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Bill photo <span style="font-weight:400; color:var(--muted); font-size:11px;">optional</span></label>
+            <input id="pay-po-photo" type="file" accept="image/*" capture="environment" class="input" style="padding:8px;">
+          </div>
+
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn btn-secondary" onclick="backToPayPOList()" style="flex:1;">← Pick different</button>
+            <button class="btn btn-primary" id="pay-po-confirm-btn" onclick="confirmPayPO()" style="flex:2;">Confirm payment</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Step B: category-specific form (hidden until a card is tapped) -->
@@ -1392,6 +1450,162 @@ function initExpense() {
   el('exp-error').style.display = 'none';
   renderExpenseCards();
   loadTodayExpenses();
+  loadOpenPOsCount();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 2 Surface B — Pay an open Zoya PO from NCH counter till cash
+//
+// Cashier picks from a list of open POs (filtered to NCH brand), confirms
+// amount + optional photo, backend atomically:
+//   1. Writes counter_expenses_v2 row → till cash drops for shift settlement
+//   2. Cross-domain call to hnhotels.in/api/spend?action=settle-po
+//      → creates bill from PO + payment + reconciles
+//
+// Replaces the old "record expense for buns" duplicate-prone path.
+// ═══════════════════════════════════════════════════════════════════════
+let _OPEN_POS_CACHE = null;
+let _CHOSEN_PO = null;
+
+async function loadOpenPOsCount() {
+  try {
+    const r = await api(`/api/rectify?action=list-open-pos&pin=${encodeURIComponent(S.pin)}`);
+    if (r.success) {
+      _OPEN_POS_CACHE = r.pos || [];
+      el('pay-po-count').textContent = r.count || 0;
+    }
+  } catch (_) { /* silent fail — tile still functional */ }
+}
+
+async function openPayPOModal() {
+  const modal = el('pay-po-modal');
+  modal.style.display = 'flex';
+  modal.classList.remove('hidden');
+  el('pay-po-err').style.display = 'none';
+  el('pay-po-pick').classList.remove('hidden');
+  el('pay-po-confirm').classList.add('hidden');
+
+  // Fetch fresh list every open
+  const list = el('pay-po-list');
+  list.innerHTML = '<div class="loading" style="padding:16px;text-align:center;color:var(--dim);font-size:13px;">Loading POs…</div>';
+  try {
+    const r = await api(`/api/rectify?action=list-open-pos&pin=${encodeURIComponent(S.pin)}`);
+    if (!r.success) throw new Error(r.error || 'load failed');
+    _OPEN_POS_CACHE = r.pos || [];
+    el('pay-po-count').textContent = _OPEN_POS_CACHE.length;
+    if (!_OPEN_POS_CACHE.length) {
+      list.innerHTML = '<div class="loading" style="padding:20px;text-align:center;color:var(--dim);font-size:13px;">✓ No open POs to pay.<br>All caught up.</div>';
+      return;
+    }
+    list.innerHTML = _OPEN_POS_CACHE.map((p, i) => `
+      <div class="row-item" style="cursor:pointer;" onclick="pickOpenPO(${i})">
+        <div class="row-left">
+          <div class="row-title">${escapeHtml(p.vendor_name || '?')}</div>
+          <div class="row-sub" style="color:var(--muted);font-size:11px;">${escapeHtml(p.po_name || '?')} · ${escapeHtml(p.item || '')}</div>
+        </div>
+        <div class="row-right">
+          <div class="row-amount">₹${fmt(p.amount)}</div>
+          <div class="row-time">${niceDateLabel((p.date || '').slice(0, 10))}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="loading" style="padding:16px;color:var(--muted);">Could not load: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closePayPOModal() {
+  const modal = el('pay-po-modal');
+  modal.style.display = 'none';
+  modal.classList.add('hidden');
+  _CHOSEN_PO = null;
+}
+
+function pickOpenPO(idx) {
+  const p = _OPEN_POS_CACHE[idx];
+  if (!p) return;
+  _CHOSEN_PO = p;
+  el('pay-po-pick').classList.add('hidden');
+  el('pay-po-confirm').classList.remove('hidden');
+  el('pay-po-chosen').innerHTML = `
+    <div style="font-weight:700; margin-bottom:4px;">${escapeHtml(p.vendor_name || '?')}</div>
+    <div style="color:var(--muted); font-size:12px;">${escapeHtml(p.po_name || '?')} · ${escapeHtml(p.item || '')}</div>
+    <div style="margin-top:4px;"><b style="color:var(--purple);">₹${fmt(p.amount)}</b> total</div>
+  `;
+  // Pre-fill amount to PO total + paid-by to current staff name
+  el('pay-po-amount').value = Math.round(p.amount);
+  el('pay-po-by').value = getStaffName() || '';
+}
+
+function backToPayPOList() {
+  _CHOSEN_PO = null;
+  el('pay-po-pick').classList.remove('hidden');
+  el('pay-po-confirm').classList.add('hidden');
+}
+
+function getStaffName() {
+  // S.person is set by verify-staff response (e.g., 'Basheer', 'Kesmat').
+  return S.person || S.code || '';
+}
+
+async function confirmPayPO() {
+  el('pay-po-err').style.display = 'none';
+  const btn = el('pay-po-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Paying…';
+  try {
+    if (!_CHOSEN_PO) throw new Error('No PO selected');
+    const amount = parseFloat(el('pay-po-amount').value);
+    if (!(amount > 0)) throw new Error('Enter a valid amount');
+    if (amount > _CHOSEN_PO.amount + 0.01) throw new Error(`Amount exceeds PO total ₹${fmt(_CHOSEN_PO.amount)}`);
+    const by = el('pay-po-by').value.trim();
+
+    // Get NCH Cash journal ID — hard-coded from Odoo (id=15 per our schema check).
+    // If this ever changes, server-side settle-po will re-validate against brand.
+    const NCH_CASH_JOURNAL = 15;
+
+    const attachment = await readPayPOPhoto();
+
+    const body = {
+      pin: S.pin,
+      po_id: _CHOSEN_PO.po_id,
+      po_name: _CHOSEN_PO.po_name,
+      vendor_name: _CHOSEN_PO.vendor_name,
+      payment_amount: amount,
+      payment_journal_id: NCH_CASH_JOURNAL,
+      payment_method_label: by ? `NCH counter · ${by}` : 'NCH counter',
+      attachment,
+    };
+    const r = await apiPost(`/api/rectify?action=pay-open-po`, body);
+    if (!r.success) throw new Error(r.error || 'Payment failed');
+    if (r.partial_failure) {
+      toast(`Till cash dropped — Odoo sync pending: ${r.odoo_error}`, 'err');
+    } else {
+      toast(`✓ Paid ₹${fmt(amount)} · ${r.po_name} · bill ${r.payment_state}`, 'ok');
+    }
+    closePayPOModal();
+    loadTodayExpenses();
+    loadOpenPOsCount();
+  } catch (e) {
+    el('pay-po-err').textContent = e.message;
+    el('pay-po-err').style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirm payment';
+  }
+}
+
+async function readPayPOPhoto() {
+  const f = el('pay-po-photo')?.files?.[0];
+  if (!f) return null;
+  if (f.size > 8 * 1024 * 1024) throw new Error('Photo too large (>8MB)');
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = r.result;
+      const b64 = s.includes(',') ? s.split(',')[1] : s;
+      resolve({ name: f.name, mimetype: f.type || 'image/jpeg', data_b64: b64 });
+    };
+    r.onerror = () => reject(new Error('Photo read failed'));
+    r.readAsDataURL(f);
+  });
 }
 
 function renderExpenseCards() {

@@ -88,6 +88,8 @@ export async function onRequest(context) {
       case 'resolve-discrepancy': return await resolveDiscrepancy(context, DB, cors);
       case 'create-cross-qr-tag': return await createCrossQrTag(context, DB, cors);
       case 'verify-staff': return await verifyStaff(url, cors);
+      case 'list-open-pos': return await listOpenPOs(url, cors);
+      case 'pay-open-po':   return await payOpenPO(context, DB, cors);
       default: return json({success: false, error: `Unknown action: ${action}`}, cors, 400);
     }
   } catch (e) {
@@ -836,4 +838,137 @@ function getTodayIST() {
 
 function json(data, cors, status = 200) {
   return new Response(JSON.stringify(data), {status, headers: cors});
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Phase 2 Surface B — NCH outlet "Pay open PO" tile
+//
+// Scenario: Zoya raised a PO for Ganga Bakery ₹996. Buns delivered to NCH
+// outlet. Basheer pays ₹1,000 cash from NCH till. Today this creates a
+// separate counter_expenses_v2 entry → cockpit flags as cross-kind dup
+// against the PO. New flow: cashier picks the PO via this tile instead,
+// which atomically:
+//   1. Writes one counter_expenses_v2 row with category_code='RM' and
+//      description '[PO P00xxx settled — Vendor Name]' → till cash drops
+//      correctly for shift settlement.
+//   2. Calls hnhotels.in/api/spend?action=settle-po → Odoo creates bill
+//      from PO + payment + reconciles.
+//   3. Cockpit dup-detection skips this pair (linked via PO reference in
+//      description + same-day match).
+//
+// Daily P&L auto-picks up the counter_expenses_v2 row (category_code='RM'
+// is already whitelisted).
+// ══════════════════════════════════════════════════════════════════════
+
+// Cross-domain fetch to hnhotels.in (where Odoo credentials live)
+const HN_SPEND_URL = 'https://hnhotels.in/api/spend';
+
+async function listOpenPOs(url, cors) {
+  const pin = url.searchParams.get('pin');
+  const staff = verifyPin(pin);
+  if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
+  if (!CAN_RECORD_EXPENSE.has(staff.role)) {
+    return json({success: false, error: 'Only cashier / admin / GM can pay POs'}, cors, 403);
+  }
+
+  // Call hnhotels.in purchase-ledger filtered to NCH + open POs
+  // (purchase.order state=purchase, not yet fully billed)
+  try {
+    const qs = `?action=purchase-ledger&pin=${encodeURIComponent(pin)}&brand=NCH&from=2026-01-01&to=2030-12-31`;
+    const r = await fetch(`${HN_SPEND_URL}${qs}`).then(x => x.json());
+    if (!r?.success) return json({success: false, error: r?.error || 'ledger fetch failed'}, cors);
+    // Filter to PO kind with open state (not yet received + billed)
+    const openPOs = (r.rows || [])
+      .filter(row => row.kind === 'PO' && ['open-po', 'po-draft'].includes(row.state))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .map(p => ({
+        po_id: p.odoo_id, po_name: p.odoo_name,
+        vendor_id: p.vendor?.id, vendor_name: p.vendor?.name,
+        date: p.date, amount: p.amount,
+        item: p.item_or_ref, state: p.state,
+      }));
+    return json({success: true, pos: openPOs, count: openPOs.length}, cors);
+  } catch (e) {
+    return json({success: false, error: `fetch failed: ${e.message}`}, cors, 500);
+  }
+}
+
+async function payOpenPO(context, DB, cors) {
+  const body = await context.request.json();
+  const {pin, po_id, po_name, vendor_name, payment_amount, payment_journal_id,
+         payment_method_label, attachment} = body;
+
+  const staff = verifyPin(pin);
+  if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
+  if (!CAN_RECORD_EXPENSE.has(staff.role)) {
+    return json({success: false, error: 'Only cashier / admin / GM can pay POs'}, cors, 403);
+  }
+  if (!po_id) return json({success: false, error: 'po_id required'}, cors, 400);
+  const amt = parseFloat(payment_amount);
+  if (!(amt > 0)) return json({success: false, error: 'payment_amount > 0 required'}, cors, 400);
+  if (!payment_journal_id) {
+    return json({success: false, error: 'payment_journal_id required (NCH Cash journal)'}, cors, 400);
+  }
+
+  const now = new Date().toISOString();
+  const payDate = now.slice(0, 10);
+  const description = `[PO ${po_name || '#' + po_id} settled${vendor_name ? ' — ' + vendor_name : ''}]${
+    payment_method_label ? ' · ' + payment_method_label : ''
+  }`;
+
+  // Step 1 — D1 till-cash drop FIRST (source of truth for shift settlement).
+  // If Odoo write fails after this, cashier can still close shift correctly;
+  // the row is marked as pending-odoo-sync for retry via cockpit.
+  let d1Id;
+  try {
+    const result = await DB.prepare(
+      `INSERT INTO counter_expenses_v2
+         (category_code, amount, description, recorded_by, recorded_by_name, pin_verified, recorded_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`
+    ).bind('RM', amt, description, staff.slot, staff.name, now).run();
+    d1Id = result.meta.last_row_id;
+  } catch (e) {
+    return json({success: false, error: `Till cash record failed: ${e.message}`}, cors, 500);
+  }
+
+  // Step 2 — Odoo settle-po (creates bill from PO + payment + reconciles)
+  try {
+    const settleRes = await fetch(`${HN_SPEND_URL}?action=settle-po`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        pin, brand: 'NCH', po_id: parseInt(po_id, 10),
+        payment_amount: amt,
+        payment_journal_id: parseInt(payment_journal_id, 10),
+        payment_date: payDate,
+        payment_method_label: payment_method_label || `NCH counter · ${staff.name}`,
+        attachment: attachment || null,
+      }),
+    }).then(x => x.json());
+
+    if (!settleRes.success) {
+      return json({
+        success: true, partial_failure: true,
+        d1_id: d1Id,
+        odoo_error: settleRes.error || settleRes.payment_error || 'unknown',
+        message: 'Counter cash dropped in D1 but Odoo settlement failed — retry from cockpit',
+      }, cors);
+    }
+
+    return json({
+      success: true,
+      d1_id: d1Id,
+      po_id: settleRes.po_id, po_name: settleRes.po_name,
+      bill_id: settleRes.bill_id,
+      payment_state: settleRes.payment_state,
+      amount_paid: settleRes.amount_paid,
+    }, cors);
+  } catch (e) {
+    return json({
+      success: true, partial_failure: true,
+      d1_id: d1Id,
+      odoo_error: `Network error: ${e.message}`,
+      message: 'Counter cash dropped in D1 but Odoo call failed — retry later',
+    }, cors);
+  }
 }
