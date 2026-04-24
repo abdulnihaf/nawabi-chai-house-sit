@@ -287,13 +287,65 @@ async function getExpenses(url, DB, cors) {
   const staff = verifyPin(pin);
   if (!staff) return json({success: false, error: 'Invalid PIN'}, cors, 401);
 
-  const todayIST = getTodayIST();
-  const rows = await DB.prepare(
-    `SELECT ce.*, vc.name as category_name FROM counter_expenses_v2 ce LEFT JOIN v_expense_categories vc ON ce.category_code = vc.code WHERE ce.recorded_at >= ? ORDER BY ce.recorded_at DESC`
-  ).bind(todayIST).all();
+  // History support — clients can pass `days=N` (default 1 = today only) or
+  // `from`/`to` (YYYY-MM-DD IST dates). Cap at 30 days to keep payloads small.
+  // The point: cashier should see what's already been entered before re-keying.
+  const daysParam = parseInt(url.searchParams.get('days') || '1', 10);
+  const days = Math.min(Math.max(isNaN(daysParam) ? 1 : daysParam, 1), 30);
+  const fromParam = url.searchParams.get('from');
+  const toParam   = url.searchParams.get('to');
 
-  const total = rows.results.reduce((sum, r) => sum + (r.amount || 0), 0);
-  return json({success: true, expenses: rows.results, total}, cors);
+  let startUTC, endUTC;
+  if (fromParam && toParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+    startUTC = istDayStartAsUTC(fromParam);
+    // exclusive end = (to + 1 day) at IST midnight
+    const toPlus1 = new Date(Date.parse(`${toParam}T00:00:00.000Z`) + 86400000)
+      .toISOString().slice(0, 10);
+    endUTC = istDayStartAsUTC(toPlus1);
+  } else {
+    // Days-back from today (IST). days=1 → today only.
+    const todayIST = istTodayDate();
+    const fromIST = new Date(Date.parse(`${todayIST}T00:00:00.000Z`) - (days - 1) * 86400000)
+      .toISOString().slice(0, 10);
+    startUTC = istDayStartAsUTC(fromIST);
+    const toPlus1 = new Date(Date.parse(`${todayIST}T00:00:00.000Z`) + 86400000)
+      .toISOString().slice(0, 10);
+    endUTC = istDayStartAsUTC(toPlus1);
+  }
+
+  const rows = await DB.prepare(
+    `SELECT ce.*, vc.name as category_name
+       FROM counter_expenses_v2 ce
+  LEFT JOIN v_expense_categories vc ON ce.category_code = vc.code
+      WHERE ce.recorded_at >= ? AND ce.recorded_at < ?
+   ORDER BY ce.recorded_at DESC`
+  ).bind(startUTC, endUTC).all();
+
+  // Tag each row with its IST date for client-side grouping
+  const items = (rows.results || []).map(r => ({
+    ...r,
+    ist_date: istDateOfUTC(r.recorded_at),
+  }));
+  const total = items.reduce((sum, r) => sum + (r.amount || 0), 0);
+  return json({success: true, expenses: items, total, days, from: fromParam, to: toParam}, cors);
+}
+
+// IST date today (YYYY-MM-DD)
+function istTodayDate() {
+  const ist = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return ist.toISOString().slice(0, 10);
+}
+// IST midnight of given YYYY-MM-DD as UTC ISO string (so it compares
+// correctly against recorded_at which is stored as UTC ISO).
+function istDayStartAsUTC(ymd) {
+  return new Date(Date.parse(`${ymd}T00:00:00.000Z`) - 5.5 * 3600 * 1000).toISOString();
+}
+// Convert a UTC ISO timestamp to its IST date (YYYY-MM-DD).
+function istDateOfUTC(utcIso) {
+  if (!utcIso) return null;
+  const t = Date.parse(utcIso);
+  if (Number.isNaN(t)) return null;
+  return new Date(t + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 async function checkSettlementReady(url, DB, cors) {

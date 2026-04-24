@@ -234,6 +234,16 @@
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); }
   .chip.active { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+  /* Past-expenses date selector + grouped list */
+  .hist-chip { padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); font-family: inherit; }
+  .hist-chip:active { transform: scale(0.97); }
+  .hist-chip.active { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+  .hist-day-hdr { display:flex; justify-content:space-between; align-items:baseline; padding:10px 16px 8px; background: rgba(124,86,247,0.04); border-top: 1px solid var(--border); }
+  .hist-day-hdr:first-child { border-top: none; }
+  .hist-day-hdr .d { font-size:11px; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:0.4px; }
+  .hist-day-hdr .meta { font-size:11px; color:var(--muted); }
+  .hist-day-hdr .meta b { color:rgba(232,237,245,0.85); font-weight:700; font-variant-numeric: tabular-nums; }
+  .hist-empty { padding:20px 16px; color:var(--muted); font-size:12px; text-align:center; font-style:italic; }
 
   /* ── LOADING / ERROR ── */
   .loading { text-align: center; padding: 40px 20px; color: var(--dim); font-size: 13px; }
@@ -534,7 +544,16 @@
 
     <div id="exp-error" class="error-box" style="display: none;"></div>
     <div style="height: 12px;"></div>
-    <div class="section-hdr"><span class="section-title">Today's expenses</span></div>
+    <div class="section-hdr">
+      <span class="section-title">Past expenses</span>
+      <span style="font-size:11px;color:var(--dim);margin-left:8px">prevent duplicates — check before re-entering</span>
+    </div>
+    <div id="hist-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px;">
+      <button type="button" class="hist-chip active" data-days="1"  onclick="setHistDays(1)">Today</button>
+      <button type="button" class="hist-chip"        data-days="2"  onclick="setHistDays(2)">+ Yesterday</button>
+      <button type="button" class="hist-chip"        data-days="7"  onclick="setHistDays(7)">Last 7 days</button>
+      <button type="button" class="hist-chip"        data-days="30" onclick="setHistDays(30)">Last 30 days</button>
+    </div>
     <div id="today-expenses" class="card"><div class="loading" style="padding: 16px;">—</div></div>
   </div>
   <div class="action-bar">
@@ -1643,20 +1662,84 @@ async function onExpProductChange(sel) {
   }
 }
 
+// Past-expenses history view — date-chip controlled. Default = today only.
+// Surfaces what's already been entered to PREVENT cashier from re-keying
+// items they think didn't save (root cause of the Apr 22 ₹1,910 dup batch).
+let HIST_DAYS = 1;
+function setHistDays(days) {
+  HIST_DAYS = days;
+  document.querySelectorAll('.hist-chip').forEach(c =>
+    c.classList.toggle('active', String(c.dataset.days) === String(days))
+  );
+  loadTodayExpenses();
+}
 async function loadTodayExpenses() {
   el('today-expenses').innerHTML = '<div class="loading" style="padding:16px">Loading…</div>';
   try {
-    const r = await api(`/api/rectify?action=get-expenses&pin=${encodeURIComponent(S.pin)}&limit=20`);
+    const r = await api(`/api/rectify?action=get-expenses&pin=${encodeURIComponent(S.pin)}&days=${HIST_DAYS}`);
     const items = r.expenses || [];
-    if (items.length === 0) { el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--dim)">No expenses today</div>'; return; }
-    el('today-expenses').innerHTML = '<div style="padding:0">' + items.map(e =>
-      `<div class="row-item">
-        <div class="row-left"><div class="row-title">${e.category_code||e.category||'—'}</div><div class="row-sub">${e.notes||''}</div></div>
-        <div class="row-right"><div class="row-amount">₹${fmt(e.amount||0)}</div><div class="row-time">${fmtDatetime(e.created_at)}</div></div>
-      </div>`
-    ).join('') + '</div>';
-  } catch(e) { el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--muted)">Could not load</div>'; }
+    if (items.length === 0) {
+      el('today-expenses').innerHTML = '<div class="hist-empty">No expenses recorded in this range yet.<br>Be the first — use the categories above.</div>';
+      return;
+    }
+    // Group by IST date
+    const byDate = {};
+    for (const it of items) {
+      const d = it.ist_date || (it.recorded_at || '').slice(0, 10);
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(it);
+    }
+    const dates = Object.keys(byDate).sort().reverse();
+    let html = '';
+    for (const d of dates) {
+      const rows = byDate[d];
+      const total = rows.reduce((s, x) => s + (x.amount || 0), 0);
+      html += `<div class="hist-day-hdr"><span class="d">${niceDateLabel(d)}</span>
+                 <span class="meta">${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} &middot; <b>₹${fmt(total)}</b></span></div>`;
+      for (const e of rows) {
+        const cat = e.category_name || e.category_code || '—';
+        const note = e.description || e.notes || '';
+        const by = e.recorded_by_name ? ` &middot; by ${escapeHtml(e.recorded_by_name)}` : '';
+        html += `<div class="row-item">
+          <div class="row-left">
+            <div class="row-title">${escapeHtml(cat)}</div>
+            <div class="row-sub" style="color:var(--muted);font-size:11px;">${escapeHtml(note)}${by}</div>
+          </div>
+          <div class="row-right">
+            <div class="row-amount">₹${fmt(e.amount || 0)}</div>
+            <div class="row-time">${fmtTimeOnly(e.recorded_at || e.created_at)}</div>
+          </div>
+        </div>`;
+      }
+    }
+    el('today-expenses').innerHTML = '<div style="padding:0">' + html + '</div>';
+  } catch (e) {
+    el('today-expenses').innerHTML = '<div class="loading" style="padding:16px;color:var(--muted)">Could not load</div>';
+  }
 }
+
+// Friendly date label — Today / Yesterday / Mon DD
+function niceDateLabel(ymd) {
+  if (!ymd) return '—';
+  const todayIST = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const yIST = new Date(Date.now() + 5.5 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+  if (ymd === todayIST) return `Today &middot; ${prettyDate(ymd)}`;
+  if (ymd === yIST)     return `Yesterday &middot; ${prettyDate(ymd)}`;
+  return prettyDate(ymd);
+}
+function prettyDate(ymd) {
+  const d = new Date(ymd + 'T00:00:00Z');
+  if (isNaN(d)) return ymd;
+  return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function fmtTimeOnly(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  // Display in IST
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+}
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[m]); }
 
 async function submitExpense() {
   el('exp-error').style.display = 'none';
