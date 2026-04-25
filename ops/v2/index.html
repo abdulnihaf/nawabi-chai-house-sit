@@ -1775,6 +1775,17 @@ function sPick(kind, id, name) {
   el(`exp-${kind}-list`).classList.add('hidden');
 }
 
+// Apr 2026 fix-A — inline product create now demands UOM and handles fuzzy-dup.
+let _hnUoMCache = null;
+async function _hnLoadUoMs() {
+  if (_hnUoMCache) return _hnUoMCache;
+  try {
+    const r = await fetch(`${HN_SPEND_API}?action=uoms&pin=${encodeURIComponent(S.pin)}`).then(x => x.json());
+    _hnUoMCache = r.uoms || [];
+  } catch (_) { _hnUoMCache = []; }
+  return _hnUoMCache;
+}
+
 async function sAddNew(kind, prefilledName) {
   const label = kind === 'product' ? 'item' : 'vendor';
   const name = prompt(`New ${label} name${kind==='product' ? ' (e.g. Pomegranate, Kashmiri Chilli Powder)' : ' (e.g. Sharma Sabzi, BESCOM)'}:`, prefilledName);
@@ -1783,13 +1794,62 @@ async function sAddNew(kind, prefilledName) {
   try {
     let r;
     if (kind === 'product') {
-      r = await fetch(`${HN_SPEND_API}?action=create-expense-product`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin: S.pin, cat_id: S.expenseCat?.id, name: name.trim() }),
-      }).then(x => x.json());
-      if (!r.success) throw new Error(r.error || 'Create failed');
+      // ── HARD RULE: UOM required ───────────────────────
+      const uoms = await _hnLoadUoMs();
+      if (!uoms.length) throw new Error('Could not load units of measure');
+      const popular = ['Units','kg','L','Liter','Litre','Packet','Bottle','Box','g'];
+      const sortedUoms = uoms.slice().sort((a, b) => {
+        const ai = popular.findIndex(p => a.name.toLowerCase().includes(p.toLowerCase()));
+        const bi = popular.findIndex(p => b.name.toLowerCase().includes(p.toLowerCase()));
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      });
+      const uomList = sortedUoms.map((u, i) => `${i+1}. ${u.name}`).slice(0, 12).join('\n');
+      const choice = prompt(`Pick unit of measure for "${name.trim()}":\n\n${uomList}\n\nEnter number 1-${Math.min(12, sortedUoms.length)}:`, '1');
+      const idx = parseInt(choice, 10) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= sortedUoms.length) {
+        throw new Error('UOM is required to keep data consistent');
+      }
+      const uom = sortedUoms[idx];
+
+      // First attempt — server may return 409 fuzzy_duplicate
+      let force = false;
+      while (true) {
+        r = await fetch(`${HN_SPEND_API}?action=create-expense-product`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            pin: S.pin, cat_id: S.expenseCat?.id,
+            name: name.trim(), uom_id: uom.id, force,
+          }),
+        }).then(x => x.json());
+
+        if (r.success) break;
+
+        if (r.error === 'fuzzy_duplicate' && r.existing) {
+          // Offer to use the existing product or create anyway
+          const useExisting = confirm(
+            `Looks like "${r.existing.name}" already exists` +
+            (r.existing.uom_name ? ` (UOM: ${r.existing.uom_name})` : '') +
+            `.\n\nOK = use existing.\nCancel = create new "${name.trim()}" anyway.`
+          );
+          if (useExisting) {
+            const ex = { id: r.existing.id, name: r.existing.name, default_code: r.existing.default_code };
+            _hnProductCache[S.expenseCat.id] = _hnProductCache[S.expenseCat.id] || [];
+            if (!_hnProductCache[S.expenseCat.id].find(p => p.id === ex.id)) {
+              _hnProductCache[S.expenseCat.id].push(ex);
+            }
+            sPick('product', ex.id, ex.name);
+            toast(`✓ Using existing "${ex.name}"`, 'ok');
+            return;
+          }
+          force = true;
+          continue;
+        }
+        throw new Error(r.message || r.error || 'Create failed');
+      }
+
       const p = { id: r.product.id, name: r.product.name, default_code: null };
-      (_hnProductCache[S.expenseCat.id] || []).push(p);
+      _hnProductCache[S.expenseCat.id] = _hnProductCache[S.expenseCat.id] || [];
+      _hnProductCache[S.expenseCat.id].push(p);
       sPick('product', p.id, p.name);
     } else {
       const phone = prompt(`Phone for ${name.trim()} (optional, 10 digits):`, '') || '';
