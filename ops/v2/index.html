@@ -1811,7 +1811,7 @@ async function sAddNew(kind, prefilledName) {
       }
       const uom = sortedUoms[idx];
 
-      // First attempt — server may return 409 fuzzy_duplicate
+      // First attempt — server may return 409 fuzzy_duplicate or 400 cat1_inline_blocked
       let force = false;
       while (true) {
         r = await fetch(`${HN_SPEND_API}?action=create-expense-product`, {
@@ -1823,6 +1823,14 @@ async function sAddNew(kind, prefilledName) {
         }).then(x => x.json());
 
         if (r.success) break;
+
+        // ── Cat 1 lock (fix-C): RMs must come from Zoya's central registry ─
+        if (r.error === 'cat1_inline_blocked') {
+          if (confirm((r.message || 'Raw materials added centrally only.') + '\n\nOK to open /ops/purchase, Cancel to dismiss.')) {
+            window.open(r.deep_link || 'https://hnhotels.in/ops/purchase/', '_blank');
+          }
+          return;
+        }
 
         if (r.error === 'fuzzy_duplicate' && r.existing) {
           // Offer to use the existing product or create anyway
@@ -1852,12 +1860,54 @@ async function sAddNew(kind, prefilledName) {
       _hnProductCache[S.expenseCat.id].push(p);
       sPick('product', p.id, p.name);
     } else {
-      const phone = prompt(`Phone for ${name.trim()} (optional, 10 digits):`, '') || '';
-      r = await fetch(`${HN_SPEND_API}?action=create-vendor`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin: S.pin, name: name.trim(), phone: phone.trim() }),
-      }).then(x => x.json());
-      if (!r.success) throw new Error(r.error || 'Create failed');
+      // ── HARD RULE (fix-B): phone REQUIRED ──────────────
+      let phone = '';
+      while (true) {
+        phone = (prompt(`Phone for ${name.trim()} (10-digit mobile, REQUIRED):`, '') || '').trim();
+        const digits = phone.replace(/[^\d]/g, '');
+        if (digits.length >= 10) break;
+        if (!confirm('Phone is required. Click OK to retry, Cancel to abort.')) {
+          throw new Error('Vendor phone is required');
+        }
+      }
+      // Optional: capture brand + payment terms so the vendor master gets richer data
+      const brandPick = prompt('Primary brand for this vendor?\n  1. NCH\n  2. HE\n  3. Both\n\nEnter 1/2/3 (default 1):', '1');
+      const primary_brand = brandPick === '2' ? 'HE' : (brandPick === '3' ? 'BOTH' : 'NCH');
+      const ptPick = prompt('Payment terms?\n  1. on_delivery\n  2. 7d\n  3. 15d\n  4. 30d\n\nEnter 1-4 (default 1):', '1');
+      const ptMap = { '1': 'on_delivery', '2': '7d', '3': '15d', '4': '30d' };
+      const payment_terms = ptMap[ptPick] || 'on_delivery';
+
+      // First attempt — server may return 409 phone_duplicate
+      let force = false;
+      while (true) {
+        r = await fetch(`${HN_SPEND_API}?action=create-vendor`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            pin: S.pin, name: name.trim(), phone,
+            primary_brand, payment_terms, force,
+          }),
+        }).then(x => x.json());
+
+        if (r.success) break;
+
+        if (r.error === 'phone_duplicate' && r.existing) {
+          const useExisting = confirm(
+            `Phone ${phone.slice(-10)} is already linked to "${r.existing.name}".\n\nOK = use existing.\nCancel = create new "${name.trim()}" anyway.`
+          );
+          if (useExisting) {
+            const ex = { id: r.existing.id, name: r.existing.name, phone: r.existing.phone };
+            _hnVendorCache = _hnVendorCache || [];
+            if (!_hnVendorCache.find(v => v.id === ex.id)) _hnVendorCache.push(ex);
+            sPick('vendor', ex.id, ex.name);
+            toast(`✓ Using existing "${ex.name}"`, 'ok');
+            return;
+          }
+          force = true;
+          continue;
+        }
+        throw new Error(r.message || r.error || 'Create failed');
+      }
+
       _hnVendorCache = _hnVendorCache || [];
       _hnVendorCache.push(r.vendor);
       sPick('vendor', r.vendor.id, r.vendor.name);
