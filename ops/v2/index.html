@@ -1056,6 +1056,43 @@ function renderRunnerView(d, runner) {
       <div style="font-size:11px;color:var(--dim);margin-top:6px">Since: ${periodLabel}</div>
     </div>`;
 
+  // ── POS offline sync warning (sequence gap — offline orders missing from backend)
+  // Root cause: POS terminal lost network → orders created locally, never pushed to Odoo
+  const posWarn = d.posOfflineWarning;
+  if (posWarn && posWarn.gapSize > 0) {
+    html += `<div style="margin:0 16px 10px;padding:13px 14px;background:rgba(239,83,80,0.18);border:2px solid #ef5350;border-radius:12px">
+      <div style="font-size:14px;font-weight:800;color:#ef5350;margin-bottom:6px">🔴 POS OFFLINE — ${posWarn.gapSize} ORDERS NOT SYNCED</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6">
+        The Cash Counter POS went offline and <strong>${posWarn.gapSize} orders</strong> were created locally but never sent to the server.
+        Token issuances in that window <strong>are not counted</strong> here — your balance is understated.
+      </div>
+      <div style="margin-top:8px;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:11px;font-family:monospace;color:rgba(255,255,255,0.6)">
+        Seq gap: ${posWarn.firstSeq}–${posWarn.lastSeq} · ${posWarn.actualCount} synced of ${posWarn.lastSeq - posWarn.firstSeq + 1} expected
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#ffd54f;font-weight:600">ACTION: Tell cashier to open Odoo POS → hamburger → Sync Now. Then refresh this page.</div>
+    </div>`;
+  }
+
+  // ── Orphan token orders banner (PM48 at POS 27 with no runner — balance is understated)
+  const orphanTotal = safeNum(d.orphanTokenTotal);
+  const orphanOrders = d.orphanTokenOrders || [];
+  if (orphanTotal > 0) {
+    const ordersStr = orphanOrders.map(o =>
+      `<div style="font-size:11px;font-family:monospace;color:rgba(255,255,255,0.45);margin-top:3px">${esc(o.name)} · ₹${fmt(safeNum(o.amount))}</div>`
+    ).join('');
+    html += `<div style="margin:0 16px 10px;padding:13px 14px;background:rgba(239,83,80,0.13);border:1.5px solid rgba(239,83,80,0.45);border-radius:12px">
+      <div style="font-size:13px;font-weight:700;color:#ef5350;margin-bottom:5px">⚠ BALANCE ALERT — Unattributed Token Order${orphanOrders.length !== 1 ? 's' : ''}</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.55">
+        <strong>₹${fmt(orphanTotal)}</strong> of token issue${orphanOrders.length !== 1 ? 's' : ''} at Cash Counter
+        ${orphanOrders.length !== 1 ? 'have' : 'has'} <strong>no runner assigned</strong> in Odoo.
+        If issued to you, your real balance is
+        <strong style="color:#ef5350">₹${fmt(orphanTotal)} LESS</strong> than shown above.
+      </div>
+      ${ordersStr}
+      <div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.45)">Tell cashier: open Odoo → Orders → find order → set Customer = your runner ID → Save.</div>
+    </div>`;
+  }
+
   // ── Pending errors banner
   if (pendingErrs > 0) {
     html += `<div class="disc-banner"><div class="icon">⚠️</div><div class="msg">

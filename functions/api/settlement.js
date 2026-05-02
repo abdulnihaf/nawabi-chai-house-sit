@@ -948,12 +948,13 @@ export async function onRequest(context) {
         if (target === runnerId) partnerIds.push(parseInt(alias));
       }
 
-      // 3. Fetch Odoo orders + Razorpay QR payments in parallel
+      // 3. Fetch Odoo orders + Razorpay QR payments + all PM48 payments (orphan detection) in parallel
       const qrId = RUNNER_QR_MAP[runner.barcode];
       const auth = RAZORPAY_KEY && RAZORPAY_SECRET ? btoa(RAZORPAY_KEY + ':' + RAZORPAY_SECRET) : null;
+      const ALL_RUNNER_IDS = [64, 65, 66, 67, 68];
 
-      const [ordersData, razorpayPayments] = await Promise.all([
-        // Odoo: fetch orders for this runner since period start
+      const [ordersData, razorpayPayments, pm48Payments] = await Promise.all([
+        // Odoo: fetch orders attributed to this runner since period start
         (async () => {
           if (!ODOO_API_KEY) return [];
           try {
@@ -974,8 +975,112 @@ export async function onRequest(context) {
           try {
             return await fetchRunnerQrPayments(auth, qrId, runner.barcode, fromUnix, toUnix);
           } catch (e) { console.error('Runner-live Razorpay error:', e.message); return []; }
+        })(),
+        // PM48 (Token Issue) payments since period start — used for orphan detection
+        // Orphan = PM48 at POS 27 with no valid runner partner (cashier forgot to select runner)
+        (async () => {
+          if (!ODOO_API_KEY) return [];
+          try {
+            const payload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.payment', 'search_read',
+                [[['payment_method_id', '=', 48], ['payment_date', '>=', fromOdoo]]],
+                {fields: ['id', 'pos_order_id', 'amount']}]}, id: Date.now()};
+            const res = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+            return (await res.json()).result || [];
+          } catch (e) { return []; }
         })()
       ]);
+
+      // 3b. Orphan token detection — PM48 orders at POS 27 with NO valid runner partner
+      // Root cause of "token issued but not visible in settlement": cashier forgot to select runner
+      let orphanTokenOrders = [];
+      let orphanTokenTotal = 0;
+      if (pm48Payments.length > 0 && ODOO_API_KEY) {
+        try {
+          const fetchedOrderIds = new Set(ordersData.map(o => o.id));
+          const unattributedIds = [...new Set(
+            pm48Payments
+              .filter(p => p.pos_order_id && !fetchedOrderIds.has(p.pos_order_id[0]))
+              .map(p => p.pos_order_id[0])
+          )];
+          if (unattributedIds.length > 0) {
+            // Fetch those orders — only include POS 27 ones with no valid runner partner
+            const orphanPayload = {jsonrpc: '2.0', method: 'call', params: {service: 'object', method: 'execute_kw',
+              args: [ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                [[['id', 'in', unattributedIds], ['config_id', '=', 27],
+                  ['partner_id', 'not in', ALL_RUNNER_IDS],
+                  ['state', 'in', ['paid', 'done', 'invoiced', 'posted']]]],
+                {fields: ['id', 'name', 'date_order', 'amount_total', 'partner_id']}]}, id: Date.now()};
+            const orphanRes = await fetch(ODOO_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(orphanPayload)});
+            const orphanData = (await orphanRes.json()).result || [];
+            orphanTokenOrders = orphanData.map(o => ({
+              id: o.id, name: o.name, amount: o.amount_total, date: o.date_order,
+              partner: o.partner_id ? o.partner_id[1] : 'No Partner'
+            }));
+            orphanTokenTotal = orphanData.reduce((s, o) => s + o.amount_total, 0);
+            if (orphanTokenTotal > 0) {
+              console.error(`ORPHAN TOKEN ALERT: ${orphanTokenOrders.length} unattributed PM48 orders totalling ₹${orphanTokenTotal} detected for period ${fromOdoo}`);
+            }
+          }
+        } catch (e) { /* non-critical — don't block main flow */ }
+      }
+
+      // 3c. POS offline sync gap check
+      // If the POS terminal lost connectivity, orders are created in browser IndexedDB but
+      // never pushed to Odoo backend. These offline orders are INVISIBLE to the API.
+      // We detect them by checking for sequence gaps in POS 27 backend orders.
+      // Gap = (maxSeq - minSeq + 1) - actualCount > 10 means offline orders exist in that window.
+      let posOfflineWarning = null;
+      if (ODOO_API_KEY) {
+        try {
+          const [firstSeqRes, lastSeqRes, totalCountRes] = await Promise.all([
+            (async () => {
+              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                  [[['config_id','=',27],['date_order','>=',fromOdoo]]],
+                  {fields:['name'], order:'name asc', limit:1}]}, id:Date.now()};
+              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+              return (await r.json()).result || [];
+            })(),
+            (async () => {
+              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+                  [[['config_id','=',27],['date_order','>=',fromOdoo]]],
+                  {fields:['name'], order:'name desc', limit:1}]}, id:Date.now()};
+              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+              return (await r.json()).result || [];
+            })(),
+            (async () => {
+              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_count',
+                  [[['config_id','=',27],['date_order','>=',fromOdoo]]]]}, id:Date.now()};
+              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+              return (await r.json()).result || 0;
+            })()
+          ]);
+          const firstOrder = firstSeqRes[0];
+          const lastOrder = lastSeqRes[0];
+          const totalCount = typeof totalCountRes === 'number' ? totalCountRes : 0;
+          if (firstOrder && lastOrder && totalCount > 0) {
+            const firstN = parseInt(firstOrder.name.split(' - ').pop());
+            const lastN = parseInt(lastOrder.name.split(' - ').pop());
+            if (!isNaN(firstN) && !isNaN(lastN) && lastN > firstN) {
+              const expectedCount = lastN - firstN + 1;
+              const gapSize = expectedCount - totalCount;
+              if (gapSize > 10) {
+                posOfflineWarning = {
+                  gapSize,
+                  firstSeq: firstN,
+                  lastSeq: lastN,
+                  actualCount: totalCount,
+                  message: `${gapSize} Cash Counter orders appear unsynced from POS terminal. Token issuances in the offline window are NOT counted here. Sync POS before settling.`
+                };
+                console.error(`POS SYNC GAP ALERT: ${gapSize} orders missing (seq ${firstN}–${lastN}, got ${totalCount}) for runner ${runnerId} period ${fromOdoo}`);
+              }
+            }
+          }
+        } catch (e) { /* non-critical — don't block main settlement flow */ }
+      }
 
       // 4. Fetch payment methods for runner counter orders (POS 28) to detect cross-payments
       let crossPaymentCredit = 0;
@@ -1103,6 +1208,11 @@ export async function onRequest(context) {
         upi: {total: upiTotal, count: upiPayments.length, payments: upiPayments},
         cashInHand,
         lastSettlement,
+        // Orphan token orders: PM48 at POS 27 with no valid runner partner — balance alert
+        orphanTokenOrders,
+        orphanTokenTotal,
+        // POS offline sync warning: sequence gap detected — offline orders not in backend
+        posOfflineWarning,
         // Aliases for cashier UI compatibility
         tokens_amount: tokens,
         sales_amount: sales,
