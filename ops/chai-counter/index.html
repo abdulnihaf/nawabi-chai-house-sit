@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Chai Counter</title>
+  <title>Chai Counter — NCH</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #0a0f1a;
-      --card: #1a2234;
+      --card: #141d2e;
+      --card2: #1a2234;
       --border: #2d3a4f;
       --text: #f1f5f9;
       --text2: #94a3b8;
@@ -18,11 +19,11 @@
       --yellow: #f59e0b;
       --red: #ef4444;
       --chai: #D4A44C;
-      --coffee: #8B6914;
-      --lemon: #84CC16;
-      --khajoor: #a16207;
+      --snack: #34d399;
     }
+
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
       background: var(--bg);
@@ -31,7 +32,8 @@
       min-height: 100dvh;
       overflow-x: hidden;
     }
-    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+    .container { max-width: 480px; margin: 0 auto; padding: 16px 14px; }
 
     /* ── Header ── */
     .header {
@@ -47,20 +49,9 @@
       align-items: center;
       gap: 8px;
     }
-    .header h1 .icon { font-size: 24px; }
-    .live-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      animation: pulse 2s infinite;
-      display: inline-block;
-    }
-    .live-dot.loading { background: var(--yellow); }
-    .live-dot.error { background: var(--red); animation: none; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+    .header h1 .icon { font-size: 22px; }
     .live-label {
       font-size: 11px;
-      color: var(--green);
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -68,38 +59,48 @@
       padding: 4px 10px;
       background: rgba(16,185,129,.12);
       border-radius: 20px;
+      color: var(--green);
     }
     .live-label.off { color: var(--muted); background: rgba(100,116,139,.12); }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
     .live-label.off .live-dot { background: var(--muted); animation: none; }
+    .live-dot.loading { background: var(--yellow); }
+    .live-dot.error { background: var(--red); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
-    /* ── Date Period Banner ── */
+    /* ── Period Banner ── */
     .period-banner {
-      background: var(--card);
+      background: var(--card2);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
       text-align: center;
     }
     .period-label {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .period-dates {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       color: var(--text);
     }
-    .period-dates .arrow { color: var(--chai); margin: 0 6px; }
+    .period-dates .arrow { color: var(--chai); margin: 0 5px; }
 
     /* ── Quick Buttons ── */
     .quick-row {
       display: flex;
       gap: 6px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       overflow-x: auto;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
@@ -107,23 +108,19 @@
     .quick-row::-webkit-scrollbar { display: none; }
     .qbtn {
       flex-shrink: 0;
-      padding: 8px 14px;
-      background: var(--card);
+      padding: 7px 14px;
+      background: var(--card2);
       border: 1.5px solid var(--border);
       border-radius: 20px;
       color: var(--text2);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
       font-family: inherit;
     }
-    .qbtn:active { transform: scale(0.96); }
-    .qbtn.active {
-      background: var(--chai);
-      color: #fff;
-      border-color: var(--chai);
-    }
+    .qbtn:active { transform: scale(0.95); }
+    .qbtn.active { background: var(--chai); color: #fff; border-color: var(--chai); }
 
     /* ── Date Picker ── */
     .date-row {
@@ -132,19 +129,15 @@
       gap: 8px;
       margin-bottom: 16px;
     }
-    .date-row label {
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 600;
-    }
+    .date-row label { font-size: 12px; color: var(--muted); font-weight: 600; }
     .date-input {
       flex: 1;
-      background: var(--card);
+      background: var(--card2);
       border: 1.5px solid var(--border);
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       color: var(--text);
-      font-size: 15px;
+      font-size: 14px;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 600;
       -webkit-appearance: none;
@@ -152,187 +145,254 @@
     .date-input:focus { outline: none; border-color: var(--chai); }
     .date-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
 
-    /* ── Big Counter Cards ── */
-    .counters { display: grid; gap: 12px; margin-bottom: 16px; }
+    /* ── Error Toast ── */
+    .error-toast {
+      display: none;
+      background: rgba(239,68,68,.12);
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      padding: 9px 14px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: var(--red);
+      text-align: center;
+    }
+    .error-toast.show { display: block; }
 
-    .counter-card {
+    /* ── Summary Strip ── */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .stat-chip {
       background: var(--card);
-      border: 1.5px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      position: relative;
-      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
     }
-    .counter-card::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 4px;
-    }
-    .counter-card.chai::before { background: var(--chai); }
-    .counter-card.coffee::before { background: var(--coffee); }
-    .counter-card.lemon::before { background: var(--lemon); }
-    .counter-card.khajoor::before { background: var(--khajoor); }
-
-    .counter-icon {
-      width: 52px; height: 52px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 26px;
-      flex-shrink: 0;
-    }
-    .chai .counter-icon { background: rgba(212,164,76,.15); }
-    .coffee .counter-icon { background: rgba(139,105,20,.15); }
-    .lemon .counter-icon { background: rgba(132,204,22,.15); }
-    .khajoor .counter-icon { background: rgba(161,98,7,.15); }
-
-    .counter-info { flex: 1; }
-    .counter-name {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text2);
-      margin-bottom: 4px;
-    }
-    .counter-value {
+    .stat-value {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 48px;
-      font-weight: 800;
-      line-height: 1;
-    }
-    .chai .counter-value { color: var(--chai); }
-    .coffee .counter-value { color: var(--coffee); }
-    .lemon .counter-value { color: var(--lemon); }
-    .khajoor .counter-value { color: var(--khajoor); }
-
-    /* ── Total Row ── */
-    .total-row {
-      background: linear-gradient(135deg, rgba(212,164,76,.15), rgba(212,164,76,.05));
-      border: 1.5px solid var(--chai);
-      border-radius: 14px;
-      padding: 16px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .total-label {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text);
-    }
-    .total-value {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 40px;
+      font-size: 22px;
       font-weight: 800;
       color: var(--chai);
+      line-height: 1;
+      margin-bottom: 4px;
     }
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .stat-chip.rev .stat-value { color: var(--green); font-size: 18px; }
+    .stat-chip.orders .stat-value { color: var(--text2); }
 
     /* ── Section Divider ── */
-    .section-divider {
+    .section-head {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin: 20px 0 14px;
+      margin-bottom: 12px;
     }
-    .section-divider .line {
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-    .section-divider .label {
-      font-size: 12px;
+    .section-head .sh-line { flex: 1; height: 1px; background: var(--border); }
+    .section-head .sh-label {
+      font-size: 10px;
       font-weight: 700;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 1px;
-      white-space: nowrap;
     }
 
-    /* ── Hourly Breakdown ── */
-    .hourly-section {
-      margin-bottom: 16px;
+    /* ── Item Cards ── */
+    .items-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+
+    .item-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s;
     }
-    .hourly-title {
+    .item-card:active { opacity: 0.85; }
+    .item-card.open { border-color: var(--chai); }
+    .item-card.open.snack-card { border-color: var(--snack); }
+
+    .item-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 14px 14px 0;
+      position: relative;
+    }
+
+    /* Left accent bar */
+    .item-bar {
+      width: 4px;
+      align-self: stretch;
+      flex-shrink: 0;
+      border-radius: 0 3px 3px 0;
+      background: var(--chai);
+    }
+    .snack-card .item-bar { background: var(--snack); }
+
+    .item-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+      background: rgba(212,164,76,.12);
+    }
+    .snack-card .item-icon { background: rgba(52,211,153,.1); }
+
+    .item-info { flex: 1; min-width: 0; }
+    .item-name {
       font-size: 14px;
       font-weight: 700;
       color: var(--text);
-      margin-bottom: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .item-meta {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .item-meta .cat-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--chai);
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .snack-card .item-meta .cat-dot { background: var(--snack); }
+
+    .item-right {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
-    .hourly-title .ht-icon { font-size: 18px; }
-    .hourly-rows {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .item-qty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--chai);
+      line-height: 1;
     }
+    .snack-card .item-qty { color: var(--snack); }
+
+    .item-chevron {
+      font-size: 12px;
+      color: var(--muted);
+      transition: transform 0.3s ease;
+      line-height: 1;
+    }
+    .item-card.open .item-chevron { transform: rotate(180deg); }
+
+    /* ── Hourly Accordion ── */
+    .item-hourly {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .item-card.open .item-hourly { max-height: 1000px; }
+
+    .hourly-inner {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px 14px;
+    }
+    .hourly-title-row {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .hour-rows { display: flex; flex-direction: column; gap: 3px; }
     .hour-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      height: 32px;
+      height: 28px;
     }
     .hour-label {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--text2);
-      width: 52px;
+      width: 46px;
       text-align: right;
       flex-shrink: 0;
     }
-    .hour-bar-wrap {
+    .hour-bar-track {
       flex: 1;
-      height: 22px;
+      height: 20px;
       background: rgba(255,255,255,.04);
-      border-radius: 6px;
+      border-radius: 5px;
       overflow: hidden;
       position: relative;
     }
-    .hour-bar {
+    .hour-bar-fill {
       height: 100%;
-      border-radius: 6px;
+      border-radius: 5px;
       min-width: 2px;
+      background: var(--chai);
       transition: width .4s ease;
     }
-    .hour-bar.chai-bar { background: var(--chai); }
-    .hour-qty {
+    .snack-card .hour-bar-fill { background: var(--snack); }
+    .hour-qty-label {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
-      width: 32px;
+      color: var(--chai);
+      width: 28px;
       text-align: right;
       flex-shrink: 0;
     }
-    .hour-qty.chai-qty { color: var(--chai); }
-    .hour-row.empty .hour-label { color: var(--muted); opacity: .5; }
-    .hour-row.empty .hour-qty { color: var(--muted); opacity: .5; }
+    .snack-card .hour-qty-label { color: var(--snack); }
+
     .hourly-empty {
       text-align: center;
-      font-size: 13px;
+      font-size: 12px;
       color: var(--muted);
-      padding: 16px 0;
+      padding: 12px 0;
     }
 
-    /* ── Last Updated ── */
+    /* ── No Data State ── */
+    .no-data {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .no-data .nd-icon { font-size: 36px; margin-bottom: 10px; }
+
+    /* ── Footer ── */
     .footer {
       text-align: center;
       font-size: 11px;
       color: var(--muted);
-      padding: 8px 0 24px;
+      padding: 12px 0 24px;
     }
     .footer .time {
       font-family: 'JetBrains Mono', monospace;
       color: var(--text2);
     }
 
-    /* ── Loading overlay ── */
+    /* ── Loading Overlay ── */
     .loading-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(10,15,26,.92);
@@ -342,7 +402,7 @@
     }
     .loading-overlay.hidden { opacity: 0; pointer-events: none; }
     .spinner {
-      width: 40px; height: 40px;
+      width: 38px; height: 38px;
       border: 3px solid var(--border);
       border-top-color: var(--chai);
       border-radius: 50%;
@@ -350,25 +410,31 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Error toast ── */
-    .error-toast {
-      display: none;
-      background: rgba(239,68,68,.15);
-      border: 1px solid var(--red);
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      font-size: 12px;
-      color: var(--red);
-      text-align: center;
+    /* ── Skeleton (loading placeholders) ── */
+    .skeleton-list { display: flex; flex-direction: column; gap: 6px; }
+    .skeleton-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      height: 72px;
+      position: relative;
+      overflow: hidden;
     }
-    .error-toast.show { display: block; }
+    .skeleton-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.04), transparent);
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer { to { left: 200%; } }
   </style>
 </head>
 <body>
   <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
 
   <div class="container">
+    <!-- Header -->
     <div class="header">
       <h1><span class="icon">☕</span> Chai Counter</h1>
       <div class="live-label" id="liveLabel">
@@ -377,11 +443,13 @@
       </div>
     </div>
 
+    <!-- Period Banner -->
     <div class="period-banner">
       <div class="period-label">Showing data for</div>
       <div class="period-dates" id="periodDates">Loading...</div>
     </div>
 
+    <!-- Quick Buttons -->
     <div class="quick-row">
       <button class="qbtn active" data-range="today" id="btnToday">Today</button>
       <button class="qbtn" data-range="yesterday">Yesterday</button>
@@ -389,160 +457,172 @@
       <button class="qbtn" data-range="month">Last 30 Days</button>
     </div>
 
+    <!-- Date Picker -->
     <div class="date-row">
-      <label>📅 Date</label>
+      <label>📅</label>
       <input type="date" class="date-input" id="datePicker">
     </div>
 
+    <!-- Error -->
     <div class="error-toast" id="errorToast"></div>
 
-    <div class="counters">
-      <div class="counter-card chai">
-        <div class="counter-icon">🍵</div>
-        <div class="counter-info">
-          <div class="counter-name">Irani Chai</div>
-          <div class="counter-value" id="chaiCount">—</div>
-        </div>
+    <!-- Summary Strip -->
+    <div class="summary-strip">
+      <div class="stat-chip">
+        <div class="stat-value" id="statQty">—</div>
+        <div class="stat-label">items sold</div>
       </div>
-      <div class="counter-card coffee">
-        <div class="counter-icon">☕</div>
-        <div class="counter-info">
-          <div class="counter-name">Nawabi Special Coffee</div>
-          <div class="counter-value" id="coffeeCount">—</div>
-        </div>
+      <div class="stat-chip rev">
+        <div class="stat-value" id="statRevenue">—</div>
+        <div class="stat-label">revenue</div>
       </div>
-      <div class="counter-card lemon">
-        <div class="counter-icon">🍋</div>
-        <div class="counter-info">
-          <div class="counter-name">Lemon Tea</div>
-          <div class="counter-value" id="lemonCount">—</div>
-        </div>
-      </div>
-      <div class="counter-card khajoor">
-        <div class="counter-icon">🫘</div>
-        <div class="counter-info">
-          <div class="counter-name">Khajoor</div>
-          <div class="counter-value" id="khajoorCount">—</div>
-        </div>
+      <div class="stat-chip orders">
+        <div class="stat-value" id="statOrders">—</div>
+        <div class="stat-label">orders</div>
       </div>
     </div>
 
-    <div class="total-row">
-      <div class="total-label">☕ Total Beverages</div>
-      <div class="total-value" id="totalCount">—</div>
+    <!-- Items -->
+    <div class="section-head">
+      <div class="sh-line"></div>
+      <div class="sh-label">All Items · tap to expand</div>
+      <div class="sh-line"></div>
     </div>
 
-    <div class="hourly-section" id="chaiHourlySection" style="display:none;">
-      <div class="hourly-title"><span class="ht-icon">🍵</span> Chai — Hour by Hour</div>
-      <div class="hourly-rows" id="chaiHourlyRows"></div>
+    <div id="itemsList" class="items-list">
+      <div class="skeleton-list">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
     </div>
 
+    <!-- Footer -->
     <div class="footer">
       Last updated: <span class="time" id="lastUpdated">—</span>
-      <br>Auto-refreshes every 30 seconds
+      &nbsp;·&nbsp; auto-refreshes every 30s
     </div>
   </div>
 
   <script>
-    // ── Constants ──
     const API = '/api/sales-insights';
-    const REFRESH_INTERVAL = 30000;    // 30 seconds
+    const REFRESH_MS = 30000;
 
-    // ── DOM Refs ──
     const $ = id => document.getElementById(id);
     let refreshTimer = null;
     let isLive = true;
+    let currentFrom = null;
+    let currentTo = null;
+    let openItemId = null;   // currently expanded product id
+    let lastData = null;
 
-    // ── Day Logic ──
-    // Day resets at midnight (consistent with Sales Dashboard)
-    function getTodayStart() {
-      const now = new Date();
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    /* ── Emoji map ── */
+    const EMOJI = {
+      1028: '🍵', 1102: '☕', 1103: '🍋', 1453: '🫘',
+      1650: '🫖', 1651: '🌟', 1652: '🫚', 1653: '🍵',
+      1654: '🍫', 1655: '🥛', 1656: '🥛', 1657: '☕',
+      1658: '🥜', 1659: '🥛', 1660: '✨', 1661: '🍫',
+      1662: '🍓', 1663: '🍰'
+    };
+
+    function getEmoji(id, name) {
+      if (EMOJI[id]) return EMOJI[id];
+      const n = (name || '').toLowerCase();
+      if (n.includes('chai') || n.includes('irani') && n.includes('tea')) return '🍵';
+      if (n.includes('coffee')) return '☕';
+      if (n.includes('lemon')) return '🍋';
+      if (n.includes('milk') || n.includes('horlicks') || n.includes('boost') || n.includes('badam')) return '🥛';
+      if (n.includes('bun') || n.includes('maska') || n.includes('bread')) return '🍞';
+      if (n.includes('haleem')) return '🍲';
+      if (n.includes('biscuit') || n.includes('osmania')) return '🍪';
+      if (n.includes('chicken') || n.includes('cutlet')) return '🍗';
+      if (n.includes('samosa') || n.includes('lukhmi')) return '🥟';
+      if (n.includes('khajor')) return '🫘';
+      if (n.includes('tea')) return '🍵';
+      return '🫙';
     }
 
-    // ── Date Formatting ──
     function fmtDate(d) {
       return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
     function fmtTime(d) {
       return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
     }
-    function fmtDateTime(d) {
-      return fmtDate(d) + ', ' + fmtTime(d);
+    function fmtHour(h) {
+      if (h === 0) return '12 AM';
+      if (h === 12) return '12 PM';
+      return h > 12 ? (h - 12) + ' PM' : h + ' AM';
     }
     function toISOLocal(d) {
-      // Format as YYYY-MM-DDTHH:mm:ss for API (IST)
-      const pad = n => String(n).padStart(2, '0');
-      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-             'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      const p = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
+             'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
     }
     function dateStr(d) {
-      const pad = n => String(n).padStart(2, '0');
-      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+      const p = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+    }
+    function getTodayStart() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    }
+    function fmtRevenue(amt) {
+      if (amt >= 100000) return '₹' + (amt / 100000).toFixed(1) + 'L';
+      if (amt >= 1000) return '₹' + (amt / 1000).toFixed(1) + 'k';
+      return '₹' + Math.round(amt);
     }
 
-    // ── State ──
-    let currentFrom = null;
-    let currentTo = null;    // null = live (now)
-
-    // ── Init ──
+    /* ── Init ── */
     function init() {
       const today = getTodayStart();
       currentFrom = today;
-      currentTo = null; // live
+      currentTo = null;
       $('datePicker').value = dateStr(today);
       updatePeriodBanner();
       fetchData();
       startTimer();
 
-      // Event listeners
       $('datePicker').addEventListener('change', onDatePick);
       document.querySelectorAll('.qbtn').forEach(btn => {
         btn.addEventListener('click', () => onQuickBtn(btn));
       });
     }
 
-    // ── Quick Buttons ──
+    /* ── Quick Buttons ── */
     function onQuickBtn(btn) {
       document.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
       const range = btn.dataset.range;
-      const now = new Date();
 
       if (range === 'today') {
         currentFrom = getTodayStart();
-        currentTo = null; // live
+        currentTo = null;
         $('datePicker').value = dateStr(currentFrom);
         setLive(true);
-      }
-      else if (range === 'yesterday') {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const from = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0);
-        const to = new Date(from);
-        to.setDate(to.getDate() + 1); // midnight next day
-        currentFrom = from;
-        currentTo = to;
-        $('datePicker').value = dateStr(from);
+      } else if (range === 'yesterday') {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        currentFrom = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0);
+        currentTo = new Date(currentFrom);
+        currentTo.setDate(currentTo.getDate() + 1);
+        $('datePicker').value = dateStr(currentFrom);
         setLive(false);
-      }
-      else if (range === 'week') {
-        const from = new Date();
-        from.setDate(from.getDate() - 7);
-        from.setHours(0, 0, 0, 0);
-        currentFrom = from;
-        currentTo = null; // live
-        $('datePicker').value = dateStr(from);
+      } else if (range === 'week') {
+        const f = new Date();
+        f.setDate(f.getDate() - 7);
+        f.setHours(0, 0, 0, 0);
+        currentFrom = f;
+        currentTo = null;
+        $('datePicker').value = dateStr(f);
         setLive(true);
-      }
-      else if (range === 'month') {
-        const from = new Date();
-        from.setDate(from.getDate() - 30);
-        from.setHours(0, 0, 0, 0);
-        currentFrom = from;
-        currentTo = null; // live
-        $('datePicker').value = dateStr(from);
+      } else if (range === 'month') {
+        const f = new Date();
+        f.setDate(f.getDate() - 30);
+        f.setHours(0, 0, 0, 0);
+        currentFrom = f;
+        currentTo = null;
+        $('datePicker').value = dateStr(f);
         setLive(true);
       }
 
@@ -550,84 +630,69 @@
       fetchData();
     }
 
-    // ── Date Picker ──
+    /* ── Date Picker ── */
     function onDatePick() {
       document.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
-
       const val = $('datePicker').value;
       if (!val) return;
-
       const parts = val.split('-');
-      const picked = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 0, 0, 0);
-
-      // Check if this is today
+      const picked = new Date(+parts[0], +parts[1]-1, +parts[2], 0, 0, 0);
       const todayStart = getTodayStart();
       if (picked.getTime() === todayStart.getTime()) {
-        currentFrom = picked;
-        currentTo = null; // live
+        currentFrom = picked; currentTo = null;
         $('btnToday').classList.add('active');
         setLive(true);
       } else {
         currentFrom = picked;
-        const to = new Date(picked);
-        to.setDate(to.getDate() + 1); // midnight next day
-        currentTo = to;
+        currentTo = new Date(picked);
+        currentTo.setDate(currentTo.getDate() + 1);
         setLive(false);
       }
-
       updatePeriodBanner();
       fetchData();
     }
 
-    // ── Live Toggle ──
+    /* ── Live Toggle ── */
     function setLive(on) {
       isLive = on;
       const label = $('liveLabel');
-      const text = $('liveText');
-      if (on) {
-        label.classList.remove('off');
-        text.textContent = 'LIVE';
-        startTimer();
-      } else {
-        label.classList.add('off');
-        text.textContent = 'HISTORY';
-        stopTimer();
-      }
+      $('liveText').textContent = on ? 'LIVE' : 'HISTORY';
+      if (on) { label.classList.remove('off'); startTimer(); }
+      else { label.classList.add('off'); stopTimer(); }
     }
 
-    // ── Period Banner ──
+    /* ── Period Banner ── */
     function updatePeriodBanner() {
       const el = $('periodDates');
-      const fromStr = fmtDateTime(currentFrom);
-
+      const fromStr = fmtDate(currentFrom) + ', ' + fmtTime(currentFrom);
       if (isLive) {
         el.innerHTML = fromStr + ' <span class="arrow">→</span> Now';
       } else if (currentTo) {
-        el.innerHTML = fmtDateTime(currentFrom) + ' <span class="arrow">→</span> ' + fmtDateTime(currentTo);
+        el.innerHTML = fromStr + ' <span class="arrow">→</span> ' + fmtDate(currentTo) + ', ' + fmtTime(currentTo);
       }
     }
 
-    // ── API Fetch ──
+    /* ── Fetch ── */
     async function fetchData() {
       const dot = $('liveDot');
       dot.classList.add('loading');
+      dot.classList.remove('error');
       $('errorToast').classList.remove('show');
 
       try {
         let url = API + '?from=' + toISOLocal(currentFrom);
-        if (!isLive && currentTo) {
-          url += '&to=' + toISOLocal(currentTo);
-        }
+        if (!isLive && currentTo) url += '&to=' + toISOLocal(currentTo);
 
         const res = await fetch(url);
         if (!res.ok) throw new Error('Server error ' + res.status);
-
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'API error');
 
-        updateUI(json.data);
+        lastData = json.data;
+        renderAll(json.data);
         dot.classList.remove('loading');
         $('loadingOverlay').classList.add('hidden');
+        $('lastUpdated').textContent = fmtTime(new Date());
 
       } catch (e) {
         dot.classList.add('error');
@@ -638,125 +703,119 @@
       }
     }
 
-    // ── Update UI ──
-    function updateUI(data) {
-      let chaiQty = 0, coffeeQty = 0, lemonQty = 0, khajoorQty = 0;
+    /* ── Render Everything ── */
+    function renderAll(data) {
+      const s = data.summary || {};
 
-      // Product IDs: 1028=Chai, 1102=Coffee, 1103=Lemon Tea, 1453=Khajoor
-      if (data.products && data.products.length) {
-        data.products.forEach(p => {
-          if (p.id === 1028) chaiQty += p.qty;
-          else if (p.id === 1102) coffeeQty += p.qty;
-          else if (p.id === 1103) lemonQty += p.qty;
-          else if (p.id === 1453) khajoorQty += p.qty;
-          else {
-            // Fallback: name-based matching
-            const name = (p.name || '').toLowerCase();
-            if (name.includes('irani chai')) chaiQty += p.qty;
-            else if (name.includes('coffee')) coffeeQty += p.qty;
-            else if (name.includes('lemon tea')) lemonQty += p.qty;
-            else if (name.includes('khajor')) khajoorQty += p.qty;
-          }
-        });
+      // Summary strip
+      $('statQty').textContent = s.totalQty || 0;
+      $('statRevenue').textContent = fmtRevenue(s.totalRevenue || 0);
+      $('statOrders').textContent = s.totalOrders || 0;
+
+      // Items list
+      const products = (data.products || []).filter(p => p.qty > 0);
+      const productHourly = data.productHourly || {};
+
+      if (products.length === 0) {
+        $('itemsList').innerHTML = '<div class="no-data"><div class="nd-icon">🫙</div>No sales in this period</div>';
+        return;
       }
 
-      const bevTotal = chaiQty + coffeeQty + lemonQty;
+      const html = products.map(p => buildItemCard(p, productHourly[p.id] || {})).join('');
+      $('itemsList').innerHTML = html;
 
-      // Beverages
-      animateCount('chaiCount', chaiQty);
-      animateCount('coffeeCount', coffeeQty);
-      animateCount('lemonCount', lemonQty);
-      animateCount('khajoorCount', khajoorQty);
-      animateCount('totalCount', bevTotal);
-
-      // Hourly breakdown from productHourly
-      const ph = data.productHourly || {};
-      const chaiHourly = ph[1028] || {};
-      renderHourlyBars('chaiHourlySection', 'chaiHourlyRows', chaiHourly, 'chai');
-
-      // Last updated
-      const now = new Date();
-      $('lastUpdated').textContent = fmtTime(now);
+      // Restore open state if same item still in list
+      if (openItemId && document.querySelector('[data-pid="' + openItemId + '"]')) {
+        const card = document.querySelector('[data-pid="' + openItemId + '"]');
+        card.classList.add('open');
+      }
     }
 
-    // ── Render Hourly Bars ──
-    function renderHourlyBars(sectionId, containerId, hourlyMap, type) {
-      const section = $(sectionId);
-      const container = $(containerId);
+    /* ── Build Item Card HTML ── */
+    function buildItemCard(p, hourlyMap) {
+      const emoji = getEmoji(p.id, p.name);
+      const isBev = p.category === 'Chai';
+      const snackClass = isBev ? '' : ' snack-card';
+      const catLabel = isBev ? 'Beverages' : 'Snacks';
+      const hourlyHTML = buildHourlyHTML(hourlyMap);
 
-      // Build array of hours that have data
+      return `<div class="item-card${snackClass}" data-pid="${p.id}" onclick="toggleItem(${p.id})">
+        <div class="item-main">
+          <div class="item-bar"></div>
+          <div class="item-icon">${emoji}</div>
+          <div class="item-info">
+            <div class="item-name">${escHtml(p.name)}</div>
+            <div class="item-meta"><span class="cat-dot"></span>${catLabel} · ${fmtRevenue(p.amount)}</div>
+          </div>
+          <div class="item-right">
+            <div class="item-qty">${p.qty}</div>
+            <div class="item-chevron">▾</div>
+          </div>
+        </div>
+        <div class="item-hourly">
+          <div class="hourly-inner">
+            <div class="hourly-title-row">Hour by Hour</div>
+            ${hourlyHTML}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    /* ── Build Hourly Bars HTML ── */
+    function buildHourlyHTML(hourlyMap) {
       const entries = [];
       let maxQty = 0;
       for (let h = 0; h <= 23; h++) {
-        const qty = hourlyMap[h] || 0;
-        if (qty > 0) {
-          entries.push({ hour: h, qty });
-          if (qty > maxQty) maxQty = qty;
-        }
+        const qty = Math.round(hourlyMap[h] || 0);
+        if (qty > 0) { entries.push({ h, qty }); if (qty > maxQty) maxQty = qty; }
       }
-
       if (entries.length === 0) {
-        section.style.display = 'none';
-        return;
+        return '<div class="hourly-empty">No hourly data available</div>';
       }
-
-      section.style.display = 'block';
-      const barClass = type === 'chai' ? 'chai-bar' : 'haleem-bar';
-      const qtyClass = type === 'chai' ? 'chai-qty' : 'haleem-qty';
-
-      let html = '';
-      entries.forEach(e => {
+      return '<div class="hour-rows">' + entries.map(e => {
         const pct = maxQty > 0 ? Math.round((e.qty / maxQty) * 100) : 0;
-        const label = e.hour === 0 ? '12 AM' : e.hour === 12 ? '12 PM' : e.hour > 12 ? (e.hour - 12) + ' PM' : e.hour + ' AM';
-        html += '<div class="hour-row">' +
-          '<div class="hour-label">' + label + '</div>' +
-          '<div class="hour-bar-wrap"><div class="hour-bar ' + barClass + '" style="width:' + pct + '%"></div></div>' +
-          '<div class="hour-qty ' + qtyClass + '">' + e.qty + '</div>' +
-          '</div>';
-      });
-
-      container.innerHTML = html;
+        return `<div class="hour-row">
+          <div class="hour-label">${fmtHour(e.h)}</div>
+          <div class="hour-bar-track"><div class="hour-bar-fill" style="width:${pct}%"></div></div>
+          <div class="hour-qty-label">${e.qty}</div>
+        </div>`;
+      }).join('') + '</div>';
     }
 
-    // ── Animate Counter ──
-    function animateCount(id, newVal) {
-      const el = $(id);
-      const current = parseInt(el.textContent) || 0;
-      if (current === newVal) {
-        el.textContent = newVal;
-        return;
-      }
+    /* ── Toggle Item Accordion ── */
+    function toggleItem(pid) {
+      const card = document.querySelector('[data-pid="' + pid + '"]');
+      if (!card) return;
 
-      // Quick animation for small differences
-      const diff = Math.abs(newVal - current);
-      if (diff <= 3) {
-        el.textContent = newVal;
-        el.style.transform = 'scale(1.08)';
-        setTimeout(() => el.style.transform = 'scale(1)', 200);
-        return;
+      if (card.classList.contains('open')) {
+        card.classList.remove('open');
+        openItemId = null;
+      } else {
+        // Close any previously open card
+        if (openItemId) {
+          const prev = document.querySelector('[data-pid="' + openItemId + '"]');
+          if (prev) prev.classList.remove('open');
+        }
+        card.classList.add('open');
+        openItemId = pid;
+        // Smooth scroll into view after animation starts
+        setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60);
       }
-
-      // For larger jumps, just set directly
-      el.textContent = newVal;
-      el.style.transform = 'scale(1.05)';
-      setTimeout(() => el.style.transform = 'scale(1)', 200);
     }
 
-    // ── Timer ──
+    function escHtml(s) {
+      return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Timer ── */
     function startTimer() {
       stopTimer();
-      if (isLive) {
-        refreshTimer = setInterval(() => {
-          fetchData();
-          updatePeriodBanner();
-        }, REFRESH_INTERVAL);
-      }
+      if (isLive) refreshTimer = setInterval(() => { fetchData(); updatePeriodBanner(); }, REFRESH_MS);
     }
     function stopTimer() {
       if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     }
 
-    // ── Boot ──
     init();
   </script>
 </body>
