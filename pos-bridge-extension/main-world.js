@@ -1,73 +1,49 @@
-// NCH POS Bridge — MAIN-world Script
-// Runs in the same JavaScript context as the Odoo POS app (Owl/Vue runtime).
-// Has direct access to the POS model and its sync functions.
-// Reports state back to the ISOLATED content script via window.postMessage.
+// NCH POS Bridge — MAIN-world Script (v1.1)
+// Runs in the same JS context as the Odoo POS app. Has direct access to
+// the POS model, its sync functions, and the Owl runtime. Bridges to the
+// ISOLATED content script via window.postMessage.
 
 (function () {
   'use strict';
   const TAG = '[NCH-Bridge main]';
-  console.log(TAG, 'injected into', window.location.href);
 
   let lastSyncAttemptAt = null;
   let lastSyncOk = null;
   let lastError = null;
 
-  // ── Utility: find the live POS model (Odoo 17/18/19 variants) ──
   function findPosModel() {
-    // 1. Newer Odoo (17/18+): exposed on window.posmodel or window.posModel
     if (window.posmodel) return { model: window.posmodel, source: 'window.posmodel' };
     if (window.posModel) return { model: window.posModel, source: 'window.posModel' };
-
-    // 2. Owl env (Odoo 17+): __owl__ on root component or env
     const root = document.querySelector('.pos, .pos-screen, .pos-content');
     if (root && root.__owl__) {
       const env = root.__owl__.app?.env;
-      if (env?.services?.pos) {
-        return { model: env.services.pos, source: 'owl.env.services.pos' };
-      }
+      if (env?.services?.pos) return { model: env.services.pos, source: 'owl.env.services.pos' };
     }
-
-    // 3. Try odoo global
     if (window.odoo?.__DEBUG__?.services?.['point_of_sale.pos_store']) {
-      return {
-        model: window.odoo.__DEBUG__.services['point_of_sale.pos_store'],
-        source: 'odoo.__DEBUG__',
-      };
+      return { model: window.odoo.__DEBUG__.services['point_of_sale.pos_store'], source: 'odoo.__DEBUG__' };
     }
     return null;
   }
 
-  // ── Utility: count unsynced orders ─────────────────────────────
   function getUnsyncedOrderCount(pos) {
     if (!pos) return null;
     try {
-      // Odoo 17+: pos.db.get_unpaid_orders_to_sync() or pos.unsynced_orders
-      if (typeof pos.db?.get_unpaid_orders_to_sync === 'function') {
-        const list = pos.db.get_unpaid_orders_to_sync() || [];
-        return list.length;
-      }
-      // Odoo 18/19: pos.models['pos.order'].filter(o => !o.id || typeof o.id === 'string')
-      // Locally-created orders have string ids until synced
+      if (typeof pos.db?.get_unpaid_orders_to_sync === 'function') return (pos.db.get_unpaid_orders_to_sync() || []).length;
       if (pos.models?.['pos.order']) {
         const all = pos.models['pos.order'].getAll?.() || [];
-        const local = all.filter((o) => typeof o.id === 'string' || o.id < 0 || o.uiState?.unsynced);
-        return local.length;
+        return all.filter((o) => typeof o.id === 'string' || o.id < 0 || o.uiState?.unsynced).length;
       }
-      // Older POS: pos.get_order_list().filter(o => !o.server_id)
       if (typeof pos.get_order_list === 'function') {
-        const orders = pos.get_order_list() || [];
-        return orders.filter((o) => !o.server_id && !o.backendId).length;
+        return (pos.get_order_list() || []).filter((o) => !o.server_id && !o.backendId).length;
       }
-    } catch (e) {
-      console.warn(TAG, 'count error', e);
-    }
+    } catch (_) {}
     return null;
   }
 
   function getSessionInfo(pos) {
     if (!pos) return {};
     try {
-      const session = pos.pos_session || pos.session || pos.config?.current_session_id;
+      const session = pos.pos_session || pos.session || null;
       const config = pos.config;
       return {
         sessionId: session?.id || null,
@@ -78,20 +54,27 @@
     } catch (_) { return {}; }
   }
 
-  // ── Force-sync attempt ─────────────────────────────────────────
+  function reportState() {
+    const found = findPosModel();
+    const pos = found?.model;
+    const unsynced = getUnsyncedOrderCount(pos);
+    const session = getSessionInfo(pos);
+    window.postMessage({
+      __nch_bridge: true, type: 'pos-state',
+      unsyncedCount: unsynced,
+      lastSyncAttemptAt, lastSyncOk, lastError,
+      ...session,
+      modelSource: found?.source || null,
+    }, '*');
+  }
+
+  // ── Force sync ────────────────────────────────────────────────
   async function forceSync() {
     const found = findPosModel();
-    if (!found) {
-      lastSyncOk = false;
-      lastError = 'POS model not found';
-      reportState();
-      return { ok: false, reason: 'no-pos-model' };
-    }
+    if (!found) { lastSyncOk = false; lastError = 'POS model not found'; reportState(); return { ok: false, reason: 'no-pos-model' }; }
     const pos = found.model;
     lastSyncAttemptAt = new Date().toISOString();
-
     try {
-      // Try every known sync method, in order of preference
       const candidates = [
         () => pos.push_orders_with_closing_popup?.(),
         () => pos.push_orders?.(),
@@ -101,47 +84,35 @@
       ];
       for (const fn of candidates) {
         try {
-          const result = fn();
-          if (result !== undefined) {
-            const awaited = result?.then ? await result : result;
-            lastSyncOk = true;
-            lastError = null;
-            reportState();
-            return { ok: true, via: fn.toString().slice(0, 80) };
+          const r = fn();
+          if (r !== undefined) {
+            const awaited = r?.then ? await r : r;
+            lastSyncOk = true; lastError = null; reportState();
+            return { ok: true, via: fn.toString().slice(0, 80), result: awaited == null ? 'void' : 'value' };
           }
-        } catch (e) {
-          // try next method
-          lastError = e.message || String(e);
-        }
+        } catch (e) { lastError = e.message || String(e); }
       }
-      // Last-ditch: directly post to Odoo /pos/sync_pos_order with locally-queued orders
+      // Direct fallback
       const localOrders = collectLocalOrderJSON(pos);
       if (localOrders.length > 0) {
-        const csrfToken = window.odoo?.csrf_token || document.querySelector('input[name="csrf_token"]')?.value;
         const res = await fetch('/web/dataset/call_kw/pos.order/sync_from_ui', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'call',
+            jsonrpc: '2.0', method: 'call',
             params: { model: 'pos.order', method: 'sync_from_ui', args: [localOrders], kwargs: {} },
           }),
         });
         if (res.ok) {
-          lastSyncOk = true;
-          lastError = null;
-          reportState();
+          lastSyncOk = true; lastError = null; reportState();
           return { ok: true, via: 'direct-sync_from_ui', count: localOrders.length };
         }
         lastError = `direct sync HTTP ${res.status}`;
       }
-      lastSyncOk = false;
-      reportState();
+      lastSyncOk = false; reportState();
       return { ok: false, reason: 'no-sync-method-worked' };
     } catch (e) {
-      lastSyncOk = false;
-      lastError = e.message || String(e);
-      reportState();
+      lastSyncOk = false; lastError = e.message || String(e); reportState();
       return { ok: false, error: lastError };
     }
   }
@@ -155,45 +126,135 @@
     } catch (_) { return []; }
   }
 
-  // ── Report state to ISOLATED content script ────────────────────
-  function reportState() {
+  // ── Snapshot of POS state ────────────────────────────────────
+  function snapshotPosState() {
     const found = findPosModel();
-    const pos = found?.model;
-    const unsynced = getUnsyncedOrderCount(pos);
-    const session = getSessionInfo(pos);
-
-    window.postMessage(
-      {
-        __nch_bridge: true,
-        type: 'pos-state',
-        unsyncedCount: unsynced,
-        lastSyncAttemptAt,
-        lastSyncOk,
-        lastError,
-        ...session,
-        modelSource: found?.source || null,
-      },
-      '*'
-    );
+    if (!found) return { error: 'no pos model', pageUrl: window.location.href };
+    const pos = found.model;
+    const out = {
+      modelSource: found.source,
+      ...getSessionInfo(pos),
+      unsyncedCount: getUnsyncedOrderCount(pos),
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      // Sample of orders (avoid dumping everything)
+      const orders = pos.get_order_list?.() || pos.models?.['pos.order']?.getAll?.() || [];
+      out.orders_total = orders.length;
+      out.orders_sample = orders.slice(0, 10).map((o) => ({
+        id: o.id, uid: o.uid, server_id: o.server_id, backendId: o.backendId,
+        date: o.date_order || o.creation_date,
+        amount: o.amount_total ?? o.get_total_with_tax?.(),
+        partner_id: o.partner_id?.id || o.partner_id,
+        unsynced: typeof o.id === 'string' || o.id < 0,
+      }));
+    } catch (e) { out.orders_error = e.message; }
+    try { out.payment_methods = (pos.config?.payment_method_ids || pos.payment_methods || []).map((p) => ({ id: p.id, name: p.name })); } catch (_) {}
+    try { out.cashiers = (pos.cashier ? [pos.cashier] : (pos.employees || [])).slice(0, 5).map((e) => ({ id: e.id, name: e.name })); } catch (_) {}
+    return out;
   }
 
-  // ── Listen for requests from content script ────────────────────
-  window.addEventListener('message', (ev) => {
+  // ── Eval ─────────────────────────────────────────────────────
+  async function runEval(code) {
+    // Wrapped so async expressions work; user gets the awaited value.
+    try {
+      const fn = new Function(`return (async () => { return (${code}) })()`);
+      const value = await fn();
+      // Stringify for transport, with a fallback for circulars.
+      let serialised;
+      try { serialised = JSON.parse(JSON.stringify(value)); } catch (_) { serialised = String(value); }
+      return { ok: true, value: serialised };
+    } catch (e) {
+      return { ok: false, error: e.message, stack: e.stack };
+    }
+  }
+
+  // ── Mirror console output to content script ─────────────────
+  installLogMirror('main');
+
+  function installLogMirror(source) {
+    const levels = ['info', 'warn', 'error'];
+    const orig = {};
+    for (const lvl of levels) {
+      orig[lvl] = console[lvl] || console.log;
+      console[lvl] = (...args) => {
+        try { orig[lvl].apply(console, args); } catch (_) {}
+        try {
+          window.postMessage({
+            __nch_bridge: true, type: 'log',
+            payload: {
+              ts: new Date().toISOString(),
+              level: lvl, source,
+              message: args.map((a) => safeStringify(a)).join(' ').slice(0, 4000),
+              metadata: extractStack(args),
+            },
+          }, '*');
+        } catch (_) {}
+      };
+    }
+    window.addEventListener('error', (ev) => {
+      window.postMessage({
+        __nch_bridge: true, type: 'log',
+        payload: {
+          ts: new Date().toISOString(), level: 'error', source,
+          message: `[uncaught] ${ev.message}`,
+          metadata: { filename: ev.filename, lineno: ev.lineno, colno: ev.colno, stack: ev.error?.stack },
+        },
+      }, '*');
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      window.postMessage({
+        __nch_bridge: true, type: 'log',
+        payload: {
+          ts: new Date().toISOString(), level: 'error', source,
+          message: `[unhandledrejection] ${ev.reason?.message || ev.reason}`,
+          metadata: { stack: ev.reason?.stack },
+        },
+      }, '*');
+    });
+  }
+  function safeStringify(x) {
+    if (x == null) return String(x);
+    if (typeof x === 'string') return x;
+    if (typeof x === 'number' || typeof x === 'boolean') return String(x);
+    try { return JSON.stringify(x); } catch (_) { return String(x); }
+  }
+  function extractStack(args) {
+    for (const a of args) if (a instanceof Error) return { error: a.name, stack: a.stack };
+    return null;
+  }
+
+  // ── Listen for content-script requests ──────────────────────
+  window.addEventListener('message', async (ev) => {
     if (ev.source !== window) return;
     const data = ev.data;
     if (!data || data.__nch_bridge !== true) return;
+
     if (data.type === 'request-state') reportState();
-    if (data.type === 'force-sync') forceSync();
+    if (data.type === 'force-sync') {
+      const r = await forceSync();
+      if (data.command_id) {
+        window.postMessage({ __nch_bridge: true, type: 'main-command-result', command_id: data.command_id, result: r }, '*');
+      }
+    }
+    if (data.type === 'main-command') {
+      let result, error;
+      try {
+        if (data.main_type === 'snapshot') result = snapshotPosState();
+        else if (data.main_type === 'eval') result = await runEval(data.payload?.code);
+        else throw new Error('unknown main-command type: ' + data.main_type);
+      } catch (e) { error = e.message; }
+      window.postMessage({ __nch_bridge: true, type: 'main-command-result', command_id: data.command_id, result, error }, '*');
+    }
   });
 
-  // ── Auto-sync attempt on `online` event ────────────────────────
+  // ── Auto-sync on online event ───────────────────────────────
   window.addEventListener('online', () => {
-    console.log(TAG, 'online event — attempting forceSync');
-    setTimeout(forceSync, 2000); // give the network a moment to stabilize
+    console.info(TAG, 'online event — attempting forceSync');
+    setTimeout(forceSync, 2000);
   });
 
-  // ── Periodic state report (every 30 sec) ───────────────────────
   setInterval(reportState, 30_000);
-  // Initial report after a short delay to let POS finish booting
   setTimeout(reportState, 5000);
+  console.info(TAG, 'main-world script ready');
 })();

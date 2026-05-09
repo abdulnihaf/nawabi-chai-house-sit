@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "NCH POS Bridge",
-  "version": "1.0.0",
-  "description": "Monitors Nawabi Chai House Odoo POS terminal for unsynced offline orders. Sends health beacons to the cloud cron every 60 sec and force-syncs queued orders when connectivity returns.",
+  "version": "1.1.0",
+  "description": "Bidirectional bridge between the NCH Odoo POS terminal and the cloud cron. Sends heartbeats, mirrors logs, accepts remote diagnostic commands (snapshot, force-sync, eval, reload). Lets Claude debug a terminal on a different network without VPN/SSH.",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://ops.hamzahotel.com/*",

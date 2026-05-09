@@ -1,101 +1,90 @@
-# NCH POS Bridge — Windows Install Guide
+# NCH POS Bridge — Windows Install Guide (v1.1)
 
-This Chrome extension runs on the POS terminal at the counter. It:
+This Chrome extension is the **bidirectional bridge** between the POS terminal
+and our cloud. It does five things:
 
-- Reads the offline queue from Odoo POS's IndexedDB every 30 sec
-- Sends a heartbeat to `nawabichaihouse.com/api/pos-health/beacon` every 60 sec
-- When the internet comes back after an outage, it auto-triggers the Odoo POS sync
-- Shows a red badge on the extension icon showing how many orders are unsynced
+1. **Heartbeat** — sends a beacon to `nawabichaihouse.com` every 60 sec
+2. **Log mirror** — mirrors all extension `console.log/warn/error` to the cloud
+3. **Auto-sync** — when internet returns after an outage, force-pushes
+   queued IndexedDB orders to Odoo
+4. **Remote diagnostics** — accepts commands from the cloud (snapshot, eval,
+   force-sync, reload-tab, read-idb) and posts results back
+5. **Live badge** — extension icon shows red number = unsynced order count
 
-The cron at `/api/wa-alerts?action=cron-tick` (runs every 5 min) reads beacons
-and sends WhatsApp + FCM alerts within 5 min of any problem.
+The cron at `/api/wa-alerts?action=cron-tick` (runs every 5 min) reads the
+beacon stream and sends WhatsApp + FCM alerts within 5 min of any problem.
+
+When something looks broken, Claude (or any operator) can:
+- Read the latest logs: `GET /api/pos-health/logs?machine_id=X`
+- Take a snapshot: `POST /api/pos-health/commands {type: "snapshot"}` then
+  `GET /api/pos-health/snapshots?machine_id=X` to see the full IndexedDB +
+  POS state dump
+- Run debug JS: `POST /api/pos-health/commands {type: "eval", params:{code:"..."}}`
 
 ---
 
 ## Step 1 — Get the extension folder onto the POS PC
 
-You have two options. Use whichever is easier.
+**Easiest path** — download the repo ZIP directly from the POS PC:
 
-### Option A — USB drive (no internet needed on the terminal)
+1. Open Chrome on the POS PC
+2. Go to: `https://github.com/abdulnihaf/nawabi-chai-house-sit/archive/refs/heads/main.zip`
+3. Save the ZIP, then extract it
+4. Inside, find `nawabi-chai-house-sit-main\pos-bridge-extension\`
+5. Move that folder to `C:\NCH\pos-bridge-extension\` (create `C:\NCH\` if needed)
 
-1. On any computer with the repo:
-   - Locate the folder `pos-bridge-extension/` in the repo.
-   - Right-click → "Send to" → Compressed (zipped) folder. You get
-     `pos-bridge-extension.zip`.
-2. Copy the ZIP to a USB drive.
-3. Plug into the POS PC.
-4. Copy the ZIP to `C:\NCH\` (create the folder if it doesn't exist).
-5. Right-click the ZIP → "Extract All…" → extract to `C:\NCH\`.
-6. You should now have a folder `C:\NCH\pos-bridge-extension\` containing
-   `manifest.json`, `service-worker.js`, etc.
+> **Path matters.** Chrome remembers the exact path you load the extension
+> from. If you later move the folder, the extension stops working.
 
-### Option B — Direct download
-
-Once the extension is committed to the repo, you can download a ZIP straight from
-GitHub:
-
-```
-https://github.com/abdulnihaf/nawabi-chai-house-sit/archive/refs/heads/main.zip
-```
-
-After unzipping, look inside for `pos-bridge-extension/` and move it to
-`C:\NCH\pos-bridge-extension\`.
-
-> **Path matters.** Chrome remembers the path you load the extension from.
-> If you later move the folder, the extension breaks. Pick a permanent path
-> like `C:\NCH\pos-bridge-extension\` and don't move it.
+**Alternative:** USB drive — copy the `pos-bridge-extension` folder from any
+machine that has the repo cloned, to `C:\NCH\pos-bridge-extension\` on the
+POS PC.
 
 ---
 
 ## Step 2 — Load the extension into Chrome
 
-1. Open Chrome on the POS PC.
-2. In the URL bar, type: `chrome://extensions/`  → press Enter.
-3. **Top-right corner**: turn ON the toggle labelled **"Developer mode"**.
-4. Three new buttons appear at the top-left: **Load unpacked**, Pack
-   extension, Update. Click **Load unpacked**.
-5. A folder picker opens. Navigate to `C:\NCH\pos-bridge-extension\` and
-   click **Select Folder**.
-6. The extension card appears with the name **NCH POS Bridge** and version
-   1.0.0. Make sure the toggle on the card is **ON**.
+1. Open Chrome on the POS PC
+2. URL bar: `chrome://extensions/` → Enter
+3. **Top-right** → turn ON **Developer mode**
+4. **Top-left** → click **Load unpacked**
+5. Browse to `C:\NCH\pos-bridge-extension\` → **Select Folder**
+6. Card appears: **NCH POS Bridge v1.1.0**. Make sure its toggle is ON.
 
-If you see a red "Errors" button on the card, click it and tell me what the
-error says.
+If you see a red **Errors** button on the card, click it and tell me what it says.
 
 ---
 
-## Step 3 — Pin the extension icon
+## Step 3 — Pin the icon
 
-1. Click the **puzzle-piece icon** in the Chrome toolbar (top-right).
-2. Find **NCH POS Bridge** in the dropdown.
-3. Click the **pushpin icon** next to it. The icon now stays visible in the
-   toolbar.
+Click the **puzzle-piece** icon (top-right of Chrome) → find **NCH POS
+Bridge** → click the pushpin so it stays visible in the toolbar.
 
 ---
 
 ## Step 4 — Open Odoo POS and verify
 
-1. Open a new tab to `https://ops.hamzahotel.com/pos/ui` and log in / open the
-   Cash Counter session as usual.
-2. Within ~5 seconds the extension icon should change:
-   - **Green badge** (no number) → all healthy
-   - **Orange/red number** → that many orders are unsynced
+1. New tab → `https://ops.hamzahotel.com/pos/ui` → log in / open the Cash
+   Counter session as usual.
+2. Within ~5 sec the extension icon should change:
+   - **Green badge (no number)** → all healthy
+   - **Orange/red number** → that many orders unsynced
    - **Orange `?`** → POS tab not detected (refresh the POS tab)
-3. Click the extension icon. The popup shows:
+3. Click the extension icon. The popup has 3 tabs: **Status / Logs /
+   Settings**. The Status tab should show:
    - Internet: `✓ online`
    - POS tab open: `✓ open`
    - Unsynced orders: `0`
    - Session: e.g. `Cash Counter #169`
-   - Last sync: a recent timestamp
+   - Cloud reachable: `✓ 200`
    - Status: `Healthy`
-   - Machine ID: `nch-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
-
-**Copy that Machine ID and send it to me** — I'll register it in the
-dashboard so we can identify which terminal is which.
+4. The Machine ID is shown at the bottom — click "click to copy machine ID"
+   and **send it to me**. This is how I'll address commands at this specific
+   terminal.
 
 ---
 
-## Step 5 — Verify the beacon reaches the cloud
+## Step 5 — Verify telemetry reaches the cloud
 
 On any device, open:
 
@@ -103,102 +92,116 @@ On any device, open:
 https://nawabichaihouse.com/api/pos-health/status
 ```
 
-You should see JSON with `machines` containing your terminal's machine ID,
-its `severity: "ok"`, and `age_sec` under 90.
+You should see JSON with `machines` containing your terminal, `severity:
+"ok"`, `age_sec` under 90.
 
-If `age_sec` is large (>120) or the machine isn't listed, click the **"Send
-beacon"** button in the extension popup and refresh the URL.
+Then:
 
----
+```
+https://nawabichaihouse.com/api/pos-health/logs?machine_id=<your-machine-id>&limit=10
+```
 
-## Step 6 — Make sure Chrome auto-starts on boot
-
-This is critical so the extension wakes up after every restart.
-
-1. Press `Win + R`, type `shell:startup`, press Enter. Explorer opens the
-   Startup folder.
-2. Right-click in the empty area → **New** → **Shortcut**.
-3. Browse to `C:\Program Files\Google\Chrome\Application\chrome.exe` (or
-   wherever Chrome is installed) and click Next.
-4. Name it `Chrome – POS auto-start` → Finish.
-5. Right-click the new shortcut → **Properties**. In the **Target** field,
-   append this AFTER the existing path (note the space):
-   ```
-   "C:\Program Files\Google\Chrome\Application\chrome.exe" --restore-last-session
-   ```
-6. Click OK.
-
-Now whenever the PC reboots, Chrome will auto-launch and re-open the POS
-tab — and the extension will start sending beacons within 60 seconds.
+You should see recent log lines from the extension. (If you get `401
+unauthorized` here, that's expected — the GET endpoints require the
+Authorization header. Server-side cron and Claude have it.)
 
 ---
 
-## Step 7 — Disable Chrome's "stop background apps when Chrome closes"
+## Step 6 — Make Chrome auto-start on boot
 
-The extension's service worker only runs while Chrome is open. We don't want
-Chrome to ever fully close while the POS is in use.
+Critical: the extension only runs while Chrome is open.
 
-1. `chrome://settings/system`
-2. Turn ON: **"Continue running background apps when Google Chrome is
-   closed"**.
+1. `Win + R` → `shell:startup` → Enter
+2. Right-click in the empty area → **New** → **Shortcut**
+3. Browse to `C:\Program Files\Google\Chrome\Application\chrome.exe` → Next
+4. Name it `Chrome – POS auto-start` → Finish
+5. Right-click new shortcut → **Properties**
+6. In **Target**, append after the chrome.exe path (note the space):
+   ```
+    --restore-last-session
+   ```
+7. OK
+
+Now reboot to test — Chrome should auto-launch and re-open the POS tab.
+
+---
+
+## Step 7 — Disable Chrome's "stop background apps when closed"
+
+`chrome://settings/system` → turn ON **"Continue running background apps
+when Google Chrome is closed"**.
+
+This keeps the extension's service worker alive even if the user accidentally
+closes the Chrome window. The SW continues sending beacons.
+
+---
+
+## Step 8 — (Optional) Set a custom secret
+
+The extension's `config.js` ships with a default `POS_BRIDGE_SECRET` that
+matches what's already set in Cloudflare Pages. **You can ignore this step**
+unless you want to rotate the secret.
+
+To rotate:
+
+1. Pick a new random string, e.g. `openssl rand -hex 32`
+2. On a dev machine: `wrangler pages secret put POS_BRIDGE_SECRET` → paste
+   the new value
+3. On the POS Chrome: open the extension popup → **Settings** tab → paste
+   the same value into "Cloud secret" → **Save secret**
+4. Wait 60 sec; the next beacon should still succeed.
 
 ---
 
 ## Done. What happens now
 
-| Event | What the system does |
+| Event | Auto behaviour |
 |---|---|
-| Cashier closes the POS tab | Extension reports `pos_tab_open: false` → cron alert fires within 5 min |
-| Internet drops at the store | Extension reports `online: false` → no alert (expected during outage) |
-| Internet returns + queue exists | Extension auto-fires `forceSync()` → orders push to Odoo within seconds |
-| Sync fails repeatedly | Extension reports `last_sync_ok: false` → cron alert: "POS sync stuck" |
-| PC reboots / Chrome crashes | Beacons stop arriving → cron alert "POS terminal DEAD" within 10 min |
-| Cashier issues 5+ tokens during an outage | Extension badge shows red number `5+` → cashier sees it immediately |
+| Cashier closes the POS tab | Beacon `pos_tab_open: false` → cron WhatsApps Naveen within 5 min |
+| Internet drops at the store | Beacon shows `online: false` → no alert (expected during outage) |
+| Internet returns + queue exists | Extension auto-fires `forceSync()` within ~2 sec |
+| Sync fails repeatedly | `last_sync_ok: false` → cron alert "POS sync stuck" |
+| PC reboots / Chrome crashes | Beacons stop → cron alert "POS terminal DEAD" within 10 min |
+| Cashier issues 5+ tokens during outage | Badge turns red with the count |
 
 ---
 
-## Remote install (for Claude / Nihaf)
+## How to ask me to debug
 
-If you (Nihaf) want me to install this myself, do this on the POS PC:
+Just message me with the machine ID (or just say "the POS"). I'll:
 
-1. Close all Chrome windows.
-2. Open Command Prompt as Administrator.
-3. Run:
-   ```
-   "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-allow-origins=*
-   ```
-   Chrome opens. Re-open the POS tab.
-4. Get the PC's local network IP: `ipconfig` → look for `IPv4 Address`
-   (something like `192.168.1.42`).
-5. From your router, set up port-forwarding: external port 9222 → internal
-   `192.168.1.42:9222`. (Or use a Cloudflare Tunnel / ngrok for safer
-   exposure.)
-6. Tell me the public address (e.g. `https://nch-pos.your-tunnel.com`).
-   I'll connect via Chrome DevTools Protocol to install the extension and
-   test it without you needing to do anything more.
+1. `GET /api/pos-health/status` — see live state
+2. `GET /api/pos-health/logs?machine_id=X&level=error` — see recent errors
+3. `POST /api/pos-health/commands {type: "snapshot"}` — get a full dump of
+   IndexedDB + POS model state. The terminal polls every 30 sec, executes
+   the command, and posts the result back.
+4. `GET /api/pos-health/snapshots?machine_id=X&limit=5` — read the dump
+5. If needed: `POST /api/pos-health/commands {type: "eval", params:{code:"..."}}`
+   to run any JS in the POS tab's MAIN world (full Odoo runtime access).
 
-> **Security:** Open port 9222 ONLY for the duration of the install, then
-> close it. With the debug port open, anyone on that IP can run JavaScript
-> in the POS terminal's Chrome.
+I never need to be on the same network as the POS — everything flows over HTTPS.
 
 ---
 
 ## Troubleshooting
 
-**Q: The extension card says "Service worker (Inactive)"**
-A: That's normal — the SW sleeps when idle. Click "Inspect views: service
-worker" to wake it up and see logs. It re-wakes every minute via alarms.
-
-**Q: Status URL shows my machine but `severity: "warn"` reason
-`"pos-tab-closed"`**
+**Q: Status URL shows my machine but `severity: "warn"` reason `"pos-tab-closed"`**
 A: The Odoo POS tab needs to be open. Re-open it and wait 30 sec.
 
-**Q: Status URL shows `severity: "warn"` reason `"sync-stuck"`**
-A: Click the extension icon → "Force sync now". If that doesn't help, the
-local Odoo POS state may have been wiped. Tell me the machine ID and I'll
-investigate.
+**Q: Beacons reach the cloud but logs don't**
+A: Open the extension popup → Logs tab → click "Flush to cloud now". If
+that fails, check the Settings tab → secret matches the one on the server.
 
-**Q: I see no `unsynced_count`, just `null`**
-A: That means the extension can't read IndexedDB on this Odoo version. Tell
-me which Odoo version is running (visible in `chrome://extensions/` →
-Inspect views → Console) and I'll add support.
+**Q: "Cloud reachable: ✗ ..." in popup**
+A: Either the POS PC has no internet, or `nawabichaihouse.com` is down.
+Test by opening the URL directly in a new tab.
+
+**Q: I clicked Force sync but it didn't push the queued orders**
+A: Send me the machine ID, I'll send a `snapshot` command and a `read-idb`
+command to see exactly what's in IndexedDB and why the sync function isn't
+finding it. This usually reveals the Odoo POS version mismatch.
+
+**Q: I want to give Claude direct DevTools access to this Chrome**
+A: Run Chrome with `--remote-debugging-port=9222 --remote-allow-origins=*`,
+expose port 9222 via ngrok or Cloudflare Tunnel, send me the URL. Use only
+for the install/debug session — close the port immediately after.
