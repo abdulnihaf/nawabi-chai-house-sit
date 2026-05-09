@@ -111,7 +111,149 @@ async function cronTick(env, phones, cors) {
   try { results.shift_report = await checkShiftReportSchedule(env, phones); }
   catch (e) { results.shift_report = {error: e.message}; }
 
+  // 8. POS offline sync gap (POS1) — detect orders stuck in IndexedDB
+  try { results.pos_offline = await checkPosOfflineSync(env, phones); }
+  catch (e) { results.pos_offline = {error: e.message}; }
+
   return json({success: true, cron_results: results}, cors);
+}
+
+// ══════════════════════════════════════════════════════════════
+// POS1: POS Offline Sync Gap Detection
+// Detects when the POS terminal has been offline and orders are
+// stuck in browser IndexedDB. Compares Odoo's first/last sequence
+// numbers against actual count in the last 4 hours.
+// ══════════════════════════════════════════════════════════════
+async function checkPosOfflineSync(env, phones) {
+  const DB = env.DB;
+  const token = env.WA_ACCESS_TOKEN;
+  const ODOO_API_KEY = env.ODOO_API_KEY;
+  if (!ODOO_API_KEY) return {skipped: 'no ODOO_API_KEY'};
+
+  const ODOO_URL = 'https://ops.hamzahotel.com/jsonrpc';
+  const ODOO_DB = 'main';
+  const ODOO_UID = 2;
+
+  // Look back 4 hours UTC (covers a full peak-hour outage window)
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
+    .toISOString().replace('T', ' ').slice(0, 19);
+
+  const POS_CONFIGS = [
+    {id: 27, label: 'Cash Counter'},
+    {id: 28, label: 'Runner Counter'},
+  ];
+
+  const alerts = [];
+  const results = [];
+
+  for (const cfg of POS_CONFIGS) {
+    try {
+      const filter = [['config_id', '=', cfg.id], ['date_order', '>=', fourHoursAgo]];
+
+      const [firstRes, lastRes, countRes] = await Promise.all([
+        odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'pos.order', 'search_read', [filter],
+          {fields: ['name'], order: 'name asc', limit: 1}),
+        odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'pos.order', 'search_read', [filter],
+          {fields: ['name'], order: 'name desc', limit: 1}),
+        odooCall(ODOO_URL, ODOO_DB, ODOO_UID, ODOO_API_KEY,
+          'pos.order', 'search_count', [filter], {}),
+      ]);
+
+      const first = firstRes?.[0];
+      const last = lastRes?.[0];
+      const count = typeof countRes === 'number' ? countRes : 0;
+
+      if (!first || !last || count === 0) {
+        results.push({pos: cfg.label, skipped: 'no orders in window'});
+        continue;
+      }
+
+      const firstSeq = parseInt((first.name || '').split(' - ').pop());
+      const lastSeq = parseInt((last.name || '').split(' - ').pop());
+
+      if (isNaN(firstSeq) || isNaN(lastSeq) || lastSeq <= firstSeq) {
+        results.push({pos: cfg.label, skipped: 'unparseable seq'});
+        continue;
+      }
+
+      const expected = lastSeq - firstSeq + 1;
+      const gap = expected - count;
+
+      results.push({pos: cfg.label, firstSeq, lastSeq, count, expected, gap});
+
+      // Alert threshold: gap >= 5 orders in a 4h window is anomalous
+      if (gap < 5) continue;
+
+      // Debounce: one alert per (config, last_synced_seq_before_gap) per 30 min.
+      // Topic key changes when the gap shifts forward, ensuring each new gap re-fires.
+      const topicKey = `pos_gap:${cfg.id}:${firstSeq}-${lastSeq}-${count}`;
+      if (!await shouldAlert(DB, 'POS1', topicKey, 30)) {
+        results.push({pos: cfg.label, gap, status: 'cooldown'});
+        continue;
+      }
+
+      const msg =
+        `🔴 *NCH ${cfg.label} — POS OFFLINE*\n\n` +
+        `*${gap} orders* are not synced from the POS terminal to Odoo.\n` +
+        `They are sitting in the browser's local storage.\n\n` +
+        `Sequence range: ${firstSeq}–${lastSeq} | Synced: ${count} of ${expected}\n\n` +
+        `*ACTION (do this NOW):*\n` +
+        `1. Go to the ${cfg.label} POS terminal\n` +
+        `2. Open hamburger menu → click "Sync Now"\n` +
+        `3. Do NOT close/refresh the browser tab\n\n` +
+        `If browser was cleared, those orders are LOST.`;
+
+      // WhatsApp to Naveen + Nihaf
+      const recipients = [];
+      if (phones[NAVEEN_SLOT]) recipients.push({slot: NAVEEN_SLOT, phone: phones[NAVEEN_SLOT]});
+      if (phones[BASHEER_SLOT]) recipients.push({slot: BASHEER_SLOT, phone: phones[BASHEER_SLOT]});
+      // Hard-coded Nihaf as final escalation (matches settlement.js pattern)
+      recipients.push({slot: 'NIHAF', phone: '917010426808'});
+
+      for (const r of recipients) {
+        await sendWA(token, r.phone, msg);
+        alerts.push({pos: cfg.label, channel: 'wa', to: r.slot, gap});
+      }
+
+      // FCM to cashiers
+      await sendFCM(env, ['CASH001', 'CASH002', 'CASH003', 'CASH004'], {
+        title: `${cfg.label}: ${gap} orders not synced`,
+        body: `POS terminal offline. Open POS → Sync Now immediately.`,
+        tag: 'nch_pos_offline',
+        url: `${BASE_URL}/ops/v2/`
+      });
+      alerts.push({pos: cfg.label, channel: 'fcm', to: 'cashiers', gap});
+
+      await logAlert(DB, 'POS1', topicKey, 'both', NAVEEN_SLOT);
+    } catch (e) {
+      results.push({pos: cfg.label, error: e.message});
+    }
+  }
+
+  return {checked: POS_CONFIGS.length, results, alerts};
+}
+
+// Helper: minimal Odoo JSON-RPC call
+async function odooCall(url, db, uid, key, model, method, args, kwargs) {
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'call',
+    params: {
+      service: 'object', method: 'execute_kw',
+      args: [db, uid, key, model, method, args, kwargs || {}]
+    },
+    id: Date.now()
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const j = await res.json();
+  if (j.error) throw new Error(j.error.message || 'odoo error');
+  return j.result;
 }
 
 // ══════════════════════════════════════════════════════════════
