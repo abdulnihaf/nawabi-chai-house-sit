@@ -47,10 +47,18 @@ async function refresh() {
   $('version').textContent = 'v' + chrome.runtime.getManifest().version;
 }
 
-// Cloud reachability test
+// Cloud reachability test — sends auth so the result reflects the real data
+// path used by service-worker beacons, not a public health check.
 async function pingCloud() {
   try {
-    const res = await fetch('https://nawabichaihouse.com/api/pos-health/status', { method: 'GET' });
+    const { nch_bridge_secret } = await chrome.storage.local.get(['nch_bridge_secret']);
+    // Default secret matches config.js — duplicated here because popup can't
+    // easily importScripts. Keep both in sync if rotated.
+    const secret = nch_bridge_secret || 'nch-pos-bridge-7f3a9c8e2d1b4a5f6e7d8c9b0a1c2d3e';
+    const res = await fetch('https://nawabichaihouse.com/api/pos-health/status', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${secret}` },
+    });
     $('cloudOk').textContent = res.ok ? '✓ ' + res.status : '✗ ' + res.status;
     $('cloudOk').className = 'val ' + (res.ok ? 'ok' : 'err');
   } catch (e) {
