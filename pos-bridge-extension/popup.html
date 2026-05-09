@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>NCH POS Bridge</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      width: 320px;
+      margin: 0;
+      padding: 14px;
+      background: #1a1a1a;
+      color: #eee;
+    }
+    h2 { margin: 0 0 10px; font-size: 14px; color: #D4A44C; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #333; font-size: 12px; }
+    .row:last-child { border-bottom: none; }
+    .key { color: #999; }
+    .val { font-weight: 600; }
+    .ok { color: #66bb6a; }
+    .warn { color: #ffa726; }
+    .err { color: #ef5350; }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      background: #D4A44C;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #c4953d; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .machine-id { font-family: monospace; font-size: 10px; color: #666; margin-top: 8px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h2>NCH POS Bridge</h2>
+  <div class="row"><span class="key">Internet</span><span class="val" id="online">–</span></div>
+  <div class="row"><span class="key">POS tab open</span><span class="val" id="posOpen">–</span></div>
+  <div class="row"><span class="key">Unsynced orders</span><span class="val" id="unsynced">–</span></div>
+  <div class="row"><span class="key">Session</span><span class="val" id="session">–</span></div>
+  <div class="row"><span class="key">Last sync</span><span class="val" id="lastSync">–</span></div>
+  <div class="row"><span class="key">Status</span><span class="val" id="status">–</span></div>
+  <button id="forceSyncBtn">Force sync now</button>
+  <button id="sendBeaconBtn" style="background:#555;color:#eee;margin-top:6px">Send beacon</button>
+  <div class="machine-id" id="machineId"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

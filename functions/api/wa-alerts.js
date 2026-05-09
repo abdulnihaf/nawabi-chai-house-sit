@@ -115,6 +115,10 @@ async function cronTick(env, phones, cors) {
   try { results.pos_offline = await checkPosOfflineSync(env, phones); }
   catch (e) { results.pos_offline = {error: e.message}; }
 
+  // 9. POS terminal health beacon (POS2) — terminal/agent health from Chrome extension
+  try { results.pos_beacon = await checkPosBeaconHealth(env, phones); }
+  catch (e) { results.pos_beacon = {error: e.message}; }
+
   return json({success: true, cron_results: results}, cors);
 }
 
@@ -233,6 +237,124 @@ async function checkPosOfflineSync(env, phones) {
   }
 
   return {checked: POS_CONFIGS.length, results, alerts};
+}
+
+// ══════════════════════════════════════════════════════════════
+// POS2: POS Terminal Health Beacon Monitor
+// Polls /api/pos-health/status which reads pos_beacons in D1 (written
+// by the Chrome extension on each terminal). Alerts when:
+//   - No beacon for >5 min  (terminal off / Chrome closed)
+//   - unsynced > 5 + online (extension stuck — sync isn't working)
+//   - pos_tab_open=false    (Chrome up but POS tab gone)
+//
+// Cooldown 30 min per (machine_id, severity-reason) tuple.
+// ══════════════════════════════════════════════════════════════
+async function checkPosBeaconHealth(env, phones) {
+  const DB = env.DB;
+  const token = env.WA_ACCESS_TOKEN;
+
+  let status;
+  try {
+    const res = await fetch(`${BASE_URL}/api/pos-health/status`);
+    status = await res.json();
+  } catch (e) { return {error: 'fetch failed: ' + e.message}; }
+  if (!status?.success) return {error: 'status endpoint failed'};
+
+  const machines = status.machines || [];
+  if (machines.length === 0) {
+    return {skipped: 'no machines registered (extension not yet installed?)'};
+  }
+
+  const alerts = [];
+
+  for (const m of machines) {
+    if (m.severity === 'ok') continue;
+
+    const topicKey = `pos_beacon:${m.machine_id}:${m.reason}`;
+    if (!await shouldAlert(DB, 'POS2', topicKey, 30)) {
+      alerts.push({machine: m.machine_id, severity: m.severity, status: 'cooldown'});
+      continue;
+    }
+
+    const machineLabel = m.machine_id.slice(0, 16) + '…';
+    const ageMin = Math.round(m.age_sec / 60);
+
+    let title, body, severity;
+    switch (m.reason) {
+      case 'no-beacon-10min':
+        severity = 'CRIT';
+        title = 'POS terminal DEAD';
+        body = `No heartbeat in ${ageMin} min — machine is off or Chrome crashed.`;
+        break;
+      case 'no-beacon-5min':
+        severity = 'WARN';
+        title = 'POS terminal silent';
+        body = `No heartbeat in ${ageMin} min.`;
+        break;
+      case 'sync-stuck':
+        severity = 'CRIT';
+        title = 'POS sync STUCK';
+        body = `${m.unsynced_count} orders queued. Extension can't push to Odoo.`;
+        break;
+      case 'sync-pending':
+        severity = 'WARN';
+        title = 'POS sync pending';
+        body = `${m.unsynced_count} orders queued.`;
+        break;
+      case 'pos-tab-closed':
+        severity = 'WARN';
+        title = 'POS tab closed';
+        body = 'Chrome extension is alive but Odoo POS tab is not open.';
+        break;
+      case 'offline':
+      case 'offline-with-queue':
+        severity = 'WARN';
+        title = 'POS internet OFFLINE';
+        body = `Terminal can't reach internet. Queue: ${m.unsynced_count || 0}.`;
+        break;
+      case 'last-sync-failed':
+        severity = 'WARN';
+        title = 'Last POS sync failed';
+        body = `Error: ${(m.last_error || 'unknown').slice(0, 80)}`;
+        break;
+      default:
+        severity = m.severity === 'crit' ? 'CRIT' : 'WARN';
+        title = `POS issue: ${m.reason}`;
+        body = `Check ${BASE_URL}/api/pos-health/status`;
+    }
+
+    const msg =
+      `${severity === 'CRIT' ? '🔴' : '⚠️'} *NCH ${title}*\n\n` +
+      `${body}\n\n` +
+      `Machine: ${machineLabel}\n` +
+      `Last beacon: ${ageMin} min ago\n\n` +
+      `Status: ${BASE_URL}/api/pos-health/status`;
+
+    // WhatsApp to Naveen + Nihaf for CRIT, Naveen only for WARN
+    if (phones[NAVEEN_SLOT]) {
+      await sendWA(token, phones[NAVEEN_SLOT], msg);
+      alerts.push({machine: m.machine_id, channel: 'wa', to: 'Naveen', severity});
+    }
+    if (severity === 'CRIT') {
+      await sendWA(token, '917010426808', msg);
+      alerts.push({machine: m.machine_id, channel: 'wa', to: 'Nihaf', severity});
+    }
+
+    // FCM to cashiers when actionable
+    if (m.reason === 'pos-tab-closed' || m.reason === 'sync-stuck') {
+      await sendFCM(env, ['CASH001', 'CASH002', 'CASH003', 'CASH004'], {
+        title: `${title}`,
+        body,
+        tag: 'nch_pos_health',
+        url: `${BASE_URL}/ops/v2/`
+      });
+      alerts.push({machine: m.machine_id, channel: 'fcm', to: 'cashiers', severity});
+    }
+
+    await logAlert(DB, 'POS2', topicKey, 'wa', NAVEEN_SLOT);
+  }
+
+  return {checked: machines.length, summary: status.summary, alerts};
 }
 
 // Helper: minimal Odoo JSON-RPC call
