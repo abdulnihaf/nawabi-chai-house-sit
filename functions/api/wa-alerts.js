@@ -190,9 +190,9 @@ async function checkPosOfflineSync(env, phones) {
       // Alert threshold: gap >= 5 orders in a 4h window is anomalous
       if (gap < 5) continue;
 
-      // Debounce: one alert per (config, last_synced_seq_before_gap) per 30 min.
-      // Topic key changes when the gap shifts forward, ensuring each new gap re-fires.
-      const topicKey = `pos_gap:${cfg.id}:${firstSeq}-${lastSeq}-${count}`;
+      // Debounce per POS counter. The sequence range and synced count can shift
+      // every cron tick while the same offline incident is still active.
+      const topicKey = `pos_gap:${cfg.id}`;
       if (!await shouldAlert(DB, 'POS1', topicKey, 30)) {
         results.push({pos: cfg.label, gap, status: 'cooldown'});
         continue;
@@ -1059,10 +1059,14 @@ async function sendFCM(env, slots, payload) {
 async function shouldAlert(DB, alertType, topicKey, cooldownMinutes) {
   if (!DB) return true;
   try {
-    const cutoff = new Date(Date.now() - cooldownMinutes * 60 * 1000).toISOString();
     const row = await DB.prepare(
-      `SELECT id FROM alert_log WHERE alert_type = ? AND topic_key = ? AND sent_at >= ? LIMIT 1`
-    ).bind(alertType, topicKey, cutoff).first();
+      `SELECT id
+       FROM alert_log
+       WHERE alert_type = ?
+         AND topic_key = ?
+         AND sent_at >= datetime('now', ?)
+       LIMIT 1`
+    ).bind(alertType, topicKey, `-${cooldownMinutes} minutes`).first();
     return !row;
   } catch (e) { return true; } // if table doesn't exist yet, allow
 }
