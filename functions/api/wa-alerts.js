@@ -198,6 +198,30 @@ async function checkPosOfflineSync(env, phones) {
         continue;
       }
 
+      // Auto force-sync: enqueue a remote sync command to the terminal so it
+      // attempts recovery automatically — no staff intervention needed.
+      // Runs inside the cooldown window so we enqueue once per 30 min while gap persists.
+      const machineId = cfg.id === 27
+        ? env.POS_CASH_COUNTER_MACHINE_ID
+        : env.POS_RUNNER_COUNTER_MACHINE_ID;
+      if (machineId && env.POS_BRIDGE_SECRET) {
+        try {
+          await fetch(`${BASE_URL}/api/pos-health/commands`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.POS_BRIDGE_SECRET}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ type: 'force-sync', machine_id: machineId }),
+          });
+          results.push({pos: cfg.label, gap, autoSync: 'enqueued', machineId});
+        } catch (syncErr) {
+          results.push({pos: cfg.label, gap, autoSync: 'failed', autoSyncError: syncErr.message});
+        }
+      } else {
+        results.push({pos: cfg.label, gap, autoSync: 'skipped', reason: machineId ? 'no POS_BRIDGE_SECRET' : 'no machine_id env var'});
+      }
+
       const msg =
         `🔴 *NCH ${cfg.label} — POS OFFLINE*\n\n` +
         `*${gap} orders* are not synced from the POS terminal to Odoo.\n` +
