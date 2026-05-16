@@ -712,7 +712,8 @@ async function loadRunnerLive(runnerId, bgOnly = false) {
       upi_amount: settleData.upi?.total || 0,
       cash_to_collect: settleData.cashInHand || 0,
       period_start: settleData.period?.start || null,
-      pending_errors: errData.success ? (errData.errors || []) : []
+      pending_errors: errData.success ? (errData.errors || []) : [],
+      posOfflineWarning: settleData.posOfflineWarning || null
     };
 
     runnerDataCache[runnerId] = { data: merged, timestamp: Date.now() };
@@ -1107,6 +1108,7 @@ function confirmSettle(runnerId) {
       <div id="settleVariance" style="text-align:center;font-size:13px;font-weight:600;margin-top:8px;min-height:20px"></div>
     </div>
     ${cash < 0 ? '<div class="dialog-warn">Runner owes less than expected. Verify UPI amount before settling.</div>' : ''}
+    ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? `<div class="dialog-warn" style="background:#b71c1c22;border-color:#ef5350;color:#ef5350;font-weight:700">⚠️ Runner Counter has ${d.posOfflineWarning.gapSize} UNSYNCED orders. UPI figure may be inflated. Force-sync POS 28 before settling.</div>` : ''}
     <div class="dialog-buttons">
       <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
       <button class="btn-confirm" id="btnDoSettle" onclick="doSettle(${runnerId})">Settle</button>

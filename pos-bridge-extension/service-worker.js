@@ -295,6 +295,15 @@ async function dispatchCommand(cmd) {
       return submitCommandResult(cmd.id, { cleared: true });
     }
 
+    case 'clear-secret': {
+      // Removes the per-machine secret override so the extension falls back to
+      // the DEFAULT_SECRET in config.js. Fixes stale-secret 401s without needing
+      // physical access to the device.
+      await chrome.storage.local.remove(SECRET_KEY);
+      const { [SECRET_KEY]: check } = await chrome.storage.local.get([SECRET_KEY]);
+      return submitCommandResult(cmd.id, { cleared: true, override_present: !!check });
+    }
+
     case 'snapshot':
     case 'read-idb':
     case 'eval': {

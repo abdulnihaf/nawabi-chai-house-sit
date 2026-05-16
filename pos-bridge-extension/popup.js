@@ -69,10 +69,22 @@ async function pingCloud() {
 
 // Buttons
 $('forceSyncBtn').addEventListener('click', async () => {
-  const tabs = await chrome.tabs.query({ url: ['https://ops.hamzahotel.com/pos/ui*', 'https://ops.hamzahotel.com/odoo/pos*'] });
-  if (tabs.length === 0) return alert('Open the Odoo POS tab first.');
-  for (const tab of tabs) { try { await chrome.tabs.sendMessage(tab.id, { type: 'force-sync-attempt' }); } catch (e) {} }
-  setTimeout(refresh, 1500);
+  const btn = $('forceSyncBtn');
+  const orig = btn.textContent;
+  btn.textContent = 'Syncing…';
+  btn.disabled = true;
+  try {
+    const tabs = await chrome.tabs.query({ url: ['https://ops.hamzahotel.com/pos/ui*', 'https://ops.hamzahotel.com/odoo/pos*'] });
+    if (tabs.length === 0) { alert('Open the Odoo POS tab first.'); return; }
+    for (const tab of tabs) { try { await chrome.tabs.sendMessage(tab.id, { type: 'force-sync-attempt' }); } catch (e) {} }
+    await new Promise(r => setTimeout(r, 3000));
+    await refresh();
+    const { latestStatus } = await chrome.storage.local.get(['latestStatus']);
+    const unsynced = latestStatus?.unsynced ?? '?';
+    btn.textContent = unsynced === 0 ? '✓ Synced' : `Done (${unsynced} remain)`;
+  } finally {
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+  }
 });
 
 $('sendBeaconBtn').addEventListener('click', async () => {
