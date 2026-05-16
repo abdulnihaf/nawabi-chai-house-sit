@@ -1108,12 +1108,12 @@ function confirmSettle(runnerId) {
       <div id="settleVariance" style="text-align:center;font-size:13px;font-weight:600;margin-top:8px;min-height:20px"></div>
     </div>
     ${cash < 0 ? '<div class="dialog-warn">Runner owes less than expected. Verify UPI amount before settling.</div>' : ''}
-    ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? `<div class="dialog-warn" style="background:#b71c1c22;border-color:#ef5350;color:#ef5350;font-weight:700;line-height:1.5">⛔ BLOCKED: Runner Counter has <strong>${d.posOfflineWarning.gapSize} UNSYNCED orders</strong>.<br>UPI figure is unreliable. Force-sync POS 28 on the runner terminal, wait 10s, then re-open this dialog.</div>` : ''}
+    ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? `<div class="dialog-warn" style="background:#b71c1c22;border-color:#ef5350;color:#ef5350;font-weight:700;line-height:1.5">⛔ BLOCKED: Cash Counter has <strong>${d.posOfflineWarning.gapSize} UNSYNCED orders</strong> in this runner's window.<br>Token issuances may be missing. Open the Cash Counter POS tab → hamburger → Sync Now, wait 10s, then re-open this dialog.</div>` : ''}
     <div class="dialog-buttons">
       <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
       <button class="btn-confirm" id="btnDoSettle" onclick="doSettle(${runnerId})"
-        ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? 'disabled style="opacity:0.35;cursor:not-allowed" title="Sync POS 28 first"' : ''}>
-        ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? '⛔ Sync POS 28 first' : 'Settle'}
+        ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? 'disabled style="opacity:0.35;cursor:not-allowed" title="Sync Cash Counter first"' : ''}>
+        ${d.posOfflineWarning && d.posOfflineWarning.gapSize > 0 ? '⛔ Sync Cash Counter first' : 'Settle'}
       </button>
     </div>
   `;

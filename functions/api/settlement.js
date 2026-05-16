@@ -1030,55 +1030,63 @@ export async function onRequest(context) {
       // never pushed to Odoo backend. These offline orders are INVISIBLE to the API.
       // We detect them by checking for sequence gaps in POS 27 backend orders.
       // Gap = (maxSeq - minSeq + 1) - actualCount > 10 means offline orders exist in that window.
+      // posOfflineWarning: detect unsynced Cash Counter (POS 27) token issuances that
+      // could affect THIS runner's settlement. Key fix: only check for gaps within the
+      // runner's own active window on POS 27 (from their first attributed order onwards).
+      // Pre-shift system gaps (other runners' orders before this runner started) are
+      // irrelevant to this runner's token totals and must NOT block their settlement.
       let posOfflineWarning = null;
       if (ODOO_API_KEY) {
         try {
-          const [firstSeqRes, lastSeqRes, totalCountRes] = await Promise.all([
-            (async () => {
-              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
-                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
-                  [[['config_id','=',27],['date_order','>=',fromOdoo]]],
-                  {fields:['name'], order:'name asc', limit:1}]}, id:Date.now()};
-              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
-              return (await r.json()).result || [];
-            })(),
-            (async () => {
-              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
-                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
-                  [[['config_id','=',27],['date_order','>=',fromOdoo]]],
+          const stateFilter = ['state', 'in', ['paid', 'done', 'invoiced', 'posted']];
+          // Lower bound: this runner's first POS 27 order in the period (not all-orders first)
+          const runnerFirstPayload = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+            args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read',
+              [[['config_id','=',27],['date_order','>=',fromOdoo],['partner_id','in',partnerIds],stateFilter]],
+              {fields:['name'], order:'name asc', limit:1}]}, id:Date.now()};
+          const runnerFirstRes = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(runnerFirstPayload)});
+          const runnerFirst = ((await runnerFirstRes.json()).result || [])[0];
+
+          if (runnerFirst) {
+            // Upper bound and total count: all POS 27 orders from runner's first order onwards
+            const baseFilter = [['config_id','=',27],['date_order','>=',fromOdoo],['name','>=',runnerFirst.name],stateFilter];
+            const [lastSeqRes, totalCountRes] = await Promise.all([
+              (async () => {
+                const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+                  args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_read', [baseFilter],
                   {fields:['name'], order:'name desc', limit:1}]}, id:Date.now()};
-              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
-              return (await r.json()).result || [];
-            })(),
-            (async () => {
-              const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
-                args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_count',
-                  [[['config_id','=',27],['date_order','>=',fromOdoo]]]]}, id:Date.now()};
-              const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
-              return (await r.json()).result || 0;
-            })()
-          ]);
-          const firstOrder = firstSeqRes[0];
-          const lastOrder = lastSeqRes[0];
-          const totalCount = typeof totalCountRes === 'number' ? totalCountRes : 0;
-          if (firstOrder && lastOrder && totalCount > 0) {
-            const firstN = parseInt(firstOrder.name.split(' - ').pop());
-            const lastN = parseInt(lastOrder.name.split(' - ').pop());
-            if (!isNaN(firstN) && !isNaN(lastN) && lastN > firstN) {
-              const expectedCount = lastN - firstN + 1;
-              const gapSize = expectedCount - totalCount;
-              if (gapSize > 10) {
-                posOfflineWarning = {
-                  gapSize,
-                  firstSeq: firstN,
-                  lastSeq: lastN,
-                  actualCount: totalCount,
-                  message: `${gapSize} Cash Counter orders appear unsynced from POS terminal. Token issuances in the offline window are NOT counted here. Sync POS before settling.`
-                };
-                console.error(`POS SYNC GAP ALERT: ${gapSize} orders missing (seq ${firstN}–${lastN}, got ${totalCount}) for runner ${runnerId} period ${fromOdoo}`);
+                const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+                return (await r.json()).result || [];
+              })(),
+              (async () => {
+                const p = {jsonrpc:'2.0', method:'call', params:{service:'object', method:'execute_kw',
+                  args:[ODOO_DB, ODOO_UID, ODOO_API_KEY, 'pos.order', 'search_count', [baseFilter]]}, id:Date.now()};
+                const r = await fetch(ODOO_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+                return (await r.json()).result || 0;
+              })()
+            ]);
+            const lastOrder = lastSeqRes[0];
+            const totalCount = typeof totalCountRes === 'number' ? totalCountRes : 0;
+            if (lastOrder && totalCount > 0) {
+              const firstN = parseInt(runnerFirst.name.split(' - ').pop());
+              const lastN = parseInt(lastOrder.name.split(' - ').pop());
+              if (!isNaN(firstN) && !isNaN(lastN) && lastN > firstN) {
+                const expectedCount = lastN - firstN + 1;
+                const gapSize = expectedCount - totalCount;
+                if (gapSize > 10) {
+                  posOfflineWarning = {
+                    gapSize,
+                    firstSeq: firstN,
+                    lastSeq: lastN,
+                    actualCount: totalCount,
+                    message: `${gapSize} Cash Counter orders appear unsynced from POS terminal. Token issuances in the offline window are NOT counted here. Sync Cash Counter (POS 27) before settling.`
+                  };
+                  console.error(`POS SYNC GAP ALERT: ${gapSize} orders missing (seq ${firstN}–${lastN}, got ${totalCount}) for runner ${runnerId} period ${fromOdoo}`);
+                }
               }
             }
           }
+          // If runner has no POS 27 activity this period, no gap is possible — leave warning null.
         } catch (e) { /* non-critical — don't block main settlement flow */ }
       }
 
