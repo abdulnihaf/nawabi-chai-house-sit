@@ -254,9 +254,9 @@ const DEFAULTS = {
     { id: 'mujib', name: 'Mujib', color: '#3b82f6', shift: { start: 20, end: 32, bs: null, be: null } },
     { id: 'santhosh', name: 'Santhosh', color: '#a855f7', shift: { start: 8, end: 20, bs: null, be: null } },
     { id: 'dhananjay', name: 'Dhananjay', color: '#06b6d4', shift: { start: 20, end: 30, bs: null, be: null } },
-    { id: 'shabbir', name: 'Shabbir', color: '#f43f5e', shift: { start: 16, end: 26, bs: null, be: null } },
+    { id: 'shabbir', name: 'Shabbir', color: '#f43f5e', shift: { start: 6, end: 16, bs: null, be: null } },
     { id: 'riyaz', name: 'Riyaz', color: '#eab308', shift: { start: 16, end: 26, bs: null, be: null } },
-    { id: 'noim', name: 'Noim', color: '#14b8a6', shift: { start: 6, end: 16, bs: null, be: null } },
+    { id: 'noim', name: 'Noim', color: '#14b8a6', shift: { start: 16, end: 26, bs: null, be: null } },
     { id: 'arif', name: 'Arif', color: '#ec4899', shift: { start: 6, end: 16, bs: null, be: null } },
     { id: 'nicholes', name: 'Nicholes', color: '#8b5cf6', shift: { start: 20, end: 30, bs: null, be: null } },
     { id: 'x11', name: '#11', color: '#f97316', shift: { start: 16, end: 26, bs: null, be: null } },
@@ -274,12 +274,12 @@ let multiSel = new Set();
 
 function load() {
   try {
-    const raw = localStorage.getItem('nch-planner-v2');
+    const raw = localStorage.getItem('nch-planner-v3');
     if (raw) return JSON.parse(raw);
   } catch {}
   return clone(DEFAULTS);
 }
-function save() { localStorage.setItem('nch-planner-v2', JSON.stringify(state)); }
+function save() { localStorage.setItem('nch-planner-v3', JSON.stringify(state)); }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
 function fmtHour(h) {
