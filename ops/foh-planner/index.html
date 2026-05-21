@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NCH FOH Planner — Shift × Station</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+:root { color-scheme: dark; --bg:#0c0c10; --pane:#16161e; --line:#26262f; --txt:#e6e6e8; --mute:#7a7a85; --accent:#e8930c; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin:0; font: 14px/1.4 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--txt); padding-bottom: 80px; }
+header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; background: var(--bg); z-index: 30; }
+header h1 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; }
+header button { background: var(--pane); color: var(--txt); border: 1px solid var(--line); padding: 6px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+header button.primary { background: var(--accent); color: #000; font-weight: 700; }
+section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--mute); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Staff chips palette */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.staff-chip { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #000; user-select: none; cursor: grab; border: 2px solid transparent; transition: transform .08s; }
+.staff-chip:active { cursor: grabbing; transform: scale(0.95); }
+.staff-chip.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.staff-chip.unavail { opacity: 0.25; }
+
+/* Shift editor */
+.shift-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.shift-row:last-child { border-bottom: 0; }
+.shift-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.shift-name { font-weight: 700; min-width: 80px; }
+.shift-times { color: var(--mute); flex: 1; font-variant-numeric: tabular-nums; }
+.shift-edit { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+
+/* Main grid */
+.grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.grid { width: max-content; min-width: 100%; }
+.grid-row { display: grid; grid-template-columns: 56px repeat(11, minmax(82px, 1fr)); border-bottom: 1px solid var(--line); }
+.grid-cell.dim { background: rgba(255,255,255,0.02); }
+.grid-cell.expected-empty { background: rgba(255,255,255,0.04); }
+.grid-cell.expected-empty .empty { color: #4a4a52; font-size: 12px; }
+.grid-row.head { background: var(--pane); position: sticky; top: 0; z-index: 5; font-size: 11px; font-weight: 700; color: var(--mute); text-transform: uppercase; }
+.grid-cell { padding: 8px 6px; border-right: 1px solid var(--line); min-height: 56px; display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; cursor: pointer; }
+.grid-cell.time { background: var(--pane); position: sticky; left: 0; z-index: 4; font-size: 12px; font-weight: 700; flex-direction: column; cursor: default; }
+.grid-cell.time .ord { font-size: 10px; color: var(--mute); font-weight: 400; }
+.grid-cell.time.peak { background: linear-gradient(90deg, rgba(232,147,12,0.4), var(--pane) 80%); color: #fde68a; }
+.grid-cell.time.midpeak { background: linear-gradient(90deg, rgba(232,147,12,0.15), var(--pane) 80%); }
+.grid-cell .placed { padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #000; }
+.grid-cell.empty { color: var(--mute); font-size: 18px; }
+.cell-load { font-size: 10px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.cell-load.busy { color: #fde68a; font-weight: 700; }
+.cell-load.hot { color: #fb923c; font-weight: 700; }
+.cell-load.idle { color: #3a3a45; }
+.grid-cell.drop-target { background: rgba(232,147,12,0.15); }
+.grid-cell.time.active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grid-cell.time .exp-caret { font-size: 10px; color: var(--accent); margin-top: 2px; }
+
+/* Scenario panel */
+#scenarioPanel { background: var(--pane); }
+.sc-reach { font-size: 13px; margin-bottom: 10px; }
+.sc-list { margin: 0; padding-left: 18px; }
+.sc-list li { font-size: 13px; line-height: 1.55; margin-bottom: 7px; color: var(--txt); }
+.sc-list b { color: #fde68a; font-weight: 700; }
+
+/* Pick modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 50; display: none; align-items: flex-end; justify-content: center; }
+.modal.show { display: flex; }
+.modal-body { background: var(--pane); border-radius: 14px 14px 0 0; padding: 20px 16px 30px; width: 100%; max-width: 480px; }
+.modal-body h3 { margin: 0 0 12px; font-size: 14px; }
+.modal-body .hint { font-size: 12px; color: var(--mute); margin-bottom: 12px; }
+.modal-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.modal-options button { background: var(--bg); color: var(--txt); border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px; font-size: 13px; cursor: pointer; min-width: 90px; }
+.modal-options button.clear { background: #5a1414; border-color: #800; color: #fff; }
+.modal-options button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Shift edit modal */
+.shift-edit-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.shift-edit-form label { display: block; font-size: 11px; color: var(--mute); margin-bottom: 4px; text-transform: uppercase; }
+.shift-edit-form input { width: 100%; background: var(--bg); color: var(--txt); border: 1px solid var(--line); padding: 8px; border-radius: 6px; font: inherit; font-variant-numeric: tabular-nums; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row button { flex: 1; padding: 10px; border-radius: 8px; border: 0; font: 600 13px system-ui; cursor: pointer; }
+.btn-save { background: var(--accent); color: #000; }
+.btn-cancel { background: var(--bg); color: var(--txt); border: 1px solid var(--line); }
+
+footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NCH FOH Planner</h1>
+  <button onclick="loadSuggested()">Suggested</button>
+  <button onclick="exportState()">Export</button>
+  <button onclick="resetState()">Reset</button>
+</header>
+
+<section>
+  <h2>Shifts <span style="color:var(--mute);font-weight:400;text-transform:none">— tap Edit to change</span></h2>
+  <div id="shiftList"></div>
+</section>
+
+<section>
+  <h2>Staff <span style="color:var(--mute);font-weight:400;text-transform:none">— tap a chip then cells to add (tap again to remove). Multiple people can share one slot. 24h ops: 6 AM → 5 AM.</span></h2>
+  <div class="chip-row" id="chipPalette"></div>
+</section>
+
+<section style="padding: 0;">
+  <div class="grid-wrap">
+    <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<section id="scenarioPanel" style="display:none"></section>
+
+<footer>
+  Peak intensity ▓ on left column = NCH May 1-21 sales (total servings/hr). State auto-saves to this device.
+  <br><b>Tap any hour</b> to see who's reachable and how each order is handled that hour.
+  <br><b>Counters:</b> CHAI = Chai Counter (brews every beverage) · CASH = Cash Counter (rings chai+snacks, <b>issues runner tokens</b>) · RC = Runner Counter (runner snacks + ledger) · RCH = RC Helper.
+  <br><b>Floor:</b> R1–R5 = Runners (distribute chai inside via tokens — the crowd engine; ~800 cups/day) · CLN = Cleaner · DISH = Dishwasher.
+  <br><b>Coverage collapses with volume:</b> 🔥 peak = all stations · quiet = chai + cash + 1 runner · dead = chai only. Empty <span style="color:#4a4a52">·</span> = station not expected to be staffed that hour.
+  <br><b>Per-cell load:</b> on CHAI = cups/hr · on CASH/RC = orders/hr (NCH May 1-21 avg). Coloured <span class="cell-load hot">hot</span>/<span class="cell-load busy">busy</span> relative to each counter's own busiest hour.
+</footer>
+
+<div class="modal" id="pickModal">
+  <div class="modal-body">
+    <h3 id="pickTitle">Assign staff</h3>
+    <div class="hint" id="pickHint"></div>
+    <div class="modal-options" id="pickOptions"></div>
+  </div>
+</div>
+
+<div class="modal" id="editModal">
+  <div class="modal-body">
+    <h3 id="editTitle">Edit shift</h3>
+    <div class="shift-edit-form">
+      <div><label>Start hour (24h)</label><input id="ef-start" type="number" min="0" max="29"></div>
+      <div><label>End hour (24h, +24 if next day)</label><input id="ef-end" type="number" min="0" max="29"></div>
+      <div><label>Break start (blank = no break)</label><input id="ef-bs" type="number" min="0" max="29"></div>
+      <div><label>Break end</label><input id="ef-be" type="number" min="0" max="29"></div>
+    </div>
+    <div class="hint">Use 24h. For times past midnight, add 24 (e.g. 1 AM = 25, 3 AM = 27). Today's defaults shown.</div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
+      <button class="btn-save" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATIONS = [
+  { id: 'chai', name: 'CHAI', full: 'Chai Counter',   floor: '—', tier: 'pos' },
+  { id: 'cash', name: 'CASH', full: 'Cash Counter',   floor: '—', tier: 'pos' },
+  { id: 'rc',   name: 'RC',   full: 'Runner Counter', floor: '—', tier: 'pos' },
+  { id: 'rch',  name: 'RCH',  full: 'RC Helper',      floor: '—', tier: 'support' },
+  { id: 'r1',   name: 'R1',   full: 'Runner 01',      floor: '—', tier: 'runner' },
+  { id: 'r2',   name: 'R2',   full: 'Runner 02',      floor: '—', tier: 'runner' },
+  { id: 'r3',   name: 'R3',   full: 'Runner 03',      floor: '—', tier: 'runner' },
+  { id: 'r4',   name: 'R4',   full: 'Runner 04',      floor: '—', tier: 'runner' },
+  { id: 'r5',   name: 'R5',   full: 'Runner 05',      floor: '—', tier: 'runner' },
+  { id: 'cln',  name: 'CLN',  full: 'Cleaner',        floor: '—', tier: 'support' },
+  { id: 'dish', name: 'DISH', full: 'Dishwasher',     floor: '—', tier: 'support' },
+];
+
+// Coverage tiers — driven by total-servings volume:
+//   peak → Chai + Cash + Runner Counter + RC Helper + 4 runners + Cleaner + Dishwasher
+//   mid  → Chai + Cash + Runner Counter + 2 runners + Cleaner
+//   low  → Chai + Cash + 1 runner
+//   dead → Chai only (someone always brews)
+function coverageNeeded(load, maxLoad) {
+  if (load >= 0.7 * maxLoad) return ['chai','cash','rc','rch','r1','r2','r3','r4','cln','dish'];
+  if (load >= 0.4 * maxLoad) return ['chai','cash','rc','r1','r2','cln'];
+  if (load >= 0.15 * maxLoad) return ['chai','cash','r1'];
+  return ['chai'];
+}
+
+// Hours: 6 AM (6) → 5 AM next day (29). 24-hour operation.
+const HOURS = [];
+for (let h = 6; h <= 29; h++) HOURS.push(h);
+
+const PEAK = {  // total servings/day per hour — NCH May 1-21 (chai cups + snacks + amortized runner tokens)
+  6:27.8, 7:49.5, 8:13.3, 9:10.4, 10:28.9, 11:22.9, 12:23.0, 13:18.9, 14:20.8, 15:28.8, 16:97.6, 17:112.5, 18:31.0, 19:36.6, 20:91.3, 21:82.6, 22:55.2, 23:100.3, 24:134.0, 25:103.7, 26:76.6, 27:37.1, 28:27.0, 29:18.7
+};
+// Per-hour load — NCH May 1-21. chai=cups/hr · cash=counter orders/hr · rc=runner-snack orders/hr · tok=token cups/hr (runner crowd)
+const POS_LOAD = {
+  6:{chai:23.5,cash:1.1,rc:2.8,tok:22.1},
+  7:{chai:46.4,cash:1.3,rc:1.7,tok:44.3},
+  8:{chai:9.9,cash:2.2,rc:2.0,tok:6.1},
+  9:{chai:6.7,cash:2.3,rc:2.1,tok:3.8},
+  10:{chai:24.4,cash:4.3,rc:2.1,tok:18.0},
+  11:{chai:18.3,cash:3.9,rc:2.3,tok:13.7},
+  12:{chai:18.2,cash:3.4,rc:2.5,tok:14.0},
+  13:{chai:14.4,cash:2.8,rc:2.3,tok:10.8},
+  14:{chai:16.7,cash:2.8,rc:1.9,tok:13.5},
+  15:{chai:23.4,cash:9.8,rc:1.3,tok:8.7},
+  16:{chai:90.2,cash:8.2,rc:2.2,tok:77.3},
+  17:{chai:103.0,cash:5.6,rc:3.8,tok:94.4},
+  18:{chai:20.3,cash:6.1,rc:5.0,tok:12.8},
+  19:{chai:22.2,cash:7.4,rc:6.9,tok:12.5},
+  20:{chai:74.4,cash:4.8,rc:9.0,tok:68.4},
+  21:{chai:64.4,cash:4.3,rc:10.7,tok:57.2},
+  22:{chai:36.1,cash:5.9,rc:10.5,tok:26.4},
+  23:{chai:77.5,cash:9.5,rc:11.1,tok:57.8},
+  24:{chai:111.8,cash:12.4,rc:11.5,tok:82.9},
+  25:{chai:86.9,cash:21.1,rc:3.7,tok:36.0},
+  26:{chai:64.8,cash:2.1,rc:5.1,tok:60.8},
+  27:{chai:29.4,cash:0.0,rc:4.1,tok:29.4},
+  28:{chai:22.0,cash:0.0,rc:3.0,tok:22.0},
+  29:{chai:16.0,cash:0.0,rc:1.8,tok:16.0},
+};
+const STATION_MAX = {};
+for (const hl of Object.values(POS_LOAD)) for (const k in hl) STATION_MAX[k] = Math.max(STATION_MAX[k]||0, hl[k]);
+
+// Suggested defaults — auto-generated from shifts + crowd (runners→R-slots, counter bodies→counters by volume). Drag freely.
+const DEFAULT_ASSIGN = {
+  6: { r1: 'noim', chai: 'arif' },
+  7: { r1: 'noim', chai: 'arif' },
+  8: { r1: 'noim', chai: 'mujib' },
+  9: { r1: 'noim', chai: 'mujib' },
+  10: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
+  11: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
+  12: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
+  13: { r1: 'noim', chai: 'mujib' },
+  14: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
+  15: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
+  16: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'mujib', rc: 'santhosh', rch: 'x11' },
+  17: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'mujib', rc: 'santhosh', rch: 'x11' },
+  18: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'kesmat' },
+  19: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'kesmat' },
+  20: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  21: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  22: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  23: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  24: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  25: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
+  26: { r1: 'dhananjay', r2: 'nicholes', chai: 'kesmat' },
+  27: { r1: 'dhananjay', r2: 'nicholes', chai: 'kesmat' },
+  28: { r1: 'dhananjay', r2: 'nicholes' },
+  29: { r1: 'dhananjay', r2: 'nicholes' },
+};
+const _seedAssign = {};
+for (const [h, m] of Object.entries(DEFAULT_ASSIGN)) {
+  for (const [st, who] of Object.entries(m)) _seedAssign[`${h}|${st}`] = who;
+}
+
+const DEFAULTS = {
+  staff: [
+    { id: 'nafees', name: 'Nafees', color: '#fb923c', shift: { start: 16, end: 26, bs: null, be: null } },
+    { id: 'kesmat', name: 'Kesmat', color: '#22c55e', shift: { start: 18, end: 28, bs: null, be: null } },
+    { id: 'mujib', name: 'Mujib', color: '#3b82f6', shift: { start: 8, end: 20, bs: null, be: null } },
+    { id: 'santhosh', name: 'Santhosh', color: '#a855f7', shift: { start: 8, end: 20, bs: null, be: null } },
+    { id: 'dhananjay', name: 'Dhananjay', color: '#06b6d4', shift: { start: 20, end: 30, bs: null, be: null } },
+    { id: 'shabbir', name: 'Shabbir', color: '#f43f5e', shift: { start: 16, end: 26, bs: null, be: null } },
+    { id: 'riyaz', name: 'Riyaz', color: '#eab308', shift: { start: 16, end: 26, bs: null, be: null } },
+    { id: 'noim', name: 'Noim', color: '#14b8a6', shift: { start: 6, end: 16, bs: null, be: null } },
+    { id: 'arif', name: 'Arif', color: '#ec4899', shift: { start: 6, end: 16, bs: null, be: null } },
+    { id: 'nicholes', name: 'Nicholes', color: '#8b5cf6', shift: { start: 20, end: 30, bs: null, be: null } },
+    { id: 'x11', name: '#11', color: '#f97316', shift: { start: 16, end: 26, bs: null, be: null } },
+  ],
+  assignments: _seedAssign,
+};
+
+let state = load();
+let selectedStaff = null;
+let editingId = null;
+let pendingCell = null;
+let expandedHour = null;
+
+function load() {
+  try {
+    const raw = localStorage.getItem('nch-planner-v1');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return clone(DEFAULTS);
+}
+function save() { localStorage.setItem('nch-planner-v1', JSON.stringify(state)); }
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+function fmtHour(h) {
+  const real = h % 24;
+  const ampm = real < 12 ? 'AM' : 'PM';
+  const disp = real === 0 ? 12 : real > 12 ? real - 12 : real;
+  return `${disp} ${ampm}`;
+}
+
+function isOnShift(staff, hour) {
+  const s = staff.shift;
+  if (hour < s.start || hour >= s.end) return false;
+  if (s.bs != null && s.be != null && hour >= s.bs && hour < s.be) return false;
+  return true;
+}
+
+function isOnBreak(staff, hour) {
+  const s = staff.shift;
+  return (s.bs != null && s.be != null && hour >= s.bs && hour < s.be);
+}
+
+function renderShifts() {
+  const c = document.getElementById('shiftList');
+  c.innerHTML = '';
+  for (const s of state.staff) {
+    const breakStr = s.shift.bs != null ? `break ${fmtHour(s.shift.bs)}–${fmtHour(s.shift.be)}` : 'no rest';
+    c.innerHTML += `
+      <div class="shift-row">
+        <div class="shift-dot" style="background:${s.color}"></div>
+        <div class="shift-name">${s.name}</div>
+        <div class="shift-times">${fmtHour(s.shift.start)} → ${fmtHour(s.shift.end)} · ${breakStr}</div>
+        <button class="shift-edit" onclick="openEdit('${s.id}')">Edit</button>
+      </div>`;
+  }
+}
+
+function renderPalette() {
+  const c = document.getElementById('chipPalette');
+  c.innerHTML = '';
+  for (const s of state.staff) {
+    const cls = selectedStaff === s.id ? ' selected' : '';
+    c.innerHTML += `<div class="staff-chip${cls}" style="background:${s.color}" data-id="${s.id}" onclick="pickStaff('${s.id}')">${s.name}</div>`;
+  }
+}
+
+function pickStaff(id) {
+  selectedStaff = selectedStaff === id ? null : id;
+  renderPalette();
+}
+
+function renderGrid() {
+  const g = document.getElementById('grid');
+  let html = `<div class="grid-row head">
+    <div class="grid-cell time">Hour</div>`;
+  for (const st of STATIONS) html += `<div class="grid-cell">${st.full}</div>`;
+  html += `</div>`;
+
+  const maxLoad = Math.max(...Object.values(PEAK));
+  for (const h of HOURS) {
+    const load = PEAK[h] || 0;
+    const isPeak = load >= 0.7 * maxLoad;
+    const isMid  = load >= 0.4 * maxLoad && !isPeak;
+    const peakCls = isPeak ? ' peak' : (isMid ? ' midpeak' : '');
+    html += `<div class="grid-row">
+      <div class="grid-cell time${peakCls}${expandedHour===h?' active':''}" style="cursor:pointer" onclick="toggleScenario(${h})">
+        ${fmtHour(h)}
+        ${load > 0 ? `<span class="ord">${load.toFixed(1)} ord/d ${isPeak ? '🔥' : ''}</span>` : ''}
+        <span class="exp-caret">${expandedHour===h?'▾ how it runs':'› tap'}</span>
+      </div>`;
+    const needed = coverageNeeded(load, maxLoad);
+    const hourLoads = POS_LOAD[h] || {};
+    for (const st of STATIONS) {
+      const key = `${h}|${st.id}`;
+      const ids = asArr(state.assignments[key]);
+      const isExpected = needed.includes(st.id);
+
+      // Per-cell load: only the 3 counters own a queue. Others are floor/support roles.
+      let cellLoad;
+      if (['chai','cash','rc'].includes(st.id)) cellLoad = hourLoads[st.id] ?? 0;
+      else cellLoad = null;
+      let loadCls = 'idle';
+      if (cellLoad != null) {
+        const sm = STATION_MAX[st.id] || 1;
+        if (cellLoad >= 0.66 * sm) loadCls = 'hot';
+        else if (cellLoad >= 0.33 * sm) loadCls = 'busy';
+        else if (cellLoad > 0) loadCls = '';
+      }
+      const loadStr = cellLoad == null ? '' :
+        (cellLoad === 0 ? '' : `<span class="cell-load ${loadCls}">${cellLoad}/d</span>`);
+
+      let mainInner = `<span class="empty">${isExpected ? '+' : '·'}</span>`;
+      if (ids.length) {
+        mainInner = ids.map(id => {
+          const s2 = state.staff.find(x => x.id === id);
+          if (!s2) return '';
+          const onShift = isOnShift(s2, h);
+          const opacity = onShift ? 1 : 0.4;
+          const title = onShift ? '' : ' title="OFF SHIFT — verify"';
+          return `<div class="placed" style="background:${s2.color}; opacity:${opacity}"${title}>${s2.name}${onShift ? '' : ' ⚠'}</div>`;
+        }).join('');
+      }
+      const cellCls = !isExpected && !ids.length ? ' expected-empty' : '';
+      html += `<div class="grid-cell${cellCls}" data-h="${h}" data-st="${st.id}" onclick="cellClick(${h}, '${st.id}')">${mainInner}${loadStr}</div>`;
+    }
+    html += `</div>`;
+  }
+  g.innerHTML = html;
+}
+
+// Add/remove a staff id from a cell (multiple people allowed per slot)
+function asArr(v) { return v == null ? [] : (Array.isArray(v) ? v : [v]); }
+function toggleAssign(key, staffId) {
+  const arr = asArr(state.assignments[key]);
+  const i = arr.indexOf(staffId);
+  if (i >= 0) arr.splice(i, 1); else arr.push(staffId);
+  if (arr.length) state.assignments[key] = arr; else delete state.assignments[key];
+}
+
+function cellClick(h, stId) {
+  const key = `${h}|${stId}`;
+  // If a chip is selected, toggle that person on/off this cell (stacking allowed)
+  if (selectedStaff) {
+    toggleAssign(key, selectedStaff);
+    save(); renderGrid(); if (expandedHour === h) renderScenario();
+    return;
+  }
+  // No chip selected → open the multi-select picker
+  pendingCell = key;
+  renderPicker();
+  document.getElementById('pickModal').classList.add('show');
+}
+
+function renderPicker() {
+  if (!pendingCell) return;
+  const [hStr, stId] = pendingCell.split('|');
+  const h = parseInt(hStr);
+  const stName = STATIONS.find(s => s.id === stId).full;
+  const cur = asArr(state.assignments[pendingCell]);
+  document.getElementById('pickTitle').textContent = `${stName} @ ${fmtHour(h)}`;
+  document.getElementById('pickHint').textContent = `Tap to add or remove — multiple people allowed on one slot.`;
+  const opts = document.getElementById('pickOptions');
+  opts.innerHTML = '';
+  for (const s of state.staff) {
+    const on = isOnShift(s, h);
+    const br = isOnBreak(s, h);
+    const sel = cur.includes(s.id);
+    const lbl = `${sel ? '✓ ' : ''}${s.name}${on ? '' : (br ? ' (break)' : ' (off)')}`;
+    const style = sel
+      ? `background:${s.color};color:#000;border:2px solid #fff;font-weight:700`
+      : `background:var(--bg);color:var(--txt);border:1px solid var(--line)`;
+    opts.innerHTML += `<button onclick="pickToggle('${s.id}')" style="${style}">${lbl}</button>`;
+  }
+  if (cur.length) opts.innerHTML += `<button class="clear" onclick="pickClear()">Clear slot</button>`;
+  opts.innerHTML += `<button onclick="pickDone()" style="background:var(--accent);color:#000;font-weight:700;border:0">Done</button>`;
+}
+
+function pickToggle(staffId) {
+  if (!pendingCell) return;
+  toggleAssign(pendingCell, staffId);
+  save(); renderPicker(); renderGrid();
+}
+function pickClear() {
+  if (!pendingCell) return;
+  delete state.assignments[pendingCell];
+  save(); renderPicker(); renderGrid();
+}
+function pickDone() {
+  const [hStr] = (pendingCell || '0|').split('|');
+  pendingCell = null;
+  document.getElementById('pickModal').classList.remove('show');
+  if (expandedHour === parseInt(hStr)) renderScenario();
+}
+
+document.getElementById('pickModal').addEventListener('click', e => {
+  if (e.target.id === 'pickModal') {
+    pendingCell = null;
+    e.target.classList.remove('show');
+  }
+});
+
+function openEdit(staffId) {
+  editingId = staffId;
+  const s = state.staff.find(x => x.id === staffId);
+  document.getElementById('editTitle').textContent = `Edit ${s.name}`;
+  document.getElementById('ef-start').value = s.shift.start;
+  document.getElementById('ef-end').value = s.shift.end;
+  document.getElementById('ef-bs').value = s.shift.bs ?? '';
+  document.getElementById('ef-be').value = s.shift.be ?? '';
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeEdit() {
+  editingId = null;
+  document.getElementById('editModal').classList.remove('show');
+}
+
+function saveEdit() {
+  if (!editingId) return;
+  const s = state.staff.find(x => x.id === editingId);
+  const start = parseInt(document.getElementById('ef-start').value);
+  const end   = parseInt(document.getElementById('ef-end').value);
+  const bsRaw = document.getElementById('ef-bs').value;
+  const beRaw = document.getElementById('ef-be').value;
+  s.shift.start = start;
+  s.shift.end   = end;
+  s.shift.bs    = bsRaw === '' ? null : parseInt(bsRaw);
+  s.shift.be    = beRaw === '' ? null : parseInt(beRaw);
+  save(); renderShifts(); renderGrid();
+  closeEdit();
+}
+
+function exportState() {
+  const txt = JSON.stringify(state, null, 2);
+  navigator.clipboard?.writeText(txt);
+  alert('Plan copied to clipboard (JSON). Paste anywhere to share.');
+}
+
+function resetState() {
+  if (!confirm('Reset everything to defaults? Current assignments lost.')) return;
+  state = clone(DEFAULTS);
+  save(); renderShifts(); renderPalette(); renderGrid();
+}
+
+function loadSuggested() {
+  if (!confirm('Load the suggested per-hour assignments? This overwrites your current plan but keeps your edited shift times.')) return;
+  state.assignments = clone(_seedAssign);
+  save(); renderGrid();
+}
+
+// ── Per-hour scenario explanation ──────────────────────────────
+function staffName(id) { const s = state.staff.find(x => x.id === id); return s ? s.name : null; }
+function presentAt(h) { return state.staff.filter(s => isOnShift(s, h)).map(s => s.name); }
+function onBreakAt(h) { return state.staff.filter(s => isOnBreak(s, h)).map(s => s.name); }
+
+function genScenario(h) {
+  const present = presentAt(h);
+  const brk = onBreakAt(h);
+  const L = POS_LOAD[h] || {};
+  const total = PEAK[h] || 0;
+  const a = id => { const n = asArr(state.assignments[`${h}|${id}`]).map(staffName).filter(Boolean); return n.length ? n.join(' + ') : null; };
+  const chai = a('chai'), cash = a('cash'), rc = a('rc'), rch = a('rch'), cln = a('cln'), dish = a('dish');
+  const runners = ['r1','r2','r3','r4','r5'].map(id => ({ id, who: a(id) })).filter(x => x.who);
+  const ld = v => (v == null ? 0 : v);
+  const lines = [];
+
+  if (present.length <= 1) {
+    const who = present[0] || '(nobody)';
+    lines.push(`<b>${who}</b> is the only body — brews the chai, rings the counter, serves. Load ≈ ${total.toFixed(0)} servings/hr (quiet).`);
+    return { present, brk, lines };
+  }
+
+  if (chai) lines.push(`<b>Chai Counter</b> (${ld(L.chai)} cups/hr): <b>${chai}</b> makes every beverage — all chai flows through here to counter customers and to the runners.`);
+  else lines.push(`<b>Chai Counter</b>: unassigned — must always be manned (every cup originates here).`);
+  if (cash) lines.push(`<b>Cash Counter</b> (${ld(L.cash)} orders/hr): <b>${cash}</b> rings chai + snacks, takes cash/UPI/card, and <b>issues runner tokens</b> (the prepaid batches runners carry out).`);
+  if (rc) lines.push(`<b>Runner Counter</b> (${ld(L.rc)} snack orders/hr): <b>${rc}</b> handles runner snack sales + ledger settlement${rch ? `, helped by <b>${rch}</b>` : ''}.`);
+  else if (rch) lines.push(`<b>RC Helper</b>: <b>${rch}</b> backs the runner counter.`);
+  if (runners.length) {
+    const txt = runners.map(r => `${STATIONS.find(s => s.id === r.id).name}=<b>${r.who}</b>`).join(' · ');
+    lines.push(`<b>Runners on floor</b> (${ld(L.tok)} token cups/hr — the crowd engine): ${txt}. They distribute chai to the in-outlet crowd via tokens so the counter never jams.`);
+  } else if (ld(L.tok) > 0) {
+    lines.push(`<b>Runners</b> (${ld(L.tok)} token cups/hr expected): none assigned — counter will jam at this volume.`);
+  }
+  if (cln) lines.push(`<b>Cleaner</b>: <b>${cln}</b> clears tables + floor.`);
+  if (dish) lines.push(`<b>Dishwasher</b>: <b>${dish}</b> keeps glasses cycling — critical at peak (chai is glass-served).`);
+
+  return { present, brk, lines };
+}
+function renderScenario() {
+  const p = document.getElementById('scenarioPanel');
+  if (expandedHour == null) { p.style.display = 'none'; return; }
+  const h = expandedHour;
+  const sc = genScenario(h);
+  const total = PEAK[h] || 0;
+  let html = `<h2>${fmtHour(h)} — how it runs <span style="color:var(--mute);font-weight:400;text-transform:none">· ${sc.present.length} on floor · ${total.toFixed(1)} ord/d</span></h2>`;
+  html += `<div class="sc-reach"><b>Reachable:</b> ${sc.present.join(', ') || '—'}${sc.brk.length ? ` &nbsp;·&nbsp; <span style="color:var(--mute)">on break: ${sc.brk.join(', ')}</span>` : ''}</div>`;
+  html += `<ul class="sc-list">`;
+  for (const ln of sc.lines) html += `<li>${ln}</li>`;
+  html += `</ul>`;
+  p.innerHTML = html;
+  p.style.display = 'block';
+  p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleScenario(h) {
+  expandedHour = (expandedHour === h) ? null : h;
+  renderGrid();
+  renderScenario();
+}
+
+// Initial render
+renderShifts();
+renderPalette();
+renderGrid();
+</script>
+</body>
+</html>
