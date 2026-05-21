@@ -85,6 +85,11 @@ section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--mu
 .btn-cancel { background: var(--bg); color: var(--txt); border: 1px solid var(--line); }
 
 footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: center; }
+/* ── PIN gate ── */
+body.locked .edit-only { display: none !important; }
+#lockBanner { display:none; }
+body.locked #lockBanner { display:block; background: rgba(232,147,12,0.12); border-bottom:1px solid var(--line); color: var(--accent); font-size:12px; padding:8px 16px; text-align:center; }
+header button#lockBtn { border-color: var(--accent); color: var(--accent); }
 
 /* ── PDF / print roster ── */
 #printView { display: none; }
@@ -113,19 +118,21 @@ footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: ce
 
 <header>
   <h1>NCH FOH Planner</h1>
-  <button id="multiBtn" onclick="toggleMulti()">Multi-select</button>
-  <button onclick="loadSuggested()">Suggested</button>
-  <button onclick="exportState()">Export</button>
+  <button id="lockBtn" onclick="toggleLock()">🔒 Edit (PIN)</button>
+  <button id="multiBtn" class="edit-only" onclick="toggleMulti()">Multi-select</button>
+  <button class="edit-only" onclick="loadSuggested()">Suggested</button>
+  <button class="edit-only" onclick="exportState()">Export</button>
   <button class="primary" onclick="downloadPDF()">Download PDF</button>
-  <button onclick="resetState()">Reset</button>
+  <button class="edit-only" onclick="resetState()">Reset</button>
 </header>
+<div id="lockBanner">🔒 View-only roster — tap <b>Edit (PIN)</b> to change shifts or assignments.</div>
 
 <section>
   <h2>Shifts <span style="color:var(--mute);font-weight:400;text-transform:none">— tap Edit to change</span></h2>
   <div id="shiftList"></div>
 </section>
 
-<section>
+<section class="edit-only">
   <h2>Staff <span style="color:var(--mute);font-weight:400;text-transform:none">— tap a slot to pick from a list, OR tap a person then tap slots. <b>Multi-select</b> = tap many slots, then one person fills them all. 24h: 6 AM → 5 AM.</span></h2>
   <div class="chip-row" id="chipPalette"></div>
   <div id="multiBar" style="display:none"></div>
@@ -265,10 +272,7 @@ const DEFAULT_ASSIGN = {
   28: { chai: 'mujib' },
   29: { chai: 'mujib' },
 };
-const _seedAssign = {};
-for (const [h, m] of Object.entries(DEFAULT_ASSIGN)) {
-  for (const [st, who] of Object.entries(m)) _seedAssign[`${h}|${st}`] = who;
-}
+const _seedAssign = {"6|chai":"mujib","6|cash":"shabbir","6|rc":"shabbir","6|r1":"shabbir","6|cln":"arif","6|dish":"arif","7|chai":"mujib","7|cash":"shabbir","7|rc":"shabbir","7|r1":"shabbir","7|cln":"arif","7|dish":"arif","8|chai":"santhosh","8|cash":"shabbir","8|rc":"shabbir","8|r1":"shabbir","8|cln":"arif","8|dish":"arif","9|chai":"santhosh","9|cash":"shabbir","9|rc":"shabbir","9|r1":"shabbir","9|cln":"arif","9|dish":"arif","10|chai":"santhosh","10|cash":"shabbir","10|rc":"shabbir","10|r1":"shabbir","10|cln":"arif","10|dish":"arif","11|chai":"santhosh","11|cash":"shabbir","11|rc":"shabbir","11|r1":"shabbir","11|cln":"arif","11|dish":"arif","12|chai":"santhosh","12|cash":"shabbir","12|rc":"shabbir","12|r1":"shabbir","12|cln":"arif","12|dish":"arif","13|chai":"santhosh","13|cash":"shabbir","13|rc":"shabbir","13|r1":"shabbir","13|cln":"arif","13|dish":"arif","14|chai":"santhosh","14|cash":"shabbir","14|rc":"shabbir","14|r1":"shabbir","14|cln":"arif","14|dish":"arif","15|chai":"santhosh","15|cash":"shabbir","15|rc":"shabbir","15|r1":"shabbir","15|cln":"arif","15|dish":"arif","16|chai":"santhosh","16|cash":"nafees","16|rc":"nafees","16|rch":"riyaz","16|r1":"noim","16|r2":"riyaz","16|cln":"x11","16|dish":"x11","17|chai":"santhosh","17|cash":"nafees","17|rc":"nafees","17|rch":"riyaz","17|r1":"noim","17|r2":"riyaz","17|cln":"x11","17|dish":"x11","18|chai":"santhosh","18|cash":"nafees","18|rc":"kesmat","18|r1":"noim","18|r2":"riyaz","18|cln":"x11","18|dish":"x11","19|chai":"santhosh","19|cash":"nafees","19|rc":"kesmat","19|r1":"noim","19|r2":"riyaz","19|cln":"x11","19|dish":"x11","20|chai":"mujib","20|cash":"nafees","20|rc":"kesmat","20|rch":"riyaz","20|r1":"noim","20|r2":"dhananjay","20|r3":"riyaz","20|cln":"nicholes","20|dish":"x11","21|chai":"mujib","21|cash":"nafees","21|rc":"kesmat","21|rch":"riyaz","21|r1":"noim","21|r2":"dhananjay","21|r3":"riyaz","21|cln":"nicholes","21|dish":"x11","22|chai":"mujib","22|cash":"nafees","22|rc":"kesmat","22|rch":"riyaz","22|r1":"noim","22|r2":"dhananjay","22|r3":"riyaz","22|cln":"nicholes","22|dish":"x11","23|chai":"mujib","23|cash":"nafees","23|rc":"kesmat","23|rch":"riyaz","23|r1":"noim","23|r2":"dhananjay","23|r3":"riyaz","23|cln":"nicholes","23|dish":"x11","24|chai":"mujib","24|cash":"nafees","24|rc":"kesmat","24|rch":"riyaz","24|r1":"noim","24|r2":"dhananjay","24|r3":"riyaz","24|cln":"nicholes","24|dish":"x11","25|chai":"mujib","25|cash":"nafees","25|rc":"kesmat","25|rch":"riyaz","25|r1":"noim","25|r2":"dhananjay","25|r3":"riyaz","25|cln":"nicholes","25|dish":"x11","26|chai":"mujib","26|cash":"kesmat","26|rc":"kesmat","26|r1":"dhananjay","26|cln":"nicholes","26|dish":"nicholes","27|chai":"mujib","27|cash":"kesmat","27|rc":"kesmat","27|r1":"dhananjay","27|cln":"nicholes","27|dish":"nicholes","28|chai":"mujib","28|r1":"dhananjay","28|cln":"nicholes","28|dish":"nicholes","29|chai":"mujib","29|r1":"dhananjay","29|cln":"nicholes","29|dish":"nicholes"};
 
 const DEFAULTS = {
   staff: [
@@ -297,12 +301,12 @@ let multiSel = new Set();
 
 function load() {
   try {
-    const raw = localStorage.getItem('nch-planner-v3');
+    const raw = localStorage.getItem('nch-planner-v4');
     if (raw) return JSON.parse(raw);
   } catch {}
   return clone(DEFAULTS);
 }
-function save() { localStorage.setItem('nch-planner-v3', JSON.stringify(state)); }
+function save() { localStorage.setItem('nch-planner-v4', JSON.stringify(state)); }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
 function fmtHour(h) {
@@ -339,7 +343,7 @@ function renderShifts() {
         <div class="shift-dot" style="background:${s.color}"></div>
         <div class="shift-name">${s.name}</div>
         <div class="shift-times">${fmtHour(s.shift.start)} → ${fmtHour(s.shift.end)} · ${breakStr}</div>
-        <button class="shift-edit" onclick="openEdit('${s.id}')">Edit</button>
+        <button class="shift-edit edit-only" onclick="openEdit('${s.id}')">Edit</button>
       </div>`;
   }
 }
@@ -354,6 +358,7 @@ function renderPalette() {
 }
 
 function pickStaff(id) {
+  if (!unlocked) return;
   // In multi-select mode, tapping a chip assigns that person to ALL selected cells at once
   if (multiMode && multiSel.size) {
     for (const key of multiSel) addAssign(key, id);
@@ -371,6 +376,7 @@ function addAssign(key, staffId) {
   if (!arr.includes(staffId)) { arr.push(staffId); state.assignments[key] = arr; }
 }
 function toggleMulti() {
+  if (!unlocked) return;
   multiMode = !multiMode;
   multiSel.clear();
   selectedStaff = null;
@@ -457,6 +463,7 @@ function toggleAssign(key, staffId) {
 }
 
 function cellClick(h, stId) {
+  if (!unlocked) return;
   const key = `${h}|${stId}`;
   // Multi-select mode: tapping a cell adds/removes it from the selection (no assign yet)
   if (multiMode) {
@@ -527,6 +534,7 @@ document.getElementById('pickModal').addEventListener('click', e => {
 });
 
 function openEdit(staffId) {
+  if (!unlocked) return;
   editingId = staffId;
   const s = state.staff.find(x => x.id === staffId);
   document.getElementById('editTitle').textContent = `Edit ${s.name}`;
@@ -564,12 +572,14 @@ function exportState() {
 }
 
 function resetState() {
+  if (!unlocked) return;
   if (!confirm('Reset everything to defaults? Current assignments lost.')) return;
   state = clone(DEFAULTS);
   save(); renderShifts(); renderPalette(); renderGrid();
 }
 
 function loadSuggested() {
+  if (!unlocked) return;
   if (!confirm('Load the suggested per-hour assignments? This overwrites your current plan but keeps your edited shift times.')) return;
   state.assignments = clone(_seedAssign);
   save(); renderGrid();
@@ -669,10 +679,31 @@ function downloadPDF() {
   setTimeout(() => { document.title = prev; }, 800);
 }
 
+// ── PIN-gated editing: public view-only; editing needs the PIN ──
+let unlocked = false;
+const PIN_HASH = 'eaf493e8af54e4fb893988a51b83b390a725e24bbe1575a50625c811c08ecb6f';
+async function sha256(s){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+async function toggleLock(){
+  if (unlocked) { unlocked = false; applyLockUI(); return; }
+  const p = prompt('Enter edit PIN to make changes:');
+  if (p == null) return;
+  const h = await sha256(p.trim());
+  if (h === PIN_HASH) { unlocked = true; applyLockUI(); }
+  else alert('Wrong PIN — editing stays locked.');
+}
+function applyLockUI(){
+  document.body.classList.toggle('locked', !unlocked);
+  const b = document.getElementById('lockBtn');
+  if (b) { b.textContent = unlocked ? '\uD83D\uDD13 Lock' : '\uD83D\uDD12 Edit (PIN)'; b.classList.toggle('primary', unlocked); }
+  if (typeof multiMode !== 'undefined' && multiMode && !unlocked) { multiMode = false; multiSel && multiSel.clear(); if (typeof renderMultiBar==='function') renderMultiBar(); }
+  renderShifts(); renderPalette(); renderGrid();
+}
+
 // Initial render
 renderShifts();
 renderPalette();
 renderGrid();
+applyLockUI();
 </script>
 <div id="printView"></div>
 </body>
