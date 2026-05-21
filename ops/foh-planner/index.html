@@ -50,6 +50,9 @@ section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--mu
 .cell-load.hot { color: #fb923c; font-weight: 700; }
 .cell-load.idle { color: #3a3a45; }
 .grid-cell.drop-target { background: rgba(232,147,12,0.15); }
+.grid-cell.msel { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(232,147,12,0.16); }
+.multibar { background: rgba(232,147,12,0.12); border: 1px solid var(--accent); border-radius: 8px; padding: 9px 12px; margin-top: 10px; font-size: 13px; color: var(--txt); }
+.multibar button { background: var(--bg); color: var(--txt); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-size: 12px; margin-left: 8px; cursor: pointer; }
 .grid-cell.time.active { outline: 2px solid var(--accent); outline-offset: -2px; }
 .grid-cell.time .exp-caret { font-size: 10px; color: var(--accent); margin-top: 2px; }
 
@@ -66,8 +69,9 @@ section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--mu
 .modal-body { background: var(--pane); border-radius: 14px 14px 0 0; padding: 20px 16px 30px; width: 100%; max-width: 480px; }
 .modal-body h3 { margin: 0 0 12px; font-size: 14px; }
 .modal-body .hint { font-size: 12px; color: var(--mute); margin-bottom: 12px; }
-.modal-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.modal-options button { background: var(--bg); color: var(--txt); border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px; font-size: 13px; cursor: pointer; min-width: 90px; }
+.modal-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-options button { background: var(--bg); color: var(--txt); border: 1.5px solid var(--line); padding: 15px 12px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; min-height: 52px; text-align: left; }
+.modal-options button.full { grid-column: 1 / -1; text-align: center; }
 .modal-options button.clear { background: #5a1414; border-color: #800; color: #fff; }
 .modal-options button:disabled { opacity: 0.3; cursor: not-allowed; }
 
@@ -87,6 +91,7 @@ footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: ce
 
 <header>
   <h1>NCH FOH Planner</h1>
+  <button id="multiBtn" onclick="toggleMulti()">Multi-select</button>
   <button onclick="loadSuggested()">Suggested</button>
   <button onclick="exportState()">Export</button>
   <button onclick="resetState()">Reset</button>
@@ -98,8 +103,9 @@ footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: ce
 </section>
 
 <section>
-  <h2>Staff <span style="color:var(--mute);font-weight:400;text-transform:none">— tap a chip then cells to add (tap again to remove). Multiple people can share one slot. 24h ops: 6 AM → 5 AM.</span></h2>
+  <h2>Staff <span style="color:var(--mute);font-weight:400;text-transform:none">— tap a slot to pick from a list, OR tap a person then tap slots. <b>Multi-select</b> = tap many slots, then one person fills them all. 24h: 6 AM → 5 AM.</span></h2>
   <div class="chip-row" id="chipPalette"></div>
+  <div id="multiBar" style="display:none"></div>
 </section>
 
 <section style="padding: 0;">
@@ -210,30 +216,31 @@ for (const hl of Object.values(POS_LOAD)) for (const k in hl) STATION_MAX[k] = M
 
 // Suggested defaults — auto-generated from shifts + crowd (runners→R-slots, counter bodies→counters by volume). Drag freely.
 const DEFAULT_ASSIGN = {
-  6: { r1: 'noim', chai: 'arif' },
-  7: { r1: 'noim', chai: 'arif' },
-  8: { r1: 'noim', chai: 'mujib' },
-  9: { r1: 'noim', chai: 'mujib' },
-  10: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
-  11: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
-  12: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
-  13: { r1: 'noim', chai: 'mujib' },
-  14: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
-  15: { r1: 'noim', chai: 'mujib', cash: 'santhosh' },
-  16: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'mujib', rc: 'santhosh', rch: 'x11' },
-  17: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'mujib', rc: 'santhosh', rch: 'x11' },
-  18: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'kesmat' },
-  19: { r1: 'shabbir', r2: 'riyaz', chai: 'nafees', cash: 'kesmat' },
-  20: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  21: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  22: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  23: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  24: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  25: { r1: 'shabbir', r2: 'riyaz', r3: 'dhananjay', r4: 'nicholes', chai: 'nafees', cash: 'kesmat', rc: 'x11' },
-  26: { r1: 'dhananjay', r2: 'nicholes', chai: 'kesmat' },
-  27: { r1: 'dhananjay', r2: 'nicholes', chai: 'kesmat' },
-  28: { r1: 'dhananjay', r2: 'nicholes' },
-  29: { r1: 'dhananjay', r2: 'nicholes' },
+  // Only the chai master is seeded. Mujib 8PM→8AM (overnight), Santhosh 8AM→8PM (day). Everything else empty.
+  6:  { chai: 'mujib' },
+  7:  { chai: 'mujib' },
+  8:  { chai: 'santhosh' },
+  9:  { chai: 'santhosh' },
+  10: { chai: 'santhosh' },
+  11: { chai: 'santhosh' },
+  12: { chai: 'santhosh' },
+  13: { chai: 'santhosh' },
+  14: { chai: 'santhosh' },
+  15: { chai: 'santhosh' },
+  16: { chai: 'santhosh' },
+  17: { chai: 'santhosh' },
+  18: { chai: 'santhosh' },
+  19: { chai: 'santhosh' },
+  20: { chai: 'mujib' },
+  21: { chai: 'mujib' },
+  22: { chai: 'mujib' },
+  23: { chai: 'mujib' },
+  24: { chai: 'mujib' },
+  25: { chai: 'mujib' },
+  26: { chai: 'mujib' },
+  27: { chai: 'mujib' },
+  28: { chai: 'mujib' },
+  29: { chai: 'mujib' },
 };
 const _seedAssign = {};
 for (const [h, m] of Object.entries(DEFAULT_ASSIGN)) {
@@ -244,7 +251,7 @@ const DEFAULTS = {
   staff: [
     { id: 'nafees', name: 'Nafees', color: '#fb923c', shift: { start: 16, end: 26, bs: null, be: null } },
     { id: 'kesmat', name: 'Kesmat', color: '#22c55e', shift: { start: 18, end: 28, bs: null, be: null } },
-    { id: 'mujib', name: 'Mujib', color: '#3b82f6', shift: { start: 8, end: 20, bs: null, be: null } },
+    { id: 'mujib', name: 'Mujib', color: '#3b82f6', shift: { start: 20, end: 32, bs: null, be: null } },
     { id: 'santhosh', name: 'Santhosh', color: '#a855f7', shift: { start: 8, end: 20, bs: null, be: null } },
     { id: 'dhananjay', name: 'Dhananjay', color: '#06b6d4', shift: { start: 20, end: 30, bs: null, be: null } },
     { id: 'shabbir', name: 'Shabbir', color: '#f43f5e', shift: { start: 16, end: 26, bs: null, be: null } },
@@ -262,15 +269,17 @@ let selectedStaff = null;
 let editingId = null;
 let pendingCell = null;
 let expandedHour = null;
+let multiMode = false;
+let multiSel = new Set();
 
 function load() {
   try {
-    const raw = localStorage.getItem('nch-planner-v1');
+    const raw = localStorage.getItem('nch-planner-v2');
     if (raw) return JSON.parse(raw);
   } catch {}
   return clone(DEFAULTS);
 }
-function save() { localStorage.setItem('nch-planner-v1', JSON.stringify(state)); }
+function save() { localStorage.setItem('nch-planner-v2', JSON.stringify(state)); }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
 function fmtHour(h) {
@@ -280,16 +289,21 @@ function fmtHour(h) {
   return `${disp} ${ampm}`;
 }
 
-function isOnShift(staff, hour) {
-  const s = staff.shift;
-  if (hour < s.start || hour >= s.end) return false;
-  if (s.bs != null && s.be != null && hour >= s.bs && hour < s.be) return false;
+// Wrap-aware: an overnight shift (e.g. 8PM→8AM = 20→32) also covers the early-morning
+// grid rows (6,7) since hour+24 falls inside [start,end). Daytime shifts are unaffected.
+function _inWin(s, hh) {
+  if (hh < s.start || hh >= s.end) return false;
+  if (s.bs != null && s.be != null && hh >= s.bs && hh < s.be) return false;
   return true;
 }
-
+function isOnShift(staff, hour) {
+  const s = staff.shift;
+  return _inWin(s, hour) || _inWin(s, hour + 24);
+}
 function isOnBreak(staff, hour) {
   const s = staff.shift;
-  return (s.bs != null && s.be != null && hour >= s.bs && hour < s.be);
+  const onBrk = hh => (s.bs != null && s.be != null && hh >= s.bs && hh < s.be);
+  return onBrk(hour) || onBrk(hour + 24);
 }
 
 function renderShifts() {
@@ -317,8 +331,37 @@ function renderPalette() {
 }
 
 function pickStaff(id) {
+  // In multi-select mode, tapping a chip assigns that person to ALL selected cells at once
+  if (multiMode && multiSel.size) {
+    for (const key of multiSel) addAssign(key, id);
+    save(); multiSel.clear(); renderMultiBar(); renderGrid();
+    if (expandedHour != null) renderScenario();
+    return;
+  }
   selectedStaff = selectedStaff === id ? null : id;
   renderPalette();
+}
+
+// ── Multi-cell select: pick many slots, then one tap assigns a person to all ──
+function addAssign(key, staffId) {
+  const arr = asArr(state.assignments[key]);
+  if (!arr.includes(staffId)) { arr.push(staffId); state.assignments[key] = arr; }
+}
+function toggleMulti() {
+  multiMode = !multiMode;
+  multiSel.clear();
+  selectedStaff = null;
+  document.getElementById('multiBtn').classList.toggle('primary', multiMode);
+  renderMultiBar(); renderPalette(); renderGrid();
+}
+function clearMulti() { multiSel.clear(); renderMultiBar(); renderGrid(); }
+function renderMultiBar() {
+  const b = document.getElementById('multiBar');
+  if (!multiMode) { b.style.display = 'none'; return; }
+  b.style.display = 'block';
+  b.innerHTML = multiSel.size
+    ? `<div class="multibar"><b>${multiSel.size} slot${multiSel.size>1?'s':''} selected</b> — now tap a person above to fill them all. <button onclick="clearMulti()">Clear</button></div>`
+    : `<div class="multibar">Multi-select ON — tap the slots you want, then tap a person to fill them all at once.</div>`;
 }
 
 function renderGrid() {
@@ -372,7 +415,8 @@ function renderGrid() {
           return `<div class="placed" style="background:${s2.color}; opacity:${opacity}"${title}>${s2.name}${onShift ? '' : ' ⚠'}</div>`;
         }).join('');
       }
-      const cellCls = !isExpected && !ids.length ? ' expected-empty' : '';
+      const selCls = (multiMode && multiSel.has(key)) ? ' msel' : '';
+      const cellCls = (!isExpected && !ids.length ? ' expected-empty' : '') + selCls;
       html += `<div class="grid-cell${cellCls}" data-h="${h}" data-st="${st.id}" onclick="cellClick(${h}, '${st.id}')">${mainInner}${loadStr}</div>`;
     }
     html += `</div>`;
@@ -391,6 +435,12 @@ function toggleAssign(key, staffId) {
 
 function cellClick(h, stId) {
   const key = `${h}|${stId}`;
+  // Multi-select mode: tapping a cell adds/removes it from the selection (no assign yet)
+  if (multiMode) {
+    if (multiSel.has(key)) multiSel.delete(key); else multiSel.add(key);
+    renderMultiBar(); renderGrid();
+    return;
+  }
   // If a chip is selected, toggle that person on/off this cell (stacking allowed)
   if (selectedStaff) {
     toggleAssign(key, selectedStaff);
@@ -410,21 +460,23 @@ function renderPicker() {
   const stName = STATIONS.find(s => s.id === stId).full;
   const cur = asArr(state.assignments[pendingCell]);
   document.getElementById('pickTitle').textContent = `${stName} @ ${fmtHour(h)}`;
-  document.getElementById('pickHint').textContent = `Tap to add or remove — multiple people allowed on one slot.`;
+  document.getElementById('pickHint').textContent = `Tap names to add (✓) or remove. More than one person can share a slot. On-shift staff shown first.`;
   const opts = document.getElementById('pickOptions');
   opts.innerHTML = '';
-  for (const s of state.staff) {
+  // On-shift staff first, off-shift dimmed at the end — easier to find the right person fast
+  const ordered = [...state.staff].sort((a, b) => (isOnShift(b, h) ? 1 : 0) - (isOnShift(a, h) ? 1 : 0));
+  for (const s of ordered) {
     const on = isOnShift(s, h);
-    const br = isOnBreak(s, h);
     const sel = cur.includes(s.id);
-    const lbl = `${sel ? '✓ ' : ''}${s.name}${on ? '' : (br ? ' (break)' : ' (off)')}`;
+    const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${s.color};margin-right:8px;vertical-align:-1px"></span>`;
+    const tag = on ? '' : (isOnBreak(s, h) ? ' · break' : ' · off');
     const style = sel
-      ? `background:${s.color};color:#000;border:2px solid #fff;font-weight:700`
-      : `background:var(--bg);color:var(--txt);border:1px solid var(--line)`;
-    opts.innerHTML += `<button onclick="pickToggle('${s.id}')" style="${style}">${lbl}</button>`;
+      ? `background:${s.color};color:#000;border:2px solid #fff;font-weight:800`
+      : `background:var(--bg);color:var(--txt);border:1.5px solid var(--line);opacity:${on ? 1 : 0.5}`;
+    opts.innerHTML += `<button onclick="pickToggle('${s.id}')" style="${style}">${sel ? '✓ ' : dot}${s.name}<span style="font-weight:400;font-size:12px;color:${sel?'#000':'var(--mute)'}">${tag}</span></button>`;
   }
-  if (cur.length) opts.innerHTML += `<button class="clear" onclick="pickClear()">Clear slot</button>`;
-  opts.innerHTML += `<button onclick="pickDone()" style="background:var(--accent);color:#000;font-weight:700;border:0">Done</button>`;
+  if (cur.length) opts.innerHTML += `<button class="clear full" onclick="pickClear()">Clear this slot</button>`;
+  opts.innerHTML += `<button class="full" onclick="pickDone()" style="background:var(--accent);color:#000;font-weight:700;border:0">Done</button>`;
 }
 
 function pickToggle(staffId) {
