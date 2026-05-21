@@ -85,6 +85,28 @@ section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--mu
 .btn-cancel { background: var(--bg); color: var(--txt); border: 1px solid var(--line); }
 
 footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: center; }
+
+/* ── PDF / print roster ── */
+#printView { display: none; }
+#printView { font: 11px -apple-system, system-ui, sans-serif; color:#111; background:#fff; }
+.pv-head h1 { margin:0; font-size:18px; }
+.pv-sub { color:#555; font-size:11px; margin:2px 0 10px; }
+.pv-legend { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin-bottom:12px; }
+.pv-legend .pv-chip { color:#000; font-weight:700; padding:3px 9px; border-radius:999px; font-size:11px; }
+.pv-legend .pv-shift { font-size:10px; color:#555; margin-left:-8px; }
+.pv-grid { border-collapse:collapse; width:100%; table-layout:fixed; }
+.pv-grid th, .pv-grid td { border:1px solid #ccc; padding:3px 2px; text-align:center; vertical-align:middle; font-size:8.5px; }
+.pv-grid th { background:#222; color:#fff; font-size:8px; text-transform:uppercase; }
+.pv-grid td.pv-hr { background:#f2f2f2; font-weight:700; font-size:9px; white-space:nowrap; }
+.pv-grid tr.pv-peak td.pv-hr { background:#ffe1b3; }
+.pv-cell-chip { display:inline-block; color:#000; font-weight:700; padding:2px 5px; border-radius:6px; font-size:8px; margin:1px; }
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  html, body { background:#fff !important; padding:0 !important; margin:0 !important; }
+  body > *:not(#printView) { display:none !important; }
+  #printView { display:block !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
 </style>
 </head>
 <body>
@@ -94,6 +116,7 @@ footer { padding: 12px 16px; color: var(--mute); font-size: 11px; text-align: ce
   <button id="multiBtn" onclick="toggleMulti()">Multi-select</button>
   <button onclick="loadSuggested()">Suggested</button>
   <button onclick="exportState()">Export</button>
+  <button class="primary" onclick="downloadPDF()">Download PDF</button>
   <button onclick="resetState()">Reset</button>
 </header>
 
@@ -612,10 +635,45 @@ function toggleScenario(h) {
   renderScenario();
 }
 
+// ── Download roster as PDF (print-to-PDF, zero dependency) ──
+const BRAND = 'Nawabi Chai House';
+function downloadPDF() {
+  const pv = document.getElementById('printView');
+  const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+  const maxLoad = Math.max(...Object.values(PEAK));
+  let h = `<div class="pv-head"><h1>${BRAND} — FOH Roster</h1><div class="pv-sub">Generated ${today} · ${HOURS.length}h × ${STATIONS.length} stations · peak hours shaded</div></div>`;
+  h += `<div class="pv-legend">`;
+  for (const s of state.staff) {
+    const br = s.shift.bs != null ? ` (break ${fmtHour(s.shift.bs)}–${fmtHour(s.shift.be)})` : '';
+    h += `<span class="pv-chip" style="background:${s.color}">${s.name}</span><span class="pv-shift">${fmtHour(s.shift.start)}–${fmtHour(s.shift.end)}${br}</span>`;
+  }
+  h += `</div><table class="pv-grid"><thead><tr><th>Hour</th>`;
+  for (const st of STATIONS) h += `<th>${st.full}</th>`;
+  h += `</tr></thead><tbody>`;
+  for (const hr of HOURS) {
+    const pk = (PEAK[hr]||0) >= 0.7*maxLoad ? ' class="pv-peak"' : '';
+    h += `<tr${pk}><td class="pv-hr">${fmtHour(hr)}</td>`;
+    for (const st of STATIONS) {
+      const ids = asArr(state.assignments[`${hr}|${st.id}`]);
+      let c = '';
+      for (const id of ids) { const s2 = state.staff.find(x => x.id === id); if (s2) c += `<span class="pv-cell-chip" style="background:${s2.color}">${s2.name}</span>`; }
+      h += `<td>${c}</td>`;
+    }
+    h += `</tr>`;
+  }
+  h += `</tbody></table>`;
+  pv.innerHTML = h;
+  const prev = document.title;
+  document.title = `${BRAND} FOH Roster ${today}`;
+  window.print();
+  setTimeout(() => { document.title = prev; }, 800);
+}
+
 // Initial render
 renderShifts();
 renderPalette();
 renderGrid();
 </script>
+<div id="printView"></div>
 </body>
 </html>
