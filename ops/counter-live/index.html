@@ -215,10 +215,8 @@ function enableAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     // Critical: must call resume() inside the click handler to satisfy autoplay policy
     audioCtx.resume();
-    // Intro: warm chime + gentle pad + voice
-    playChime();
-    startBackgroundPad(4.5);
-    setTimeout(() => speak(`Welcome ${userName}. Nawabi Chai House counter live. Sound enabled.`), 400);
+    // Intro: warm chime + gentle pad + pre-generated welcome MP3 (Aman voice)
+    playWelcomeFor(userName);
 
     document.getElementById('audioOverlay').style.display = 'none';
     document.getElementById('dash').classList.add('live');
@@ -319,32 +317,66 @@ function pickVoice() {
   return v || null;
 }
 
-function speak(text) {
+// Pre-generated MP3 amounts — see ops/counter-live/audio/ (Aman voice via macOS say)
+const PREGEN_AMOUNTS = new Set([5,10,15,20,25,30,35,40,45,50,60,70,80,90,100,120,140,150,160,180,200,220,240,250,280,300,350,400,450,500,600,700,800,900,1000]);
+const PREGEN_USERS = new Set(['nihaf','naveen','basheer','tanveer','faheem','zoya','haneef','nisar']);
+let activeAudio = null;
+
+function playAudioFile(url) {
+  try {
+    // Cancel any currently playing payment audio (don't queue)
+    if (activeAudio) { try { activeAudio.pause(); } catch (_) {} }
+    activeAudio = new Audio(url);
+    activeAudio.volume = 1.0;
+    activeAudio.play().catch(e => console.warn('audio play failed', url, e));
+  } catch (e) { console.warn('audio create failed', e); }
+}
+
+function speakFallback(text) {
+  // Browser TTS fallback — used ONLY for amounts not in pre-generated set (rare)
   if (muted || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-IN';
-    // Slower + slightly lower pitch = more deliberate, less robotic
     u.rate = 0.92;
     u.pitch = 0.95;
     u.volume = 1.0;
     const v = pickVoice();
     if (v) u.voice = v;
     speechSynthesis.speak(u);
-  } catch (e) { console.warn('speak failed', e); }
+  } catch (e) { console.warn('speak fallback failed', e); }
 }
 
-// Notify on new payment: chime → background pad starts → voice → pad fades
+// Notify on new payment: chime → background pad starts → pre-generated MP3 (or fallback)
 function notifyNewPayment(p) {
+  if (muted) return;
   const amount = Math.round(parseFloat(p.amount));
-  // Warm 2-note chime first (0.7s)
   playChime();
-  // Background ambient pad covers the voice (lasts ~5 sec, fades around the voice)
   startBackgroundPad(5.0);
-  // Voice starts after chime tail (slight overlap is fine)
   setTimeout(() => {
-    speak(`Payment received. ${amount} rupees. Thank you for visiting Nawabi Chai House.`);
+    if (PREGEN_AMOUNTS.has(amount)) {
+      // Cleanest path — Aman voice MP3
+      playAudioFile(`/ops/counter-live/audio/payment-${amount}.mp3`);
+    } else {
+      // Unusual amount — play default phrase then announce just the number via TTS
+      playAudioFile(`/ops/counter-live/audio/payment-default.mp3`);
+      setTimeout(() => speakFallback(`${amount} rupees`), 1500);
+    }
+  }, 400);
+}
+
+function playWelcomeFor(userName) {
+  if (muted) return;
+  playChime();
+  startBackgroundPad(4.5);
+  setTimeout(() => {
+    const u = (userName || '').toLowerCase();
+    if (PREGEN_USERS.has(u)) {
+      playAudioFile(`/ops/counter-live/audio/welcome-${u}.mp3`);
+    } else {
+      playAudioFile(`/ops/counter-live/audio/welcome-default.mp3`);
+    }
   }, 400);
 }
 
