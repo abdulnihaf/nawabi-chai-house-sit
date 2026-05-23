@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "NCH POS Bridge",
-  "version": "1.1.1",
-  "description": "Bidirectional bridge between the NCH Odoo POS terminal and the cloud cron. Sends heartbeats, mirrors logs, accepts remote diagnostic commands (snapshot, force-sync, eval, reload). Lets Claude debug a terminal on a different network without VPN/SSH.",
+  "version": "1.2.0",
+  "description": "Bidirectional bridge between the NCH Odoo POS terminal and the cloud cron. Sends heartbeats, mirrors logs, accepts remote diagnostic commands (snapshot, force-sync, eval, reload). v1.2: live Runner Promise Pile badge in POS UI — shows pending cash per runner, refreshes every 30s.",
   "permissions": [
     "storage",
     "alarms",

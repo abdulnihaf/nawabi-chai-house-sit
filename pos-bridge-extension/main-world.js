@@ -256,5 +256,121 @@
 
   setInterval(reportState, 30_000);
   setTimeout(reportState, 5000);
+
+  // ── Runner Promise Pile (live badge in POS UI) ──────────────
+  // Shows pending cash per runner (cashToCollect from /api/nch-data).
+  // Visible on POS_27 and POS_28 only. Refreshes every 30s.
+  // Cashier sees "Farooq has ₹420 pending" before issuing another token.
+  setTimeout(() => setupRunnerPromisePile(), 8000);
+
+  function setupRunnerPromisePile() {
+    try {
+      const found = findPosModel();
+      if (!found) { setTimeout(setupRunnerPromisePile, 5000); return; }
+      const configId = found.model.config?.id;
+      if (![27, 28].includes(configId)) {
+        console.info(TAG, 'runner promise pile: not POS_27/28, skipping');
+        return;
+      }
+
+      // Build the badge once
+      if (document.getElementById('nch-runner-promise-badge')) return;
+      const badge = document.createElement('div');
+      badge.id = 'nch-runner-promise-badge';
+      badge.style.cssText = [
+        'position:fixed', 'top:60px', 'right:12px', 'z-index:99999',
+        'background:#fff', 'border:2px solid #AC7E54', 'border-radius:8px',
+        'padding:10px 12px', 'min-width:240px', 'max-width:280px',
+        'box-shadow:0 4px 14px rgba(0,0,0,0.15)',
+        'font-family:-apple-system,BlinkMacSystemFont,sans-serif', 'font-size:12px',
+        'color:#1F1A12', 'cursor:move', 'user-select:none',
+      ].join(';');
+      badge.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border-bottom:1px solid #E5DBC9;padding-bottom:6px;">
+          <strong style="font-size:11px;letter-spacing:.04em;color:#7A6B55;text-transform:uppercase;">Runner Promise Pile</strong>
+          <button id="nch-rpp-close" style="background:transparent;border:0;color:#7A6B55;cursor:pointer;font-size:16px;padding:0 4px;">×</button>
+        </div>
+        <div id="nch-rpp-body">Loading…</div>
+        <div id="nch-rpp-footer" style="font-size:9px;color:#7A6B55;margin-top:6px;text-align:right;">…</div>
+      `;
+      document.body.appendChild(badge);
+
+      // Close button
+      document.getElementById('nch-rpp-close').addEventListener('click', () => {
+        badge.style.display = 'none';
+        try { sessionStorage.setItem('nch_rpp_hidden', '1'); } catch (_) {}
+      });
+      // Honour user hide-this-session preference
+      try { if (sessionStorage.getItem('nch_rpp_hidden') === '1') badge.style.display = 'none'; } catch (_) {}
+
+      // Drag support (cashier can move the badge)
+      makeDraggable(badge);
+
+      console.info(TAG, 'runner promise pile badge mounted on POS_' + configId);
+      refreshPile();
+      setInterval(refreshPile, 30_000);
+    } catch (e) { console.error(TAG, 'setupRunnerPromisePile failed', e); }
+  }
+
+  async function refreshPile() {
+    const body = document.getElementById('nch-rpp-body');
+    const footer = document.getElementById('nch-rpp-footer');
+    if (!body) return;
+    try {
+      const today = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+      const tomorrow = new Date(Date.now() + 5.5 * 3600000 + 86400000).toISOString().slice(0, 10);
+      const r = await fetch(`https://nawabichaihouse.com/api/nch-data?from=${today}&to=${tomorrow}`);
+      const d = await r.json();
+      if (!d?.success) { body.innerHTML = '<div style="color:#B4291F;">Could not load runner data</div>'; return; }
+      const runners = (d.data?.runners || []).filter(r => r.name);
+      if (runners.length === 0) {
+        body.innerHTML = '<div style="color:#7A6B55;">No runner activity today</div>';
+      } else {
+        const rows = runners.map(r => {
+          const pending = parseFloat(r.cashToCollect || 0);
+          const color = pending === 0 ? '#0A7A3A' : pending > 1000 ? '#B4291F' : '#C8651C';
+          const weight = pending === 0 ? '500' : '700';
+          return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #F0E8D8;">
+            <span style="color:#1F1A12;">${escHtml(r.name)}</span>
+            <span style="color:${color};font-weight:${weight};font-variant-numeric:tabular-nums;">₹${pending.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+          </div>`;
+        }).join('');
+        const total = runners.reduce((s, r) => s + parseFloat(r.cashToCollect || 0), 0);
+        body.innerHTML = rows + `<div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:4px;border-top:2px solid #AC7E54;font-weight:700;">
+          <span>Total pending</span>
+          <span style="color:#AC7E54;font-variant-numeric:tabular-nums;">₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+        </div>`;
+      }
+      footer.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true})} · auto-refresh 30s`;
+    } catch (e) {
+      console.warn(TAG, 'refreshPile error', e);
+      body.innerHTML = `<div style="color:#B4291F;font-size:11px;">Refresh failed: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function makeDraggable(el) {
+    let isDragging = false, offsetX = 0, offsetY = 0;
+    el.addEventListener('mousedown', (e) => {
+      if (e.target.id === 'nch-rpp-close') return;
+      isDragging = true;
+      offsetX = e.clientX - el.getBoundingClientRect().left;
+      offsetY = e.clientY - el.getBoundingClientRect().top;
+      el.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      el.style.left = (e.clientX - offsetX) + 'px';
+      el.style.top = (e.clientY - offsetY) + 'px';
+      el.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => {
+      if (isDragging) { isDragging = false; el.style.cursor = 'move'; }
+    });
+  }
+
   console.info(TAG, 'main-world script ready');
 })();
