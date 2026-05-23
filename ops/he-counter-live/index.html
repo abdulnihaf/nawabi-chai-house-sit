@@ -361,10 +361,10 @@ function notifyNewPayment(p) {
   setTimeout(() => {
     if (PREGEN_AMOUNTS.has(amount)) {
       // Cleanest path — Aman voice MP3
-      playAudioFile(`/ops/counter-live/audio/payment-${amount}.mp3`);
+      playAudioFile(`/ops/he-counter-live/audio/payment-${amount}.mp3`);
     } else {
       // Unusual amount — play default phrase then announce just the number via TTS
-      playAudioFile(`/ops/counter-live/audio/payment-default.mp3`);
+      playAudioFile(`/ops/he-counter-live/audio/payment-default.mp3`);
       setTimeout(() => speakFallback(`${amount} rupees`), 1500);
     }
   }, 400);
@@ -449,9 +449,9 @@ function playWelcomeFor(userName) {
   setTimeout(() => {
     const u = (userName || '').toLowerCase();
     if (PREGEN_USERS.has(u)) {
-      playAudioFile(`/ops/counter-live/audio/welcome-${u}.mp3`);
+      playAudioFile(`/ops/he-counter-live/audio/welcome-${u}.mp3`);
     } else {
-      playAudioFile(`/ops/counter-live/audio/welcome-default.mp3`);
+      playAudioFile(`/ops/he-counter-live/audio/welcome-default.mp3`);
     }
   }, 400);
 }
