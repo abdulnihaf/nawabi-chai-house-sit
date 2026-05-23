@@ -73,6 +73,11 @@
   .imp .field strong { color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-size: 9px; font-weight: 700; display: block; margin-bottom: 2px; }
   .imp .field span { color: var(--ink); font-family: ui-monospace, 'SF Mono', monospace; font-size: 11px; line-height: 1.5; }
 
+  .imp .pendingbadge { display: inline-block; margin-top: 4px; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: .05em; text-transform: uppercase; }
+  .imp .pendingbadge.config { background: #FFF2C5; color: #8A6500; }
+  .imp .pendingbadge.investigation { background: #FFE8DC; color: #A04000; }
+  .imp .pendingbadge.process { background: #E3F0E8; color: #1E6B36; }
+  .imp .pendingnote { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.45; padding: 8px 10px; background: #FFFCEC; border-left: 3px solid #D4A44C; border-radius: 4px; }
   .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13px; }
   .nav { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
   .nav a { color: var(--brown); text-decoration: none; }
@@ -117,12 +122,13 @@
 
   <header>
     <h1><span class="ac">NCH</span> POS Impossibility Registry</h1>
-    <div class="sub">Every state that should NEVER exist at the NCH POS — derived from 10 canonical rules.</div>
+    <div class="sub">Every state that should NEVER exist at NCH POS_27 (Cash Counter) + POS_28 (Runner Counter) — derived from 10 canonical rules. (POS_29/Delivery/WABA out of scope.)</div>
     <div class="stats">
-      <div class="stat"><div class="n" id="totalCount">79</div><div class="lbl">Impossibilities</div></div>
+      <div class="stat"><div class="n" id="totalCount">0</div><div class="lbl">Active</div></div>
       <div class="stat"><div class="n">10</div><div class="lbl">Core Rules</div></div>
-      <div class="stat"><div class="n">5</div><div class="lbl">Parts</div></div>
-      <div class="stat"><div class="n" id="filterCount">79</div><div class="lbl">Showing</div></div>
+      <div class="stat"><div class="n">4</div><div class="lbl">Parts</div></div>
+      <div class="stat"><div class="n" id="pendingCount" style="color:#8A6500">0</div><div class="lbl">Pending Config</div></div>
+      <div class="stat"><div class="n" id="filterCount">0</div><div class="lbl">Showing</div></div>
     </div>
   </header>
 
@@ -171,41 +177,24 @@ const RULES = [
 const IMPS = [
   // PART A — POS-LEVEL ────────────────────────────────────────
   // A.1 POS_27 Cash Counter
-  { id: 'A1.1', part: 'A', rule: 2, title: 'PM_49 Complimentary used without partner_id', detect: 'pos.order WHERE config_id=27 AND partner_id IS NULL AND has pos.payment.payment_method_id=49' },
-  { id: 'A1.2', part: 'A', rule: 2, title: 'PM_48 Token Issue used without partner_id', detect: 'pos.order WHERE config_id=27 AND partner_id IS NULL AND has pos.payment.payment_method_id=48' },
+  { id: 'A1.1', part: 'A', rule: 2, title: 'PM_49 Complimentary used without partner_id', detect: 'pos.order WHERE config_id=27 AND partner_id IS NULL AND has pos.payment.payment_method_id=49', pending: 'config', pendingNote: 'Removable by setting PM_49.split_transactions=true (after pre-creating Walk-in partner). 1 hit in last 24h.' },
   { id: 'A1.3', part: 'A', rule: 2, title: 'PM_48 Token Issue partner_id set but NOT a runner', detect: 'pos.order WHERE config_id=27 AND has PM_48 AND partner_id NOT IN runner_set {64..68}' },
-  { id: 'A1.4', part: 'A', rule: 10, title: 'PM_39 NCH Card used (no terminal deployed)', detect: 'pos.payment WHERE payment_method_id=39 — should be zero rows ever' },
-  { id: 'A1.5', part: 'A', rule: 1, title: 'POS_27 order has payment_method outside {37, 38, 39, 48, 49}', detect: 'pos.payment WHERE pos_order_id.config_id=27 AND payment_method_id NOT IN doctrine set' },
+  { id: 'A1.4', part: 'A', rule: 10, title: 'PM_39 NCH Card used (no terminal deployed)', detect: 'pos.payment WHERE payment_method_id=39 — should be zero rows ever', pending: 'investigation', pendingNote: '12 uses in 90 days, all ≤ ₹220, last use 2026-04-14 (stale 5+ weeks). Likely accidental. Confirm with Basheer, then deactivate PM_39.' },
   { id: 'A1.6', part: 'A', rule: 3, title: 'POS_27 PM_38 UPI has no Razorpay capture on counter QR in ±10 min', detect: 'join pos.payment(pm=38, config=27) vs razorpay_sync(qr=RPQR_SBdtUCLSHVfRtT) by amount + time' },
-  { id: 'A1.7', part: 'A', rule: 8, title: 'Counter order created when pos_session is not opened', detect: 'pos.order.date_order outside pos_session.start_at..stop_at' },
 
   // A.2 POS_28 Runner Counter
-  { id: 'A2.1', part: 'A', rule: 2, title: 'PM_40 Runner Ledger used without partner_id', detect: 'pos.order WHERE config_id=28 AND partner_id IS NULL AND has pos.payment.payment_method_id=40' },
   { id: 'A2.2', part: 'A', rule: 2, title: 'PM_40 Runner Ledger partner_id set but NOT a runner', detect: 'pos.order WHERE config_id=28 AND has PM_40 AND partner_id NOT IN runner_set' },
   { id: 'A2.3', part: 'A', rule: 3, title: 'PM_38 UPI on POS_28 with runner partner_id (should be PM_40)', detect: 'pos.order WHERE config_id=28 AND partner_id IN runner_set AND has PM_38 — runner UPI must land on runner own QR' },
   { id: 'A2.4', part: 'A', rule: 3, title: 'POS_28 PM_38 UPI has no Razorpay capture on runner counter QR in ±10 min', detect: 'join pos.payment(pm=38, config=28) vs razorpay_sync(qr=RPQR_SBuDBQDKrC8Bch)' },
-  { id: 'A2.5', part: 'A', rule: 1, title: 'POS_28 order has payment_method outside {38, 40}', detect: 'pos.payment WHERE pos_order_id.config_id=28 AND payment_method_id NOT IN (38, 40)' },
-  { id: 'A2.6', part: 'A', rule: 1, title: 'PM_37 Cash used on POS_28 (cash PM not allowed on runner config)', detect: 'pos.payment WHERE pos_order_id.config_id=28 AND payment_method_id=37' },
   { id: 'A2.7', part: 'A', rule: 2, title: 'POS_28 order with NO partner_id and only PM_38 (no runner attribution)', detect: 'pos.order WHERE config_id=28 AND partner_id IS NULL AND all payments are pm=38' },
 
-  // A.3 POS_29 Delivery (DEAD)
-  { id: 'A3.1', part: 'A', rule: 10, title: 'POS_29 has new orders after doctrine cutover (should be DEAD)', detect: 'pos.order WHERE config_id=29 AND date_order >= cutover_date' },
-  { id: 'A3.2', part: 'A', rule: 1, title: 'POS_29 grandfathered order has PM outside {46, 47, 50, 51}', detect: 'pos.payment WHERE pos_order_id.config_id=29 AND payment_method_id NOT IN allowed set' },
-  { id: 'A3.3', part: 'A', rule: 10, title: 'PM_50 NCH WABA COD used (WABA channel DEFERRED)', detect: 'pos.payment WHERE payment_method_id=50' },
-  { id: 'A3.4', part: 'A', rule: 10, title: 'PM_51 NCH WABA UPI used (WABA channel DEFERRED)', detect: 'pos.payment WHERE payment_method_id=51' },
-
-  // A.4 Cross-config structural
-  { id: 'A4.1', part: 'A', rule: 8, title: 'Order in paid state with NO pos.payment rows', detect: 'pos.order WHERE state IN (paid, done, invoiced, posted) AND id NOT IN (SELECT pos_order_id FROM pos.payment)' },
-  { id: 'A4.2', part: 'A', rule: 8, title: 'pos.payment with NO pos_order_id (orphan payment)', detect: 'pos.payment WHERE pos_order_id IS NULL' },
+  // A.4 Cross-config structural (Odoo-native prevented entries removed)
   { id: 'A4.3', part: 'A', rule: 8, title: 'Order at POS_27 or POS_28 with negative amount_total (no refund flow defined)', detect: 'pos.order WHERE config_id IN (27, 28) AND amount_total < 0' },
-  { id: 'A4.4', part: 'A', rule: 8, title: 'Σ pos.payment.amount ≠ pos.order.amount_total for the same order', detect: 'aggregate check, variance > ₹0.50' },
-  { id: 'A4.5', part: 'A', rule: 8, title: 'Order date_order before pos_session.start_at OR after stop_at', detect: 'timestamp check against pos_session' },
   { id: 'A4.6', part: 'A', rule: 8, title: 'Order edited after pos_session closed', detect: 'pos.order.write_date > pos.session.stop_at' },
-  { id: 'A4.7', part: 'A', rule: 8, title: 'Duplicate pos_reference (same scan punched twice)', detect: 'GROUP BY pos_reference HAVING COUNT > 1' },
 
   // PART B — CASH-LEVEL ──────────────────────────────────────
   // B.1 Counter cash
-  { id: 'B1.1', part: 'B', rule: 5, title: 'Counter cash physical count differs from expected by > ₹500 at collection', detect: 'abs(physical − (opening + Σ PM_37 − Σ counter_expenses − Σ prior_handovers)) > 500' },
+  { id: 'B1.1', part: 'B', rule: 5, title: 'Counter cash physical count differs from expected by > ₹500 at collection', detect: 'abs(physical − (opening + Σ PM_37 − Σ counter_expenses − Σ prior_handovers)) > 500', pending: 'process', pendingNote: 'Odoo config (set_maximum_difference + amount_authorized_diff=500) would catch this AT session close — but POS_27 session has not closed since 2026-03-01 (60+ days). Process gap first: establish per-shift session close. Then config flip becomes useful.' },
   { id: 'B1.2', part: 'B', rule: 5, title: 'Counter cash SHORT (physical < expected by > ₹100) — theft signal or unrecorded expense', detect: 'physical − expected < −100' },
   { id: 'B1.3', part: 'B', rule: 5, title: 'Counter cash OVER (physical > expected by > ₹100) — missed PM_37 entry or customer overpay', detect: 'physical − expected > +100' },
   { id: 'B1.4', part: 'B', rule: 5, title: 'Counter expense recorded without bill_ref or vendor_id', detect: 'business_expenses WHERE source=NCH counter AND (bill_ref IS NULL OR vendor_id IS NULL)' },
@@ -260,12 +249,7 @@ const IMPS = [
   { id: 'C4.4', part: 'C', rule: 7, title: 'HDFC credit with settlement_platform=razorpay but sum ≠ Σ Razorpay captures for payout period', detect: 'money_recon_matches mismatch' },
   { id: 'C4.5', part: 'C', rule: 7, title: 'Razorpay capture older than 48h still unreconciled to HDFC', detect: 'razorpay.captured_at < now − 48h AND no matching hdfc row' },
 
-  // PART D — AGGREGATOR ──────────────────────────────────────
-  { id: 'D.1', part: 'D', rule: 10, title: 'POS_29 has new orders after doctrine cutover (aggregator flow should go via /ops/aggregator/)', detect: 'pos.order WHERE config_id=29 AND date_order > cutover' },
-  { id: 'D.2', part: 'D', rule: 3, title: 'DEP_AGG has Swiggy/Zomato order without aggregator settlement row within payout window', detect: 'aggregator_orders LEFT JOIN aggregator_settlements NULL' },
-  { id: 'D.3', part: 'D', rule: 3, title: 'AGG_ZOMATO settlement to HDFC_OPS outside commission band (23.41% ± 0.5%)', detect: 'existing G_9' },
-  { id: 'D.4', part: 'D', rule: 3, title: 'AGG_SWIGGY settlement to HDFC_OPS outside commission band (24.60% ± 0.5%)', detect: 'same shape as D.3' },
-  { id: 'D.5', part: 'D', rule: 10, title: 'PM_50 (WABA COD) or PM_51 (WABA UPI) used — WABA channel DEFERRED', detect: 'pos.payment WHERE payment_method_id IN (50, 51)' },
+  // PART D — AGGREGATOR / WABA — OUT OF SCOPE per 2026-05-23 decision (POS_27 + POS_28 focus only)
 
   // PART E — ODOO CONFIG DRIFT ───────────────────────────────
   { id: 'E.1', part: 'E', rule: 9, title: 'POS_27 payment_method_ids ≠ {37, 38, 39, 48, 49}', detect: 'pos.config WHERE id=27 AND sorted(payment_method_ids) != doctrine' },
@@ -312,11 +296,10 @@ function renderParts() {
     A: 'POS-Level',
     B: 'Cash-Level',
     C: 'UPI',
-    D: 'Aggregator',
     E: 'Config Drift'
   };
   const row = document.getElementById('partChips');
-  row.innerHTML = ['A','B','C','D','E'].map(p => `
+  row.innerHTML = ['A','B','C','E'].map(p => `
     <div class="chip ${activePart===p?'active':''}" onclick="togglePart('${p}')">
       Part ${p} · ${partsLbl[p]}<span class="cnt">${counts[p] || 0}</span>
     </div>
@@ -348,7 +331,7 @@ function renderList() {
     return `
       <div class="imp ${isFlagged ? 'flagged' : ''}" data-id="${r.id}" onclick="if(!event.target.closest('.flagbtn,.reason')) this.classList.toggle('open')">
         <div class="head">
-          <div class="id">${r.id}</div>
+          <div class="id">${r.id}${r.pending ? `<div class="pendingbadge ${r.pending}">${r.pending}</div>` : ''}</div>
           <div class="title">${r.title}</div>
           <div class="ridx" title="${rule.name}">R${r.rule}</div>
           <button class="flagbtn" title="${isFlagged ? 'Unflag this mapping' : 'Flag this mapping as wrong'}" onclick="event.stopPropagation(); toggleFlag('${r.id}')">⚐</button>
@@ -362,6 +345,9 @@ function renderList() {
             <strong>Derived from</strong>
             <span>Rule ${r.rule} — ${rule.name}</span>
           </div>
+          ${r.pending ? `
+            <div class="pendingnote"><strong>Pending ${r.pending}:</strong> ${r.pendingNote}</div>
+          ` : ''}
           ${isFlagged ? `
             <div class="field" style="margin-top:10px;">
               <strong style="color:var(--red);">Why is this mapping wrong?</strong>
@@ -435,7 +421,11 @@ function clearFlags() {
   renderFlagPanel();
 }
 
-function renderAll() { renderRules(); renderParts(); renderList(); renderFlagPanel(); }
+function renderHeaderStats() {
+  document.getElementById('totalCount').textContent = IMPS.length;
+  document.getElementById('pendingCount').textContent = IMPS.filter(i => i.pending).length;
+}
+function renderAll() { renderHeaderStats(); renderRules(); renderParts(); renderList(); renderFlagPanel(); }
 
 function toggleRule(id) {
   activeRule = activeRule === id ? null : id;
