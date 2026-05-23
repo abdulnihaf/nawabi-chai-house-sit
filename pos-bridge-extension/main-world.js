@@ -288,7 +288,10 @@
       badge.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border-bottom:1px solid #E5DBC9;padding-bottom:6px;">
           <strong style="font-size:11px;letter-spacing:.04em;color:#7A6B55;text-transform:uppercase;">Runner Promise Pile</strong>
-          <button id="nch-rpp-close" style="background:transparent;border:0;color:#7A6B55;cursor:pointer;font-size:16px;padding:0 4px;">×</button>
+          <div>
+            <button id="nch-rpp-help" title="What if a runner shows pending but isn't active?" style="background:transparent;border:1px solid #E5DBC9;color:#7A6B55;cursor:pointer;font-size:11px;padding:0 6px;border-radius:3px;margin-right:4px;">?</button>
+            <button id="nch-rpp-close" style="background:transparent;border:0;color:#7A6B55;cursor:pointer;font-size:16px;padding:0 4px;">×</button>
+          </div>
         </div>
         <div id="nch-rpp-body">Loading…</div>
         <div id="nch-rpp-footer" style="font-size:9px;color:#7A6B55;margin-top:6px;text-align:right;">…</div>
@@ -299,6 +302,11 @@
       document.getElementById('nch-rpp-close').addEventListener('click', () => {
         badge.style.display = 'none';
         try { sessionStorage.setItem('nch_rpp_hidden', '1'); } catch (_) {}
+      });
+      // Help button
+      document.getElementById('nch-rpp-help').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showRppHelp();
       });
       // Honour user hide-this-session preference
       try { if (sessionStorage.getItem('nch_rpp_hidden') === '1') badge.style.display = 'none'; } catch (_) {}
@@ -312,41 +320,97 @@
     } catch (e) { console.error(TAG, 'setupRunnerPromisePile failed', e); }
   }
 
+  const RPP_RUNNERS = [
+    { id: 64, code: 'RUN001' }, { id: 65, code: 'RUN002' }, { id: 66, code: 'RUN003' },
+    { id: 67, code: 'RUN004' }, { id: 68, code: 'RUN005' },
+  ];
+
+  function relTime(iso) {
+    if (!iso) return 'never';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 0) return 'just now';
+    const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    if (d > 1) return d + 'd ago';
+    if (h > 1) return h + 'h ago';
+    if (m > 1) return m + 'min ago';
+    return 'just now';
+  }
+
   async function refreshPile() {
     const body = document.getElementById('nch-rpp-body');
     const footer = document.getElementById('nch-rpp-footer');
     if (!body) return;
     try {
-      const today = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
-      const tomorrow = new Date(Date.now() + 5.5 * 3600000 + 86400000).toISOString().slice(0, 10);
-      const r = await fetch(`https://nawabichaihouse.com/api/nch-data?from=${today}&to=${tomorrow}`);
-      const d = await r.json();
-      if (!d?.success) { body.innerHTML = '<div style="color:#B4291F;">Could not load runner data</div>'; return; }
-      const runners = (d.data?.runners || []).filter(r => r.name);
-      if (runners.length === 0) {
-        body.innerHTML = '<div style="color:#7A6B55;">No runner activity today</div>';
-      } else {
-        const rows = runners.map(r => {
-          const pending = parseFloat(r.cashToCollect || 0);
-          const color = pending === 0 ? '#0A7A3A' : pending > 1000 ? '#B4291F' : '#C8651C';
-          const weight = pending === 0 ? '500' : '700';
-          return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #F0E8D8;">
-            <span style="color:#1F1A12;">${escHtml(r.name)}</span>
-            <span style="color:${color};font-weight:${weight};font-variant-numeric:tabular-nums;">₹${pending.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
-          </div>`;
-        }).join('');
-        const total = runners.reduce((s, r) => s + parseFloat(r.cashToCollect || 0), 0);
-        body.innerHTML = rows + `<div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:4px;border-top:2px solid #AC7E54;font-weight:700;">
-          <span>Total pending</span>
-          <span style="color:#AC7E54;font-variant-numeric:tabular-nums;">₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+      const results = await Promise.allSettled(RPP_RUNNERS.map(async (r) => {
+        const res = await fetch(`https://nawabichaihouse.com/api/settlement?action=runner-live&runner_id=${r.id}&barcode=${r.code}`);
+        const d = await res.json();
+        return { ...r, data: d };
+      }));
+      const rows = results.map((p) => {
+        if (p.status === 'rejected' || !p.value?.data?.success) {
+          const code = p.value?.code || '?';
+          return { code, error: true };
+        }
+        const d = p.value.data;
+        return {
+          code: p.value.code,
+          runnerId: p.value.id,
+          cash: parseFloat(d.cash_to_collect || 0),
+          tokens: parseFloat(d.tokens_amount || 0),
+          sales: parseFloat(d.sales_amount || 0),
+          upi: parseFloat(d.upi?.total || 0),
+          lastSettledAt: d.lastSettlement?.settled_at || null,
+          lastSettlerName: d.lastSettlement?.runner_name || null,
+          posOfflineWarning: d.posOfflineWarning,
+          orphanTokenTotal: parseFloat(d.orphanTokenTotal || 0),
+        };
+      });
+
+      const total = rows.reduce((s, r) => s + (r.cash || 0), 0);
+      const rowHtml = rows.map((r) => {
+        if (r.error) return `<div style="padding:4px 0;color:#B4291F;font-size:10px;">${escHtml(r.code)}: error</div>`;
+        const color = r.cash === 0 ? '#0A7A3A' : r.cash > 1000 ? '#B4291F' : '#C8651C';
+        const weight = r.cash === 0 ? '500' : '700';
+        const warn = r.posOfflineWarning ? '<span title="POS sync gap — orders trapped offline" style="color:#B4291F;font-size:10px;margin-left:4px;">⚠</span>' : '';
+        const orphan = r.orphanTokenTotal > 0 ? `<span title="Orphan tokens ₹${r.orphanTokenTotal}" style="color:#C8651C;font-size:10px;margin-left:4px;">◆</span>` : '';
+        return `<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #F0E8D8;cursor:pointer;">
+          <span style="color:#1F1A12;">${escHtml(r.code)}${warn}${orphan}</span>
+          <span style="color:${color};font-weight:${weight};font-variant-numeric:tabular-nums;">₹${r.cash.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+        </div><div style="display:none;font-size:10px;color:#7A6B55;padding:4px 8px 8px;background:#FFFAF0;border-bottom:1px solid #F0E8D8;">
+          T ₹${r.tokens.toLocaleString('en-IN')} · S ₹${r.sales.toLocaleString('en-IN')} · UPI -₹${r.upi.toLocaleString('en-IN')}<br>
+          Last settled: <strong>${r.lastSettledAt ? relTime(r.lastSettledAt) : 'baseline (never settled)'}</strong>${r.lastSettlerName ? ' by ' + escHtml(r.lastSettlerName) : ''}
         </div>`;
-      }
-      footer.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true})} · auto-refresh 30s`;
+      }).join('');
+
+      body.innerHTML = rowHtml + `<div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:4px;border-top:2px solid #AC7E54;font-weight:700;">
+        <span>Total pending</span>
+        <span style="color:#AC7E54;font-variant-numeric:tabular-nums;">₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+      </div>`;
+      footer.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true})} · since-last-settlement · refresh 30s`;
     } catch (e) {
       console.warn(TAG, 'refreshPile error', e);
       body.innerHTML = `<div style="color:#B4291F;font-size:11px;">Refresh failed: ${escHtml(e.message)}</div>`;
     }
   }
+
+  function showRppHelp() {
+    const existing = document.getElementById('nch-rpp-help-modal');
+    if (existing) { existing.remove(); return; }
+    const m = document.createElement('div');
+    m.id = 'nch-rpp-help-modal';
+    m.style.cssText = 'position:fixed;top:60px;right:300px;z-index:99999;background:#FFFCF6;border:2px solid #AC7E54;border-radius:8px;padding:12px 14px;width:340px;box-shadow:0 6px 18px rgba(0,0,0,0.18);font-family:-apple-system,sans-serif;font-size:11px;color:#1F1A12;line-height:1.5;';
+    m.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid #E5DBC9;padding-bottom:6px;">
+      <strong style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#7A6B55;">If a runner shows pending but isn't active — 5 buckets</strong>
+      <button onclick="document.getElementById('nch-rpp-help-modal').remove()" style="background:transparent;border:0;color:#7A6B55;cursor:pointer;font-size:16px;">×</button>
+    </div>
+    <div style="margin-bottom:8px;"><strong style="color:#0A7A3A;">A. Active with cash in hand</strong><br>Currently on shift, has unreturned cash. Will resolve at next settle. ✓</div>
+    <div style="margin-bottom:8px;"><strong style="color:#C8651C;">B. Stale carryover</strong><br>Runner stopped working but never settled. Cash IS sitting with them OR missing. Needs investigation.</div>
+    <div style="margin-bottom:8px;"><strong style="color:#C8651C;">C. Cross-attribution at POS</strong><br>Order was tagged to wrong runner. Real cash is with a different runner. Rectify partner_id.</div>
+    <div style="margin-bottom:8px;"><strong style="color:#B4291F;">D. POS sync gap</strong> ⚠<br>Orders trapped in offline IndexedDB, missing from server. Force-sync the terminal first.</div>
+    <div><strong style="color:#7A6B55;">E. Data-source bug</strong><br>(Fixed v1.2.1 — was happening in v1.2.0)</div>`;
+    document.body.appendChild(m);
+  }
+  window.__nch_rpp_show_help = showRppHelp;
 
   function escHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
