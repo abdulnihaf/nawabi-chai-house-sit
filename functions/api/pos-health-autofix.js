@@ -58,11 +58,22 @@ export async function onRequest(context) {
 
     const actions = [];
     for (const m of candidates) {
+      // STEP 1: Queue force-sync FIRST — handles legitimate stuck orders
+      // (sequence gap, real orders sitting in IDB that just need to push up).
+      // Validated 2026-05-23: drained 14 stuck on Runner Counter in one shot.
+      try {
+        const fs = await queueForceSync(secret, m.machine_id);
+        actions.push({ machine_id: m.machine_id, action: 'force-sync', command_id: fs.command_id, status: 'queued' });
+      } catch (e) {
+        actions.push({ machine_id: m.machine_id, action: 'force-sync', status: 'queue_failed', error: e.message });
+      }
+      // STEP 2: Queue corruption cleanup eval — handles paid+0-payment ghosts
+      // that force-sync can't drain (server would reject them anyway).
       try {
         const r = await queueCorruptionCleanup(secret, m.machine_id);
-        actions.push({ machine_id: m.machine_id, unsynced_before: m.unsynced_count, command_id: r.command_id, status: 'queued' });
+        actions.push({ machine_id: m.machine_id, action: 'corruption-cleanup', unsynced_before: m.unsynced_count, command_id: r.command_id, status: 'queued' });
       } catch (e) {
-        actions.push({ machine_id: m.machine_id, status: 'queue_failed', error: e.message });
+        actions.push({ machine_id: m.machine_id, action: 'corruption-cleanup', status: 'queue_failed', error: e.message });
       }
     }
 
@@ -101,6 +112,16 @@ export async function onRequest(context) {
       status: 500, headers: cors,
     });
   }
+}
+
+async function queueForceSync(secret, machineId) {
+  const res = await fetch(`${CLOUD_BASE}/api/pos-health/commands`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ machine_id: machineId, type: 'force-sync', created_by: 'auto-fix-cron' }),
+  });
+  if (!res.ok) throw new Error(`force-sync queue HTTP ${res.status}`);
+  return await res.json();
 }
 
 async function queueCorruptionCleanup(secret, machineId) {

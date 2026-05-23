@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NCH POS Bridge",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Bidirectional bridge between the NCH Odoo POS terminal and the cloud cron. v1.2.1: Runner Promise Pile badge now uses settlement-aware data source (/api/settlement?action=runner-live), matches /ops/v2/ exactly. Adds scenario tooltip + per-runner expand for last-settled timestamp + warnings.",
   "permissions": [
     "storage",

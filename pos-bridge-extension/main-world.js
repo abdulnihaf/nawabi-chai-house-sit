@@ -341,11 +341,18 @@
     const footer = document.getElementById('nch-rpp-footer');
     if (!body) return;
     try {
-      const results = await Promise.allSettled(RPP_RUNNERS.map(async (r) => {
-        const res = await fetch(`https://nawabichaihouse.com/api/settlement?action=runner-live&runner_id=${r.id}&barcode=${r.code}`);
-        const d = await res.json();
-        return { ...r, data: d };
-      }));
+      const today = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+      const tomorrow = new Date(Date.now() + 5.5 * 3600000 + 86400000).toISOString().slice(0, 10);
+      const [runnerResults, counterResp] = await Promise.all([
+        Promise.allSettled(RPP_RUNNERS.map(async (r) => {
+          const res = await fetch(`https://nawabichaihouse.com/api/settlement?action=runner-live&runner_id=${r.id}&barcode=${r.code}`);
+          const d = await res.json();
+          return { ...r, data: d };
+        })),
+        fetch(`https://nawabichaihouse.com/api/nch-data?from=${today}&to=${tomorrow}`).then(r => r.json()).catch(() => null),
+      ]);
+      const results = runnerResults;
+      const counterUpi = counterResp?.data?.razorpayCounter || { amount: 0, count: 0, payments: [] };
       const rows = results.map((p) => {
         if (p.status === 'rejected' || !p.value?.data?.success) {
           const code = p.value?.code || '?';
@@ -382,11 +389,29 @@
         </div>`;
       }).join('');
 
+      // Counter UPI section — live razorpay payments on cash counter QR today
+      const paymentsList = (counterUpi.payments || []).slice(0, 8).map(p => {
+        const time = new Date(p.time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+        const vpaShort = (p.vpa || '').replace(/^[^@]*@/, '@');
+        return `<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:#7A6B55;font-variant-numeric:tabular-nums;">
+          <span style="color:#1F1A12;">${escHtml(time)}</span>
+          <span style="flex:1;text-align:center;color:#999;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;">${escHtml(vpaShort)}</span>
+          <span style="color:#0A7A3A;font-weight:600;">₹${parseFloat(p.amount).toLocaleString('en-IN')}</span>
+        </div>`;
+      }).join('');
+      const counterSection = `<div style="margin-top:10px;padding-top:8px;border-top:2px dotted #E5DBC9;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <strong style="font-size:10px;letter-spacing:.04em;color:#7A6B55;text-transform:uppercase;">Counter UPI today</strong>
+          <span style="color:#0A7A3A;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;">₹${(counterUpi.amount || 0).toLocaleString('en-IN')} · ${counterUpi.count || 0}</span>
+        </div>
+        ${paymentsList || '<div style="font-size:10px;color:#7A6B55;text-align:center;padding:4px;">No UPI payments yet today</div>'}
+      </div>`;
+
       body.innerHTML = rowHtml + `<div style="display:flex;justify-content:space-between;padding-top:6px;margin-top:4px;border-top:2px solid #AC7E54;font-weight:700;">
         <span>Total pending</span>
         <span style="color:#AC7E54;font-variant-numeric:tabular-nums;">₹${total.toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
-      </div>`;
-      footer.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true})} · since-last-settlement · refresh 30s`;
+      </div>` + counterSection;
+      footer.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true})} · settlement-aware · refresh 30s`;
     } catch (e) {
       console.warn(TAG, 'refreshPile error', e);
       body.innerHTML = `<div style="color:#B4291F;font-size:11px;">Refresh failed: ${escHtml(e.message)}</div>`;
