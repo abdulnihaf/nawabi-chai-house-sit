@@ -174,6 +174,9 @@ const PIN_TO_NAME = {
 const REFRESH_INTERVAL_MS = 10000;
 const COUNTER_QR_ID = 'qr_SBdtUCLSHVfRtT';
 const BRAND = 'Nawabi Chai House';
+let eventSource = null;
+let sseLastId = 0;
+let sseConnected = false;
 
 // ─── STATE ─────────────────────────────────────────────────────────
 let userPin = null, userName = null;
@@ -220,9 +223,10 @@ function enableAudio() {
 
     document.getElementById('audioOverlay').style.display = 'none';
     document.getElementById('dash').classList.add('live');
-    // Start polling
+    // Start: one initial refresh (populates totals + list) then PUSH-based stream
     refresh();
-    pollTimer = setInterval(refresh, REFRESH_INTERVAL_MS);
+    pollTimer = setInterval(refresh, REFRESH_INTERVAL_MS);  // fallback poll for totals + safety
+    connectSSE();  // real-time push (~2 sec end-to-end)
   } catch (e) {
     err.textContent = 'Audio failed: ' + e.message;
   }
@@ -364,6 +368,78 @@ function notifyNewPayment(p) {
       setTimeout(() => speakFallback(`${amount} rupees`), 1500);
     }
   }, 400);
+}
+
+// ─── SSE PUSH STREAM ─────────────────────────────────────────────
+// Opens an EventSource to /api/payment-stream?qr=COUNTER_QR_ID
+// Razorpay webhook → D1 insert → SSE pushes to us within 600ms total.
+// Lifetime per stream is ~25 sec (server-enforced); browser auto-reconnects
+// using the last received id as the new `since` cursor, so no gaps.
+function connectSSE() {
+  if (eventSource) { try { eventSource.close(); } catch (_) {} }
+  const url = `/api/payment-stream?qr=${encodeURIComponent(COUNTER_QR_ID)}&since=${sseLastId}`;
+  eventSource = new EventSource(url);
+  eventSource.addEventListener('hello', (ev) => {
+    sseConnected = true;
+    document.getElementById('status').className = 'status';
+    try { sseLastId = JSON.parse(ev.data).since || sseLastId; } catch (_) {}
+  });
+  eventSource.addEventListener('payment', (ev) => {
+    try {
+      const row = JSON.parse(ev.data);
+      sseLastId = Math.max(sseLastId, row.id || 0);
+      // Synthesize a payment object shape that notifyNewPayment expects
+      const p = {
+        id: row.payment_id,
+        amount: row.amount,
+        time: row.captured_at || row.received_at,
+        vpa: row.vpa,
+      };
+      // Mark as seen so the polling refresh doesn't double-fire
+      seenPaymentIds.add(p.id);
+      notifyNewPayment(p);
+      // Light immediate UI update without waiting for next poll
+      prependPaymentRow(p);
+    } catch (e) { console.warn('payment event parse', e); }
+  });
+  eventSource.addEventListener('reconnect', (ev) => {
+    try { sseLastId = JSON.parse(ev.data).since || sseLastId; } catch (_) {}
+    // Server told us to reconnect (lifetime exceeded); EventSource native reconnect won't fire
+    // because the server closed cleanly, so we re-open explicitly.
+    try { eventSource.close(); } catch (_) {}
+    setTimeout(connectSSE, 200);
+  });
+  eventSource.onerror = (e) => {
+    sseConnected = false;
+    document.getElementById('status').className = 'status stale';
+    // EventSource auto-reconnects on transport errors; we let it.
+    console.warn('SSE error, will auto-reconnect', e);
+  };
+}
+
+function prependPaymentRow(p) {
+  const list = document.getElementById('paymentsList');
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'row new';
+  row.dataset.id = p.id;
+  row.innerHTML = `
+    <span class="time">${fmtIST(p.time)}</span>
+    <span class="vpa">${htmlEsc(vpaShort(p.vpa))}</span>
+    <span class="amt">${fmtRupees(p.amount)}</span>
+  `;
+  list.prepend(row);
+  // Update latest hero card
+  const latestEl = document.getElementById('latest');
+  latestEl.classList.add('live');
+  document.getElementById('latestAmt').textContent = fmtRupees(p.amount);
+  document.getElementById('latestMeta').textContent = `${fmtIST(p.time)} · ${htmlEsc(p.vpa || 'unknown')}`;
+  latestEl.classList.remove('pulse');
+  void latestEl.offsetWidth;
+  latestEl.classList.add('pulse');
+  document.getElementById('lastAmount').textContent = fmtRupees(p.amount);
+  document.getElementById('lastWhen').textContent = fmtIST(p.time);
 }
 
 function playWelcomeFor(userName) {
