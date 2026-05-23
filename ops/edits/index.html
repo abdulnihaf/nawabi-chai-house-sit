@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCH Order Edits — Daily Audit</title>
+<style>
+  :root {
+    --brown: #AC7E54;
+    --wheat: #E9D1A9;
+    --amber: #D4A44C;
+    --bg: #FAF6EF;
+    --ink: #1F1A12;
+    --muted: #7A6B55;
+    --line: #E5DBC9;
+    --card: #FFFFFF;
+    --red: #B4291F;
+    --orange: #C8651C;
+    --green: #0A7A3A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 80px; }
+  .nav { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .nav a { color: var(--brown); text-decoration: none; }
+  .nav a:hover { text-decoration: underline; }
+
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 20px; }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+  h1 .ac { color: var(--brown); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .tracking-note { background: #E3F0E8; border-left: 3px solid var(--green); padding: 8px 12px; margin-top: 10px; font-size: 11px; color: #1E6B36; border-radius: 4px; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; background: #FFFCF6; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+  .controls label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .controls select, .controls input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--card); font-family: inherit; font-size: 12px; }
+  .controls button { padding: 7px 14px; background: var(--ink); color: #fff; border: 0; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .controls button:hover { background: var(--brown); }
+  .chip { padding: 5px 9px; border: 1px solid var(--line); border-radius: 12px; font-size: 11px; cursor: pointer; background: var(--card); color: var(--muted); font-weight: 600; }
+  .chip:hover { border-color: var(--brown); color: var(--ink); }
+  .chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .stat .n { font-size: 24px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-top: 6px; }
+  .stat.high .n { color: var(--red); }
+  .stat.medium .n { color: var(--orange); }
+  .stat.low .n { color: var(--green); }
+
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 14px; background: var(--card); border: 1px dashed var(--line); border-radius: 8px; }
+  .empty .em { font-size: 32px; margin-bottom: 8px; }
+  .empty.good { color: var(--green); }
+  .empty.good .em { color: var(--green); }
+
+  .day-section { margin-top: 22px; }
+  .day-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .day-title .count { color: var(--brown); }
+
+  .edit { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--green); border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .edit.medium { border-left-color: var(--orange); }
+  .edit.high { border-left-color: var(--red); }
+  .edit.system { background: #F7F4EE; }
+  .edit .head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .edit .order-name { font-weight: 600; font-size: 13px; color: var(--ink); }
+  .edit .amount { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--brown); font-size: 13px; white-space: nowrap; }
+  .edit .meta { font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .edit .meta strong { color: var(--ink); font-weight: 600; }
+  .edit .gap-badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-left: 8px; }
+  .edit .gap-badge.low { background: #E3F0E8; color: var(--green); }
+  .edit .gap-badge.medium { background: #FFE6CC; color: var(--orange); }
+  .edit .gap-badge.high { background: #FFDBD6; color: var(--red); }
+  .edit .system-badge { display: inline-block; padding: 2px 7px; background: var(--wheat); color: #6B5530; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; }
+
+  .edit .details { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .edit.open .details { display: block; }
+  .edit .row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; }
+  .edit .row .k { color: var(--muted); }
+  .edit .row .v { color: var(--ink); font-family: ui-monospace, monospace; }
+
+  .loading { text-align: center; color: var(--muted); padding: 40px; font-size: 13px; }
+  .err { color: var(--red); background: #FFDBD6; padding: 12px; border-radius: 6px; margin: 12px 0; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    .controls { gap: 6px; }
+    h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="nav"><a href="/ops/">← Ops</a> · <a href="/ops/impossibilities/">Impossibilities Registry</a></div>
+
+  <header>
+    <h1><span class="ac">NCH</span> Order Edits — Daily Audit</h1>
+    <div class="sub">Every POS order edited after save, with timestamp, gap, cashier, editor.</div>
+    <div class="tracking-note">✓ <strong>order_edit_tracking enabled 2026-05-23 11:00 IST</strong> on POS_27 + POS_28. Edits before this date may have weaker tracking — going forward, every edit is captured.</div>
+  </header>
+
+  <div class="controls">
+    <label>PIN</label>
+    <input id="pin" type="password" placeholder="****" maxlength="6" style="width:80px;">
+    <label>Range</label>
+    <div id="rangeChips">
+      <span class="chip active" data-range="1">Today</span>
+      <span class="chip" data-range="7">7 days</span>
+      <span class="chip" data-range="30">30 days</span>
+    </div>
+    <label>POS</label>
+    <div id="configChips">
+      <span class="chip active" data-config="all">All</span>
+      <span class="chip" data-config="27">Cash (27)</span>
+      <span class="chip" data-config="28">Runner (28)</span>
+    </div>
+    <button onclick="load()">Refresh</button>
+  </div>
+
+  <div class="summary" id="summary"></div>
+  <div id="content"></div>
+</div>
+
+<script>
+const ALLOWED_PINS = ['0305', '5882', '3754', '8523', '6890', '6045', '3678', '2026'];
+let currentRange = 1;
+let currentConfig = 'all';
+
+document.querySelectorAll('#rangeChips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#rangeChips .chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    currentRange = parseInt(c.dataset.range);
+    load();
+  });
+});
+document.querySelectorAll('#configChips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#configChips .chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    currentConfig = c.dataset.config;
+    load();
+  });
+});
+
+function fmtIST(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.includes('Z') ? iso : iso.replace(' ', 'T') + 'Z');
+  return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+function fmtGap(seconds) {
+  if (seconds < 60) return `${seconds}s after save`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min after save`;
+  if (seconds < 86400) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.round((seconds % 3600) / 60);
+    return `${h}h ${m}m after save`;
+  }
+  return `${Math.round(seconds / 86400)} days after save`;
+}
+function fmtRupees(n) { return '₹' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function htmlEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+
+async function load() {
+  const pin = document.getElementById('pin').value.trim();
+  if (!ALLOWED_PINS.includes(pin)) {
+    document.getElementById('content').innerHTML = '<div class="err">Enter a valid ops PIN to load data.</div>';
+    document.getElementById('summary').innerHTML = '';
+    return;
+  }
+  document.getElementById('content').innerHTML = '<div class="loading">Loading edits from Odoo…</div>';
+  document.getElementById('summary').innerHTML = '';
+
+  try {
+    const cfgParam = currentConfig === 'all' ? '' : `&config=${currentConfig}`;
+    const r = await fetch(`/api/order-edits?days=${currentRange}${cfgParam}`);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Load failed');
+    render(d);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="err">Error: ${htmlEsc(e.message)}</div>`;
+  }
+}
+
+function render(d) {
+  // Summary
+  const sum = d.summary;
+  document.getElementById('summary').innerHTML = `
+    <div class="stat"><div class="n">${sum.total_orders}</div><div class="l">Orders in range</div></div>
+    <div class="stat ${sum.edited > 0 ? 'medium' : 'low'}"><div class="n">${sum.edited}</div><div class="l">Edited</div></div>
+    <div class="stat"><div class="n">${sum.edit_pct}%</div><div class="l">Edit rate</div></div>
+    <div class="stat high"><div class="n">${sum.by_severity.high}</div><div class="l">High concern</div></div>
+    <div class="stat medium"><div class="n">${sum.by_severity.medium}</div><div class="l">Medium</div></div>
+    <div class="stat low"><div class="n">${sum.by_severity.low}</div><div class="l">Low</div></div>
+  `;
+
+  // Empty state
+  if (!d.edits || d.edits.length === 0) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty good">
+        <div class="em">✓</div>
+        Clean. Zero orders edited after save in the selected range.
+      </div>
+    `;
+    return;
+  }
+
+  // Group by IST date
+  const byDay = {};
+  for (const e of d.edits) {
+    const dayKey = new Date(e.write_date.replace(' ', 'T') + 'Z').toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
+    if (!byDay[dayKey]) byDay[dayKey] = [];
+    byDay[dayKey].push(e);
+  }
+
+  const html = Object.keys(byDay).map(day => {
+    const rows = byDay[day];
+    return `
+      <div class="day-section">
+        <div class="day-title">
+          <span>${htmlEsc(day)}</span>
+          <span class="count">${rows.length} edit${rows.length === 1 ? '' : 's'}</span>
+        </div>
+        ${rows.map(e => `
+          <div class="edit ${e.edit_severity} ${e.is_system_edit ? 'system' : ''}" onclick="this.classList.toggle('open')">
+            <div class="head">
+              <div>
+                <div class="order-name">
+                  ${htmlEsc(e.name)}
+                  <span class="gap-badge ${e.edit_severity}">${fmtGap(e.edit_gap_seconds)}</span>
+                  ${e.is_system_edit ? '<span class="system-badge">System edit</span>' : ''}
+                </div>
+                <div class="meta">
+                  <span><strong>${htmlEsc(e.cashier)}</strong> created · <strong>${htmlEsc(e.write_user)}</strong> edited</span>
+                  <span>${htmlEsc(e.config)}</span>
+                  <span>${e.partner ? '👤 ' + htmlEsc(e.partner) : '—'}</span>
+                </div>
+              </div>
+              <div class="amount">${fmtRupees(e.amount)}</div>
+            </div>
+            <div class="details">
+              <div class="row"><span class="k">Order date</span><span class="v">${fmtIST(e.date_order)}</span></div>
+              <div class="row"><span class="k">Created in Odoo</span><span class="v">${fmtIST(e.create_date)} · ${htmlEsc(e.create_user)}</span></div>
+              <div class="row"><span class="k">Last edited</span><span class="v">${fmtIST(e.write_date)} · ${htmlEsc(e.write_user)}</span></div>
+              <div class="row"><span class="k">Edit gap</span><span class="v">${e.edit_gap_seconds} seconds (${fmtGap(e.edit_gap_seconds)})</span></div>
+              <div class="row"><span class="k">State</span><span class="v">${htmlEsc(e.state)}</span></div>
+              <div class="row"><span class="k">Cashier (employee)</span><span class="v">${htmlEsc(e.cashier)}</span></div>
+              <div class="row"><span class="k">POS config</span><span class="v">${htmlEsc(e.config)} (#${e.config_id})</span></div>
+              <div class="row"><span class="k">Order ID</span><span class="v">${e.id}</span></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('content').innerHTML = html;
+}
+
+// Auto-load if PIN is in URL hash (deep link convenience)
+const hashPin = location.hash.match(/pin=(\d{4,6})/);
+if (hashPin) {
+  document.getElementById('pin').value = hashPin[1];
+  setTimeout(load, 100);
+}
+</script>
+</body>
+</html>
