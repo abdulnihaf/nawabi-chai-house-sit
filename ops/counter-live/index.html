@@ -215,9 +215,10 @@ function enableAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     // Critical: must call resume() inside the click handler to satisfy autoplay policy
     audioCtx.resume();
-    // Intro: ding + voice
-    playDing();
-    setTimeout(() => speak(`${BRAND} counter live. Sound enabled. Logged in as ${userName}.`), 350);
+    // Intro: warm chime + gentle pad + voice
+    playChime();
+    startBackgroundPad(4.5);
+    setTimeout(() => speak(`Welcome ${userName}. Nawabi Chai House counter live. Sound enabled.`), 400);
 
     document.getElementById('audioOverlay').style.display = 'none';
     document.getElementById('dash').classList.add('live');
@@ -239,51 +240,112 @@ if ('speechSynthesis' in window) {
 }
 
 // ─── SOUND PRIMITIVES ──────────────────────────────────────────────
-function playDing() {
+// Plays a warm 2-note welcome chime (perfect 5th: G4 → C5) — softer and friendlier
+// than the harsh cha-ching. Length ~0.7 sec, fades naturally.
+function playChime() {
   if (muted || !audioCtx) return;
   try {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.type = 'sine';
     const now = audioCtx.currentTime;
-    // Two-tone cha-ching: 880Hz climbing to 1320Hz over 100ms
-    o.frequency.setValueAtTime(880, now);
-    o.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
-    g.gain.setValueAtTime(0.0, now);
-    g.gain.linearRampToValueAtTime(0.35, now + 0.015);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-    o.start(now);
-    o.stop(now + 0.5);
-  } catch (e) { console.warn('ding failed', e); }
+    // First note: G4 (392Hz)
+    chimeNote(392.0, now + 0.00, 0.55, 0.22);
+    // Second note: C5 (523Hz) — perfect 5th up, warm interval
+    chimeNote(523.25, now + 0.13, 0.55, 0.20);
+  } catch (e) { console.warn('chime failed', e); }
+}
+function chimeNote(freq, startTime, duration, peakGain) {
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = 'triangle';   // Triangle is warmer than sine; gentle bell tone
+  o.frequency.setValueAtTime(freq, startTime);
+  g.gain.setValueAtTime(0.0, startTime);
+  g.gain.linearRampToValueAtTime(peakGain, startTime + 0.02);  // quick attack
+  g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);  // long decay
+  o.start(startTime);
+  o.stop(startTime + duration + 0.1);
+}
+
+// Soft sustained ambient chord underneath the voice — like a gentle restaurant ambient pad
+// Uses C major chord (C-E-G) at very low gain, fades in and out around the voice
+let activePadNodes = [];
+function startBackgroundPad(durationSec) {
+  if (muted || !audioCtx) return;
+  stopBackgroundPad();
+  try {
+    const now = audioCtx.currentTime;
+    const chord = [261.63, 329.63, 392.00];  // C4 E4 G4 — major triad
+    chord.forEach((freq, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type = 'sine';                  // pure sine = soft pad
+      o.frequency.setValueAtTime(freq, now);
+      // Each note slightly different gain for richness
+      const peak = 0.022 - (i * 0.003);
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(peak, now + 0.4);  // gentle fade in
+      g.gain.setValueAtTime(peak, now + durationSec - 0.6);
+      g.gain.exponentialRampToValueAtTime(0.001, now + durationSec);  // fade out
+      o.start(now);
+      o.stop(now + durationSec + 0.1);
+      activePadNodes.push({ o, g });
+    });
+  } catch (e) { console.warn('pad failed', e); }
+}
+function stopBackgroundPad() {
+  activePadNodes.forEach(({ o }) => { try { o.stop(); } catch (_) {} });
+  activePadNodes = [];
+}
+
+// Voice — preferentially picks "Natural" / "Neural" Indian voices for human warmth
+// Windows 10/11 ships with: Microsoft Heera Online (Natural), Microsoft Ravi Online (Natural)
+// Local variants: Microsoft Heera, Microsoft Ravi, Microsoft Kalpana
+function pickVoice() {
+  if (cachedVoices.length === 0) cachedVoices = speechSynthesis.getVoices();
+  // Tier 1: Online "Natural" / "Neural" Indian English (Microsoft Azure neural TTS)
+  let v = cachedVoices.find((v) => /en-IN/i.test(v.lang) && /Natural|Neural|Online/i.test(v.name));
+  if (v) return v;
+  // Tier 2: Any India English voice (local Microsoft Heera / Ravi)
+  v = cachedVoices.find((v) => /en-IN/i.test(v.lang));
+  if (v) return v;
+  // Tier 3: Voices with Indian-sounding names
+  v = cachedVoices.find((v) => /Heera|Ravi|Kalpana|Veena|Aditi|Aisha|Raveena/i.test(v.name));
+  if (v) return v;
+  // Tier 4: Any "Natural" English voice (softer than default)
+  v = cachedVoices.find((v) => /en-/i.test(v.lang) && /Natural|Neural/i.test(v.name));
+  if (v) return v;
+  // Tier 5: British English (softer than US default)
+  v = cachedVoices.find((v) => v.lang === 'en-GB');
+  return v || null;
 }
 
 function speak(text) {
   if (muted || !('speechSynthesis' in window)) return;
   try {
-    // Cancel any pending utterance so we don't queue up during rush hour
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-IN';
-    u.rate = 1.05;
-    u.pitch = 1.0;
-    u.volume = 0.95;
-    // Pick India English voice if installed (Heera, Ravi, etc.); else default
-    if (cachedVoices.length === 0) cachedVoices = speechSynthesis.getVoices();
-    const v = cachedVoices.find((v) => /en-IN/i.test(v.lang))
-           || cachedVoices.find((v) => /Indian|Heera|Ravi|Kalpana/i.test(v.name))
-           || cachedVoices.find((v) => v.lang === 'en-GB')
-           || null;
+    // Slower + slightly lower pitch = more deliberate, less robotic
+    u.rate = 0.92;
+    u.pitch = 0.95;
+    u.volume = 1.0;
+    const v = pickVoice();
     if (v) u.voice = v;
     speechSynthesis.speak(u);
   } catch (e) { console.warn('speak failed', e); }
 }
 
+// Notify on new payment: chime → background pad starts → voice → pad fades
 function notifyNewPayment(p) {
-  playDing();
   const amount = Math.round(parseFloat(p.amount));
-  // Stagger ding then voice so the ding finishes first
-  setTimeout(() => speak(`${BRAND}. ${amount} rupees received.`), 380);
+  // Warm 2-note chime first (0.7s)
+  playChime();
+  // Background ambient pad covers the voice (lasts ~5 sec, fades around the voice)
+  startBackgroundPad(5.0);
+  // Voice starts after chime tail (slight overlap is fine)
+  setTimeout(() => {
+    speak(`Payment received. ${amount} rupees. Thank you for visiting Nawabi Chai House.`);
+  }, 400);
 }
 
 // ─── MUTE CONTROL ─────────────────────────────────────────────────
@@ -293,11 +355,11 @@ function toggleMute() {
   if (muted) {
     btn.textContent = '🔇 MUTED';
     btn.className = 'pill sound-off';
-    try { speechSynthesis.cancel(); } catch (_) {}
+    try { speechSynthesis.cancel(); stopBackgroundPad(); } catch (_) {}
   } else {
     btn.textContent = '🔊 SOUND ON';
     btn.className = 'pill sound-on';
-    playDing(); // confirmation
+    playChime(); // confirmation
   }
 }
 document.addEventListener('keydown', (e) => {
