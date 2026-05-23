@@ -73,11 +73,28 @@ export async function onRequest(context) {
   // Extract qr_id — present on QR payments
   // Razorpay docs: payment.notes.razorpay_qr_id (some integrations) or top-level qr_id
   // Use multiple fallback paths to be robust across event types
-  const qrId = payment.notes?.razorpay_qr_id
-            || payment.notes?.qr_id
-            || event?.payload?.qr_code?.entity?.id
-            || payment.qr_code_id
-            || null;
+  let qrId = payment.notes?.razorpay_qr_id
+          || payment.notes?.qr_id
+          || event?.payload?.qr_code?.entity?.id
+          || payment.qr_code_id
+          || null;
+
+  // HE integration uses notes.outlet + location (NOT razorpay_qr_id). Derive the qr_id
+  // from the integration metadata so HE payments don't fall through as orphans.
+  // Verified shape 2026-05-23: HE counter payments have
+  //   notes = { outlet: "hamza_express", location: "cash_counter", pos_config_id: "5", ... }
+  if (!qrId && payment.notes) {
+    const n = payment.notes;
+    if (n.outlet === 'hamza_express' && n.location === 'cash_counter') {
+      qrId = 'qr_SFifkGfaapvPPX';   // HE-COUNTER
+    } else if (n.outlet === 'nawabi_chai_house' && n.location === 'cash_counter') {
+      qrId = 'qr_SBdtUCLSHVfRtT';   // NCH-COUNTER
+    } else if (n.outlet === 'nawabi_chai_house' && n.location === 'runner_counter') {
+      qrId = 'qr_SBuDBQDKrC8Bch';   // NCH-RUNNER-COUNTER
+    }
+    // (Captain QRs not derivable from outlet+location alone — each captain card
+    //  has its own qr_id; requires shift-assignment lookup, deferred)
+  }
 
   if (!qrId) {
     // Not a QR payment (could be order-based / card etc.) — still log for debug
