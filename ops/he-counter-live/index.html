@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HE Counter UPI — Live</title>
+<style>
+  :root {
+    --brown: #AC7E54;
+    --wheat: #E9D1A9;
+    --amber: #D4A44C;
+    --bg: #0F0E0B;
+    --pane: #1A1813;
+    --pane2: #25221A;
+    --line: #3A3528;
+    --ink: #F5F0E8;
+    --muted: #8B8470;
+    --green: #4ADE80;
+    --red: #F87171;
+    --gold: #FFD66E;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body { padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  /* Overlays (PIN + audio enable) */
+  .overlay { position: fixed; inset: 0; background: rgba(15,14,11,0.95); display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 24px; z-index: 100; }
+  .overlay h1 { font-size: 32px; font-weight: 800; color: var(--gold); margin-bottom: 8px; letter-spacing: -0.02em; text-align: center; }
+  .overlay h1 .ac { color: var(--brown); }
+  .overlay .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; text-align: center; max-width: 400px; line-height: 1.5; }
+  .overlay input { font-size: 28px; padding: 14px 20px; border: 2px solid var(--line); background: var(--pane); color: var(--ink); border-radius: 10px; text-align: center; width: 180px; letter-spacing: 0.3em; margin-bottom: 16px; font-family: inherit; }
+  .overlay input:focus { outline: none; border-color: var(--brown); }
+  .overlay button { background: var(--brown); color: #fff; border: 0; padding: 16px 40px; font-size: 18px; font-weight: 700; border-radius: 10px; cursor: pointer; font-family: inherit; transition: transform .1s; }
+  .overlay button:hover { background: var(--amber); }
+  .overlay button:active { transform: scale(0.97); }
+  .overlay button.big { font-size: 22px; padding: 22px 60px; background: var(--gold); color: var(--bg); }
+  .overlay .err { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+  /* Dashboard layout */
+  .dash { display: none; }
+  .dash.live { display: block; }
+
+  header.brand { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: var(--pane); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; }
+  .brand .logo { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand .logo .ac { color: var(--brown); }
+  .brand .title { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .08em; }
+  .brand .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .brand .controls { display: flex; gap: 8px; align-items: center; }
+  .brand .pill { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--line); background: var(--pane2); color: var(--ink); }
+  .brand .pill.sound-on { color: var(--green); border-color: var(--green); }
+  .brand .pill.sound-off { color: var(--red); border-color: var(--red); }
+  .brand .status { width: 10px; height: 10px; border-radius: 50%; background: var(--green); margin-left: 6px; }
+  .brand .status.stale { background: var(--red); }
+
+  /* Stat cards */
+  .stat-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: var(--pane); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .stat-card .num { font-size: 56px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1.0; margin-top: 8px; }
+  .stat-card .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .stat-card.count .num { font-size: 36px; color: var(--ink); }
+
+  /* Latest payment hero */
+  .latest { background: linear-gradient(135deg, var(--pane2) 0%, var(--pane) 100%); border: 2px solid var(--brown); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; display: none; }
+  .latest.live { display: block; }
+  .latest.pulse { animation: glow 2s ease-out; }
+  @keyframes glow {
+    0% { box-shadow: 0 0 0 6px rgba(74,222,128,0.6); border-color: var(--green); }
+    100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); border-color: var(--brown); }
+  }
+  .latest .label { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .latest .amount { font-size: 42px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .latest .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  /* Payments list */
+  .recent { background: var(--pane); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+  .recent h2 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .row { display: grid; grid-template-columns: 70px 1fr 100px; align-items: center; padding: 10px 0; border-bottom: 1px dotted var(--line); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .row:last-child { border-bottom: 0; }
+  .row.new { animation: highlight 3s ease-out; }
+  @keyframes highlight {
+    0% { background: rgba(74,222,128,0.25); }
+    100% { background: transparent; }
+  }
+  .row .time { color: var(--muted); font-size: 12px; }
+  .row .vpa { color: var(--ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px; }
+  .row .amt { color: var(--green); font-weight: 700; text-align: right; font-size: 16px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 16px; padding: 12px; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .stat-grid { grid-template-columns: 1fr; }
+    .stat-card .num { font-size: 42px; }
+    .latest .amount { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PIN gate -->
+<div id="pinOverlay" class="overlay">
+  <h1><span class="ac">HE</span> Counter UPI · Live</h1>
+  <div class="sub">Enter your ops PIN to start live UPI monitoring with voice notifications.</div>
+  <input type="password" id="pinInput" placeholder="****" maxlength="6" autocomplete="off" autofocus>
+  <button onclick="verifyPin()">Enter</button>
+  <div class="err" id="pinErr"></div>
+</div>
+
+<!-- Audio enable gate -->
+<div id="audioOverlay" class="overlay" style="display:none;">
+  <h1>🔊 Enable Sound</h1>
+  <div class="sub">Click the button below to enable voice notifications. Chrome blocks audio until you click once. After this, every UPI payment will play a ding and announce the amount.</div>
+  <button class="big" onclick="enableAudio()">Click to Enable Sound</button>
+  <div class="err" id="audioErr"></div>
+</div>
+
+<!-- Main dashboard -->
+<div id="dash" class="dash wrap">
+
+  <header class="brand">
+    <div>
+      <div class="logo"><span class="ac">HE</span> Counter UPI</div>
+      <div class="title">Live notifications</div>
+      <div class="meta">Cashier: <span id="cashierName">—</span> · QR <code>qr_SFifkGfaapvPPX</code></div>
+    </div>
+    <div class="controls">
+      <button id="muteBtn" class="pill sound-on" onclick="toggleMute()">🔊 SOUND ON</button>
+      <span class="status" id="status" title="Connection status"></span>
+    </div>
+  </header>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="label">Today · Counter UPI</div>
+      <div class="num" id="todayAmount">—</div>
+      <div class="sub" id="todayCount">— payments</div>
+    </div>
+    <div class="stat-card count">
+      <div class="label">Last payment</div>
+      <div class="num" id="lastAmount">—</div>
+      <div class="sub" id="lastWhen">—</div>
+    </div>
+  </div>
+
+  <div id="latest" class="latest">
+    <div class="label">⚡ Most recent</div>
+    <div class="amount" id="latestAmt">—</div>
+    <div class="meta" id="latestMeta">—</div>
+  </div>
+
+  <div class="recent">
+    <h2>Recent payments · <span style="color:var(--green)">⚡ live push (~2 sec)</span></h2>
+    <div id="paymentsList">Loading…</div>
+  </div>
+
+  <footer>
+    ⚡ Push notifications via webhook + SSE (~2 sec end-to-end) · totals re-checked every 10s · press <kbd>M</kbd> to mute · Updated <span id="lastUpdate">—</span>
+  </footer>
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────
+const ALLOWED_PINS = ['0305', '5882', '3754', '8523', '6890', '6045', '3678', '2026', '8316', '4040', '5050'];
+const PIN_TO_NAME = {
+  '0305': 'Nihaf', '5882': 'Nihaf', '3754': 'Naveen',
+  '8523': 'Basheer', '6890': 'Tanveer',
+  '6045': 'Faheem', '3678': 'Faheem',
+  '2026': 'Zoya', '8316': 'Zoya',
+  '4040': 'Haneef', '5050': 'Nisar',
+};
+const REFRESH_INTERVAL_MS = 10000;
+const COUNTER_QR_ID = 'qr_SFifkGfaapvPPX';
+const BRAND = 'Hamza Express';
+let eventSource = null;
+let sseLastId = 0;
+let sseConnected = false;
+
+// ─── STATE ─────────────────────────────────────────────────────────
+let userPin = null, userName = null;
+let audioCtx = null;
+let muted = false;
+let seenPaymentIds = new Set();
+let initialLoad = true;
+let pollTimer = null;
+let cachedVoices = [];
+
+// ─── PIN GATE ──────────────────────────────────────────────────────
+document.getElementById('pinInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') verifyPin();
+});
+// Auto-fill if previously logged in (same browser/tab)
+try {
+  const saved = localStorage.getItem('nch_counter_pin');
+  if (saved && ALLOWED_PINS.includes(saved)) document.getElementById('pinInput').value = saved;
+} catch (_) {}
+
+function verifyPin() {
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinErr');
+  if (!ALLOWED_PINS.includes(pin)) {
+    err.textContent = 'Invalid PIN';
+    return;
+  }
+  userPin = pin;
+  userName = PIN_TO_NAME[pin] || 'User';
+  try { localStorage.setItem('nch_counter_pin', pin); } catch (_) {}
+  document.getElementById('pinOverlay').style.display = 'none';
+  document.getElementById('audioOverlay').style.display = 'flex';
+}
+
+// ─── AUDIO ENABLE ──────────────────────────────────────────────────
+function enableAudio() {
+  const err = document.getElementById('audioErr');
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Critical: must call resume() inside the click handler to satisfy autoplay policy
+    audioCtx.resume();
+    // Intro: warm chime + gentle pad + pre-generated welcome MP3 (Aman voice)
+    playWelcomeFor(userName);
+
+    document.getElementById('audioOverlay').style.display = 'none';
+    document.getElementById('dash').classList.add('live');
+    // Start: one initial refresh (populates totals + list) then PUSH-based stream
+    refresh();
+    pollTimer = setInterval(refresh, REFRESH_INTERVAL_MS);  // fallback poll for totals + safety
+    connectSSE();  // real-time push (~2 sec end-to-end)
+  } catch (e) {
+    err.textContent = 'Audio failed: ' + e.message;
+  }
+}
+
+// Pre-load voices (Chrome lazy-loads them)
+function loadVoices() {
+  cachedVoices = speechSynthesis.getVoices();
+}
+if ('speechSynthesis' in window) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+// ─── SOUND PRIMITIVES ──────────────────────────────────────────────
+// Plays a warm 2-note welcome chime (perfect 5th: G4 → C5) — softer and friendlier
+// than the harsh cha-ching. Length ~0.7 sec, fades naturally.
+function playChime() {
+  if (muted || !audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    // First note: G4 (392Hz)
+    chimeNote(392.0, now + 0.00, 0.55, 0.22);
+    // Second note: C5 (523Hz) — perfect 5th up, warm interval
+    chimeNote(523.25, now + 0.13, 0.55, 0.20);
+  } catch (e) { console.warn('chime failed', e); }
+}
+function chimeNote(freq, startTime, duration, peakGain) {
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = 'triangle';   // Triangle is warmer than sine; gentle bell tone
+  o.frequency.setValueAtTime(freq, startTime);
+  g.gain.setValueAtTime(0.0, startTime);
+  g.gain.linearRampToValueAtTime(peakGain, startTime + 0.02);  // quick attack
+  g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);  // long decay
+  o.start(startTime);
+  o.stop(startTime + duration + 0.1);
+}
+
+// Soft sustained ambient chord underneath the voice — like a gentle restaurant ambient pad
+// Uses C major chord (C-E-G) at very low gain, fades in and out around the voice
+let activePadNodes = [];
+function startBackgroundPad(durationSec) {
+  if (muted || !audioCtx) return;
+  stopBackgroundPad();
+  try {
+    const now = audioCtx.currentTime;
+    const chord = [261.63, 329.63, 392.00];  // C4 E4 G4 — major triad
+    chord.forEach((freq, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type = 'sine';                  // pure sine = soft pad
+      o.frequency.setValueAtTime(freq, now);
+      // Each note slightly different gain for richness
+      const peak = 0.022 - (i * 0.003);
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(peak, now + 0.4);  // gentle fade in
+      g.gain.setValueAtTime(peak, now + durationSec - 0.6);
+      g.gain.exponentialRampToValueAtTime(0.001, now + durationSec);  // fade out
+      o.start(now);
+      o.stop(now + durationSec + 0.1);
+      activePadNodes.push({ o, g });
+    });
+  } catch (e) { console.warn('pad failed', e); }
+}
+function stopBackgroundPad() {
+  activePadNodes.forEach(({ o }) => { try { o.stop(); } catch (_) {} });
+  activePadNodes = [];
+}
+
+// Voice — preferentially picks "Natural" / "Neural" Indian voices for human warmth
+// Windows 10/11 ships with: Microsoft Heera Online (Natural), Microsoft Ravi Online (Natural)
+// Local variants: Microsoft Heera, Microsoft Ravi, Microsoft Kalpana
+function pickVoice() {
+  if (cachedVoices.length === 0) cachedVoices = speechSynthesis.getVoices();
+  // Tier 1: Online "Natural" / "Neural" Indian English (Microsoft Azure neural TTS)
+  let v = cachedVoices.find((v) => /en-IN/i.test(v.lang) && /Natural|Neural|Online/i.test(v.name));
+  if (v) return v;
+  // Tier 2: Any India English voice (local Microsoft Heera / Ravi)
+  v = cachedVoices.find((v) => /en-IN/i.test(v.lang));
+  if (v) return v;
+  // Tier 3: Voices with Indian-sounding names
+  v = cachedVoices.find((v) => /Heera|Ravi|Kalpana|Veena|Aditi|Aisha|Raveena/i.test(v.name));
+  if (v) return v;
+  // Tier 4: Any "Natural" English voice (softer than default)
+  v = cachedVoices.find((v) => /en-/i.test(v.lang) && /Natural|Neural/i.test(v.name));
+  if (v) return v;
+  // Tier 5: British English (softer than US default)
+  v = cachedVoices.find((v) => v.lang === 'en-GB');
+  return v || null;
+}
+
+// Pre-generated MP3 amounts — see ops/counter-live/audio/ (Aman voice via macOS say)
+const PREGEN_AMOUNTS = new Set([5,10,15,20,25,30,35,40,45,50,60,70,80,90,100,120,140,150,160,180,200,220,240,250,280,300,350,400,450,500,600,700,800,900,1000]);
+const PREGEN_USERS = new Set(['nihaf','naveen','basheer','tanveer','faheem','zoya','haneef','nisar']);
+let activeAudio = null;
+
+function playAudioFile(url) {
+  try {
+    // Cancel any currently playing payment audio (don't queue)
+    if (activeAudio) { try { activeAudio.pause(); } catch (_) {} }
+    activeAudio = new Audio(url);
+    activeAudio.volume = 1.0;
+    activeAudio.play().catch(e => console.warn('audio play failed', url, e));
+  } catch (e) { console.warn('audio create failed', e); }
+}
+
+function speakFallback(text) {
+  // Browser TTS fallback — used ONLY for amounts not in pre-generated set (rare)
+  if (muted || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-IN';
+    u.rate = 0.92;
+    u.pitch = 0.95;
+    u.volume = 1.0;
+    const v = pickVoice();
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch (e) { console.warn('speak fallback failed', e); }
+}
+
+// Notify on new payment: chime → background pad starts → pre-generated MP3 (or fallback)
+function notifyNewPayment(p) {
+  if (muted) return;
+  const amount = Math.round(parseFloat(p.amount));
+  playChime();
+  startBackgroundPad(5.0);
+  setTimeout(() => {
+    if (PREGEN_AMOUNTS.has(amount)) {
+      // Cleanest path — Aman voice MP3
+      playAudioFile(`/ops/counter-live/audio/payment-${amount}.mp3`);
+    } else {
+      // Unusual amount — play default phrase then announce just the number via TTS
+      playAudioFile(`/ops/counter-live/audio/payment-default.mp3`);
+      setTimeout(() => speakFallback(`${amount} rupees`), 1500);
+    }
+  }, 400);
+}
+
+// ─── SSE PUSH STREAM ─────────────────────────────────────────────
+// Opens an EventSource to /api/payment-stream?qr=COUNTER_QR_ID
+// Razorpay webhook → D1 insert → SSE pushes to us within 600ms total.
+// Lifetime per stream is ~25 sec (server-enforced); browser auto-reconnects
+// using the last received id as the new `since` cursor, so no gaps.
+function connectSSE() {
+  if (eventSource) { try { eventSource.close(); } catch (_) {} }
+  const url = `/api/payment-stream?qr=${encodeURIComponent(COUNTER_QR_ID)}&since=${sseLastId}`;
+  eventSource = new EventSource(url);
+  eventSource.addEventListener('hello', (ev) => {
+    sseConnected = true;
+    document.getElementById('status').className = 'status';
+    try { sseLastId = JSON.parse(ev.data).since || sseLastId; } catch (_) {}
+  });
+  eventSource.addEventListener('payment', (ev) => {
+    try {
+      const row = JSON.parse(ev.data);
+      sseLastId = Math.max(sseLastId, row.id || 0);
+      // Synthesize a payment object shape that notifyNewPayment expects
+      const p = {
+        id: row.payment_id,
+        amount: row.amount,
+        time: row.captured_at || row.received_at,
+        vpa: row.vpa,
+      };
+      // Mark as seen so the polling refresh doesn't double-fire
+      seenPaymentIds.add(p.id);
+      notifyNewPayment(p);
+      // Light immediate UI update without waiting for next poll
+      prependPaymentRow(p);
+    } catch (e) { console.warn('payment event parse', e); }
+  });
+  eventSource.addEventListener('reconnect', (ev) => {
+    try { sseLastId = JSON.parse(ev.data).since || sseLastId; } catch (_) {}
+    // Server told us to reconnect (lifetime exceeded); EventSource native reconnect won't fire
+    // because the server closed cleanly, so we re-open explicitly.
+    try { eventSource.close(); } catch (_) {}
+    setTimeout(connectSSE, 200);
+  });
+  eventSource.onerror = (e) => {
+    sseConnected = false;
+    document.getElementById('status').className = 'status stale';
+    // EventSource auto-reconnects on transport errors; we let it.
+    console.warn('SSE error, will auto-reconnect', e);
+  };
+}
+
+function prependPaymentRow(p) {
+  const list = document.getElementById('paymentsList');
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'row new';
+  row.dataset.id = p.id;
+  row.innerHTML = `
+    <span class="time">${fmtIST(p.time)}</span>
+    <span class="vpa">${htmlEsc(vpaShort(p.vpa))}</span>
+    <span class="amt">${fmtRupees(p.amount)}</span>
+  `;
+  list.prepend(row);
+  // Update latest hero card
+  const latestEl = document.getElementById('latest');
+  latestEl.classList.add('live');
+  document.getElementById('latestAmt').textContent = fmtRupees(p.amount);
+  document.getElementById('latestMeta').textContent = `${fmtIST(p.time)} · ${htmlEsc(p.vpa || 'unknown')}`;
+  latestEl.classList.remove('pulse');
+  void latestEl.offsetWidth;
+  latestEl.classList.add('pulse');
+  document.getElementById('lastAmount').textContent = fmtRupees(p.amount);
+  document.getElementById('lastWhen').textContent = fmtIST(p.time);
+}
+
+function playWelcomeFor(userName) {
+  if (muted) return;
+  playChime();
+  startBackgroundPad(4.5);
+  setTimeout(() => {
+    const u = (userName || '').toLowerCase();
+    if (PREGEN_USERS.has(u)) {
+      playAudioFile(`/ops/counter-live/audio/welcome-${u}.mp3`);
+    } else {
+      playAudioFile(`/ops/counter-live/audio/welcome-default.mp3`);
+    }
+  }, 400);
+}
+
+// ─── MUTE CONTROL ─────────────────────────────────────────────────
+function toggleMute() {
+  muted = !muted;
+  const btn = document.getElementById('muteBtn');
+  if (muted) {
+    btn.textContent = '🔇 MUTED';
+    btn.className = 'pill sound-off';
+    try { speechSynthesis.cancel(); stopBackgroundPad(); } catch (_) {}
+  } else {
+    btn.textContent = '🔊 SOUND ON';
+    btn.className = 'pill sound-on';
+    playChime(); // confirmation
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'm' || e.key === 'M') && audioCtx) toggleMute();
+});
+
+// ─── DATA REFRESH ─────────────────────────────────────────────────
+function fmtIST(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+function fmtRupees(n) { return '₹' + parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function htmlEsc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]); }
+function vpaShort(v) { return (v || '').length > 24 ? v.slice(0, 12) + '…' + v.slice(-8) : (v || '—'); }
+
+async function refresh() {
+  const status = document.getElementById('status');
+  try {
+    // Hosted on hnhotels.in (cross-brand). Cashier name = PIN-logged-in user.
+    const counterRes = await fetch(`/api/counter-recent?qr=${COUNTER_QR_ID}&limit=30`).then(r => r.json()).catch(() => null);
+    const counter = counterRes?.success ? {
+      amount: counterRes.total_amount || 0,
+      count: counterRes.total_count || 0,
+      payments: counterRes.payments || []
+    } : { amount: 0, count: 0, payments: [] };
+    const cashier = userName || '—';
+    document.getElementById('cashierName').textContent = cashier;
+    document.getElementById('todayAmount').textContent = fmtRupees(counter.amount);
+    document.getElementById('todayCount').textContent = `${counter.count || 0} payments`;
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    status.className = 'status';
+
+    const payments = (counter.payments || []).slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Detect new payments (skip on initial load to avoid notifying for backlog)
+    let newCount = 0;
+    if (!initialLoad) {
+      for (const p of payments) {
+        if (!seenPaymentIds.has(p.id)) {
+          notifyNewPayment(p);
+          newCount++;
+        }
+      }
+    }
+    payments.forEach(p => seenPaymentIds.add(p.id));
+
+    // Latest payment hero card
+    if (payments.length > 0) {
+      const latest = payments[0];
+      const el = document.getElementById('latest');
+      el.classList.add('live');
+      document.getElementById('latestAmt').textContent = fmtRupees(latest.amount);
+      document.getElementById('latestMeta').textContent = `${fmtIST(latest.time)} · ${htmlEsc(latest.vpa || 'unknown')}`;
+      if (newCount > 0) {
+        el.classList.remove('pulse');
+        // Force reflow to restart the animation
+        void el.offsetWidth;
+        el.classList.add('pulse');
+      }
+      document.getElementById('lastAmount').textContent = fmtRupees(latest.amount);
+      document.getElementById('lastWhen').textContent = fmtIST(latest.time);
+    }
+
+    // Render last 30 in scrollable list
+    const list = document.getElementById('paymentsList');
+    if (payments.length === 0) {
+      list.innerHTML = '<div class="empty">No UPI payments yet today</div>';
+    } else {
+      const html = payments.slice(0, 30).map((p, idx) => {
+        const isNew = !initialLoad && newCount > 0 && idx < newCount;
+        return `<div class="row ${isNew ? 'new' : ''}" data-id="${htmlEsc(p.id)}">
+          <span class="time">${fmtIST(p.time)}</span>
+          <span class="vpa">${htmlEsc(vpaShort(p.vpa))}</span>
+          <span class="amt">${fmtRupees(p.amount)}</span>
+        </div>`;
+      }).join('');
+      list.innerHTML = html;
+    }
+
+    initialLoad = false;
+  } catch (e) {
+    status.className = 'status stale';
+    console.error('refresh error', e);
+  }
+}
+</script>
+</body>
+</html>
