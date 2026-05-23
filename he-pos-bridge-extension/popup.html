@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>HE POS Bridge</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           width: 380px; margin: 0; padding: 14px; background: #1a1a1a; color: #eee; }
+    h2 { margin: 0 0 10px; font-size: 14px; color: #E8591A; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #333; font-size: 12px; }
+    .row:last-child { border-bottom: none; }
+    .key { color: #999; } .val { font-weight: 600; }
+    .ok { color: #66bb6a; } .warn { color: #ffa726; } .err { color: #ef5350; }
+    button { width: 100%; padding: 9px; margin-top: 8px; border: none; border-radius: 6px;
+             font-weight: 700; cursor: pointer; font-size: 12px; }
+    .primary { background: #E8591A; color: #fff; }
+    .secondary { background: #555; color: #eee; }
+    .machine-id { font-family: monospace; font-size: 10px; color: #888;
+                  margin-top: 8px; word-break: break-all; padding: 6px; background: #222; border-radius: 4px; }
+    .copy { font-size: 9px; color: #666; cursor: pointer; }
+    details { margin-top: 10px; }
+    summary { font-size: 11px; cursor: pointer; color: #999; padding: 6px 0; }
+    input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 6px;
+            background: #222; color: #eee; border: 1px solid #444; border-radius: 4px; font-size: 11px;
+            font-family: monospace; margin-top: 4px; }
+    label { font-size: 10px; color: #999; }
+    .tabs { display: flex; gap: 2px; margin: 10px 0 8px; }
+    .tab { flex: 1; padding: 6px; background: #2a2a2a; cursor: pointer; text-align: center;
+           font-size: 11px; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #E8591A; color: #fff; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    .log-line { font-family: monospace; font-size: 10px; padding: 3px 0; border-bottom: 1px solid #2a2a2a;
+                white-space: pre-wrap; word-break: break-all; }
+    .log-line.error { color: #ef5350; }
+    .log-line.warn { color: #ffa726; }
+    .log-line.info { color: #aaa; }
+    .pos-row { background: #222; border-radius: 4px; padding: 6px 8px; margin: 4px 0; font-size: 11px; }
+    .pos-row .pos-name { color: #E8591A; font-weight: 700; }
+    .pos-row .pos-detail { color: #aaa; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <h2>HE POS Bridge <span id="version" style="color:#666;font-size:10px;font-weight:400"></span></h2>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="status">Status</div>
+    <div class="tab" data-tab="pos-tabs">POS Tabs</div>
+    <div class="tab" data-tab="logs">Logs</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <div class="pane active" id="pane-status">
+    <div class="row"><span class="key">Internet</span><span class="val" id="online">–</span></div>
+    <div class="row"><span class="key">POS tabs open</span><span class="val" id="posOpen">–</span></div>
+    <div class="row"><span class="key">Total unsynced</span><span class="val" id="unsynced">–</span></div>
+    <div class="row"><span class="key">Active POS count</span><span class="val" id="activePosCount">–</span></div>
+    <div class="row"><span class="key">Last sync</span><span class="val" id="lastSync">–</span></div>
+    <div class="row"><span class="key">Status</span><span class="val" id="status">–</span></div>
+    <div class="row"><span class="key">Cloud reachable</span><span class="val" id="cloudOk">–</span></div>
+    <button class="primary" id="forceSyncBtn">Force sync all POS</button>
+    <button class="secondary" id="sendBeaconBtn">Send beacon</button>
+    <button class="secondary" id="snapshotBtn">Capture snapshot (first POS tab)</button>
+    <div class="machine-id" id="machineId">…</div>
+    <div class="copy" id="copyId">click to copy machine ID</div>
+  </div>
+
+  <div class="pane" id="pane-pos-tabs">
+    <div style="font-size:10px;color:#999;margin-bottom:6px">Open POS tabs detected by the extension. Each tab is monitored independently. All 3 must be open for full coverage.</div>
+    <div id="posTabsList"><div style="color:#666;font-size:11px;padding:8px">(loading…)</div></div>
+    <div style="margin-top:10px;font-size:10px;color:#888">
+      Expected: <strong style="color:#E8591A">POS 5</strong> Cash Counter,
+      <strong style="color:#E8591A">POS 6</strong> Captain,
+      <strong style="color:#E8591A">POS 32</strong> Ground Floor
+    </div>
+  </div>
+
+  <div class="pane" id="pane-logs">
+    <div style="font-size:10px;color:#999;margin-bottom:4px">Last 20 lines (extension's own console). Full history in cloud.</div>
+    <div id="logList" style="max-height:280px;overflow-y:auto;background:#222;padding:6px;border-radius:4px"></div>
+    <button class="secondary" id="clearLogsBtn" style="margin-top:8px">Clear local buffer</button>
+    <button class="secondary" id="flushLogsBtn">Flush to cloud now</button>
+  </div>
+
+  <div class="pane" id="pane-settings">
+    <label>Cloud secret (must match POS_BRIDGE_SECRET on hamza-express-site):</label>
+    <input type="password" id="secretInput" placeholder="Bearer token" />
+    <button class="primary" id="saveSecretBtn">Save secret</button>
+    <div style="font-size:10px;color:#666;margin-top:6px">Leave empty to use the built-in default from config.js.</div>
+
+    <details style="margin-top:14px">
+      <summary>Advanced</summary>
+      <button class="secondary" id="reloadExtBtn">Reload extension</button>
+      <button class="secondary" id="reloadTabBtn">Reload all POS tabs</button>
+      <button class="secondary" id="clearStorageBtn">Clear local storage</button>
+    </details>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

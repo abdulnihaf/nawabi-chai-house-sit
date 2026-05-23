@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "HE POS Bridge",
+  "version": "1.1.0",
+  "description": "Bidirectional bridge between the HE Odoo POS terminals and the cloud cron. v1.1: Captain Promise Pile badge — live per-operator cash settlement (cash collected − handed over) via /api/v2?action=captain-owes + Counter UPI today (last 8 payments on qr_SFifkGfaapvPPX). Visible on POS configs 5/6/32.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://test.hamzahotel.com/*",
+    "https://hamzaexpress.in/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://test.hamzahotel.com/pos/ui*", "https://test.hamzahotel.com/odoo/pos*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["https://test.hamzahotel.com/pos/ui*", "https://test.hamzahotel.com/odoo/pos*"],
+      "js": ["main-world.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "HE POS Bridge",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
