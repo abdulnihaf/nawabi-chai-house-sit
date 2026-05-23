@@ -119,6 +119,14 @@ async function cronTick(env, phones, cors) {
   try { results.pos_beacon = await checkPosBeaconHealth(env, phones); }
   catch (e) { results.pos_beacon = {error: e.message}; }
 
+  // 10. POS auto-fix (POS3) — chain to /api/pos-health-autofix so any stuck
+  // terminal with corrupted orders gets cleaned automatically. Defined
+  // pattern, no operational-context decisions — safe to run every 5 min.
+  try {
+    const afRes = await fetch(`${BASE_URL}/api/pos-health-autofix`, { method: 'POST' });
+    results.pos_auto_fix = await afRes.json();
+  } catch (e) { results.pos_auto_fix = { error: e.message }; }
+
   return json({success: true, cron_results: results}, cors);
 }
 
