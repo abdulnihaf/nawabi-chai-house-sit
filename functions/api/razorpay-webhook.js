@@ -1,4 +1,5 @@
 // /api/razorpay-webhook — receives push from Razorpay when a UPI payment is captured.
+// Deploy revision: 2026-05-23 17:30 IST — picks up RAZORPAY_WEBHOOK_SECRET env
 //
 // Flow: Razorpay POSTs here within ~1 sec of payment capture → we validate the
 // HMAC SHA256 signature → insert one row into razorpay_live_events D1 table.
