@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Takht">
+<meta name="theme-color" content="#0a0a10">
+<title>Takht · HN Hotels</title>
+<style>
+  :root{
+    --bg:#000; --e1:#14141c; --e2:#1c1c26; --e3:#26262f;
+    --line:rgba(255,255,255,.10); --line-soft:rgba(255,255,255,.05);
+    --text:#f8f8fa; --dim:#98989f; --mute:#5c5c66;
+    --gold:#d4a24c; --gold-soft:rgba(212,162,76,.14);
+    --red:#ff5c5c; --red-soft:rgba(255,92,92,.13);
+    --amber:#fbbf24; --amber-soft:rgba(251,191,36,.13);
+    --green:#34d399; --green-soft:rgba(52,211,153,.13);
+    --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,'SF Pro Text',Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;overscroll-behavior-y:contain;}
+  #app{padding:calc(var(--safe-top) + 8px) 16px calc(var(--safe-bot) + 40px);max-width:560px;margin:0 auto;}
+  h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px;}
+  h1 .since{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:500;color:var(--gold);font-size:20px;}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:18px;}
+  .card{background:var(--e1);border:.5px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;}
+  .card h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 12px;font-weight:700;}
+  .row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:.5px solid var(--line-soft);}
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--dim);font-size:14px;} .row .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .big{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:2px 0;}
+  .big.sm{font-size:28px;}
+  .muted{color:var(--mute);font-size:12px;}
+  .flag{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:12px;margin-bottom:8px;font-size:14px;line-height:1.4;}
+  .flag.red{background:var(--red-soft);border:.5px solid rgba(255,92,92,.3);} .flag.amber{background:var(--amber-soft);border:.5px solid rgba(251,191,36,.3);}
+  .flag.green{background:var(--green-soft);border:.5px solid rgba(52,211,153,.3);}
+  .flag .dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;}
+  .flag.red .dot{background:var(--red);} .flag.amber .dot{background:var(--amber);} .flag.green .dot{background:var(--green);}
+  .flag .ttl{font-weight:700;} .flag .cz{color:var(--dim);font-size:13px;margin-top:2px;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .pill.red{background:var(--red-soft);color:var(--red);} .pill.amber{background:var(--amber-soft);color:var(--amber);} .pill.green{background:var(--green-soft);color:var(--green);}
+  input{width:100%;background:var(--e2);border:.5px solid var(--line);border-radius:12px;color:var(--text);
+    font-size:18px;padding:13px;text-align:center;font-variant-numeric:tabular-nums;}
+  button{background:var(--gold);color:#1a1206;border:none;border-radius:12px;font-size:16px;font-weight:700;
+    padding:13px;width:100%;margin-top:10px;}
+  button:active{transform:scale(.97);}
+  .gate{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:30px;z-index:50;}
+  .gate .mk{font-size:40px;font-weight:800;color:var(--gold);}
+  .gate p{color:var(--dim);font-size:13px;margin:6px 0 22px;}
+  .gate input{max-width:220px;letter-spacing:6px;}
+  .err{color:var(--red);font-size:13px;margin-top:8px;min-height:16px;}
+  .refresh{color:var(--gold);font-size:13px;text-align:center;padding:12px;}
+  .loading{color:var(--mute);text-align:center;padding:30px;}
+</style>
+</head>
+<body>
+<section class="gate" id="gate">
+  <div class="mk">Takht</div>
+  <p>HN Hotels · Nawabi Chai House</p>
+  <input id="pin" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN" autocomplete="off">
+  <button onclick="unlock()">Enter</button>
+  <div class="err" id="gateErr"></div>
+</section>
+
+<div id="app" style="display:none">
+  <h1>Takht <span class="since">· settlement</span></h1>
+  <div class="sub" id="shiftLine">Nawabi Chai House</div>
+  <div id="content"><div class="loading">Pulling live state…</div></div>
+  <div class="refresh" onclick="load()">↻ Refresh</div>
+</div>
+
+<script>
+const API='/api';
+const PIN=()=>localStorage.getItem('takht_pin')||'';
+const rupee=n=>'₹'+Math.round(n||0).toLocaleString('en-IN');
+
+async function unlock(){
+  const pin=document.getElementById('pin').value.trim();
+  const e=document.getElementById('gateErr'); e.textContent='';
+  try{
+    const r=await fetch(`${API}/settlement?action=verify-pin&pin=${encodeURIComponent(pin)}`).then(r=>r.json());
+    if(r&&r.success){ localStorage.setItem('takht_pin',pin); document.getElementById('gate').style.display='none';
+      document.getElementById('app').style.display='block'; load(); }
+    else e.textContent='Invalid PIN';
+  }catch(err){ e.textContent='Connection error'; }
+}
+if(PIN()){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; }
+
+async function get(path){ try{ return await fetch(`${API}/${path}`).then(r=>r.json()); }catch(e){ return {success:false,error:String(e)}; } }
+
+async function load(){
+  const c=document.getElementById('content'); c.innerHTML='<div class="loading">Pulling live state…</div>';
+  const [bal,prev,rzp,tok,shift]=await Promise.all([
+    get('settlement?action=counter-balance'),
+    get('settlement?action=shift-preview'),
+    get('validator?action=razorpay-verify'),
+    get('token-settlement?action=get-status'),
+    get('settlement?action=current-shift'),
+  ]);
+  const flags=[];
+  let html='';
+
+  // ── CASH TO COLLECT (clean equation: counter + runner, no cash expenses) ──
+  const b=(bal&&bal.balance)||{};
+  const counter=b.counterCash||0, runner=b.runnerCash||0, exp=b.totalExpenses||0, total=b.total||0;
+  html+=`<div class="card"><h2>Cash to collect — since last sweep</h2>
+    <div class="big">${rupee(total)}</div>
+    <div class="muted" style="margin-bottom:10px">expected in your hand now</div>
+    <div class="row"><span class="k">Counter cash</span><span class="v">${rupee(counter)}</span></div>
+    <div class="row"><span class="k">Runner cash</span><span class="v">${rupee(runner)}</span></div>
+    <div class="row"><span class="k">Cash expenses</span><span class="v">${rupee(exp)} ${exp===0?'<span class="pill green">UPI-only ✓</span>':'<span class="pill amber">check</span>'}</span></div>
+    <div class="muted" style="margin-top:8px">Count physical cash, enter below — Takht shows the variance.</div>
+    <input id="counted" type="tel" inputmode="numeric" placeholder="enter cash you counted" oninput="variance(${total})" style="margin-top:10px">
+    <div id="varOut" class="muted" style="margin-top:8px"></div>
+  </div>`;
+  if(exp>0) flags.push(['amber','Cash expenses present ('+rupee(exp)+')','New regime is UPI-only — any cash expense needs a reason.']);
+
+  // ── UPI RECONCILIATION (Razorpay actually received vs POS recorded) ──
+  if(rzp&&rzp.success&&rzp.snapshots){
+    html+='<div class="card"><h2>UPI · Razorpay vs POS</h2>';
+    rzp.snapshots.forEach(s=>{
+      const gap=(s.excess||0)-(s.deficit||0);
+      const off=Math.abs(gap)>1;
+      html+=`<div class="row"><span class="k">${s.entity}${s.is_runner_qr?' <span class="muted">(runner)</span>':''}</span>
+        <span class="v">${rupee(s.razorpay)} <span class="muted">rzp</span> · ${rupee(s.pos_upi)} <span class="muted">pos</span>
+        ${off?(gap>0?'<span class="pill red">+'+rupee(gap)+'</span>':'<span class="pill red">'+rupee(gap)+'</span>'):'<span class="pill green">✓</span>'}</span></div>`;
+    });
+    html+='</div>';
+    (rzp.discrepancies||[]).forEach(d=>{
+      const runnerExcess=d.type==='excess';
+      flags.push(['red',`${d.entity}: UPI ${d.type} ${rupee(d.amount)}`,
+        runnerExcess? 'Money received on this QR that POS didn’t record as UPI — a cash-sale-rung-wrong, or a runner sale that wasn’t scanned (NOT a tip).'
+                    : 'POS recorded UPI that Razorpay never received — cash marked as UPI, or paid to a different QR.']);
+    });
+  }
+
+  // ── CHAI / TOKEN LEAK ──
+  if(tok&&tok.success&&tok.lastSettlement){
+    const t=tok.lastSettlement, disc=t.discrepancy||0;
+    html+=`<div class="card"><h2>Chai · token box (last close)</h2>
+      <div class="row"><span class="k">Weighed tokens</span><span class="v">${t.token_count}</span></div>
+      <div class="row"><span class="k">POS beverages</span><span class="v">${t.odoo_total_beverages}</span></div>
+      <div class="row"><span class="k">Discrepancy</span><span class="v">${disc>0?'+':''}${disc} ${Math.abs(disc)>20?'<span class="pill red">leak?</span>':'<span class="pill green">ok</span>'}</span></div>
+      <div class="muted" style="margin-top:6px">${t.notes||''} · closed ${new Date(t.settled_at).toLocaleString('en-IN')}</div></div>`;
+    if(disc>20) flags.push(['amber',`Chai leak signal: +${disc} tokens vs POS`,'More chai physically left than the POS recorded — chai served without a bill.']);
+  }
+
+  // ── SESSION STATUS (B1.1) ──
+  const sh=(shift&&shift.current)||{};
+  if(sh.shift_minutes){
+    const days=Math.floor(sh.shift_minutes/1440);
+    html+=`<div class="card"><h2>POS session</h2>
+      <div class="row"><span class="k">On shift</span><span class="v">${sh.name||'—'}</span></div>
+      <div class="row"><span class="k">Open for</span><span class="v">${days} days ${days>1?'<span class="pill red">never closed</span>':'<span class="pill green">ok</span>'}</span></div></div>`;
+    if(days>1) flags.push(['red',`POS session open ${days} days`,'Close it tonight at settlement so cash reconciles to a clean day (the foundation fix).']);
+  }
+
+  // ── FLAGS SUMMARY (top of mind) ──
+  let flagHtml='<div class="card"><h2>Flags — read to staff at settlement</h2>';
+  if(flags.length===0){ flagHtml+='<div class="flag green"><span class="dot"></span><div><div class="ttl">All clean</div><div class="cz">Every rupee maps to a destination. Nothing off.</div></div></div>'; }
+  else flags.forEach(f=>{ flagHtml+=`<div class="flag ${f[0]}"><span class="dot"></span><div><div class="ttl">${f[1]}</div><div class="cz">${f[2]}</div></div></div>`; });
+  flagHtml+='</div>';
+
+  c.innerHTML=flagHtml+html;
+  if(sh.name) document.getElementById('shiftLine').textContent=`Cashier: ${sh.name} · ${new Date().toLocaleString('en-IN')}`;
+}
+
+function variance(expected){
+  const v=parseFloat(document.getElementById('counted').value||'0');
+  const o=document.getElementById('varOut');
+  if(!document.getElementById('counted').value){ o.textContent=''; return; }
+  const d=v-expected;
+  if(Math.abs(d)<=2) o.innerHTML='<span class="pill green">matches ✓</span> drawer is exactly right.';
+  else if(d<0) o.innerHTML=`<span class="pill red">short ${rupee(-d)}</span> — cash missing vs expected.`;
+  else o.innerHTML=`<span class="pill amber">over ${rupee(d)}</span> — extra cash; likely a sale not scanned to a runner (not a tip), or a tender mis-tag.`;
+}
+</script>
+</body>
+</html>
