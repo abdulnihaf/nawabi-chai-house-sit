@@ -574,6 +574,8 @@ export async function onRequest(context) {
     // Called less frequently (every 5 min or before settlement) to avoid rate limits.
     if (action === 'razorpay-verify') {
       if (!RZP_KEY || !RZP_SECRET) return json({ success: false, error: 'Razorpay keys not configured' }, cors);
+      // source tag: 'cron_auto' when driven by the nch-cron scheduler, else 'manual' (client-triggered). Lets Takht distinguish auto-detected vs manual.
+      const discSource = url.searchParams.get('source') || 'manual';
 
       // GAP 1 FIX: Use actual shift period (last counter settlement), not start-of-day
       const now = new Date();
@@ -592,6 +594,19 @@ export async function onRequest(context) {
       if (!shiftFromIST) {
         const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
         shiftFromIST = `${istNow.toISOString().slice(0, 10)} 00:00:00`;
+      }
+      // CLAMP the reconciliation window. The counter last settled 2026-03-18, so the
+      // unclamped "since last counter settlement" window had grown to ~72 days — pulling
+      // weeks of Razorpay (7 QRs × 50 pages) + Odoo until the request timed out. That
+      // self-strangling window is exactly why razorpay-verify silently died on 2026-04-14.
+      // UPI reconciliation is an intraday check; an 18h floor covers a full late-night→
+      // morning NCH shift without overreach. Keeps "since last counter settlement" when
+      // the counter settles regularly (period < 18h), clamps it otherwise.
+      const MAX_LOOKBACK_MS = 18 * 60 * 60 * 1000;
+      const floorMs = now.getTime() - MAX_LOOKBACK_MS;
+      const shiftFromMs = new Date(shiftFromIST.replace(' ', 'T') + '+05:30').getTime();
+      if (isNaN(shiftFromMs) || shiftFromMs < floorMs) {
+        shiftFromIST = toIST(new Date(floorMs));
       }
 
       // Convert to unix timestamps for Razorpay API
@@ -720,8 +735,8 @@ export async function onRequest(context) {
         // Insert only current discrepancies
         for (const d of discrepancies) {
           stmts.push(
-            DB.prepare(`INSERT INTO payment_discrepancies (disc_type, amount, expected_entity, actual_entity, detected_at, status, assigned_role, order_ref) VALUES (?, ?, ?, ?, datetime('now'), 'pending', 'cashier', ?)`)
-              .bind(d.type, d.amount, d.entity, d.entity, d.desc)
+            DB.prepare(`INSERT INTO payment_discrepancies (disc_type, amount, expected_entity, actual_entity, detected_at, status, assigned_role, order_ref, source) VALUES (?, ?, ?, ?, datetime('now'), 'pending', 'cashier', ?, ?)`)
+              .bind(d.type, d.amount, d.entity, d.entity, d.desc, discSource)
           );
         }
         const results = await DB.batch(stmts);
