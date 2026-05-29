@@ -370,6 +370,41 @@ export async function onRequest(context) {
       }, cors);
     }
 
+    // ── COMP-PULSE — comp (PM_49) visibility: rate + per-cashier attribution, NON-blocking ──
+    // Comp is low-rupee (~₹500/day, avg ₹37/comp), so this is VISIBILITY for Takht, not a gate.
+    // Surfaces who is comping how much; soft-flags when comp rate > 2× the verified baseline.
+    if (action === 'comp-pulse') {
+      const COMP_BASELINE_RATE = 0.095;  // verified May 2026: 376 comps / 3948 POS_27 payments
+      const now = new Date();
+      const fromIST = url.searchParams.get('from') || toIST(new Date(now.getTime() - 18 * 60 * 60 * 1000));
+      const toISTp = url.searchParams.get('to') || toIST(now);
+      const orders = await fetchOdooOrders(ODOO_API_KEY, fromIST, toISTp);
+      let totalOrders = 0, compOrders = 0, compAmount = 0;
+      const byCashier = {};
+      for (const o of orders) {
+        if (o.config_id !== POS.CASH_COUNTER) continue;  // comp lives only on the cash counter
+        totalOrders++;
+        const uid = Array.isArray(o.user_id) ? o.user_id[0] : o.user_id;
+        const cashier = o.cashier_name || (Array.isArray(o.user_id) ? o.user_id[1] : null) || `User ${uid}`;
+        const b = byCashier[cashier] || (byCashier[cashier] = { cashier, orders: 0, comps: 0, comp_amount: 0 });
+        b.orders++;
+        const comp = (o.payments || []).find(p => p.method_id === PM.COMP);
+        if (comp) { compOrders++; compAmount += comp.amount || 0; b.comps++; b.comp_amount += comp.amount || 0; }
+      }
+      const rate = totalOrders ? compOrders / totalOrders : 0;
+      const by_cashier = Object.values(byCashier)
+        .map(c => ({ ...c, comp_amount: Math.round(c.comp_amount), rate: c.orders ? +(c.comps / c.orders).toFixed(3) : 0 }))
+        .sort((a, b) => b.comps - a.comps);
+      return json({
+        success: true,
+        period: { from: fromIST, to: toISTp },
+        total_orders: totalOrders, comp_orders: compOrders, comp_amount: Math.round(compAmount),
+        comp_rate: +rate.toFixed(3), baseline_rate: COMP_BASELINE_RATE,
+        breach: rate > COMP_BASELINE_RATE * 2,
+        by_cashier
+      }, cors);
+    }
+
     // ── SCAN-RECENT — cursor-based incremental scan (called by cashier page on load + every 60s) ──
     if (action === 'scan-recent') {
       // Read last scan cursor
@@ -812,8 +847,8 @@ const VALID_MWR = new Set([
   '37:27:0',
   // T02: UPI + Cash Counter + No Runner
   '38:27:0',
-  // T03: Card + Cash Counter + No Runner
-  '39:27:0',
+  // (Card on Cash Counter is DEFERRED — no terminal exists. PM_39 is rejected as
+  //  'deferred_channel' in validateOrder, so it is intentionally NOT a valid tuple.)
   // T04: Comp + Cash Counter + No Runner
   '49:27:0',
   // T05-T09: Token Issue + Cash Counter + Runner
@@ -902,6 +937,29 @@ function validateOrder(order) {
     const methodId = payment.method_id;
     const methodName = payment.method_name || METHOD_NAMES[methodId] || `Method ${methodId}`;
 
+    // ── CHECK 0: deferred channel — Card (PM_39) has no terminal at NCH; any row is an impossibility ──
+    if (methodId === PM.CARD) {
+      errors.push({
+        order_id: order.id,
+        order_ref: order.name || order.pos_reference,
+        error_code: 'deferred_channel',
+        description: `Card (PM_39) is a DEFERRED channel — no card terminal exists at NCH, so this payment cannot be real. Re-tender as Cash/UPI or void the line.`,
+        pos_config_id: posId, pos_config_name: posName,
+        payment_method_id: methodId, payment_method_name: methodName,
+        odoo_payment_id: payment.id || null,
+        runner_partner_id: partnerId || null, runner_slot: runnerSlot,
+        product_ids: (order.lines || []).map(l => l.product_id),
+        product_names: (order.lines || []).map(l => l.product_name),
+        cashier_uid: order.user_id,
+        cashier_name: order.cashier_name || `User ${order.user_id}`,
+        order_amount: payment.amount || order.amount_total,
+        order_time: order.date_order,
+        assigned_to: (order.cashier_name || `User ${order.user_id}`).toLowerCase(),
+        assigned_role: 'cashier'
+      });
+      continue;
+    }
+
     // ── CHECK 1: (M, W, R) tuple must be in the valid set of 15 ──
     const mwrKey = `${methodId}:${posId}:${runnerKey}`;
 
@@ -923,7 +981,7 @@ function validateOrder(order) {
         } else if (posId === POS.RUNNER_COUNTER) {
           description += `Runner Counter without runner: only UPI allowed.`;
         } else {
-          description += `Cash Counter without runner: only Cash, UPI, Card, or Comp allowed.`;
+          description += `Cash Counter without runner: only Cash, UPI, or Comp allowed (Card is deferred — no terminal).`;
         }
       }
 
